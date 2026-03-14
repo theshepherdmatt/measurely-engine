@@ -1351,9 +1351,14 @@ class MeasurelyDashboard {
         this.showLoadingState();
 
         // ── 1. Try localStorage first (instant, no network) ──────────────
-        if (window.MeasurelySessions) {
-            const localSessions = window.MeasurelySessions.lsRead?.() ||
-                JSON.parse(localStorage.getItem('measurely_sessions') || '[]');
+        // Read sessions regardless of whether sessions.js is loaded so that
+        // diagnose.html / simulate.html (which don't bundle sessions.js) still
+        // pick up data written by app.html.
+        {
+            const localSessions = window.MeasurelySessions
+                ? (window.MeasurelySessions.lsRead?.() ||
+                   JSON.parse(localStorage.getItem('measurely_sessions') || '[]'))
+                : JSON.parse(localStorage.getItem('measurely_sessions') || '[]');
 
             if (Array.isArray(localSessions) && localSessions.length > 0) {
                 const latest = localSessions[0]; // newest first by design
@@ -1396,7 +1401,7 @@ class MeasurelyDashboard {
                 !latest ||
                 latest.has_analysis !== true
             ) {
-                console.warn("⚠️ No local data and no valid server session");
+                console.log("[Dashboard] No sessions found — upload a measurement to get started.");
                 window.__IGNORE_LATEST_SWEEP__ = false;
                 this.currentData = null;
                 this.updateDashboard();
@@ -2631,6 +2636,14 @@ class MeasurelyDashboard {
     POLLING FOR DEVICE STATUS
     ============================================================ */
     startPolling() {
+        // Skip polling entirely on static hosting — no Pi to query
+        if (isStaticHosting()) {
+            this.deviceStatus = { ready: true, mode: 'web',
+                mic: { connected: true, name: 'browser' },
+                dac: { connected: true, name: 'browser' } };
+            this.updateDeviceStatusDisplay();
+            return;
+        }
         this.updateInterval = setInterval(async () => {
             try {
                 await this.updateDeviceStatus();
@@ -2641,14 +2654,12 @@ class MeasurelyDashboard {
     }
 
     async updateDeviceStatus() {
-        // In web/GitHub Pages mode, treat the system as always ready.
-        // Only poll /api/status if running on the Pi (non-localhost origins may also have it).
+        // Only reached when running against a Pi (isStaticHosting() is false)
         try {
             const res = await fetch('/api/status');
             if (!res.ok) throw new Error('no status');
             this.deviceStatus = await res.json();
         } catch {
-            // Offline or GitHub Pages — synthesise a 'web mode' ready state
             this.deviceStatus = {
                 ready: true, mode: 'web',
                 mic: { connected: true, name: 'browser' },
