@@ -415,7 +415,64 @@ const steps = [
   },
 
   /* ─────────────────────────────────────────────────────────────
-     STEP 2 — FURNITURE
+     STEP 2 — SPEAKER PLACEMENT
+     The 3D room shows full speakers in "speakers" stage. Dragging
+     speakers in the 3D view syncs the spacing / front-wall sliders.
+  ───────────────────────────────────────────────────────────── */
+  {
+    type: "speakers",
+    sectionLabel: "Speakers",
+    title: "Where are your speakers?",
+    desc: "Speaker placement is the single biggest lever you have — everything from bass build-up to stereo imaging depends on these numbers.",
+    dave: "Distance from the front wall is critical — it sets the frequency of your first SBIR null. At 30 cm that's around 285 Hz, right in the meat of the midrange. Pull the speakers forward and watch the null drop in frequency.",
+    fields: [
+      {
+        key: "setup.spk_spacing_m",
+        label: "Speaker spacing",
+        sub: "Tweeter-to-tweeter distance",
+        min: 0.5, max: 5.0, step: 0.05
+      },
+      {
+        key: "setup.spk_front_m",
+        label: "Distance from front wall",
+        sub: "From speaker baffle to wall behind it",
+        min: 0.1, max: 3.0, step: 0.05
+      },
+      {
+        key: "setup.tweeter_height_m",
+        label: "Tweeter height",
+        sub: "From floor to tweeter centre",
+        min: 0.5, max: 2.0, step: 0.01
+      },
+      {
+        key: "setup.toe_in_deg",
+        label: "Toe-in angle",
+        sub: "Degrees each speaker is rotated inward",
+        min: 0, max: 45, step: 1
+      },
+      {
+        key: "setup.listener_front_m",
+        label: "Listening distance",
+        sub: "From speaker plane to your ears",
+        min: 0.5, max: 6.0, step: 0.05
+      },
+      {
+        key: "setup.listener_offset_m",
+        label: "Listening position offset",
+        sub: "Left/right offset from room centre line (0 = centred)",
+        min: -2.0, max: 2.0, step: 0.05
+      },
+      {
+        key: "setup.subwoofer",
+        kind: "toggle",
+        label: "Subwoofer",
+        sub: "Bass below ~80 Hz comes from a separate source"
+      }
+    ]
+  },
+
+  /* ─────────────────────────────────────────────────────────────
+     STEP 3 — FURNITURE
   ───────────────────────────────────────────────────────────── */
   {
     type: "furniture",
@@ -609,7 +666,17 @@ const VALIDATION_RULES = {
     return errs;
   },
 
-  // Step 2 — Furniture
+  // Step 2 — Speaker placement
+  speakers(s) {
+    const errs = [];
+    const sp = s.setup;
+    if (sp.spk_spacing_m > sp.listener_front_m) {
+      errs.push({ key: "setup.listener_front_m", msg: "Listening distance should be at least equal to speaker spacing." });
+    }
+    return errs;
+  },
+
+  // Step 3 — Furniture
   furniture() { return []; },
 };
 
@@ -676,6 +743,9 @@ function loadStep() {
     } else if (step.type === "dimensions") {
         targetStage = "room";
         targetFocus = "dimensions";
+    } else if (step.type === "speakers") {
+        targetStage = "speakers";
+        targetFocus = "placement";
     } else if (step.type === "furniture") {
         targetStage = "furnishings";
         targetFocus = "materials";

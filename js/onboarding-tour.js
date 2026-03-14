@@ -49,9 +49,11 @@ export const onboardingStyles = {
 
 // Maps wizard page index → first tour step for that page.
 // Called by loadStep() via window.syncTourToWizard().
+// Wizard pages: 0=Use, 1=Dimensions, 2=Speakers, 3=Furniture
 export const wizardToJoyrideStep = {
-  1: 6,   // wizard page 1 (speakers)  → step 6  (section intro)
-  2: 14,  // wizard page 2 (materials) → step 14 (section intro)
+  1: 2,   // wizard page 1 (dimensions) → step 2  (room length)
+  2: 6,   // wizard page 2 (speakers)   → step 6  (section intro)
+  3: 14,  // wizard page 3 (furniture)  → step 14 (section intro)
 };
 
 export const onboardingSteps = [
@@ -75,7 +77,7 @@ export const onboardingSteps = [
     data: {},
   },
 
-  // ══ SECTION 1 — ROOM DIMENSIONS (wizard page 0) ══════════════
+  // ══ SECTION 1 — ROOM DIMENSIONS (wizard page 1) ══════════════
 
   // 2 · Room length
   {
@@ -113,7 +115,7 @@ export const onboardingSteps = [
     data: { advanceWizard: true },
   },
 
-  // ══ SECTION 2 — SPEAKER PLACEMENT (wizard page 1) ════════════
+  // ══ SECTION 2 — SPEAKER PLACEMENT (wizard page 2) ════════════
 
   // 5 · Section intro — target is the panel heading rendered by loadStep()
   {
@@ -187,7 +189,7 @@ export const onboardingSteps = [
     data: { advanceWizard: true },
   },
 
-  // ══ SECTION 3 — MATERIALS & FURNISHINGS (wizard page 2) ══════
+  // ══ SECTION 3 — MATERIALS & FURNISHINGS (wizard page 3) ══════
 
   // 13 · Section intro
   {
