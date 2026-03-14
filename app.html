@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Measurely – Dashboard</title>
+    <link rel="icon" type="image/svg+xml" href="icons/dave.svg">
+    <link rel="stylesheet" href="css/dashboard/index.css">
+
+    <script src="js/plotly.min.js"></script>
+    <script src="js/vendor/three/three.min.js"></script>
+    <script src="js/vendor/three/OrbitControls.js"></script>
+
+    <!-- PWA / App-like behaviour -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Measurely">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0b1220">
+
+</head>
+
+<body>
+
+    <div class="page">
+
+        <!-- MOBILE OVERLAY -->
+        <div id="sidebar-overlay" aria-hidden="true"
+            style="position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 40; display: none; backdrop-filter: blur(4px);">
+        </div>
+
+
+        <!-- MAIN CONTENT -->
+        <main class="main-content">
+
+            <!-- HEADER -->
+            <header class="header">
+                <div class="header-title">
+                    <h1>
+                        <img src="icons/largedave.svg" alt="" class="measurely-mark" aria-hidden="true" />
+                        Dashboard
+                    </h1>
+                    <p>What your room is doing to the sound, measured, not guessed.</p>
+                </div>
+            </header>
+
+            <!-- TOP ROW: SCORE & ACTIONS -->
+            <div class="grid-3 animate-enter delay-1">
+
+
+                <!-- MEASUREMENT ENGINE -->
+                <div class="card glass-panel engine-bay">
+
+                    <!-- HEADER -->
+                    <div class="engine-header">
+                        <h3 class="card-title">
+                            <img src="icons/white/dashboard.svg" class="card-icon" alt="" aria-hidden="true">
+                            Control Center
+                        </h3>
+                    </div>
+
+                    <!-- SECTION: UPLOAD MEASUREMENT -->
+                    <div class="engine-section">
+                        <p class="engine-section-label">Measure</p>
+                        <div class="engine-actions">
+                            <button id="uploadMeasurementBtn" class="btn btn-primary engine-action is-cta">
+                                <img src="icons/white/sweep.svg" alt="">
+                                <div class="engine-action-text">
+                                    <strong>Upload Measurement</strong>
+                                    <span>Import your REW files</span>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="engine-divider"></div>
+
+                    <!-- SECTION: ROOM SETUP -->
+                    <div class="engine-section">
+                        <p class="engine-section-label">Room Setup</p>
+                        <div class="engine-actions">
+                            <a id="editRoomBtn" class="btn btn-secondary engine-action" href="myroom.html">
+                                <img src="icons/white/home.svg" alt="">
+                                <div class="engine-action-text">
+                                    <strong>My Room</strong>
+                                    <span>Dimensions, layout &amp; furnishings</span>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="engine-divider"></div>
+
+                    <!-- SECTION: ANALYZE -->
+                    <div class="engine-section">
+                        <p class="engine-section-label">Analyse</p>
+                        <div class="engine-actions">
+                            <a class="btn btn-secondary engine-action" href="diagnose.html">
+                                <img src="icons/white/lightbulb.svg" alt="">
+                                <div class="engine-action-text">
+                                    <strong>Diagnose</strong>
+                                    <span>Identify room problems</span>
+                                </div>
+                            </a>
+                            <a class="btn btn-secondary engine-action" href="simulate.html">
+                                <img src="icons/white/refresh.svg" alt="">
+                                <div class="engine-action-text">
+                                    <strong>Treatment Plan</strong>
+                                    <span>Test placement changes</span>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+
+
+                </div>
+
+
+                <div class="card glass-panel overall-score-card" role="region" aria-labelledby="overallRoomScoreLabel">
+
+                    <h2 id="overallRoomScoreLabel" class="card-title overall-score-header">
+                        <img src="icons/chart-line.svg" class="card-icon" alt="" aria-hidden="true">
+                        Overall Room Score (latest)
+                    </h2>
+
+
+                    <div class="overall-score-value">
+                        <span id="overallScore" class="overall-score-number">--</span>
+                        <span class="overall-score-max">/10</span>
+                    </div>
+                    <div class="overall-score-bar">
+                        <div class="overall-score-fill" style="width: 0%;"></div>
+                    </div>
+                    <p id="overallDavePhrase" class="dave-quote">
+                        Run your first sweep to see how your room sounds.
+                    </p>
+
+                    <div class="overall-score-footer">
+
+                        <div class="band-legend">
+                            Tonal balance by frequency band
+                        </div>
+
+                        <div class="band-levels">
+                            <div class="band-pill band-pill--bass"><span>Bass</span><span id="bandBass">— dB</span>
+                            </div>
+                            <div class="band-pill band-pill--mid"><span>Mid</span><span id="bandMid">— dB</span></div>
+                            <div class="band-pill band-pill--treble"><span>Treble</span><span id="bandTreble">—
+                                    dB</span></div>
+                            <div class="band-pill band-pill--air"><span>Air</span><span id="bandAir">— dB</span></div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+
+
+            <section class="analysis-section animate-enter delay-2">
+                <aside class="analysis-sidebar-menu">
+
+                    <button class="card glass-panel analysis-card-trigger" data-overlay="sbir">
+
+                        <div class="card-header">
+                            <h2 class="card-title">Peaks & Dips</h2>
+                            <img src="icons/mountain.svg" class="card-icon" alt="">
+                        </div>
+
+                        <div class="score-readout">
+                            <span id="peaksDipsScore" class="score-value">--</span>
+                            <span class="score-unit">Bass bumps</span>
+                        </div>
+
+                        <div class="perf-track">
+                            <div id="peaksDipsTrack" class="perf-fill"></div>
+                        </div>
+
+                        <div id="peaksDipsDave" class="dave-quote-mini">--</div>
+
+                    </button>
+
+                    <button class="card glass-panel analysis-card-trigger" data-overlay="side_reflections">
+                        <div class="card-header">
+                            <h2 class="card-title">Reflections</h2>
+                            <img src="icons/square-caret-left.svg" class="card-icon" alt="">
+                        </div>
+                        <div class="score-readout">
+                            <span id="reflectionsScore" class="score-value">--</span>
+                            <span class="score-unit">Wall bounce</span>
+                        </div>
+                        <div class="perf-track">
+                            <div id="reflectionsTrack" class="perf-fill"></div>
+                        </div>
+                        <div id="reflectionsDave" class="dave-quote-mini">--</div>
+
+                    </button>
+
+                    <button class="card glass-panel analysis-card-trigger" data-overlay="bandwidth">
+                        <div class="card-header">
+                            <h2 class="card-title">Bandwidth</h2>
+                            <img src="icons/signal.svg" class="card-icon" alt="">
+                        </div>
+                        <div class="score-readout">
+                            <span id="bandwidthScore" class="score-value">--</span>
+                            <span class="score-unit">Usable range</span>
+                        </div>
+                        <div class="perf-track">
+                            <div id="bandwidthTrack" class="perf-fill"></div>
+                        </div>
+                        <div id="bandwidthDave" class="dave-quote-mini">--</div>
+                    </button>
+
+                    <button class="card glass-panel analysis-card-trigger" data-overlay="balance">
+                        <div class="card-header">
+                            <h2 class="card-title">Balance</h2>
+                            <img src="icons/balance-scale.svg" class="card-icon" alt="">
+                        </div>
+                        <div class="score-readout">
+                            <span id="balanceScore" class="score-value">--</span>
+                            <span class="score-unit">Bass to treble</span>
+                        </div>
+                        <div class="perf-track">
+                            <div id="balanceTrack" class="perf-fill"></div>
+                        </div>
+                        <div id="balanceDave" class="dave-quote-mini">--</div>
+                    </button>
+
+                    <button class="card glass-panel analysis-card-trigger" data-overlay="smoothness">
+                        <div class="card-header">
+                            <h2 class="card-title">Smoothness</h2>
+                            <img src="icons/wave-square.svg" class="card-icon" alt="">
+                        </div>
+                        <div class="score-readout">
+                            <span id="smoothnessScore" class="score-value">--</span>
+                            <span class="score-unit">Consistency</span>
+                        </div>
+                        <div class="perf-track">
+                            <div id="smoothnessTrack" class="perf-fill"></div>
+                        </div>
+                        <div id="smoothnessDave" class="dave-quote-mini">--</div>
+                    </button>
+
+                    <button class="card glass-panel analysis-card-trigger" data-overlay="clarity">
+                        <div class="card-header">
+                            <h2 class="card-title">Clarity</h2>
+                            <img src="icons/clock.svg" class="card-icon" alt="">
+                        </div>
+                        <div class="score-readout">
+                            <span id="clarityScore" class="score-value">--</span>
+                            <span class="score-unit">Direct sound</span>
+                        </div>
+                        <div class="perf-track">
+                            <div id="clarityTrack" class="perf-fill"></div>
+                        </div>
+                        <div id="clarityDave" class="dave-quote-mini">--</div>
+                    </button>
+
+                </aside>
+
+                <!-- uploads HISTORY -->
+                <section class="uploads-history-wrapper">
+
+                    <h3 class="uploads-section-title">Sweep History</h3>
+
+                    <!-- uploads GRID -->
+                    <div id="uploadsHistoryGrid">
+
+                        <!-- uploads 1 -->
+                        <div class="card glass-panel uploads-card uploads-item" data-index="0">
+                            <div class="card-header">
+                                <h3 class="uploads-title card-title"><span class="uploads-tag">Latest</span></h3>
+                                <div class="uploads-time">—</div>
+                            </div>
+                            <div class="score-readout">
+                                <span class="uploads-score score-value">--</span>
+                                <span class="score-unit">/10</span>
+                            </div>
+                            <div class="perf-track">
+                                <div class="perf-fill uploads-score-fill"></div>
+                            </div>
+                            <div class="uploads-metrics">
+                                <div><span>Peaks & Dips</span><span class="m-peaks">--</span></div>
+                                <div><span>Reflections</span><span class="m-reflections">--</span></div>
+                                <div><span>Bandwidth</span><span class="m-bandwidth">--</span></div>
+                                <div><span>Balance</span><span class="m-balance">--</span></div>
+                                <div><span>Smoothness</span><span class="m-smoothness">--</span></div>
+                                <div><span>Clarity</span><span class="m-clarity">--</span></div>
+                            </div>
+                            <div class="uploads-footer">
+                                <div class="uploads-actions">
+                                    <button class="btn btn-secondary btn-load-sweep">Load</button>
+                                    <button class="btn btn-utility btn-delete-sweep">Delete</button>
+                                </div>
+                                <button class="notes-btn" data-uploads-note>Notes</button>
+                                <div class="note-preview empty" data-note-preview>
+                                    <span class="note-placeholder">Add notes for this sweep</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- uploads 2 -->
+                        <div class="card glass-panel uploads-card uploads-item" data-index="1">
+                            <div class="card-header">
+                                <h3 class="uploads-title card-title"><span class="uploads-tag">Previous</span></h3>
+                                <div class="uploads-time">—</div>
+                            </div>
+                            <div class="score-readout">
+                                <span class="uploads-score score-value">--</span>
+                                <span class="score-unit">/10</span>
+                            </div>
+                            <div class="perf-track">
+                                <div class="perf-fill uploads-score-fill"></div>
+                            </div>
+                            <div class="uploads-metrics">
+                                <div><span>Peaks & Dips</span><span class="m-peaks">--</span></div>
+                                <div><span>Reflections</span><span class="m-reflections">--</span></div>
+                                <div><span>Bandwidth</span><span class="m-bandwidth">--</span></div>
+                                <div><span>Balance</span><span class="m-balance">--</span></div>
+                                <div><span>Smoothness</span><span class="m-smoothness">--</span></div>
+                                <div><span>Clarity</span><span class="m-clarity">--</span></div>
+                            </div>
+                            <div class="uploads-footer">
+                                <div class="uploads-actions">
+                                    <button class="btn btn-secondary btn-load-sweep">Load</button>
+                                    <button class="btn btn-utility btn-delete-sweep">Delete</button>
+                                </div>
+                                <button class="notes-btn" data-uploads-note>Notes</button>
+                                <div class="note-preview empty" data-note-preview>
+                                    <span class="note-placeholder">Add notes for this sweep</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- uploads 3 -->
+                        <div class="card glass-panel uploads-card uploads-item" data-index="2">
+                            <div class="card-header">
+                                <h3 class="uploads-title card-title"><span class="uploads-tag">Earlier</span></h3>
+                                <div class="uploads-time">—</div>
+                            </div>
+                            <div class="score-readout">
+                                <span class="uploads-score score-value">--</span>
+                                <span class="score-unit">/10</span>
+                            </div>
+                            <div class="perf-track">
+                                <div class="perf-fill uploads-score-fill"></div>
+                            </div>
+                            <div class="uploads-metrics">
+                                <div><span>Peaks & Dips</span><span class="m-peaks">--</span></div>
+                                <div><span>Reflections</span><span class="m-reflections">--</span></div>
+                                <div><span>Bandwidth</span><span class="m-bandwidth">--</span></div>
+                                <div><span>Balance</span><span class="m-balance">--</span></div>
+                                <div><span>Smoothness</span><span class="m-smoothness">--</span></div>
+                                <div><span>Clarity</span><span class="m-clarity">--</span></div>
+                            </div>
+                            <div class="uploads-footer">
+                                <div class="uploads-actions">
+                                    <button class="btn btn-secondary btn-load-sweep">Load</button>
+                                    <button class="btn btn-utility btn-delete-sweep">Delete</button>
+                                </div>
+                                <button class="notes-btn" data-uploads-note>Notes</button>
+                                <div class="note-preview empty" data-note-preview>
+                                    <span class="note-placeholder">Add notes for this sweep</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- uploads 4 -->
+                        <div class="card glass-panel uploads-card uploads-item" data-index="3">
+                            <div class="card-header">
+                                <h3 class="uploads-title card-title"><span class="uploads-tag">Oldest</span></h3>
+                                <div class="uploads-time">—</div>
+                            </div>
+                            <div class="score-readout">
+                                <span class="uploads-score score-value">--</span>
+                                <span class="score-unit">/10</span>
+                            </div>
+                            <div class="perf-track">
+                                <div class="perf-fill uploads-score-fill"></div>
+                            </div>
+                            <div class="uploads-metrics">
+                                <div><span>Peaks & Dips</span><span class="m-peaks">--</span></div>
+                                <div><span>Reflections</span><span class="m-reflections">--</span></div>
+                                <div><span>Bandwidth</span><span class="m-bandwidth">--</span></div>
+                                <div><span>Balance</span><span class="m-balance">--</span></div>
+                                <div><span>Smoothness</span><span class="m-smoothness">--</span></div>
+                                <div><span>Clarity</span><span class="m-clarity">--</span></div>
+                            </div>
+                            <div class="uploads-footer">
+                                <div class="uploads-actions">
+                                    <button class="btn btn-secondary btn-load-sweep">Load</button>
+                                    <button class="btn btn-utility btn-delete-sweep">Delete</button>
+                                </div>
+                                <button class="notes-btn" data-uploads-note>Notes</button>
+                                <div class="note-preview empty" data-note-preview>
+                                    <span class="note-placeholder">Add notes for this sweep</span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    <!-- only shown when >4 sweeps exist -->
+                    <a href="uploads.html" id="viewAllSweepsLink" class="view-all-link hidden">View all older sweeps
+                        →</a>
+
+                </section>
+
+            </section>
+
+        </main>
+    </div>
+
+    <script src="js/toast.js"></script>
+
+    <script src="js/davePhraseEngine.js"></script>
+
+    <!-- Measurely JS Engine (REW file analysis) -->
+    <script src="js/engine/fft.js"></script>
+    <script src="js/engine/signal_math.js"></script>
+    <script src="js/engine/score.js"></script>
+    <script src="js/engine/acoustics.js"></script>
+    <script src="js/engine/analyse.js"></script>
+    <script src="js/engine/fileLoader.js"></script>
+    <script src="js/sessions.js"></script>
+
+    <script src="js/dashboard.js"></script>
+
+    <script>
+        /* REQUIRED GLOBAL CAPS */
+        window.CAPS = {
+            history: true,
+            upload: true
+        };
+    </script>
+
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            window.dashboard = new MeasurelyDashboard();
+        });
+    </script>
+
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const btn = document.getElementById("uploadMeasurementBtn");
+            if (!btn) return;
+            btn.addEventListener("click", () => {
+                window.openUploadModal && window.openUploadModal();
+            });
+        });
+    </script>
+
+
+    <script>
+
+
+        /* PASTE THIS INSTEAD */
+        (function (doc, nav, standalone) {
+            if ((standalone in nav) && nav[standalone]) {
+                var curnode, location = doc.location, stop = /^(a|html)$/i;
+                doc.addEventListener('click', function (e) {
+                    curnode = e.target;
+                    // Find the actual link tag
+                    while (!(stop).test(curnode.nodeName)) { curnode = curnode.parentNode; }
+
+                    // If it's a real link, stop the gray bar and stay in the app
+                    if ('href' in curnode && (curnode.href.indexOf('http') || ~curnode.href.indexOf(location.host))) {
+                        e.preventDefault();
+
+                        // Handle your sidebar overlay hiding
+                        if (window.innerWidth <= 768) {
+                            const overlay = doc.getElementById('sidebar-overlay');
+                            if (overlay) overlay.style.display = 'none';
+                            doc.body.style.overflow = '';
+                        }
+
+                        // Manually change the page
+                        location.href = curnode.href;
+                    }
+                }, false);
+            }
+        })(document, window.navigator, 'standalone');
+
+    </script>
+
+    <!-- NOTES MODAL (GLOBAL POPUP) -->
+    <div id="notesModal" class="notes-modal hidden" aria-hidden="true">
+        <div class="notes-modal-backdrop"></div>
+
+        <div class="notes-modal-content">
+            <div class="notes-modal-header">
+                <h3 id="notesModalTitle">Sweep Notes</h3>
+                <button class="notes-modal-close" aria-label="Close notes">&times;</button>
+            </div>
+
+            <div class="notes-modal-body">
+                <textarea id="notesTextarea" class="notes-textarea" placeholder="Write your notes here…"></textarea>
+            </div>
+
+            <div class="notes-modal-footer">
+                <button id="saveNotesBtn" class="btn btn-primary">Save</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+
+        // ========================
+        // NOTES MODAL LOGIC
+        // ========================
+
+        // Tracks the session ID of whichever sweep card is currently open in the modal.
+        let currentSessionId = null;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const modal = document.getElementById("notesModal");
+            const textarea = document.getElementById("notesTextarea");
+            const saveBtn = document.getElementById("saveNotesBtn");
+
+            if (!modal || !textarea || !saveBtn) {
+                console.warn("Notes modal elements missing");
+                return;
+            }
+
+            // FORCE closed on load
+            modal.classList.add("hidden");
+            modal.setAttribute("aria-hidden", "true");
+
+            // OPEN — reads sessionId from the card's data-upload-id at click time
+            window.openNotesModal = (sessionId) => {
+                if (!sessionId) return;
+                currentSessionId = sessionId;
+
+                // Prefer the in-memory session model (loaded from backend by dashboard.js).
+                // Fall back to any legacy localStorage entry keyed by session ID.
+                const session = window.dashboard?.sessions?.find(s => s.id === sessionId);
+                textarea.value = session?.note || localStorage.getItem(`uploadsNote_${sessionId}`) || "";
+
+                modal.classList.remove("hidden");
+                modal.setAttribute("aria-hidden", "false");
+                textarea.focus();
+            };
+
+            // CLOSE
+            window.closeNotesModal = () => {
+                modal.classList.add("hidden");
+                modal.setAttribute("aria-hidden", "true");
+            };
+
+            // WIRE notes buttons — resolve sessionId from parent card at click time,
+            // not from the loop index at setup time
+            document.querySelectorAll("[data-uploads-note]").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    const card = btn.closest(".uploads-card");
+                    const sessionId = card?.dataset.uploadId;
+                    if (sessionId) openNotesModal(sessionId);
+                });
+            });
+
+            // SAVE — persists to backend (meta.json on the Pi), not localStorage
+            saveBtn.addEventListener("click", async () => {
+                if (!currentSessionId) return;
+                const note = textarea.value || "";
+
+                // Persist to backend
+                if (window.dashboard?.saveNote) {
+                    await window.dashboard.saveNote(currentSessionId, note);
+                }
+
+                // Keep in-memory session model in sync so reopening gives current value
+                const session = window.dashboard?.sessions?.find(s => s.id === currentSessionId);
+                if (session) session.note = note;
+
+                // Update the note preview on the card
+                const card = document.querySelector(`.uploads-card[data-upload-id="${currentSessionId}"]`);
+                const preview = card?.querySelector("[data-note-preview]");
+                if (preview) {
+                    preview.textContent = note.trim() || "—";
+                    preview.style.opacity = note.trim() ? "1" : "0.3";
+                }
+
+                closeNotesModal();
+            });
+
+            // CLOSE — X button and backdrop
+            modal.querySelectorAll(".notes-modal-close")
+                .forEach(btn => btn.addEventListener("click", closeNotesModal));
+            modal.querySelectorAll(".notes-modal-backdrop")
+                .forEach(el => el.addEventListener("click", closeNotesModal));
+
+            // MIGRATION — runs once after loadHistory() has stamped cards with session IDs.
+            // Moves any old uploadsNote_0..3 index-keyed notes to the backend,
+            // then removes the stale localStorage keys.
+            function migrateLegacyNotes() {
+                const cards = [...document.querySelectorAll(".uploads-card")];
+
+                let migrated = 0;
+                cards.forEach((card, i) => {
+                    const sessionId = card.dataset.uploadId;
+                    if (!sessionId) return;                          // card not yet hydrated
+
+                    const oldKey = `uploadsNote_${i}`;
+                    const oldNote = localStorage.getItem(oldKey);
+                    if (!oldNote) return;                            // nothing to migrate
+
+                    // Push to backend
+                    if (window.dashboard?.saveNote) {
+                        window.dashboard.saveNote(sessionId, oldNote);
+                    }
+
+                    // Sync in-memory model
+                    const session = window.dashboard?.sessions?.find(s => s.id === sessionId);
+                    if (session) session.note = oldNote;
+
+                    localStorage.removeItem(oldKey);
+                    migrated++;
+                });
+
+                if (migrated > 0) {
+                    console.log(`[Notes] Migrated ${migrated} legacy note(s) to session IDs`);
+                }
+            }
+
+            // Allow ~800 ms for dashboard.js loadHistory() to hydrate card datasets
+            setTimeout(migrateLegacyNotes, 800);
+        });
+    </script>
+
+
+    <script>
+
+        document.addEventListener("DOMContentLoaded", () => {
+            // Get the current filename (e.g., 'index.html' or 'room-setup.html')
+            const currentPath = window.location.pathname.split("/").pop() || "index.html";
+
+            const navItems = document.querySelectorAll(".nav-item");
+
+            navItems.forEach(item => {
+                // Remove hardcoded active classes first
+                item.classList.remove("active");
+
+                // Check if the link's href matches our current page
+                if (item.getAttribute("href") === currentPath) {
+                    item.classList.add("active");
+                }
+            });
+        });
+
+    </script>
+
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const cancelBtn = document.getElementById("cancelUploadBtn");
+            if (!cancelBtn) return;
+            cancelBtn.addEventListener("click", () => window.closeUploadModal && window.closeUploadModal());
+        });
+    </script>
+
+
+    <!-- UPLOAD MEASUREMENT MODAL -->
+    <div id="uploadModal" class="sweep-modal hidden" aria-hidden="true">
+        <div class="sweep-modal-backdrop"></div>
+
+        <div class="sweep-modal-content glass-panel">
+            <h3 class="sweep-title">Upload REW Measurement</h3>
+
+            <!-- IDLE STATE: file pickers -->
+            <div id="uploadIdleState">
+                <p class="sweep-stage">Select your REW impulse response to analyse:</p>
+
+                <div class="upload-file-row">
+                    <label for="rewWavInput" class="upload-file-label">
+                        <img src="icons/white/sweep.svg" alt="" class="upload-file-icon">
+                        <span>Impulse Response</span>
+                        <span class="upload-file-hint">.wav — exported from REW</span>
+                    </label>
+                    <input type="file" id="rewWavInput" accept=".wav,audio/wav" class="upload-file-input"
+                        aria-label="WAV impulse response file">
+                    <span id="rewWavName" class="upload-file-chosen">No file chosen</span>
+                </div>
+
+                <div class="upload-file-row" style="opacity: 0.65;">
+                    <label for="rewCsvInput" class="upload-file-label">
+                        <img src="icons/chart-line.svg" alt="" class="upload-file-icon">
+                        <span>Calibration Overlay <em style="font-weight:400;opacity:0.7;">(optional)</em></span>
+                        <span class="upload-file-hint">.txt / .csv — REW frequency response export</span>
+                    </label>
+                    <input type="file" id="rewCsvInput" accept=".csv,.txt,.mdat" class="upload-file-input"
+                        aria-label="CSV frequency response file (optional)">
+                    <span id="rewCsvName" class="upload-file-chosen">None</span>
+                </div>
+
+                <div id="uploadErrorMsg" class="upload-error hidden"></div>
+
+                <div class="sweep-actions">
+                    <button id="startUploadBtn" class="btn btn-primary">Analyse</button>
+                    <button id="cancelUploadBtn" class="btn btn-danger">Cancel</button>
+                </div>
+            </div>
+
+            <!-- PROCESSING STATE: progress -->
+            <div id="uploadProcessingState" class="hidden">
+                <div id="uploadStageText" class="sweep-stage">Loading files…</div>
+                <div class="sweep-progress">
+                    <div class="sweep-progress-fill" id="uploadProgressFill" style="width:0%"></div>
+                </div>
+                <div class="sweep-percent" id="uploadPercent">0%</div>
+                <div class="sweep-loader">
+                    <div class="sweep-line"></div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        // UPLOAD MODAL — open / close / run analysis
+        // ============================================================
+        (function () {
+
+            const modal = document.getElementById('uploadModal');
+            const idleState = document.getElementById('uploadIdleState');
+            const procState = document.getElementById('uploadProcessingState');
+            const wavInput = document.getElementById('rewWavInput');
+            const csvInput = document.getElementById('rewCsvInput');
+            const wavName = document.getElementById('rewWavName');
+            const csvName = document.getElementById('rewCsvName');
+            const errorMsg = document.getElementById('uploadErrorMsg');
+            const startBtn = document.getElementById('startUploadBtn');
+            const stageText = document.getElementById('uploadStageText');
+            const progressFill = document.getElementById('uploadProgressFill');
+            const percentText = document.getElementById('uploadPercent');
+
+            function setProgress(pct, label) {
+                progressFill.style.width = pct + '%';
+                percentText.textContent = pct + '%';
+                stageText.textContent = label;
+            }
+
+            // openUploadModal accepts an optional pre-picked File object from the
+            // empty-state drop zone so the user doesn't have to pick twice.
+            window.openUploadModal = (prePickedWav) => {
+                idleState.classList.remove('hidden');
+                procState.classList.add('hidden');
+                errorMsg.classList.add('hidden');
+                wavInput.value = '';
+                csvInput.value = '';
+                wavName.textContent = 'No file chosen';
+                csvName.textContent = 'No file chosen';
+
+                if (prePickedWav) {
+                    // Inject the pre-picked file via DataTransfer so the existing
+                    // validation / analysis pipeline sees it as a normal file input.
+                    try {
+                        const dt = new DataTransfer();
+                        dt.items.add(prePickedWav);
+                        wavInput.files = dt.files;
+                        wavName.textContent = prePickedWav.name;
+                    } catch (e) {
+                        // DataTransfer not supported (very old browsers) — user will pick manually
+                        console.warn('[upload] Could not inject pre-picked file:', e.message);
+                    }
+                }
+
+                modal.classList.remove('hidden');
+                modal.setAttribute('aria-hidden', 'false');
+            };
+
+            window.closeUploadModal = () => {
+                modal.classList.add('hidden');
+                modal.setAttribute('aria-hidden', 'true');
+            };
+
+            // File picker labels
+            wavInput.addEventListener('change', () => {
+                wavName.textContent = wavInput.files[0]?.name || 'No file chosen';
+            });
+            csvInput.addEventListener('change', () => {
+                csvName.textContent = csvInput.files[0]?.name || 'No file chosen';
+            });
+
+            // Backdrop click to close
+            modal.querySelector('.sweep-modal-backdrop')
+                .addEventListener('click', () => window.closeUploadModal());
+
+            // ---- Start analysis ----
+            startBtn.addEventListener('click', async () => {
+                // 📱 iOS Safari: pre-create AudioContext inside this user-gesture click
+                // so decodeAudioData is allowed when loadIr() runs a moment later.
+                if (!window.__mlyAudioCtx || window.__mlyAudioCtx.state === 'closed') {
+                    try {
+                        window.__mlyAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                        // Immediately suspend — we just need the context open inside the gesture
+                        window.__mlyAudioCtx.suspend();
+                    } catch (e) {
+                        console.warn('[upload] Could not pre-create AudioContext:', e.message);
+                    }
+                }
+
+                const wavFile = wavInput.files[0];
+                const csvFile = csvInput.files[0];
+
+                // Validate
+                const validation = window.MeasurelyFileLoader?.validateFiles(wavFile, csvFile);
+                if (!validation?.ok) {
+                    errorMsg.textContent = validation?.error || 'Please select both files.';
+                    errorMsg.classList.remove('hidden');
+                    return;
+                }
+
+                // Switch to processing view
+                idleState.classList.add('hidden');
+                procState.classList.remove('hidden');
+                setProgress(10, 'Decoding audio…');
+
+                try {
+                    // 1. Load files
+                    const session = await MeasurelyFileLoader.loadSession(wavFile, csvFile);
+                    setProgress(40, 'Running analysis…');
+
+                    // 2. Load room settings (from localStorage for static hosting)
+                    const room = JSON.parse(localStorage.getItem('measurely_room') || '{}');
+
+                    // 3. Run analysis
+                    const result = MeasurelyAnalyse.analyse(
+                        session.ir, session.fs, session.freq, session.mag, room
+                    );
+                    setProgress(80, 'Saving results…');
+
+                    // 4. Store in localStorage via MeasurelySessions
+                    const sessionId = 'upload_' + Date.now();
+                    if (window.MeasurelySessions) {
+                        window.MeasurelySessions.saveSession({
+                            id: sessionId,
+                            label: session.label,
+                            timestamp: new Date().toISOString(),
+                            ai: result.ai,
+                            analysis: result.analysis,
+                            reportCurve: result.reportCurve,
+                        });
+                    } else {
+                        // Fallback: write directly
+                        const history = JSON.parse(localStorage.getItem('measurely_sessions') || '[]');
+                        history.unshift({ id: sessionId, label: session.label, timestamp: new Date().toISOString(), analysis: result.ai, reportCurve: result.reportCurve });
+                        localStorage.setItem('measurely_sessions', JSON.stringify(history.slice(0, 20)));
+                    }
+
+                    setProgress(100, 'Done!');
+
+                    // 5. Persist to server (Pi / local) — silent no-op when offline / GitHub Pages
+                    try {
+                        await fetch('/api/web-analysis', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                label: session.label,
+                                analysis: result.analysis,
+                                ai: result.ai,
+                                reportCurve: result.reportCurve,
+                                room,
+                            }),
+                        });
+                    } catch (e) {
+                        console.warn('[upload] server persist unavailable — localStorage only:', e.message);
+                    }
+
+                    // 6. Trigger dashboard refresh
+                    if (window.dashboard?.loadLatestAnalysis) {
+                        window.dashboard.loadLatestAnalysis(result.ai);
+                    }
+                    if (window.dashboard?.loadHistory) {
+                        window.dashboard.loadHistory();
+                    }
+
+                    setTimeout(() => window.closeUploadModal(), 600);
+
+                } catch (err) {
+                    console.error('[upload]', err);
+                    procState.classList.add('hidden');
+                    idleState.classList.remove('hidden');
+                    errorMsg.textContent = 'Analysis failed: ' + (err.message || 'unknown error');
+                    errorMsg.classList.remove('hidden');
+                }
+            });
+
+        }());
+    </script>
+
+
+
+    <script type="module" src="js/dashboard-guide.js"></script>
+
+    <script>
+        // ── GitHub Pages SPA redirect: restore deep-link from ?p= param ────────────
+        // 404.html encodes the original path as ?p=path. On index.html load we
+        // replace the current URL with the clean path via history.replaceState.
+        (function () {
+            var qs = window.location.search;
+            if (!qs) return;
+            var params = new URLSearchParams(qs);
+            var p = params.get('p');
+            if (!p) return;
+            var target = '/' + decodeURIComponent(p);
+            history.replaceState(null, '', target);
+            console.log('[SPA] Restored deep-link path:', target);
+        }());
+    </script>
+
+
+
+</body>
+
+</html>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Measurely — Cinematic Demo</title>
+    <link rel="stylesheet" href="css/onboarding/index.css">
+    
+    <script src="js/vendor/three/three.min.js"></script>
+    <script src="js/vendor/three/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <style>
+        body { margin: 0; overflow: hidden; background: #0b1220; }
+        #roomCanvas { width: 100vw; height: 100vh; }
+        #directorConsole {
+            position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 1rem; padding: 1rem;
+            background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(10px);
+            border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 12px; z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div id="roomCanvas"></div>
+
+    <div id="directorConsole">
+        <button id="startDemo" class="btn btn-primary">▶ Run Transformation</button>
+        <button id="resetView" class="btn btn-secondary" onclick="location.reload()">Reset</button>
+    </div>
+
+    <script type="module">
+        import { initRoom3D } from "./js/room3d.js";
+        import { CinematicEngine } from "./js/cinematicEngine.js";
+
+        // Initial "Bad" State: Standard flat room, listener in the middle
+        const demoState = {
+            length_m: 6.0,
+            width_m: 4.5,
+            height_m: 2.4,
+            spk_spacing_m: 2.2,
+            spk_front_m: 0.8,
+            listener_front_m: 3.0, // Smack in the middle
+            toe_in_deg: 0,
+            speaker_type: "standmount",
+            floor_material: "hard",
+            opt_sofa: true,
+            opt_area_rug: false,
+            opt_coffee_table: true
+        };
+
+        const room3D = initRoom3D({
+            mountId: "roomCanvas",
+            getRoomData: () => demoState,
+            mode: "final"
+        });
+
+        document.getElementById('startDemo').onclick = () => {
+            CinematicEngine.run(room3D, demoState);
+        };
+    </script>
+</body>
+</html>

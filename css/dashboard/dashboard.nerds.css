@@ -1,0 +1,109 @@
+/* ============================================================
+   ADVANCED ACOUSTIC ANALYSIS (NERDS CORNER)
+   Uses standard .card.glass-panel styling — DO NOT override surfaces
+   ============================================================ */
+
+/* Section spacing to match Room Analysis rhythm */
+.analysis-section + .analysis-section {
+  margin-top: 3rem;
+}
+
+/* Nerds card = normal card, only layout tweaks */
+.card.glass-panel.nerds-card {
+  padding: 1.5rem; /* same feel as other large cards */
+}
+
+/* ------------------------------------------------------------
+   Top control bar (sessions left, metrics right)
+   ------------------------------------------------------------ */
+.nerds-card > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.nerds-card .uploads-nav,
+.nerds-card #metricNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+#metricNav .btn {
+  flex: 1;
+  justify-content: center;
+  padding: 0.65rem 1.5rem;
+  font-size: 0.92rem;
+  height: auto;
+}
+
+/* Stack controls nicely on smaller screens */
+@media (max-width: 900px) {
+  .nerds-card > div:first-child {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* ------------------------------------------------------------
+   CHART AREA — remove "card inside card" look
+   ------------------------------------------------------------ */
+.nerds-card .chart-container {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+}
+
+/* Make sure Plotly never paints a panel */
+.nerds-card #frequencyChart,
+.nerds-card .js-plotly-plot,
+.nerds-card .plot-container,
+.nerds-card .svg-container {
+  background: transparent !important;
+}
+
+.nerds-card #frequencyChart {
+  width: 100%;
+  height: 320px;
+}
+
+#uploadsHistoryGrid {
+  display: grid;
+  gap: 1.25rem;
+}
+
+/* ------------------------------------------------------------
+   MOBILE
+   ------------------------------------------------------------ */
+@media (max-width: 640px) {
+
+  /* Keep it a real card — just reduce padding */
+  .card.glass-panel.nerds-card {
+    padding: 1rem;
+    border-radius: 16px;
+  }
+
+  .nerds-card > div:first-child {
+    margin-bottom: 1rem;
+    gap: 0.75rem;
+  }
+
+  .nerds-card #frequencyChart {
+    height: 260px;
+  }
+
+  .nerds-card .btn.btn-utility {
+    padding: 0.35rem 0.65rem;
+    border-radius: 8px;
+    font-size: 0.78rem;
+  }
+
+  #uploadsHistoryGrid {
+    gap: 1rem;
+  }
+}

@@ -1,0 +1,280 @@
+/* -------------------------------------------------------
+   GLOBAL
+------------------------------------------------------- */
+html, body {
+    margin: 0;
+    padding: 0;
+    background: #0f172a;
+    font-family: 'Inter', sans-serif;
+}
+
+#report {
+    width: 1200px;
+    margin: 0 auto;
+    padding: 70px 70px 90px;
+    color: white;
+    box-sizing: border-box;
+}
+
+/* Pink glow bar */
+.top-glow {
+    height: 10px;
+    width: 100%;
+    background: linear-gradient(90deg, #b968ff, #6366f1, #b968ff);
+    border-radius: 6px;
+    margin-bottom: 50px;
+    opacity: 0.45;
+    filter: blur(4px);
+}
+
+/* -------------------------------------------------------
+   HEADER
+------------------------------------------------------- */
+.header {
+    display: flex;
+    flex-direction: column;   /* STACK */
+    align-items: flex-start;
+    gap: 54px;
+    margin-bottom: 20px;
+}
+
+.logo {
+    width: 200px; /* down from 220 */
+    opacity: 0.8;
+    filter: drop-shadow(0px 4px 12px rgba(185,104,255,0.35));
+}
+
+.title-block h1 {
+    margin: 0;
+    font-size: 52px;
+    font-weight: 700;
+}
+
+.subtitle {
+    margin-top: 6px;
+    font-size: 24px;
+    color: #94a3b8;
+}
+
+/* -------------------------------------------------------
+   CARDS
+------------------------------------------------------- */
+.card {
+    background: linear-gradient(180deg, #1b2534, #131b28);
+    border-radius: 30px;
+    padding: 45px;
+    margin-bottom: 50px;
+    box-shadow: 0 18px 45px rgba(0,0,0,0.5);
+}
+
+/* Score card highlight ring */
+.highlight-card {
+    position: relative;
+}
+.highlight-card::before {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: 34px;
+    background: linear-gradient(135deg, #b968ff55, #6366f155, transparent);
+    filter: blur(12px);
+    z-index: -1;
+}
+
+.score-left h2 {
+    margin: 0 0 20px 0;
+    font-size: 36px;
+    font-weight: 600;
+}
+
+.score-left .score-value {
+    font-size: 130px;
+    font-weight: 700;
+    line-height: 1;
+    color: #a855f7;
+}
+
+.score-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    align-items: center;
+}
+
+.score-right {
+    padding-left: 20px;
+}
+
+.score-label {
+    display: inline-block;
+    font-size: 18px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 999px;
+    margin-bottom: 18px;
+
+    background: rgba(99,102,241,0.15);
+    color: #c7d2fe;
+}
+
+.score-desc {
+    font-size: 20px;
+    line-height: 1.5;
+    color: #cbd5e1;
+    margin: 0;
+}
+
+.score-max {
+    font-size: 28px;          /* smaller than before */
+    font-weight: 500;
+    color: #94a3b8;           /* neutral grey */
+    opacity: 0.9;
+}
+
+/* Dave Says Badge */
+.dave-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.85rem;
+    background: linear-gradient(
+        135deg,
+        rgba(99, 102, 241, 0.15) 0%,
+        rgba(79, 70, 229, 0.1) 100%
+    );
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    letter-spacing: 0.5px;
+    color: #818cf8;
+    box-shadow:
+        0 0 12px rgba(99, 102, 241, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transition: all 0.2s ease;
+}
+
+.report-badge {
+    margin-bottom: 18px;
+}
+
+/* -------------------------------------------------------
+   SECTION TITLES
+------------------------------------------------------- */
+.section-title {
+    font-size: 28px;
+    font-weight: 600;
+    margin: 40px 0 25px;
+    color: #cbd5e1;
+}
+
+/* -------------------------------------------------------
+   METRIC GRID
+------------------------------------------------------- */
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 35px;
+    margin-bottom: 70px;
+}
+
+.metric {
+    background: linear-gradient(180deg, #1b2534, #131b28);
+    padding: 40px 45px;
+    border-radius: 28px;
+    box-shadow: 0 15px 40px rgba(0,0,0,0.45);
+}
+
+.metric .val {
+    font-size: 54px;
+    font-weight: 700;
+}
+
+.metric .label {
+    margin-top: 12px;
+    font-size: 24px;
+    color: #94a3b8;
+}
+
+.metric-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.metric-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: #94a3b8;
+}
+
+.metric-icon path {
+    fill: currentColor;
+}
+
+.metric-icon {
+    width: 16px;
+    font-weight: 700;                 /* ↑ from ~0.5 */
+    color: #94a3b8;                /* light neutral / cool grey */
+}
+
+.metric-value {
+    font-size: 52px;
+    font-weight: 700;
+    line-height: 1.1;
+    margin-bottom: 10px;
+}
+
+
+/* -------------------------------------------------------
+   GRAPHS
+------------------------------------------------------- */
+.graph {
+    padding: 40px 45px 55px;
+}
+
+.graph-title {
+    font-size: 24px;
+    color: #cbd5e1;
+    text-align: left;
+    margin-bottom: 18px;
+}
+
+.graph img {
+    width: 100%;
+    border-radius: 20px;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.4);
+}
+
+.graph-explainer {
+    margin-top: 18px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: #94a3b8;
+}
+
+
+/* -------------------------------------------------------
+   FOOTER
+------------------------------------------------------- */
+.report-footer {
+    margin-top: 80px;
+    padding-top: 30px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    text-align: center;
+}
+
+.report-footer p {
+    margin: 0;
+    font-size: 3 rem;
+    line-height: 1.5;
+    color: #94a3b8;
+}
+
+.report-footer strong {
+    color: #e5e7eb;
+    font-weight: 600;
+}
+

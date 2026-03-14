@@ -1,0 +1,95 @@
+/* =========================
+   MAIN CONTENT LAYOUT
+   ========================= */
+
+.main-content {
+  width: 100%;
+  max-width: 1400px; /* Standardized to the wider layout */
+  margin: 0 auto;
+  padding: 2rem 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+@media (max-width: 640px) {
+  .main-content {
+    padding: 1.5rem 1.25rem; /* Smoother scaling for mobile */
+  }
+}
+
+
+/* Slightly tighter on smaller screens */
+@media (max-width: 1024px) {
+  .main-content {
+    padding: 2rem 1.75rem;
+  }
+}
+
+/* =========================
+   HEADER
+   ========================= */
+
+.header-title h1 {
+  font-size: 2.9rem;          /* was 2.5rem */
+  font-weight: 750;           /* subtle confidence bump */
+  letter-spacing: -0.035em;   /* tighter = more premium */
+  margin: 0;
+}
+
+
+.header-title h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+
+.header-title p {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--c-text-muted);
+  max-width: 720px;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.measurely-mark {
+    width: 30px;
+    height: 30px;
+    opacity: 0.75;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
+}
+
+
+/* =========================
+   GRID LAYOUTS
+   ========================= */
+
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+}
+
+/* Tablet */
+@media (max-width: 1024px) {
+  .grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Mobile */
+@media (max-width: 640px) {
+  .grid-3,
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+}

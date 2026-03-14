@@ -1,0 +1,12 @@
+/* onboarding/index.css — entry point for onboarding.html and myroom.html
+   Mirrors the structure of dashboard/index.css: global foundations first,
+   then the page-specific sheet. */
+
+@import "../global/tokens.css";
+@import "../global/base.css";
+@import "../global/buttons.css";
+@import "../global/forms.css";
+@import "../global/cards.css";
+@import "../global/animations.css";
+
+@import "../onboarding.css";

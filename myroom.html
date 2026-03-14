@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Measurely — My Room</title>
+
+<link rel="icon" type="image/svg+xml" href="icons/dave.svg">
+<link rel="stylesheet" href="css/onboarding/index.css">
+
+<script src="js/vendor/three/three.min.js"></script>
+<script src="js/vendor/three/OrbitControls.js"></script>
+
+    <!-- PWA / App-like behaviour -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Measurely">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0b1220">
+
+    <script>
+    document.addEventListener('click', function(event) {
+        var target = event.target;
+        // Walk up the DOM tree to find the 'a' tag (in case they clicked an icon inside the link)
+        while (target && target.nodeName !== 'A') {
+            target = target.parentNode;
+        }
+
+        if (target && target.href && target.getAttribute('target') !== '_blank') {
+            // Check if the link is internal (points to your Pi's IP)
+            if (target.href.indexOf(window.location.host) !== -1) {
+                event.preventDefault();
+                window.location.href = target.href;
+            }
+        }
+    }, false);
+    </script>
+
+</head>
+
+
+<style>
+/* ── Simulated target scores — full-width bottom bar ─────────── */
+#simTargetBadge {
+    position: fixed;
+    bottom: 24px;
+    left: 24px;
+    right: auto;
+    width: calc(100% - 460px - 48px);
+    max-width: 800px;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1.25rem;
+    z-index: 200;
+    pointer-events: none;
+
+    /* Match questionPanel styling */
+    background: linear-gradient(165deg, rgba(23,32,48,0.95), rgba(13,18,28,0.98));
+    backdrop-filter: blur(20px) saturate(200%);
+    -webkit-backdrop-filter: blur(20px) saturate(200%);
+
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.08);
+
+    box-shadow:
+        0 30px 80px rgba(0, 0, 0, 0.55),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+    font-family: var(--font-main, 'Inter', sans-serif);
+}
+
+/* "Simulated Target" label */
+#simTargetBadge .stb-label {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--c-text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Thin vertical rule between sections */
+#simTargetBadge .stb-rule {
+    width: 1px;
+    height: 1.1rem;
+    background: rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+}
+
+/* Overall score — larger, coloured by quality */
+#simTargetBadge .stb-overall {
+    display: flex;
+    align-items: baseline;
+    gap: 0.15rem;
+    flex-shrink: 0;
+}
+
+#simTargetBadge .stb-overall-num {
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--c-accent-light);   /* default indigo if no class yet */
+}
+#simTargetBadge .stb-overall-num.good { color: var(--c-excellent-tint); }
+#simTargetBadge .stb-overall-num.ok   { color: var(--c-good-tint); }
+#simTargetBadge .stb-overall-num.poor { color: var(--c-poor-tint); }
+
+#simTargetBadge .stb-overall-denom {
+    font-size: 0.62rem;
+    font-weight: 500;
+    color: var(--c-text-muted);
+}
+
+/* Row of six metric chips */
+#simTargetBadge .stb-chips {
+    display: flex;
+    gap: 0.3rem;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+
+/* Base chip — neutral / indigo tint */
+#simTargetBadge .stb-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    font-size: 0.62rem;
+    font-weight: 500;
+    padding: 0.18rem 0.5rem;
+    border-radius: 999px;
+    white-space: nowrap;
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    color: var(--c-text-muted);
+}
+
+#simTargetBadge .stb-chip strong {
+    font-weight: 700;
+    font-size: 0.66rem;
+    color: var(--c-text-main);
+}
+
+/* Good — emerald */
+#simTargetBadge .stb-chip.good {
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.28);
+}
+#simTargetBadge .stb-chip.good strong { color: var(--c-excellent-tint); }
+
+/* Mid — amber */
+#simTargetBadge .stb-chip.ok {
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.28);
+}
+#simTargetBadge .stb-chip.ok strong { color: var(--c-good-tint); }
+
+/* Poor — red */
+#simTargetBadge .stb-chip.poor {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.28);
+}
+#simTargetBadge .stb-chip.poor strong { color: var(--c-poor-tint); }
+
+.modal-overlay {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);
+  display: none; align-items: center; justify-content: center; z-index: 1000;
+}
+.modal-overlay.active { display: flex; }
+.modal-content {
+  background: #161e2e; border: 1px solid rgba(99, 102, 241, 0.3);
+  padding: 2rem; border-radius: 12px; width: 90%; max-width: 400px;
+}
+.modal-fields { display: flex; flex-direction: column; gap: 1rem; margin: 1.5rem 0; }
+.m-field label { display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 0.4rem; }
+.m-field input {
+  width: 100%; background: #0b1220; border: 1px solid #334155;
+  color: white; padding: 0.6rem; border-radius: 6px; font-family: inherit;
+}
+.modal-actions { display: flex; gap: 1rem; justify-content: flex-end; }
+
+.calc-link { 
+  display: inline-block;
+  font-size: 0.75rem; 
+  color: #6366f1; 
+  cursor: pointer; 
+  text-decoration: underline; 
+  margin-top: 0.8rem; /* Creates space below the slider */
+  padding: 4px 0;
+  font-weight: 500;
+}
+.calc-link:hover {
+  color: #818cf8;
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="toeModal" class="modal-overlay">
+  <div class="modal-content">
+    <h3>Toe-In Calculator</h3>
+    
+    <div class="modal-fields">
+      <p class="sub-label">Current Setup (from Room):</p>
+      <div class="info-row">
+        <span>Spacing: <strong id="ref_spacing">0</strong>m</span>
+        <span>Distance: <strong id="ref_dist">0</strong>m</span>
+      </div>
+      
+      <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin:1rem 0;">
+
+      <div class="m-field">
+        <label>Speaker Depth (mm)</label>
+        <input type="number" id="calc_spk_w" value="389">
+      </div>
+      <div class="m-field">
+        <label>Inner Corner to Wall (mm)</label>
+        <input type="number" id="calc_dist_inner" placeholder="195">
+      </div>
+      <div class="m-field">
+        <label>Outer Corner to Wall (mm)</label>
+        <input type="number" id="calc_dist_outer" placeholder="48">
+      </div>
+    </div>
+
+    <div id="calc_results" style="margin-top:1rem; font-size:0.8rem; color:#10b981; display:none;">
+       </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeToeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="applyToeCalc()">Apply Angle</button>
+    </div>
+  </div>
+</div>
+
+<!-- HEADER -->
+<header class="header header-onboarding">
+    <div class="header-title">
+        <h1>
+            <img
+                src="icons/largedave.svg"
+                alt=""
+                class="measurely-mark"
+                aria-hidden="true"
+            />
+            My Room
+        </h1>
+        <p>Define the physical space you listen in.</p>
+    </div>
+</header>
+
+
+<!-- FULLSCREEN ROOM -->
+<div id="roomCanvas"></div>
+
+<!-- SLIDING QUESTION PANEL -->
+<div id="questionPanel">
+  <div class="question" id="qText"></div>
+  <div class="sub" id="qSub"></div>
+
+  <div id="fieldStack"></div>
+
+  <div class="actions">
+    <button id="backBtn" class="btn btn-secondary">← Dashboard</button>
+    <button class="btn btn-secondary" id="flybyBtn">Simulation</button>
+    <button id="saveBtn" class="btn btn-primary">Save</button>
+  </div>
+</div>
+
+<!-- Simulated target scores — populated from localStorage when set in Room Analysis -->
+<div id="simTargetBadge" hidden>
+    <span class="stb-label">Simulated Target</span>
+    <span class="stb-rule"></span>
+    <div class="stb-overall">
+        <span class="stb-overall-num" id="stbOverall">—</span>
+        <span class="stb-overall-denom">/10</span>
+    </div>
+    <span class="stb-rule"></span>
+    <div class="stb-chips" id="stbChips"></div>
+</div>
+
+<script type="module">
+import { initRoom3D } from "./js/room3d.js";
+import { attachHighlightListeners, UIController, setNestedRoomValue, getNestedRoomValue } from './js/uiController.js';
+import { UIFactory } from './js/UIFactory.js';
+
+async function loadSavedRoom() {
+  try {
+    const res = await fetch("/api/room/latest");
+    if (!res.ok) return;
+
+    const saved = await res.json();
+
+    // Remove treatment plan fields so My Room only shows the real room
+    roomState = structuredClone(DEFAULT_ROOM_STATE);
+
+    roomState.geometry = {
+      ...roomState.geometry,
+      ...saved.geometry
+    };
+
+    roomState.setup = {
+      ...roomState.setup,
+      ...saved.setup
+    };
+
+    roomState.environment = {
+      ...roomState.environment,
+      ...saved.environment,
+      furniture: {
+        ...roomState.environment.furniture,
+        ...saved.environment?.furniture
+      },
+      treatment: {
+        ...roomState.environment.treatment,
+        ...saved.environment?.treatment
+      }
+    };
+
+    if (saved.room_type) {
+      roomState.environment.room_type = saved.room_type;
+    }
+
+    console.log("[Room] Loaded saved room:", roomState);
+
+  } catch (e) {
+    console.warn("[Room] No saved room, using defaults");
+  }
+}
+
+
+/* ------------------------------------------
+    LOCAL ROOM STATE (single source of truth)
+------------------------------------------ */
+const DEFAULT_ROOM_STATE = {
+  geometry: {
+    length_m: 4,
+    width_m: 4,
+    height_m: 2.5,
+    ceiling_type: "flat",
+    ceiling_slant_direction: "left_to_right",
+    ceiling_gable_axis: "depth",
+    ceiling_height_secondary_m: 2.0
+  },
+  setup: {
+    speaker_type: "standmount",
+    spk_spacing_m: 2,
+    spk_front_m: 0.3,
+    tweeter_height_m: 1.3,
+    toe_in_deg: 15,
+    listener_front_m: 2.5,
+    listener_offset_m: 0,
+    subwoofer: false
+  },
+  environment: {
+    room_type: "home",
+    floor_material: "hard",
+    furniture: {
+      opt_area_rug: false,
+      opt_sofa: false,
+      opt_coffee_table: false,
+      opt_desk: false,
+      opt_chair: false
+    },
+    treatment: {
+      wall_panel_mode: "none",
+      side_panel_mode: "none",
+      bass_trap_mode: "none",
+      ceiling_panel_mode: "none"
+    }
+  },
+  // Keep memory for the toggle logic in uiController
+  home_memory: { /* ... same as before ... */ },
+  studio_memory: { /* ... same as before ... */ }
+};
+
+let isRefreshingUI = false; // Add this here!
+
+let roomState = structuredClone(DEFAULT_ROOM_STATE);
+
+/* ------------------------------------------
+   INIT 3D ROOM
+------------------------------------------ */
+const room3D = initRoom3D({
+  mountId: "roomCanvas",
+  getRoomData: () => roomState,
+  mode: "setup"
+});
+
+/* ------------------------------------------
+   ONBOARDING STEPS
+------------------------------------------ */
+const steps = [
+  /* ------------------------------------------
+      STEP 0 — ENVIRONMENT (New Independent Step)
+  ------------------------------------------ */
+{
+    type: "environment",
+    title: "Environment",
+    fields: [
+      { 
+        key: "room_type", 
+        kind: "select", 
+        label: "Room Mode", 
+        sub: "Switches between living room and studio furniture",
+        options: [
+          { value: "home", label: "Home / Hi-Fi" },
+          { value: "studio", label: "Studio / Desk" }
+        ]
+      }
+    ]
+  },
+
+  /* ------------------------------------------
+      STEP 1 — ROOM
+  ------------------------------------------ */
+  {
+    type: "room",
+    title: "Room dimensions",
+    fields: [
+      {
+        key: "length_m",
+        label: "Room length",
+        sub: "Front wall to back wall",
+        min: 2,
+        max: 10,
+        step: 0.05
+      },
+      {
+        key: "width_m",
+        label: "Room width",
+        sub: "Left wall to right wall",
+        min: 2,
+        max: 10,
+        step: 0.05
+      },
+      {
+        key: "height_m",
+        label: "Ceiling height",
+        sub: "Floor to ceiling (high side if slanted)",
+        min: 2,
+        max: 3.5,
+        step: 0.01
+      },
+      {
+        key: "ceiling_type",
+        kind: "select",
+        label: "Ceiling shape",
+        sub: "Flat or slanted (pent) roof",
+        options: [
+          { value: "flat", label: "Flat" },
+          { value: "slanted", label: "Slanted (pent roof)" },
+          { value: "gable", label: "Gabled (pitched roof)" }
+        ]
+      },
+      {
+        key: "ceiling_slant_direction",
+        kind: "select",
+        label: "Slant direction",
+        sub: "Which way does the ceiling slope down?",
+        options: [
+          { value: "left_to_right", label: "Left → Right (low on left)" },
+          { value: "right_to_left", label: "Right → Left (low on right)" },
+          { value: "front_to_back", label: "Front → Back (low at back)" },
+          { value: "back_to_front", label: "Back → Front (low at front)" }
+        ],
+        showIf: { key: "ceiling_type", value: "slanted" }
+      },
+      {
+        key: "ceiling_gable_axis",
+        kind: "select",
+        label: "Ridge direction",
+        sub: "Which way does the roof peak run?",
+        options: [
+          { value: "depth", label: "Front to back" },
+          { value: "width", label: "Left to right" }
+        ],
+        showIf: { key: "ceiling_type", value: "gable" }
+      },
+      {
+        key: "ceiling_height_secondary_m",
+        label: "Low-side ceiling height",
+        sub: "Eaves height (wall height where slope begins)",
+        min: 1.8,
+        max: 3.5,
+        step: 0.01,
+        showIf: { key: "ceiling_type", value: ["slanted", "gable"] }
+      }
+    ]
+  },
+
+  /* ------------------------------------------
+      STEP 2 — SPEAKERS
+  ------------------------------------------ */
+  {
+    type: "speakers",
+    title: "Speakers & placement",
+    fields: [
+      {
+        key: "listener_offset_m",
+        label: "Left / right offset",
+        sub: "Shift the listening area within the room",
+        min: -2,
+        max: 2,
+        step: 0.05
+      },
+      {
+        key: "speaker_type",
+        kind: "select",
+        label: "Speaker type",
+        sub: "General speaker format used for this measurement",
+        options: [
+          { value: "standmount",   label: "Standmount / bookshelf" },
+          { value: "floorstander", label: "Floorstanding" },
+          { value: "panel",        label: "Panel / electrostatic" },
+          { label: "Studio Monitors", value: "monitor" },
+        ]
+      },
+      {
+        key: "spk_spacing_m",
+        label: "Speaker spacing",
+        sub: "Distance between left and right speakers",
+        min: 1.2,
+        max: 4,
+        step: 0.05
+      },
+      {
+        key: "spk_front_m",
+        label: "Distance from front wall",
+        sub: "Speaker front to wall behind",
+        min: 0.01,
+        max: 1.5,
+        step: 0.05
+      },
+      {
+        key: "tweeter_height_m",
+        label: "Tweeter height",
+        sub: "From floor",
+        min: 0.6,
+        max: 1.6,
+        step: 0.01
+      },
+      {
+        key: "toe_in_deg",
+        label: "Toe-in angle",
+        sub: "Angle toward listening position",
+        min: 0,
+        max: 45,
+        step: 1
+      },
+      {
+        key: "listener_front_m",
+        label: "Listening distance",
+        sub: "From speakers to your ears",
+        min: 0.5,
+        max: 4.5,
+        step: 0.05
+      },
+      {
+        key: "subwoofer",
+        kind: "toggle",
+        label: "Subwoofer",
+        sub: "Do you have a subwoofer in the system?"
+      }
+    ]
+  },
+
+  /* ------------------------------------------
+      STEP 3 — MATERIALS & FURNISHINGS
+  ------------------------------------------ */
+  {
+    type: "materials",
+    title: "Materials & furnishings",
+    fields: [
+      {
+        key: "floor_material",
+        kind: "select",
+        label: "Floor type",
+        sub: "Major effect on brightness and reflections",
+        options: [
+          { value: "hard", label: "Hard floor (wood / tile)" },
+          { value: "carpet", label: "Carpet" }
+        ]
+      },
+      {
+        key: "opt_area_rug",
+        kind: "toggle",
+        label: "Rug",
+        sub: "Absorbs early reflections between speakers and listener"
+      },
+      {
+        key: "opt_sofa",
+        kind: "toggle",
+        label: "Sofa",
+        sub: "Adds absorption behind the listening position"
+      },
+      {
+        key: "opt_coffee_table",
+        kind: "toggle",
+        label: "Coffee table",
+        sub: "Strong early reflection risk"
+      },
+      {
+        key: "wall_panel_mode",
+        kind: "select",
+        label: "Front / rear wall panels",
+        sub: "Absorption on the wall behind or between the speakers",
+        options: [
+          { value: "none", label: "None" },
+          { value: "front", label: "Front wall" },
+          { value: "rear", label: "Rear wall" },
+          { value: "both", label: "Front + rear walls" }
+        ]
+      },
+      {
+        key: "side_panel_mode",
+        kind: "select",
+        label: "Side wall panels",
+        sub: "Absorption at first reflection points",
+        options: [
+          { value: "none", label: "None" },
+          { value: "left", label: "Left wall" },
+          { value: "right", label: "Right wall" },
+          { value: "both", label: "Both walls" }
+        ]
+      },
+      {
+        key: "bass_trap_mode",
+        kind: "select",
+        label: "Bass traps",
+        sub: "Low-frequency absorption in room corners",
+        options: [
+          { value: "none", label: "None" },
+          { value: "front", label: "Front corners" },
+          { value: "rear", label: "Rear corners" },
+          { value: "all", label: "All corners" }
+        ]
+      },
+      {
+        key: "ceiling_panel_mode",
+        kind: "select",
+        label: "Ceiling cloud",
+        sub: "Absorption above listening position",
+        options: [
+          { value: "none", label: "None" },
+          { value: "cloud", label: "Ceiling cloud" }
+        ]
+      }
+    ]
+  }
+];
+
+/* ------------------------------------------
+   UI STATE
+------------------------------------------ */
+const panel     = document.getElementById("questionPanel");
+const qText     = document.getElementById("qText");
+const qSub      = document.getElementById("qSub");
+const fieldStack = document.getElementById("fieldStack");
+
+/* ------------------------------------------
+   FINISH ONBOARDING
+------------------------------------------ */
+async function finish() {
+  room3D.setMode("locked");
+  panel.classList.remove("active");
+
+  try {
+    await fetch("/api/room/latest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(roomState)
+    });
+  } catch (err) {
+    console.error("Failed to save room", err);
+  }
+
+  // Return to dashboard
+  window.location.href = "/index.html";
+}
+
+await loadSavedRoom();
+/* ------------------------------------------
+   START
+------------------------------------------ */
+
+// Simple debounce helper to prevent console spam when sliding rapidly
+function debounce(func, wait) {
+    let timeout;
+    return function (...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func(...args), wait);
+    };
+}
+const debouncedUpdate = debounce(() => {
+    if (room3D && room3D.update) room3D.update();
+}, 25);
+
+function renderAllSections() {
+    // 1. Clear the stack to prevent duplicate UI elements
+    fieldStack.innerHTML = "";
+
+    steps.forEach(section => {
+        // 2. Create Section Header
+        const sectionHeader = document.createElement("h3");
+        sectionHeader.className = "room-section-title";
+        sectionHeader.textContent = section.title;
+        fieldStack.appendChild(sectionHeader);
+
+        const fieldsHtml = section.fields.map(f => {
+            const factoryConfig = {
+                ...f,
+                type: f.kind || 'slider',
+                displayFormat: { suffix: f.key.includes("deg") ? "°" : (f.kind !== 'select' && f.kind !== 'toggle' ? "m" : "") }
+            };
+
+            const val = getNestedRoomValue(roomState, f.key);
+            let htmlContext = UIFactory.renderField(factoryConfig, val);
+
+            let displayStyle = "";
+            if (f.showIf) {
+                const depVal = getNestedRoomValue(roomState, f.showIf.key);
+                const allowed = Array.isArray(f.showIf.value) ? f.showIf.value : [f.showIf.value];
+                if (!allowed.includes(depVal)) {
+                    displayStyle = ' style="display: none;"';
+                }
+            }
+            
+            htmlContext = htmlContext.replace('<div class="field', `<div id="field-${f.key}"${displayStyle} class="field`);
+
+            if (f.key === "toe_in_deg") {
+                const calcLinkHtml = `<span class="calc-link" onclick="if(window.openToeModal) window.openToeModal();">Calculate from wall</span>`;
+                htmlContext = htmlContext.substring(0, htmlContext.lastIndexOf('</div>')) + "\n" + calcLinkHtml + "\n</div>";
+            }
+
+            return htmlContext;
+        }).join('');
+
+        fieldStack.insertAdjacentHTML('beforeend', fieldsHtml);
+    }); 
+
+    UIController.attach({
+        container: fieldStack,
+        state: roomState,
+        room3D: room3D,
+        onValueUpdate: () => {}, // Handled by UIController & room3D.update()
+        onMacroChange: () => {
+            renderAllSections(); 
+        }
+    });
+} 
+
+// Initial Run
+renderAllSections();
+
+// --- Modal Controls ---
+window.openToeModal = function() {
+  const refSpacing = document.getElementById('ref_spacing');
+  const refDist = document.getElementById('ref_dist');
+  
+  // Update reference numbers from current state
+  if (refSpacing) refSpacing.textContent = roomState.spk_spacing_m;
+  if (refDist) refDist.textContent = roomState.listener_front_m;
+  
+  document.getElementById('toeModal').classList.add('active');
+};
+
+window.closeToeModal = function() {
+  document.getElementById('toeModal').classList.remove('active');
+  const resDiv = document.getElementById('calc_results');
+  if (resDiv) resDiv.style.display = 'none';
+};
+
+window.applyToeCalc = function() {
+  const w = parseFloat(document.getElementById('calc_spk_w').value);
+  const dInner = parseFloat(document.getElementById('calc_dist_inner').value);
+  const dOuter = parseFloat(document.getElementById('calc_dist_outer').value);
+
+  // Validation: Ensure we have numbers to work with
+  if (isNaN(w) || isNaN(dInner) || isNaN(dOuter) || w === 0) {
+    alert("Please enter valid measurements for the speaker depth and wall distances.");
+    return;
+  }
+
+  // 1. Calculate Measured Angle (using Sine for the triangle formed by speaker depth)
+  const diff = Math.abs(dOuter - dInner);
+  // Ensure the ratio doesn't exceed 1 (math error) due to measurement typos
+  const ratio = Math.min(diff / w, 1);
+  let measuredAngle = Math.asin(ratio) * (180 / Math.PI);
+  
+  // 2. Calculate Ideal Angle (Direct to ear using Tangent)
+  const halfSpacing = roomState.spk_spacing_m / 2;
+  const distToListener = roomState.listener_front_m;
+  let idealAngle = Math.atan(halfSpacing / distToListener) * (180 / Math.PI);
+
+  // 3. Update Results Display
+  const resDiv = document.getElementById('calc_results');
+  if (resDiv) {
+    resDiv.style.display = 'block';
+    resDiv.style.marginTop = '1rem';
+    resDiv.style.padding = '10px';
+    resDiv.style.background = 'rgba(16, 185, 129, 0.1)';
+    resDiv.style.borderRadius = '6px';
+    resDiv.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+    
+    resDiv.innerHTML = `
+      <div style="color: #10b981; font-weight: bold;">Calculation Successful</div>
+      <div style="color: #94a3b8; font-size: 0.85rem;">
+        Measured Toe-in: <strong>${Math.round(measuredAngle)}°</strong><br>
+        Ideal for Position: <strong>${Math.round(idealAngle)}°</strong>
+      </div>
+    `;
+  }
+
+  // 4. Update state and UI
+  // Note: We round the angle for the slider. 
+  roomState.toe_in_deg = Math.round(measuredAngle);
+  
+  // Re-sync the 3D view and the main panel
+  if (room3D && room3D.update) room3D.update();
+  renderAllSections();
+
+  // Close modal after a brief delay so they can see the result
+  setTimeout(window.closeToeModal, 1200);
+};
+
+const saveBtn = document.getElementById("saveBtn");
+const backBtn = document.getElementById("backBtn");
+
+if (!saveBtn || !backBtn) {
+  console.error("Buttons not found");
+}
+
+saveBtn.onclick = finish;
+backBtn.onclick = () => {
+  window.location.href = "/index.html";
+};
+
+
+</script>
+
+<script>
+// Show simulated target scores if the user previously saved from Room Analysis
+(function () {
+    let scores;
+    try { scores = JSON.parse(localStorage.getItem('measurely_sim_targets') || 'null'); } catch (_) {}
+    if (!scores) return;
+
+    const badge     = document.getElementById('simTargetBadge');
+    const chips     = document.getElementById('stbChips');
+    const overallEl = document.getElementById('stbOverall');
+    if (!badge || !chips || !overallEl) return;
+
+    const metrics = [
+        { key: 'peaks_dips',  label: 'Peaks'  },
+        { key: 'reflections', label: 'Refl'   },
+        { key: 'bandwidth',   label: 'BW'     },
+        { key: 'balance',     label: 'Bal'    },
+        { key: 'smoothness',  label: 'Smooth' },
+        { key: 'clarity',     label: 'Clarity'},
+    ];
+
+    function qualityClass(val) {
+        if (val == null) return '';
+        return val < 5 ? 'poor' : val < 7.5 ? 'ok' : 'good';
+    }
+
+    // Overall = mean of the six metric scores
+    const vals = metrics.map(m => scores[m.key]).filter(v => typeof v === 'number');
+    const overall = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+
+    if (overall != null) {
+        overallEl.textContent = overall.toFixed(1);
+        overallEl.className   = 'stb-overall-num ' + qualityClass(overall);
+    }
+
+    chips.innerHTML = metrics.map(({ key, label }) => {
+        const val = scores[key] ?? null;
+        const num = val != null ? Number(val).toFixed(1) : '—';
+        return `<span class="stb-chip ${qualityClass(val)}">${label} <strong>${num}</strong></span>`;
+    }).join('');
+
+    badge.hidden = false;
+})();
+</script>
+
+</body>
+</html>

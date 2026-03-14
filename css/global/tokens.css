@@ -1,0 +1,72 @@
+:root {
+
+    --font-main: 'Inter', sans-serif;
+
+    /* Premium Palette */
+    --c-bg: #0f172a; /* Deep Slate */
+    --c-surface: #1e293b; /* Lighter Slate */
+    --c-surface-glass: rgba(30, 41, 59, 0.7);
+
+    --c-text-main: #f8fafc;
+    --c-text-muted: #94a3b8;
+
+    --c-accent: #6366f1; /* Indigo */
+    --c-accent-glow: rgba(99, 102, 241, 0.5);
+
+    /* Status Colors */
+    --c-excellent: #10b981; /* Emerald */
+    --c-good: #f59e0b; /* Amber */
+    --c-okay: #3b82f6; /* Blue */
+    --c-poor: #ef4444; /* Red */
+
+    /* Status tints — light text/fill on dark backgrounds */
+    --c-poor-text: #f87171;     /* red-400, danger button text */
+    --c-poor-dark: #dc2626;     /* red-600, danger gradient end */
+    --c-accent-light: #a5b4fc;  /* indigo-300, active nav/tab text */
+    --c-accent-dark: #4f46e5;   /* indigo-600, button gradient end */
+    --c-okay-light: #93c5fd;    /* blue-300, Mid band pill text */
+    --c-cyan-light: #67e8f9;    /* cyan-300, Treble band pill text */
+    --c-pink-light: #f9a8d4;    /* pink-300, Air band pill text */
+
+    /* Chip & callout tints — coloured badges on dark surfaces */
+    --c-accent-tint: #c7d2fe;      /* indigo-200 */
+    --c-excellent-tint: #a7f3d0;   /* emerald-200 */
+    --c-excellent-mid: #6ee7b7;    /* emerald-300 */
+    --c-good-tint: #fde68a;        /* amber-200 */
+    --c-good-mid: #fcd34d;         /* amber-300 */
+    --c-poor-tint: #fca5a5;        /* red-200 */
+
+    /* Simulation delta colours */
+    --c-sim-better: #4ade80;    /* green-400, score improvement */
+
+    /* Utility */
+    --c-white: #ffffff;
+    --c-bg-dark: #111;          /* near-black, log panel background */
+    --c-sweep-text: #9fe0ff;    /* cyan tint, sweep log info text */
+
+    /* UX/UI Enhancement: Icon glow colors */
+    --icon-glow-primary: rgba(99, 102, 241, 0.4);
+    --icon-glow-accent: rgba(129, 140, 248, 0.5);
+
+    /* ... your existing variables ... */
+    --c-primary: #6366f1; /* Link primary to your indigo accent */
+    --c-primary-rgb: 99, 102, 241;
+
+}
+
+/* Semantic aliases (do not style directly) */
+:root {
+  --c-bg-app: var(--c-bg);
+  --c-panel: var(--c-surface);
+  --c-text-primary: var(--c-text-main);
+}
+
+:root {
+    --measurely-accent: #ff4f9a; /* tweak later */
+}
+
+.measurely-mark {
+    color: var(--measurely-accent);
+    fill: var(--measurely-accent);
+}
+

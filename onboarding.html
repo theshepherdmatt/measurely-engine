@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Measurely — Setup Wizard</title>
+
+<link rel="icon" type="image/svg+xml" href="icons/dave.svg">
+<link rel="stylesheet" href="css/onboarding/index.css">
+
+<script src="js/vendor/three/three.min.js"></script>
+<script src="js/vendor/three/OrbitControls.js"></script>
+
+    <!-- PWA / App-like behaviour -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Measurely">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0b1220">
+
+    <script>
+    document.addEventListener('click', function(event) {
+        var target = event.target;
+        // Walk up the DOM tree to find the 'a' tag (in case they clicked an icon inside the link)
+        while (target && target.nodeName !== 'A') {
+            target = target.parentNode;
+        }
+
+        if (target && target.href && target.getAttribute('target') !== '_blank') {
+            // Check if the link is internal (points to your Pi's IP)
+            if (target.href.indexOf(window.location.host) !== -1) {
+                event.preventDefault();
+                window.location.href = target.href;
+            }
+        }
+    }, false);
+    </script>
+
+</head>
+
+<body>
+
+<!-- HEADER -->
+<header class="header header-onboarding">
+    <div class="header-title">
+        <h1>
+            <img
+                src="icons/largedave.svg"
+                alt=""
+                class="measurely-mark"
+                aria-hidden="true"
+            />
+            Setup Wizard
+        </h1>
+        <p>Define the physical space you listen in.</p>
+    </div>
+</header>
+
+
+<!-- FULLSCREEN ROOM -->
+<div id="roomCanvas"></div>
+<p id="canvasHint" aria-hidden="true">Drag to rotate&nbsp;&nbsp;·&nbsp;&nbsp;Scroll to zoom</p>
+
+<!-- WELCOME SCREEN (first-visit only) -->
+<div id="welcomeScreen">
+  <canvas id="welcomeWaves" aria-hidden="true"></canvas>
+
+  <div class="welcome-hero">
+
+    <!-- Logo mark -->
+    <div class="welcome-logo-wrap" aria-hidden="true">
+      <div class="welcome-logo-ring"></div>
+      <img src="icons/largedave.svg" alt="">
+    </div>
+
+    <p class="welcome-eyebrow">Room acoustic measurement</p>
+
+    <h2 class="welcome-headline">Your room is shaping<br>your sound.</h2>
+
+    <p class="welcome-sub">
+      One sine sweep reveals bass modes, early reflections, and tonal
+      imbalance — all mapped to your physical space.
+    </p>
+
+    <!-- Feature trio -->
+    <div class="welcome-features" aria-hidden="true">
+
+      <div class="welcome-feature">
+        <div class="welcome-feature-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2 12 C4 6 6 6 8 12 C10 18 12 18 14 12 C16 6 18 6 20 12"/>
+          </svg>
+        </div>
+        <div class="welcome-feature-text">
+          <strong>Measure</strong>
+          <span>Precision sine sweep</span>
+        </div>
+      </div>
+
+      <div class="welcome-feature-divider" aria-hidden="true"></div>
+
+      <div class="welcome-feature">
+        <div class="welcome-feature-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="6" width="4" height="14" rx="1"/><rect x="17" y="9" width="4" height="11" rx="1"/>
+          </svg>
+        </div>
+        <div class="welcome-feature-text">
+          <strong>Diagnose</strong>
+          <span>6 acoustic metrics</span>
+        </div>
+      </div>
+
+      <div class="welcome-feature-divider" aria-hidden="true"></div>
+
+      <div class="welcome-feature">
+        <div class="welcome-feature-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
+            <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
+            <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
+            <line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>
+          </svg>
+        </div>
+        <div class="welcome-feature-text">
+          <strong>Simulate</strong>
+          <span>Speaker &amp; treatment</span>
+        </div>
+      </div>
+
+    </div><!-- /welcome-features -->
+
+    <div class="welcome-actions">
+      <button id="tourBtn" class="welcome-cta">
+        Begin setup
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+        </svg>
+      </button>
+      <button id="skipBtn" class="welcome-skip">
+        Skip for now
+      </button>
+    </div>
+
+    <p class="welcome-hint">Takes about 2 minutes — you'll need a tape measure.</p>
+
+  </div>
+</div>
+
+<!-- DAVE COMMENTARY CHIP — floats over the 3D canvas, auto-dismisses -->
+<div id="daveChip" aria-live="polite" aria-atomic="true"></div>
+
+<!-- SLIDING QUESTION PANEL -->
+<div id="questionPanel">
+
+  <!-- Progress bar: step dots + label -->
+  <div id="sectionProgress" class="wizard-progress" aria-label="Wizard progress">
+    <div class="wizard-progress-dots" id="progressDots"></div>
+    <span class="wizard-progress-label" id="progressLabel"></span>
+  </div>
+
+  <div class="question" id="qText"></div>
+  <div class="sub" id="qSub"></div>
+
+  <div id="fieldStack"></div>
+
+  <div class="actions">
+    <button id="backBtn" class="btn btn-secondary">Back</button>
+    <button id="nextBtn" class="btn btn-primary">Next</button>
+  </div>
+</div>
+
+<script type="module" src="js/onboarding-guide.js"></script>
+
+<script type="module">
+import { initRoom3D } from "./js/room3d.js";
+import { attachHighlightListeners, UIController } from './js/uiController.js';
+import { onboardingSteps, onboardingStyles } from './js/onboarding-tour.js';
+import { UIFactory } from './js/UIFactory.js';
+
+
+function loadSavedRoom() {
+    try {
+        const saved = JSON.parse(localStorage.getItem('measurely_room') || 'null');
+        if (!saved) return structuredClone(DEFAULT_ROOM_STATE);
+
+        const state = structuredClone(DEFAULT_ROOM_STATE);
+
+        // Geometry
+        if (saved.geometry) {
+            Object.assign(state.geometry, saved.geometry);
+            // Coerce any numeric strings that may have slipped in
+            ['length_m','width_m','height_m','ceiling_height_secondary_m'].forEach(k => {
+                if (state.geometry[k] != null) state.geometry[k] = parseFloat(state.geometry[k]);
+            });
+        }
+
+        // Setup
+        if (saved.setup) {
+            Object.keys(saved.setup).forEach(k => {
+                const v = saved.setup[k];
+                state.setup[k] = (typeof v === 'string' && !isNaN(v)) ? parseFloat(v) : v;
+            });
+        }
+
+        // Environment (furniture + treatment sub-objects)
+        if (saved.environment) {
+            state.environment = {
+                ...state.environment,
+                ...saved.environment,
+                furniture: { ...state.environment.furniture, ...(saved.environment.furniture || {}) },
+                treatment: { ...state.environment.treatment, ...(saved.environment.treatment || {}) }
+            };
+        }
+
+        if (saved.room_type) state.room_type = saved.room_type;
+
+        console.log("[Wizard] Loaded room from localStorage");
+        return state;
+    } catch (e) {
+        console.warn("[Wizard] localStorage read failed, using defaults:", e);
+        return structuredClone(DEFAULT_ROOM_STATE);
+    }
+}
+
+
+/* ------------------------------------------
+    LOCAL ROOM STATE (single source of truth)
+------------------------------------------ */
+const DEFAULT_ROOM_STATE = {
+  room_type: "home",
+  geometry: {
+    length_m: 4,
+    width_m: 4,
+    height_m: 2.5,
+    ceiling_type: "flat",
+    ceiling_slant_direction: "left_to_right",
+    ceiling_gable_axis: "depth",
+    ceiling_height_secondary_m: 2.0
+  },
+  setup: {
+    speaker_type: "standmount",
+    spk_spacing_m: 2,
+    spk_front_m: 0.3,
+    tweeter_height_m: 0.95,
+    toe_in_deg: 15,
+    listener_front_m: 2.5,
+    listener_offset_m: 0,
+    subwoofer: false
+  },
+  environment: {
+    floor_material: "hard",
+    furniture: {
+        opt_area_rug: false,
+        opt_sofa: false,
+        opt_coffee_table: false
+    },
+    treatment: {
+        wall_panel_mode: "none",
+        side_panel_mode: "none",
+        bass_trap_mode: "none",
+        ceiling_panel_mode: "none"
+    }
+  }
+};
+
+let roomState = structuredClone(DEFAULT_ROOM_STATE);
+
+const hasOnboarded = localStorage.getItem('measurely_onboarded');
+const welcomeScreen = document.getElementById('welcomeScreen');
+
+function dismissWelcome(cb) {
+  localStorage.setItem('measurely_onboarded', 'true');
+  welcomeScreen.classList.add('welcome-out');
+  setTimeout(() => {
+    welcomeScreen.classList.add('hidden');
+    cb?.();
+  }, 420);
+}
+
+if (hasOnboarded) {
+  // Returning user — skip the welcome screen immediately
+  welcomeScreen.classList.add('hidden');
+} else {
+  document.getElementById('tourBtn').addEventListener('click', () => {
+    dismissWelcome(() => window.startTour?.());
+  });
+
+  document.getElementById('skipBtn').addEventListener('click', () => {
+    dismissWelcome();
+  });
+}
+
+
+const steps = [
+  /* ------------------------------------------
+      STEP 1 — ROOM
+  ------------------------------------------ */
+  {
+    type: "room",
+    title: "Room dimensions",
+    desc: "Bass behaves like water — it pools in corners and along walls. Tell us the size of the container.",
+    dave: "Bass frequencies are long. In a 4m room, a 43Hz wave exactly fits wall-to-wall — that's the boom you can't EQ away. Measurely finds it.",
+    fields: [
+      {
+        key: "room_type", // Root level
+        kind: "select",
+        label: "Room Use",
+        sub: "Optimizes layout for relaxation or production",
+        options: [
+          { value: "home", label: "Home / Hi-Fi" },
+          { value: "studio", label: "Studio / Workspace" }
+        ]
+      },
+      {
+        key: "geometry.length_m", // Nested in geometry
+        label: "Room length",
+        sub: "Front wall to back wall",
+        min: 2,
+        max: 10,
+        step: 0.05
+      },
+      {
+        key: "geometry.width_m",
+        label: "Room width",
+        sub: "Left wall to right wall",
+        min: 2,
+        max: 10,
+        step: 0.05
+      },
+      {
+        key: "geometry.height_m",
+        label: "Ceiling height",
+        sub: "Floor to ceiling (high side if slanted)",
+        min: 2,
+        max: 3.5,
+        step: 0.01
+      },
+      {
+        key: "geometry.ceiling_type",
+        kind: "select",
+        label: "Ceiling shape",
+        sub: "Flat or slanted (pent) roof",
+        options: [
+          { value: "flat", label: "Flat" },
+          { value: "slanted", label: "Slanted (pent roof)" },
+          { value: "gable", label: "Gabled (pitched roof)" }
+        ]
+      },
+      {
+        key: "geometry.ceiling_slant_direction",
+        kind: "select",
+        label: "Slant direction",
+        sub: "Which way does the ceiling slope down?",
+        options: [
+          { value: "left_to_right", label: "Left → Right (low on left)" },
+          { value: "right_to_left", label: "Right → Left (low on right)" },
+          { value: "front_to_back", label: "Front → Back (low at back)" },
+          { value: "back_to_front", label: "Back → Front (low at front)" }
+        ],
+        showIf: { key: "geometry.ceiling_type", value: "slanted" }
+      },
+      {
+        key: "geometry.ceiling_gable_axis",
+        kind: "select",
+        label: "Ridge direction",
+        sub: "Which way does the roof peak run?",
+        options: [
+          { value: "depth", label: "Front to back" },
+          { value: "width", label: "Left to right" }
+        ],
+        showIf: { key: "geometry.ceiling_type", value: "gable" }
+      },
+      {
+        key: "geometry.ceiling_height_secondary_m",
+        label: "Low-side ceiling height",
+        sub: "Eaves height (wall height where slope begins)",
+        min: 1.8,
+        max: 3.5,
+        step: 0.01,
+        showIf: { key: "geometry.ceiling_type", value: ["slanted", "gable"] }
+      }
+    ]
+  },
+
+  /* ------------------------------------------
+      STEP 2 — SPEAKERS
+  ------------------------------------------ */
+  {
+    type: "speakers",
+    title: "Speaker placement",
+    desc: "The single biggest lever for bass — without buying anything — is where you put your speakers.",
+    dave: "Distance from the front wall is everything for bass. 30cm from the wall and you're loading up a room mode. Pull them out to 60cm+ and it starts to clean up.",
+    fields: [
+      {
+        key: "setup.speaker_type",
+        kind: "select",
+        label: "Speaker type",
+        sub: "General speaker format used for this measurement",
+        options: [
+          { value: "standmount",   label: "Standmount / bookshelf" },
+          { value: "floorstander", label: "Floorstanding" },
+          { value: "panel",        label: "Panel / electrostatic" },
+          { value: "monitor",      label: "Studio Monitor (Desk)" },
+        ]
+      },
+      {
+        key: "setup.listener_offset_m",
+        label: "Listening position offset",
+        sub: "Shift the listening area left or right",
+        min: -2,
+        max: 2,
+        step: 0.05
+      },
+      {
+        key: "setup.spk_spacing_m",
+        label: "Speaker spacing",
+        sub: "Distance between left and right speakers",
+        min: 1.2,
+        max: 4,
+        step: 0.05
+      },
+      {
+        key: "setup.spk_front_m",
+        label: "Distance from front wall",
+        sub: "Speaker front to wall behind",
+        min: 0.01,
+        max: 1.5,
+        step: 0.05
+      },
+      {
+        key: "setup.tweeter_height_m",
+        label: "Tweeter height",
+        sub: "From floor",
+        min: 0.6,
+        max: 1.8,
+        step: 0.01
+      },
+      {
+        key: "setup.toe_in_deg",
+        label: "Toe-in angle",
+        sub: "Angle toward listening position",
+        min: 0,
+        max: 45,
+        step: 1
+      },
+      {
+        key: "setup.listener_front_m",
+        label: "Listening distance",
+        sub: "From speakers to your ears",
+        min: 1.5,
+        max: 4.5,
+        step: 0.05
+      },
+      {
+        key: "setup.subwoofer",
+        kind: "toggle",
+        label: "Subwoofer",
+        sub: "Do you have a subwoofer in the system?"
+      }
+    ]
+  },
+
+  /* ------------------------------------------
+      STEP 3 — MATERIALS & FURNISHINGS
+  ------------------------------------------ */
+  {
+    type: "materials",
+    title: "What's in your room?",
+    desc: "Hard surfaces bounce sound. Soft ones soak it up. Your sofa is doing real acoustic work whether you know it or not.",
+    dave: "Tell us what's here — even a rug and a sofa already meaningfully change the numbers. Acoustic panels are a bonus, not a requirement.",
+    fields: [
+      {
+        key: "environment.floor_material",
+        kind: "select",
+        label: "Floor type",
+        sub: "Major effect on brightness and reflections",
+        options: [
+          { value: "hard", label: "Hard floor (wood / tile)" },
+          { value: "carpet", label: "Carpet" }
+        ]
+      },
+      {
+        key: "environment.furniture.opt_area_rug",
+        kind: "toggle",
+        label: "Rug",
+        sub: "Reduces sound bouncing"
+      },
+      {
+        key: "environment.furniture.opt_sofa",
+        kind: "toggle",
+        label: "Sofa",
+        sub: "Adds absorption behind position"
+      },
+      {
+        key: "environment.furniture.opt_coffee_table",
+        kind: "toggle",
+        label: "Coffee table",
+        sub: "Hard surface between speakers and listener"
+      },
+      {
+        key: "environment.treatment.wall_panel_mode",
+        kind: "select",
+        label: "Front / rear wall panels",
+        options: [
+          { value: "none", label: "None" },
+          { value: "front", label: "Front wall" },
+          { value: "rear", label: "Rear wall" },
+          { value: "both", label: "Front + rear walls" }
+        ]
+      },
+      {
+        key: "environment.treatment.side_panel_mode",
+        kind: "select",
+        label: "Side wall panels",
+        options: [
+          { value: "none", label: "None" },
+          { value: "left", label: "Left wall" },
+          { value: "right", label: "Right wall" },
+          { value: "both", label: "Both walls" }
+        ]
+      },
+      {
+        key: "environment.treatment.bass_trap_mode",
+        kind: "select",
+        label: "Bass traps",
+        options: [
+          { value: "none", label: "None" },
+          { value: "front", label: "Front corners" },
+          { value: "rear", label: "Rear corners" },
+          { value: "all", label: "All corners" }
+        ]
+      },
+      {
+        key: "environment.treatment.ceiling_panel_mode",
+        kind: "select",
+        label: "Ceiling cloud",
+        options: [
+          { value: "none", label: "None" },
+          { value: "cloud", label: "Ceiling cloud" }
+        ]
+      }
+    ]
+  }
+];
+
+/* ------------------------------------------
+   UI STATE
+------------------------------------------ */
+let stepIndex = 0;
+
+const panel           = document.getElementById("questionPanel");
+const sectionProgress = document.getElementById("sectionProgress");
+const progressDots    = document.getElementById("progressDots");
+const progressLabel   = document.getElementById("progressLabel");
+const qText           = document.getElementById("qText");
+const qSub            = document.getElementById("qSub");
+const fieldStack      = document.getElementById("fieldStack");
+const nextBtn         = document.getElementById("nextBtn");
+const backBtn         = document.getElementById("backBtn");
+const daveChipEl      = document.getElementById("daveChip");
+
+// Let the Joyride tour advance the wizard when a tour step requests it
+window.advanceWizard = () => nextBtn.click();
+
+/* ------------------------------------------
+   PROGRESS DOTS
+------------------------------------------ */
+function renderProgressDots() {
+    if (!progressDots) return;
+    progressDots.innerHTML = steps.map((_, i) => {
+        let cls = 'wizard-dot';
+        if (i < stepIndex)  cls += ' done';
+        if (i === stepIndex) cls += ' active';
+        return `<span class="${cls}" aria-hidden="true"></span>`;
+    }).join('');
+    if (progressLabel) {
+        progressLabel.textContent = `Step ${stepIndex + 1} of ${steps.length}`;
+    }
+}
+
+/* ------------------------------------------
+   DAVE COMMENTARY CHIP
+------------------------------------------ */
+let _chipTimer = null;
+
+function showDaveChip(text, duration = 5500) {
+    if (!daveChipEl || !text) return;
+
+    clearTimeout(_chipTimer);
+    daveChipEl.classList.remove('chip-visible', 'chip-out');
+
+    daveChipEl.innerHTML = `
+        <img src="icons/largedave.svg" class="dave-chip-avatar" alt="" aria-hidden="true">
+        <span class="dave-chip-text">${text}</span>`;
+
+    // Force reflow so the transition fires cleanly
+    void daveChipEl.offsetWidth;
+    daveChipEl.classList.add('chip-visible');
+
+    _chipTimer = setTimeout(() => {
+        daveChipEl.classList.remove('chip-visible');
+        daveChipEl.classList.add('chip-out');
+        setTimeout(() => daveChipEl.classList.remove('chip-out'), 350);
+    }, duration);
+}
+
+// Expose so finish() can use it for error messaging
+window.showDaveChip = showDaveChip;
+
+/* ------------------------------------------
+   CANVAS HINT — adapt text to input device
+------------------------------------------ */
+const canvasHint = document.getElementById('canvasHint');
+if (canvasHint) {
+    const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    canvasHint.textContent = isTouch
+        ? '1 finger: rotate  ·  2 fingers: zoom'
+        : 'Drag to rotate  ·  Scroll to zoom';
+    // Auto-fade after first canvas interaction
+    document.getElementById('roomCanvas')?.addEventListener('pointerdown', () => {
+        canvasHint.style.transition = 'opacity 1.5s ease';
+        canvasHint.style.opacity = '0';
+    }, { once: true, passive: true });
+}
+
+/* ------------------------------------------
+   HELPERS
+------------------------------------------ */
+function formatVal(v, step) {
+  return Number(v).toFixed(step >= 1 ? 0 : 2);
+}
+
+function setSliderFill(slider, min, max) {
+  const pct = ((parseFloat(slider.value) - min) / (max - min)) * 100;
+  slider.style.setProperty('--fill', pct.toFixed(1) + '%');
+}
+
+/* ------------------------------------------
+   VALIDATION
+------------------------------------------ */
+const VALIDATION_RULES = {
+  room(s) {
+    const errs = [];
+    const geo = s.geometry; // Use the geometry bucket
+
+    if (geo.length_m >= 10) {
+        errs.push({ key: "geometry.length_m", msg: "Maximum room length is 10 m." });
+    }
+    if (geo.width_m >= 10) {
+        errs.push({ key: "geometry.width_m", msg: "Maximum room width is 10 m." });
+    }
+    if (geo.height_m > 3.5) {
+        errs.push({ key: "geometry.height_m", msg: "Maximum ceiling height is 3.5 m." });
+    }
+    return errs;
+  },
+
+  speakers(s) {
+    const errs = [];
+    const setup = s.setup;     // Use the setup bucket
+    const geo = s.geometry;   // Need geometry to compare against room size
+
+    if (setup.spk_spacing_m >= geo.width_m) {
+      errs.push({ 
+        key: "setup.spk_spacing_m",
+        msg: `Speaker spacing (${setup.spk_spacing_m.toFixed(2)} m) must be less than room width (${geo.width_m.toFixed(2)} m).` 
+      });
+    }
+
+    if (setup.spk_front_m >= geo.length_m / 2) {
+      errs.push({ 
+        key: "setup.spk_front_m",
+        msg: `Front-wall distance (${setup.spk_front_m.toFixed(2)} m) must be less than half the room length (${(geo.length_m / 2).toFixed(2)} m).` 
+      });
+    }
+
+    if (setup.listener_front_m >= geo.length_m - setup.spk_front_m) {
+      errs.push({ 
+        key: "setup.listener_front_m",
+        msg: `Listening distance is greater than the remaining room depth. Move closer to the speakers or push the speakers back.` 
+      });
+    }
+    
+    return errs;
+  },
+
+  materials() { 
+    return []; 
+  },
+};
+
+function validate(wizardStep) {
+  const rule = VALIDATION_RULES[wizardStep.type];
+  return rule ? rule(roomState) : [];
+}
+
+function showErrors(errs) {
+  errs.forEach(({ key, msg }) => {
+    const safeIdKey = key.includes('.') ? key.split('.').pop() : key;
+    const field = document.getElementById("field-" + safeIdKey);
+    if (!field) return;
+    field.classList.add("has-error");
+    const errEl = document.createElement("p");
+    errEl.className = "field-error-msg";
+    errEl.textContent = msg;
+    field.appendChild(errEl);
+    field.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+}
+
+function clearErrors() {
+  fieldStack.querySelectorAll(".has-error").forEach(el => el.classList.remove("has-error"));
+  fieldStack.querySelectorAll(".field-error-msg").forEach(el => el.remove());
+}
+
+/* ------------------------------------------
+   RENDER CURRENT STEP
+------------------------------------------ */
+/* ------------------------------------------
+    NESTED STATE HELPERS
+------------------------------------------ */
+const getDeepValue = (obj, path) => path.split('.').reduce((acc, part) => acc && acc[part], obj);
+
+const setDeepValue = (obj, path, value) => {
+    const parts = path.split('.');
+    const last = parts.pop();
+    const target = parts.reduce((acc, part) => acc[part], obj);
+    if (target) target[last] = value;
+};
+
+/* ------------------------------------------
+    RENDER CURRENT STEP
+------------------------------------------ */
+let isRefreshingUI = false; // Guard rail to prevent recursion loops
+
+function loadStep() {
+    if (isRefreshingUI) return;
+    isRefreshingUI = true;
+
+    const step = steps[stepIndex];
+
+    // 1. Sync 3D Stage AND Camera Focus
+    // Use window.room3D to ensure we are talking to the initialized instance
+    let targetStage = "";
+    let targetFocus = "";
+
+    if (step.type === "room") {
+        targetStage = "room";
+        targetFocus = "dimensions";
+    } else if (step.type === "speakers") {
+        targetStage = "speakers";
+        targetFocus = "placement";
+    } else if (step.type === "materials") {
+        targetStage = "furnishings";
+        targetFocus = "materials";
+    }
+
+    if (window.room3D) {
+        if (window.room3D.currentStage !== targetStage) window.room3D.setStage(targetStage);
+        window.room3D.focusOn(targetFocus);
+    }
+
+    // 2. Update headers + progress
+    renderProgressDots();
+    qText.textContent = step.title;
+    qSub.textContent = step.desc || "";
+
+    // 3a. Show Dave's commentary for this step (after a short delay
+    //     so the 3D scene has a moment to update first)
+    if (step.dave) {
+        setTimeout(() => showDaveChip(step.dave, 6000), 400);
+    }
+
+    // 3. Reset UI State
+    clearErrors();
+    if (window.room3D && window.room3D.highlight) window.room3D.highlight(null);
+    fieldStack.innerHTML = "";
+
+    // 4. Generate Fields
+    const fieldsHtml = step.fields.map(f => {
+        const factoryConfig = {
+            ...f,
+            type: f.kind || 'slider',
+            displayFormat: { suffix: f.key.includes("deg") ? "°" : (f.kind !== 'select' && f.kind !== 'toggle' ? "m" : "") },
+            instant: step.type === "speakers"
+        };
+
+        const currentVal = getDeepValue(roomState, f.key);
+        let htmlContext = UIFactory.renderField(factoryConfig, currentVal);
+
+        let displayStyle = "";
+        if (f.showIf) {
+            const depVal = getDeepValue(roomState, f.showIf.key);
+            const allowed = Array.isArray(f.showIf.value) ? f.showIf.value : [f.showIf.value];
+            if (!allowed.includes(depVal)) {
+                displayStyle = ' style="display: none;"';
+            }
+        }
+        
+        // Strip prefix (e.g. "geometry.length_m" -> "length_m") so the tour IDs match
+        const safeIdKey = f.key.includes('.') ? f.key.split('.').pop() : f.key;
+        
+        htmlContext = htmlContext.replace('<div class="field', `<div id="field-${safeIdKey}"${displayStyle} class="field`);
+        return htmlContext;
+    }).join('');
+
+    fieldStack.innerHTML = fieldsHtml;
+
+// 5. Trigger Central Controller
+    if (window.UIController) {
+        window.UIController.attach({
+            container: fieldStack,
+            state: roomState,
+            room3D: window.room3D,
+          onValueUpdate: (key, val) => {
+              setDeepValue(roomState, key, val);
+              if (key.includes('.')) {
+                  const flatKey = key.split('.').pop();
+                  roomState[flatKey] = val;
+              } else {
+                  roomState[key] = val;
+              }
+              if (window.room3D && window.room3D.update) {
+                  window.room3D.update();
+              }
+          },
+            onMacroChange: () => {
+                console.log("Macro change detected. Refreshing UI...");
+                if (!isRefreshingUI) loadStep(); 
+                if (window.room3D && window.room3D.update) {
+                    window.room3D.update();
+                }
+            }
+        });
+    }
+
+    // 6. UI Polish
+    panel.classList.add("active");
+    window.syncTourToWizard?.(stepIndex);
+
+    nextBtn.textContent = (stepIndex === steps.length - 1) ? "Save room & measure →" : "Next";
+    backBtn.disabled = stepIndex === 0;
+
+    isRefreshingUI = false;
+}
+
+/* ------------------------------------------
+   NAVIGATION
+------------------------------------------ */
+nextBtn.addEventListener("click", () => {
+    // 1. Validate the data for the current step before moving forward
+    const errs = validate(steps[stepIndex]);
+    if (errs.length) { 
+        showErrors(errs); 
+        return; 
+    }
+
+    // 2. Stop the spin if the user is interacting
+    if (window.room3D) window.room3D.stopAutoSpin();
+
+    // 3. Logic for moving to next step OR finishing
+    if (stepIndex < steps.length - 1) {
+        stepIndex++;
+        loadStep();
+        // Smooth scroll the panel back to top for long lists
+        panel.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        // We are on the last step!
+        finish(); 
+    }
+});
+
+backBtn.addEventListener("click", () => {
+    if (stepIndex > 0) {
+        if (window.room3D) window.room3D.stopAutoSpin();
+        
+        stepIndex--;
+        loadStep();
+        panel.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+});
+
+
+/* ------------------------------------------
+   STARTUP SEQUENCE
+------------------------------------------ */
+function finish() {
+    const btn = document.getElementById("nextBtn");
+    btn.disabled = true;
+    btn.textContent = "Saving...";
+
+    const payload = {
+        room_type:   roomState.room_type,
+        geometry:    roomState.geometry,
+        setup:       roomState.setup,
+        environment: roomState.environment,
+        saved_at:    new Date().toISOString()
+    };
+
+    try {
+        localStorage.setItem('measurely_room', JSON.stringify(payload));
+        console.log("[Wizard] Room saved to localStorage:", payload);
+
+        btn.textContent = "Room saved — let's measure →";
+        btn.style.background = "linear-gradient(135deg, #10b981, #059669)";
+
+        showDaveChip("That's your room. Now let's find out what it sounds like.", 8000);
+
+        // Run the cinematic flyby, then navigate to the dashboard
+        if (window.room3D?.flyby) {
+            window.room3D.flyby(() => {
+                window.location.href = "app.html";
+            });
+        } else {
+            setTimeout(() => { window.location.href = "app.html"; }, 800);
+        }
+
+    } catch (e) {
+        // localStorage quota exceeded (extremely rare but handle gracefully)
+        console.error("[Wizard] localStorage save failed:", e);
+        btn.disabled = false;
+        btn.textContent = "Save & continue";
+        showDaveChip("⚠️ Browser storage is full. Try clearing site data in Settings.", 6000);
+    }
+}
+
+async function startApp() {
+    // 1. Load the data
+    const rawData = await loadSavedRoom(); 
+    
+    // 2. Create a "Compatibility" object 
+    // This ensures room3d.js finds the numbers where it expects them
+    roomState = {
+        ...rawData,
+        length_m: rawData.geometry?.length_m || 4,
+        width_m:  rawData.geometry?.width_m  || 4,
+        height_m: rawData.geometry?.height_m || 2.5,
+        ceiling_type: rawData.geometry?.ceiling_type || "flat",
+        ceiling_slant_direction: rawData.geometry?.ceiling_slant_direction || "left_to_right",
+        ceiling_gable_axis: rawData.geometry?.ceiling_gable_axis || "depth",
+        ceiling_height_secondary_m: rawData.geometry?.ceiling_height_secondary_m || 2.0,
+        ...rawData.setup // Flatten setup keys to top level just in case
+    };
+
+    console.log("[Wizard] Booting 3D with state:", roomState);
+
+    // 3. Init engine
+    window.room3D = initRoom3D({
+        mountId: "roomCanvas",
+        getRoomData: () => roomState, 
+        mode: "setup"
+    });
+
+    // 4. Start the UI
+    if (window.room3D && window.room3D.startAutoSpin) {
+        window.room3D.startAutoSpin();
+    }
+    loadStep();
+}
+
+startApp();
+
+</script>
+
+
+<script>
+// Acoustic wave background animation for the welcome screen
+(function () {
+  const canvas = document.getElementById('welcomeWaves');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  function resize() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Wave definitions: each is a layered sine with a harmonic overtone
+  const waves = [
+    { freq: 0.0042, amp: 0.13, speed: 0.014, phase: 0.0, r: 99,  g: 102, b: 241, a: 0.22, lw: 2.0 },
+    { freq: 0.0068, amp: 0.08, speed: 0.021, phase: 1.8, r: 99,  g: 102, b: 241, a: 0.14, lw: 1.5 },
+    { freq: 0.0031, amp: 0.17, speed: 0.009, phase: 3.5, r: 255, g: 79,  b: 154, a: 0.11, lw: 1.5 },
+    { freq: 0.0115, amp: 0.04, speed: 0.030, phase: 0.9, r: 99,  g: 102, b: 241, a: 0.08, lw: 1.0 },
+    { freq: 0.0022, amp: 0.21, speed: 0.006, phase: 5.1, r: 148, g: 163, b: 184, a: 0.07, lw: 2.5 },
+  ];
+
+  let t = 0;
+  let animId;
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const W  = canvas.width;
+    const H  = canvas.height;
+    const cy = H * 0.60; // anchor point slightly below vertical centre
+
+    waves.forEach(w => {
+      const amp = w.amp * H;
+      ctx.beginPath();
+      ctx.strokeStyle = `rgba(${w.r},${w.g},${w.b},${w.a})`;
+      ctx.lineWidth   = w.lw;
+
+      for (let x = 0; x <= W; x += 3) {
+        // Primary sine + one harmonic for organic shape
+        const y = cy
+          + Math.sin(x * w.freq + t * w.speed + w.phase) * amp
+          + Math.sin(x * w.freq * 2.6 + t * w.speed * 0.55 + w.phase * 1.4) * amp * 0.28;
+        if (x === 0) ctx.moveTo(x, y);
+        else          ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    });
+
+    t++;
+    animId = requestAnimationFrame(draw);
+  }
+
+  draw();
+
+  // Stop the loop once the screen is fully dismissed
+  const screen = document.getElementById('welcomeScreen');
+  if (screen) {
+    new MutationObserver(() => {
+      if (screen.classList.contains('hidden')) {
+        cancelAnimationFrame(animId);
+      }
+    }).observe(screen, { attributes: true, attributeFilter: ['class'] });
+  }
+}());
+</script>
+
+</body>
+</html>

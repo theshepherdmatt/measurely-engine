@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Measurely – Treatment</title>
+    <link rel="icon" type="image/svg+xml" href="icons/dave.svg">
+    <link rel="stylesheet" href="css/dashboard/index.css">
+
+    <script src="js/plotly.min.js"></script>
+    <script src="js/vendor/three/three.min.js"></script>
+    <script src="js/vendor/three/OrbitControls.js"></script>
+
+    <!-- PWA / App-like behaviour -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Measurely">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0b1220">
+
+    <script>
+    document.addEventListener('click', function(event) {
+        var target = event.target;
+        // Walk up the DOM tree to find the 'a' tag (in case they clicked an icon inside the link)
+        while (target && target.nodeName !== 'A') {
+            target = target.parentNode;
+        }
+
+        if (target && target.href && target.getAttribute('target') !== '_blank') {
+            // Check if the link is internal (points to your Pi's IP)
+            if (target.href.indexOf(window.location.host) !== -1) {
+                event.preventDefault();
+                window.location.href = target.href;
+            }
+        }
+    }, false);
+    </script>
+
+</head>
+
+<body class="ra-body-root">
+
+<div class="ra-page">
+
+    <!-- ═══════════════════════════════════════
+         HEADER
+    ═══════════════════════════════════════ -->
+    <header class="ra-header animate-enter">
+        <div class="ra-header-left">
+            <img src="icons/largedave.svg" alt="" class="measurely-mark" aria-hidden="true">
+            <h1 class="ra-header-title">Treatment Plan</h1>
+        </div>
+        <nav class="ra-header-nav">
+            <a href="diagnose.html" class="engine-nav-tab">Diagnose</a>
+            <a href="simulate.html" class="engine-nav-tab active" aria-current="page">Treatment Plan</a>
+            <a href="index.html" class="engine-nav-tab">Dashboard</a>
+        </nav>
+    </header>
+
+
+    <!-- ═══════════════════════════════════════
+         MAIN: 3D ROOM (left) + PANEL (right)
+    ═══════════════════════════════════════ -->
+    <div class="ra-body animate-enter delay-1">
+
+        <!-- LEFT: 3D room -->
+        <div class="ra-canvas-wrap">
+            <div id="dashboardRoomCanvas" class="ra-canvas"></div>
+
+            <!-- Mode badge overlay on canvas -->
+            <div class="ra-canvas-badge" id="raModesBadge"></div>
+
+        </div>
+
+
+        <!-- RIGHT: control panel -->
+        <aside class="ra-panel card glass-panel">
+
+            <!-- ─────────────────────────────────
+                 SIMULATE CONTENT
+            ───────────────────────────────── -->
+            <div class="ra-pane" id="pane-simulate">
+
+                <!-- Speaker placement -->
+                <div class="ra-sim-section">
+                    <h3 class="ra-sim-heading">Speaker Placement</h3>
+
+                    <div class="ra-slider-row">
+                        <div class="ra-slider-top">
+                            <label class="ra-slider-label" for="sim-spk-front">Distance from front wall</label>
+                            <span class="ra-slider-val" id="val-spk-front">0.45 m</span>
+                        </div>
+                        <input type="range" id="sim-spk-front" class="measurely-slider" min="0.1" max="1.5" step="0.05" value="0.45">
+                    </div>
+
+                    <div class="ra-slider-row">
+                        <div class="ra-slider-top">
+                            <label class="ra-slider-label" for="sim-spk-spacing">Speaker spacing</label>
+                            <span class="ra-slider-val" id="val-spk-spacing">3.0 m</span>
+                        </div>
+                        <input type="range" id="sim-spk-spacing" class="measurely-slider" min="1.0" max="4.0" step="0.1" value="3.0">
+                    </div>
+
+                    <div class="ra-slider-row">
+                        <div class="ra-slider-top">
+                            <label class="ra-slider-label" for="sim-toe-in">Toe-in angle</label>
+                            <span class="ra-slider-val" id="val-toe-in">21°</span>
+                        </div>
+                        <input type="range" id="sim-toe-in" class="measurely-slider" min="0" max="45" step="1" value="21">
+                    </div>
+                </div>
+
+
+                <!-- Before / After score comparison -->
+                <div class="ra-score-table">
+                    <div class="ra-score-table-head">
+                        <span></span>
+                        <span>Now</span>
+                        <span>Predicted</span>
+                    </div>
+                    <div class="ra-score-row">
+                        <span class="ra-score-metric-name">Peaks &amp; Dips</span>
+                        <span class="ra-score-before" id="sim-before-peaks_dips">—</span>
+                        <span class="ra-score-after" id="sim-after-peaks_dips">—</span>
+                    </div>
+                    <div class="ra-score-row">
+                        <span class="ra-score-metric-name">Reflections</span>
+                        <span class="ra-score-before" id="sim-before-reflections">—</span>
+                        <span class="ra-score-after" id="sim-after-reflections">—</span>
+                    </div>
+                    <div class="ra-score-row">
+                        <span class="ra-score-metric-name">Bandwidth</span>
+                        <span class="ra-score-before" id="sim-before-bandwidth">—</span>
+                        <span class="ra-score-after" id="sim-after-bandwidth">—</span>
+                    </div>
+                    <div class="ra-score-row">
+                        <span class="ra-score-metric-name">Smoothness</span>
+                        <span class="ra-score-before" id="sim-before-smoothness">—</span>
+                        <span class="ra-score-after" id="sim-after-smoothness">—</span>
+                    </div>
+                    <div class="ra-score-row">
+                        <span class="ra-score-metric-name">Balance</span>
+                        <span class="ra-score-before" id="sim-before-balance">—</span>
+                        <span class="ra-score-after" id="sim-after-balance">—</span>
+                    </div>
+                    <div class="ra-score-row">
+                        <span class="ra-score-metric-name">Clarity</span>
+                        <span class="ra-score-before" id="sim-before-clarity">—</span>
+                        <span class="ra-score-after" id="sim-after-clarity">—</span>
+                    </div>
+                </div>
+
+                <!-- Room treatment -->
+                <div class="ra-sim-section">
+                    <h3 class="ra-sim-heading">Acoustic Treatment</h3>
+
+                    <div class="ra-select-grid">
+
+                        <!-- Wall panels -->
+                        <div class="ra-select-row">
+                            <label class="ra-slider-label" for="sim-wall-panels">Wall panels</label>
+                            <select id="sim-wall-panels" class="measurely-select">
+                                <option value="none">None</option>
+                                <option value="front">Front wall</option>
+                                <option value="rear">Rear wall</option>
+                                <option value="both">Front + rear</option>
+                            </select>
+                            <span class="ra-check-hint">Front/back reflections</span>
+                        </div>
+
+                        <!-- Bass traps -->
+                        <div class="ra-select-row">
+                            <label class="ra-slider-label" for="sim-bass-traps">Bass traps</label>
+                            <select id="sim-bass-traps" class="measurely-select">
+                                <option value="none">None</option>
+                                <option value="front">Front corners</option>
+                                <option value="rear">Rear corners</option>
+                                <option value="all">All corners</option>
+                            </select>
+                            <span class="ra-check-hint">Low-frequency control</span>
+                        </div>
+
+                        <!-- Ceiling cloud -->
+                        <div class="ra-select-row">
+                            <label class="ra-slider-label" for="sim-ceiling-panels">Ceiling cloud</label>
+                            <select id="sim-ceiling-panels" class="measurely-select">
+                                <option value="none">None</option>
+                                <option value="cloud">Ceiling cloud</option>
+                            </select>
+                            <span class="ra-check-hint">Overhead reflection</span>
+                        </div>
+
+                        <!-- Side panels -->
+                        <div class="ra-select-row">
+                            <label class="ra-slider-label" for="sim-side-panels">Side panels</label>
+                            <select id="sim-side-panels" class="measurely-select">
+                                <option value="none">None</option>
+                                <option value="left">Left wall</option>
+                                <option value="right">Right wall</option>
+                                <option value="both">Both sides</option>
+                            </select>
+                            <span class="ra-check-hint">First reflection points</span>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- SBIR callout — updates with slider -->
+                <div class="ra-sbir-callout ra-sbir-callout--bad" id="sim-sbir-callout">
+                    <span class="ra-sbir-label">Bass cancellation</span>
+                    <strong id="sim-null-freq">—</strong>
+                    <span id="sim-null-verdict" class="ra-sbir-verdict">—</span>
+                </div>
+
+                <!-- Save to room profile / Back to Diagnose -->
+                <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:0.75rem;">
+                    <a href="diagnose.html" class="btn btn-secondary ra-goto-btn">
+                        ← Diagnose
+                    </a>
+                    <button class="btn btn-secondary" id="flybyBtn">
+                        Simulation
+                    </button>
+                    <button class="btn btn-primary ra-save-sim-btn" id="simSaveBtn">
+                        Save Plan
+                    </button>
+                </div>
+
+            </div><!-- /pane-simulate -->
+
+        </aside>
+
+    </div><!-- /ra-body -->
+
+</div><!-- /ra-page -->
+
+
+<!-- ═══════════════════════════════════════
+     NOTES MODAL (kept for dashboard compat)
+═══════════════════════════════════════ -->
+<div id="notesModal" class="notes-modal hidden" aria-hidden="true">
+    <div class="notes-modal-backdrop"></div>
+    <div class="notes-modal-content">
+        <div class="notes-modal-header">
+            <h3 id="notesModalTitle">Sweep Notes</h3>
+            <button class="notes-modal-close" aria-label="Close notes">&times;</button>
+        </div>
+        <div class="notes-modal-body">
+            <textarea id="notesTextarea" class="notes-textarea" placeholder="Write your notes here…"></textarea>
+        </div>
+        <div class="notes-modal-footer">
+            <button id="saveNotesBtn" class="btn btn-primary">Save</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════
+     TOAST
+═══════════════════════════════════════ -->
+<script src="js/toast.js"></script>
+
+
+<!-- ═══════════════════════════════════════
+     DASHBOARD.JS (score loading)
+═══════════════════════════════════════ -->
+<script src="js/davePhraseEngine.js"></script>
+<script src="js/dashboard.js"></script>
+
+<script>
+window.CAPS = { history: true, sweep: false, uploads: true };
+</script>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    window.dashboard = new MeasurelyDashboard();
+});
+</script>
+
+
+<!-- ═══════════════════════════════════════
+     3D ROOM INIT
+═══════════════════════════════════════ -->
+<script type="module">
+import { initRoom3D } from "./js/room3d.js";
+import { setNestedRoomValue, attachHighlightListeners } from './js/uiController.js';
+
+window.setNestedRoomValue = setNestedRoomValue;
+window.attachHighlightListeners = attachHighlightListeners;
+
+window.__liveRoomState = null;
+
+async function initDashboardRoom() {
+    let roomState = null;
+
+    // 1. Try localStorage first (works offline / GitHub Pages)
+    try {
+        const ls = localStorage.getItem('measurely_room');
+        if (ls) roomState = JSON.parse(ls);
+    } catch (_) {}
+
+    // 2. Try server — overrides if available
+    try {
+        const res = await fetch("/api/room/latest");
+        if (res.ok) {
+            const apiData = await res.json();
+            if (apiData && Object.keys(apiData).length > 0) {
+                roomState = apiData;
+                localStorage.setItem('measurely_room', JSON.stringify(roomState));
+            }
+        }
+    } catch (_) {
+        console.log("[SimulateRoom] Server not reachable — using localStorage");
+    }
+
+    if (!roomState) return;
+
+    window.__liveRoomState = { ...roomState };
+    window.__MEASURELY_ROOM__ = roomState;
+    window.__baselineRoom = roomState;
+
+    window.room3D = initRoom3D({
+        mountId: "dashboardRoomCanvas",
+        getRoomData: () => window.__liveRoomState,
+        mode: "final"
+    });
+
+    room3D.setStage("furnishings");
+
+    initSimulate(roomState);
+
+    populateSimulateBaseline();
+    runSimulation();
+}
+
+document.addEventListener("DOMContentLoaded", initDashboardRoom);
+</script>
+
+
+<!-- ═══════════════════════════════════════
+     SIMULATE ENGINE
+═══════════════════════════════════════ -->
+<script>
+
+let savedDiagnoseIssue = null;
+let lastPredicted = null;
+
+const C = 343;
+
+function sbirFirstNull(spkFrontM) {
+    return C / (4 * Math.max(0.05, spkFrontM));
+}
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+// ── Initialise controls from real room data ──────────────────
+function initSimulate(room) {
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+    const setCheck = (id, val) => { const el = document.getElementById(id); if (el) el.checked = val; };
+
+    set('sim-spk-front',   room.spk_front_m   ?? 0.45);
+    set('sim-spk-spacing', room.spk_spacing_m  ?? 3.0);
+    set('sim-toe-in',      room.toe_in_deg     ?? 21);
+
+    set('sim-wall-panels', room.plan_wall_panels ?? room.wall_panel_mode ?? 'none');
+    set('sim-side-panels', room.plan_side_panels ?? room.side_panel_mode ?? 'none');
+    set('sim-bass-traps', room.plan_bass_traps ?? room.bass_trap_mode ?? 'none');
+    set('sim-ceiling-panels', room.plan_ceiling_panels ?? room.ceiling_panel_mode ?? 'none');
+
+    // Debounce helper to reduce console spam during rapid slider drags
+    let _simDebounce = null;
+    function debouncedRunSimulation() {
+        clearTimeout(_simDebounce);
+        _simDebounce = setTimeout(runSimulation, 25);
+    }
+
+    // Map slider IDs to highlight field keys (matches FIELD_TO_HIGHLIGHT in uiController)
+    const SLIDER_HIGHLIGHT_MAP = {
+        'sim-spk-front':   'setup.spk_front_m',
+        'sim-spk-spacing': 'setup.spk_spacing_m',
+        'sim-toe-in':      'setup.toe_in_deg'
+    };
+
+    ['sim-spk-front', 'sim-spk-spacing', 'sim-toe-in'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+
+        // Attach 3D highlight listeners so the speakers glow while sliding
+        if (window.attachHighlightListeners && window.room3D) {
+            window.attachHighlightListeners(el, SLIDER_HIGHLIGHT_MAP[id], window.room3D);
+        }
+
+        el.addEventListener('input', () => {
+            updateSliderDisplays();
+            debouncedRunSimulation();
+        });
+    });
+    ['sim-wall-panels', 'sim-bass-traps', 'sim-ceiling-panels', 'sim-side-panels'].forEach(id => {
+        document.getElementById(id)?.addEventListener('change', runSimulation);
+    });
+
+    updateSliderDisplays();
+}
+
+// ── Update slider value labels ────────────────────────────────
+function updateSliderDisplays() {
+    const spkFront   = parseFloat(document.getElementById('sim-spk-front')?.value  ?? 0.45);
+    const spkSpacing = parseFloat(document.getElementById('sim-spk-spacing')?.value ?? 3.0);
+    const toeIn      = parseFloat(document.getElementById('sim-toe-in')?.value      ?? 21);
+
+    const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+    setText('val-spk-front',   spkFront.toFixed(2) + ' m');
+    setText('val-spk-spacing', spkSpacing.toFixed(1) + ' m');
+    setText('val-toe-in',      Math.round(toeIn) + '°');
+
+    const f_null  = sbirFirstNull(spkFront);
+    const nullEl  = document.getElementById('sim-null-freq');
+    const verdict = document.getElementById('sim-null-verdict');
+    const callout = document.getElementById('sim-sbir-callout');
+
+    if (nullEl) nullEl.textContent = Math.round(f_null) + ' Hz';
+
+    if (verdict && callout) {
+        if (f_null < 60) {
+            verdict.textContent   = 'sub-bass — minimal impact';
+            callout.className     = 'ra-sbir-callout ra-sbir-callout--good';
+        } else if (f_null < 130) {
+            verdict.textContent   = 'upper bass — some impact';
+            callout.className     = 'ra-sbir-callout ra-sbir-callout--okay';
+        } else {
+            verdict.textContent   = 'audible bass — noticeable dip';
+            callout.className     = 'ra-sbir-callout ra-sbir-callout--bad';
+        }
+    }
+}
+
+// ── Read current baseline scores from DOM / dashboard ─────────
+function getBaselineScores() {
+    if (window.dashboard?.currentData?.scores) {
+        return { ...window.dashboard.currentData.scores };
+    }
+    return { peaks_dips: 0, reflections: 0, bandwidth: 0, balance: 0, smoothness: 0, clarity: 0 };
+}
+
+// ── Populate the "Now" column ─────────────────────────────────
+function populateSimulateBaseline() {
+    const scores = getBaselineScores();
+    const keys = ['peaks_dips', 'reflections', 'bandwidth', 'smoothness', 'balance', 'clarity'];
+    keys.forEach(k => {
+        const el = document.getElementById(`sim-before-${k}`);
+        if (el) el.textContent = (scores[k] ?? '—');
+    });
+}
+
+
+// ── Main simulation calculation ───────────────────────────────
+function runSimulation() {
+
+    const baseline = getBaselineScores();
+    const room     = window.__baselineRoom;
+    if (!room) return;
+
+    const spkFront   = parseFloat(document.getElementById('sim-spk-front')?.value ?? room.spk_front_m);
+    const spkSpacing = parseFloat(document.getElementById('sim-spk-spacing')?.value ?? room.spk_spacing_m);
+    const toeIn      = parseFloat(document.getElementById('sim-toe-in')?.value ?? room.toe_in_deg);
+
+    const wallMode    = document.getElementById('sim-wall-panels')?.value ?? "none";
+    const bassMode    = document.getElementById('sim-bass-traps')?.value ?? "none";
+    const ceilingMode = document.getElementById('sim-ceiling-panels')?.value ?? "none";
+    const sideMode    = document.getElementById('sim-side-panels')?.value ?? "none";
+
+    // ── Real room treatment ────────────────────────────────────
+    const baseHasWallPanels    = room.wall_panel_mode !== "none";
+    const baseHasSidePanels    = room.side_panel_mode !== "none";
+    const baseHasBassTraps     = room.bass_trap_mode !== "none";
+    const baseHasCeilingPanels = room.ceiling_panel_mode !== "none";
+
+    const baseSpkFront   = room.spk_front_m   ?? 0.45;
+    const baseSpkSpacing = room.spk_spacing_m ?? 3.0;
+    const roomWidth      = room.width_m ?? 5.75;
+
+    const predicted = { ...baseline };
+
+    // ── Peaks & Dips ───────────────────────────────────────────
+    {
+        const f_base = sbirFirstNull(baseSpkFront);
+        const f_new  = sbirFirstNull(spkFront);
+
+        const headroom = 10 - baseline.peaks_dips;
+        const improvement = clamp((f_base - f_new) / f_base, -1, 1) * headroom * 0.65;
+
+        predicted.peaks_dips = clamp(baseline.peaks_dips + improvement, 1, 10);
+
+        // Wall panels
+        if (!baseHasWallPanels) {
+            if (wallMode === "front") predicted.peaks_dips += 0.6;
+            if (wallMode === "rear")  predicted.peaks_dips += 0.8;
+            if (wallMode === "both")  predicted.peaks_dips += 1.2;
+        }
+
+        // Bass traps
+        if (!baseHasBassTraps) {
+            if (bassMode === "front") predicted.peaks_dips += 0.8;
+            if (bassMode === "rear")  predicted.peaks_dips += 1.4;
+            if (bassMode === "all")   predicted.peaks_dips += 2.2;
+        }
+
+        predicted.peaks_dips = clamp(predicted.peaks_dips, 1, 10);
+    }
+
+    // ── Reflections ────────────────────────────────────────────
+    {
+        if (!baseHasWallPanels) {
+            if (wallMode === "front") predicted.reflections += 0.7;
+            if (wallMode === "rear")  predicted.reflections += 0.8;
+            if (wallMode === "both")  predicted.reflections += 1.4;
+        }
+
+        if (!baseHasCeilingPanels && ceilingMode === "cloud")
+            predicted.reflections += 1.2;
+
+        if (!baseHasSidePanels) {
+            if (sideMode === "left" || sideMode === "right")
+                predicted.reflections += 0.9;
+
+            if (sideMode === "both")
+                predicted.reflections += 1.6;
+        }
+
+        predicted.reflections = clamp(predicted.reflections, 1, 10);
+    }
+
+    // ── Smoothness ─────────────────────────────────────────────
+    {
+        if (!baseHasWallPanels) {
+            if (wallMode === "front") predicted.smoothness += 0.7;
+            if (wallMode === "rear")  predicted.smoothness += 0.9;
+            if (wallMode === "both")  predicted.smoothness += 1.6;
+        }
+
+        if (!baseHasBassTraps) {
+            if (bassMode === "front") predicted.smoothness += 0.5;
+            if (bassMode === "rear")  predicted.smoothness += 0.8;
+            if (bassMode === "all")   predicted.smoothness += 1.2;
+        }
+
+        if (!baseHasCeilingPanels && ceilingMode === "cloud")
+            predicted.smoothness += 0.3;
+
+        predicted.smoothness = clamp(predicted.smoothness, 1, 10);
+    }
+
+    // ── Balance ────────────────────────────────────────────────
+    {
+        const ideal     = roomWidth * 0.6;
+        const baseRatio = Math.abs(baseSpkSpacing - ideal) / ideal;
+        const newRatio  = Math.abs(spkSpacing - ideal) / ideal;
+
+        const delta = clamp((baseRatio - newRatio) * 3, -3, 3);
+        predicted.balance = clamp(baseline.balance + delta, 1, 10);
+
+        if (!baseHasSidePanels) {
+            if (sideMode === "left" || sideMode === "right")
+                predicted.balance += 0.4;
+
+            if (sideMode === "both")
+                predicted.balance += 0.8;
+        }
+
+        predicted.balance = clamp(predicted.balance, 1, 10);
+    }
+
+    // ── Clarity ────────────────────────────────────────────────
+    {
+        if (!baseHasWallPanels) {
+            if (wallMode === "front") predicted.clarity += 0.5;
+            if (wallMode === "rear")  predicted.clarity += 0.6;
+            if (wallMode === "both")  predicted.clarity += 0.8;
+        }
+
+        if (!baseHasCeilingPanels && ceilingMode === "cloud")
+            predicted.clarity += 1.3;
+
+        if (!baseHasSidePanels) {
+            if (sideMode === "left" || sideMode === "right")
+                predicted.clarity += 0.8;
+
+            if (sideMode === "both")
+                predicted.clarity += 1.2;
+        }
+
+        predicted.clarity = clamp(predicted.clarity, 1, 10);
+    }
+
+    lastPredicted = { ...predicted };
+
+    updateScoreTable(baseline, predicted);
+
+
+    // ── Update 3D room live ───────────────────────────────────────────
+    if (window.__liveRoomState && window.room3D) {
+        // Use setNestedRoomValue to correctly target nested sub-objects
+        const state = window.__liveRoomState;
+        if (window.setNestedRoomValue) {
+            window.setNestedRoomValue(state, 'spk_front_m', spkFront);
+            window.setNestedRoomValue(state, 'spk_spacing_m', spkSpacing);
+            window.setNestedRoomValue(state, 'toe_in_deg', toeIn);
+            window.setNestedRoomValue(state, 'wall_panel_mode', wallMode);
+            window.setNestedRoomValue(state, 'bass_trap_mode', bassMode);
+            window.setNestedRoomValue(state, 'side_panel_mode', sideMode);
+            window.setNestedRoomValue(state, 'ceiling_panel_mode', ceilingMode);
+        } else {
+            // Fallback: flat merge (original behaviour)
+            Object.assign(state, {
+                spk_front_m: spkFront,
+                spk_spacing_m: spkSpacing,
+                toe_in_deg: toeIn,
+                wall_panel_mode: wallMode,
+                bass_trap_mode: bassMode,
+                side_panel_mode: sideMode,
+                ceiling_panel_mode: ceilingMode
+            });
+        }
+
+        if (savedDiagnoseIssue?.id) {
+            const OVERLAY_KEY = {
+                sbir:             'peaks_dips',
+                side_reflections: 'reflections',
+                bandwidth:        'bandwidth',
+                balance:          'balance',
+                smoothness:       'smoothness',
+                clarity:          'clarity',
+            };
+            const key   = OVERLAY_KEY[savedDiagnoseIssue.id];
+            const score = key ? (predicted[key] ?? savedDiagnoseIssue.score) : savedDiagnoseIssue.score;
+            window.room3D.focusIssue(savedDiagnoseIssue.id, score, savedDiagnoseIssue.std);
+        } else {
+            window.room3D.update();
+        }
+    }
+}
+
+// ── Save treatment plan to persistent room profile ────────────
+async function saveSimulateToRoom() {
+
+    if (!window.__liveRoomState) return;
+
+    const btn = document.getElementById('simSaveBtn');
+    if (btn) btn.disabled = true;
+
+    // ── Read the dropdowns (current treatment plan)
+    const wallMode    = document.getElementById('sim-wall-panels')?.value ?? "none";
+    const bassMode    = document.getElementById('sim-bass-traps')?.value ?? "none";
+    const ceilingMode = document.getElementById('sim-ceiling-panels')?.value ?? "none";
+    const sideMode    = document.getElementById('sim-side-panels')?.value ?? "none";
+
+    // ── Build a clean payload (do NOT overwrite real room modes)
+    const payload = {
+        ...window.__liveRoomState,
+
+        plan_wall_panels: wallMode,
+        plan_bass_traps: bassMode,
+        plan_side_panels: sideMode,
+        plan_ceiling_panels: ceilingMode
+    };
+
+    // Ensure treatment plan never overwrites real room settings
+    delete payload.wall_panel_mode;
+    delete payload.side_panel_mode;
+    delete payload.bass_trap_mode;
+    delete payload.ceiling_panel_mode;
+
+    console.log("[Simulate] Payload being saved:", payload);
+
+    // 1. Always save to localStorage
+    try {
+        localStorage.setItem('measurely_room', JSON.stringify(payload));
+    } catch (_) {}
+
+    // 2. Try server — silent on failure
+    try {
+        const res = await fetch('/api/room/latest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!res.ok) console.warn('[Simulate] Server save returned', res.status);
+    } catch (_) {
+        console.log('[Simulate] Server not reachable — saved to localStorage only');
+    }
+
+    toast('Treatment plan saved', 'success');
+
+    // Save predicted scores for the simulated target bar
+    if (lastPredicted) {
+        try {
+            localStorage.setItem(
+                'measurely_sim_targets',
+                JSON.stringify(lastPredicted)
+            );
+        } catch (_) {}
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('simSaveBtn')?.addEventListener('click', saveSimulateToRoom);
+
+    document.getElementById('flybyBtn')?.addEventListener('click', () => {
+        const btn = document.getElementById('flybyBtn');
+        if (!window.room3D?.flyby) return;
+        btn.disabled = true;
+        btn.textContent = 'Playing…';
+        window.room3D.flyby(() => {
+            btn.disabled = false;
+            btn.textContent = 'Flyby Animation';
+        });
+    });
+});
+
+// ── Render before/after table ─────────────────────────────────
+function updateScoreTable(baseline, predicted) {
+    const keys = ['peaks_dips', 'reflections', 'bandwidth', 'smoothness', 'balance', 'clarity'];
+    keys.forEach(k => {
+        const beforeEl = document.getElementById(`sim-before-${k}`);
+        const afterEl  = document.getElementById(`sim-after-${k}`);
+        if (!beforeEl || !afterEl) return;
+
+        const bVal = baseline[k] ?? null;
+        const pVal = predicted[k] ?? null;
+
+        beforeEl.textContent = bVal != null ? bVal.toFixed(1) : '—';
+
+        if (pVal == null) { afterEl.textContent = '—'; return; }
+
+        const delta = pVal - (bVal ?? pVal);
+        afterEl.classList.remove('sim-better', 'sim-worse', 'sim-same');
+
+        if (Math.abs(delta) < 0.1) {
+            afterEl.textContent = pVal.toFixed(1);
+            afterEl.classList.add('sim-same');
+        } else if (delta > 0) {
+            afterEl.textContent = pVal.toFixed(1) + ' ↑';
+            afterEl.classList.add('sim-better');
+        } else {
+            afterEl.textContent = pVal.toFixed(1) + ' ↓';
+            afterEl.classList.add('sim-worse');
+        }
+    });
+}
+
+// ── Populate baseline once dashboard data arrives ─────────────
+const baselinePoll = setInterval(() => {
+    if (window.dashboard?.currentData?.scores) {
+        clearInterval(baselinePoll);
+        populateSimulateBaseline();
+        runSimulation();
+    }
+}, 200);
+</script>
+
+
+<!-- ═══════════════════════════════════════
+     ROOM MODES BADGE
+═══════════════════════════════════════ -->
+<script>
+const modesPoll = setInterval(() => {
+    const modes = window.dashboard?.currentData?.room_context?.modes;
+    if (!modes) return;
+    clearInterval(modesPoll);
+
+    const badge = document.getElementById('raModesBadge');
+    if (!badge) return;
+
+    const grouped = {};
+    modes.forEach(m => {
+        if (!grouped[m.axis]) grouped[m.axis] = [];
+        grouped[m.axis].push(m.freq_hz);
+    });
+
+    const parts = Object.entries(grouped).map(([axis, freqs]) => {
+        const label = axis === 'width' ? 'Side walls' : axis === 'length' ? 'Front/back' : 'Floor/ceiling';
+        const lowest = Math.round(Math.min(...freqs));
+        return `<span class="ra-mode-chip ra-mode-${axis}">${label} <strong>${lowest} Hz</strong></span>`;
+    });
+
+    badge.innerHTML = parts.join('');
+}, 200);
+</script>
+
+
+<!-- ═══════════════════════════════════════
+     INLINE STYLES FOR SHARED NAV + BUTTONS
+═══════════════════════════════════════ -->
+<style>
+.ra-header-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.ra-goto-btn {
+    text-decoration: none;
+}
+</style>
+
+
+</body>
+</html>

@@ -1,0 +1,305 @@
+/* =========================================================
+   1. CARD BASE & MATERIAL (Solid Hardware Surface)
+   ========================================================= */
+
+.card {
+    position: relative;
+    border-radius: 20px;
+    padding: 1.5rem;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                box-shadow 0.3s ease;
+}
+
+.card.glass-panel {
+    /* Deeper, more solid background to match the Engine Bay */
+    background: linear-gradient(
+        165deg,
+        rgba(35, 46, 66, 0.92) 0%,
+        rgba(18, 26, 38, 0.95) 100%
+    );
+    
+    /* Stronger saturation and blur for a premium material feel */
+    backdrop-filter: blur(20px) saturate(220%);
+    -webkit-backdrop-filter: blur(20px) saturate(220%);
+    
+    /* Dual-layer border: Outer stroke + inner "bezel" highlight */
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+        0 12px 28px rgba(0, 0, 0, 0.35),
+        inset 0 1px 1px rgba(255, 255, 255, 0.08);
+}
+
+/* Subtle top edge light catching the "metal" corner */
+.card.glass-panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    pointer-events: none;
+}
+
+
+/* =========================================================
+   2. OVERALL SCORE (Tactile Readout)
+   ========================================================= */
+
+.overall-score-card {
+    grid-column: span 2;
+    padding: 1.75rem 2rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.overall-score-header {
+    margin-bottom: 1rem;
+}
+
+/* Score number + dave quote side-by-side */
+.overall-score-body {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.overall-score-value {
+    display: flex;
+    align-items: flex-end;
+    flex-shrink: 0;
+}
+
+.overall-score-number {
+    font-size: 6.5rem;
+    font-weight: 800;
+    line-height: 0.85;
+    letter-spacing: -0.05em;
+    color: var(--c-text-main);
+    filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.5));
+    background: none;
+    -webkit-background-clip: initial;
+    -webkit-text-fill-color: initial;
+}
+
+.overall-score-max {
+    opacity: 0.25;
+    font-size: 1.2rem;
+    color: #f8fafc;
+    font-weight: 500;
+    margin-left: 0.35rem;
+    transform: translateY(-10px);
+    display: inline-block;
+}
+
+/* Progress bar — semantic gradient (red→amber→green) */
+.overall-score-bar {
+    height: 6px;
+    width: 100%;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    overflow: hidden;
+    position: relative;
+    margin-top: 16px;
+    margin-bottom: 1.25rem;
+}
+
+/* Dim full-range gradient always visible as track */
+.overall-score-bar::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, var(--c-poor) 0%, var(--c-good) 45%, var(--c-excellent) 100%);
+    opacity: 0.15;
+    border-radius: inherit;
+}
+
+.overall-score-fill {
+    position: relative;
+    height: 100%;
+    border-radius: 999px;
+    /* Gradient spans the full fill div; parent clips it at the score % */
+    background: linear-gradient(90deg, var(--c-poor) 0%, var(--c-good) 45%, var(--c-excellent) 100%);
+    box-shadow: 0 0 10px rgba(var(--c-primary-rgb), 0.3);
+    transition: width 1.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.overall-score-footer {
+    margin-top: auto;
+    padding-top: 1.1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+
+/* =========================================================
+   3. FREQUENCY BAND PILLS — horizontal row, colour-coded
+   ========================================================= */
+
+.band-legend {
+    margin: 0;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.28);
+}
+
+.band-levels {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5rem;
+}
+
+.band-pill {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.65rem 0.8rem 0.6rem;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    cursor: default;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* Header row: band name + frequency range */
+.band-pill-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.3rem;
+}
+
+.band-pill-name {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.band-pill-range {
+    font-size: 0.55rem;
+    font-weight: 500;
+    opacity: 0.45;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+
+/* VALUE — prominent monospace dB reading */
+.band-pill-value {
+    font-family: 'JetBrains Mono', 'Monaco', 'Courier New', monospace;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.02em;
+}
+
+/* ---- Per-band accent colours ---- */
+
+.band-pill--bass {
+    background: rgba(var(--c-primary-rgb), 0.10);
+    border-color: rgba(var(--c-primary-rgb), 0.22);
+    box-shadow: inset 0 1px 0 rgba(var(--c-primary-rgb), 0.12);
+}
+.band-pill--bass .band-pill-name  { color: var(--c-accent-light); }
+.band-pill--bass .band-pill-range { color: var(--c-accent-light); }
+.band-pill--bass .band-pill-value { color: var(--c-accent-light); }
+
+.band-pill--mid {
+    background: rgba(59, 130, 246, 0.10);
+    border-color: rgba(59, 130, 246, 0.22);
+    box-shadow: inset 0 1px 0 rgba(59, 130, 246, 0.12);
+}
+.band-pill--mid .band-pill-name  { color: var(--c-okay-light); }
+.band-pill--mid .band-pill-range { color: var(--c-okay-light); }
+.band-pill--mid .band-pill-value { color: var(--c-okay-light); }
+
+.band-pill--treble {
+    background: rgba(6, 182, 212, 0.10);
+    border-color: rgba(6, 182, 212, 0.22);
+    box-shadow: inset 0 1px 0 rgba(6, 182, 212, 0.12);
+}
+.band-pill--treble .band-pill-name  { color: var(--c-cyan-light); }
+.band-pill--treble .band-pill-range { color: var(--c-cyan-light); }
+.band-pill--treble .band-pill-value { color: var(--c-cyan-light); }
+
+.band-pill--air {
+    background: rgba(236, 72, 153, 0.10);
+    border-color: rgba(236, 72, 153, 0.22);
+    box-shadow: inset 0 1px 0 rgba(236, 72, 153, 0.12);
+}
+.band-pill--air .band-pill-name  { color: var(--c-pink-light); }
+.band-pill--air .band-pill-range { color: var(--c-pink-light); }
+.band-pill--air .band-pill-value { color: var(--c-pink-light); }
+
+
+/* =========================================================
+   5. CARD TYPOGRAPHY & HEADERS
+   ========================================================= */
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.25rem;
+}
+
+.card-title {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.75); /* Muted, etched-in look */
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.card-title img {
+    width: 22px;
+    height: 22px;
+
+    opacity: 0.9; /* brighter */
+    margin-right: 0.25rem;
+
+    filter: brightness(1.3) drop-shadow(0 0 6px rgba(168, 85, 247, 0.25));
+}
+
+/* =========================================
+   NESTED CARDS: stop "card inside card" bloat
+   ========================================= */
+
+/* Any card inside another card becomes an inset panel (not full glass) */
+.card .card {
+  padding: 1rem;
+  border-radius: 14px;
+
+  /* kill the heavy glass-on-glass look */
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.45);
+}
+
+/* If you accidentally put glass-panel inside glass-panel, neuter it */
+.card.glass-panel .card.glass-panel {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 2px 10px rgba(0,0,0,0.45);
+  border-color: rgba(255,255,255,0.06);
+}
+
+/* Mobile: shrink outer card padding so the layout breathes */
+@media (max-width: 640px) {
+  .card {
+    padding: 1rem;
+    border-radius: 16px;
+  }
+
+  .overall-score-card {
+    padding: 1.25rem;
+  }
+}

@@ -1,0 +1,149 @@
+.notes-modal{
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 1rem;
+}
+
+
+/* Backdrop */
+.notes-modal-backdrop {
+    position: absolute;
+    inset: 0;
+
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+}
+
+/* Modal shell */
+.notes-modal-content {
+    position: relative;
+
+    width: calc(100% - 2rem);
+    max-width: 640px;
+    max-height: 90vh;
+
+    overflow-y: auto;
+
+    background: var(--c-surface);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+
+    animation: modalSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+
+/* Entrance animation */
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-16px) scale(0.96);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Header */
+.notes-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 1.25rem 1.5rem;
+
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.notes-modal-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+}
+
+/* Close button */
+.notes-modal-close {
+    width: 32px;
+    height: 32px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: none;
+    border: none;
+    border-radius: 8px;
+
+    font-size: 1.75rem;
+    line-height: 1;
+
+    color: var(--c-text-muted);
+    cursor: pointer;
+
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.notes-modal-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+/* Body */
+.notes-modal-body {
+    padding: 1.5rem;
+}
+
+/* Textarea */
+.notes-textarea {
+    width: 100%;
+    min-height: 120px;
+
+    padding: 1rem;
+
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+
+    color: #fff;
+    font-family: var(--font-main);
+    font-size: 0.95rem;
+    line-height: 1.5;
+
+    resize: vertical;
+
+    transition:
+        background 0.2s ease,
+        border-color 0.2s ease,
+        box-shadow 0.2s ease;
+}
+
+.notes-textarea:focus {
+    outline: none;
+    background: rgba(0, 0, 0, 0.4);
+    border-color: var(--c-accent);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+}
+
+.notes-textarea::placeholder {
+    color: rgba(255, 255, 255, 0.35);
+}
+
+/* Footer */
+.notes-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+
+    padding: 1.25rem 1.5rem;
+
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+

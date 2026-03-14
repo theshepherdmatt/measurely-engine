@@ -1,0 +1,1042 @@
+/* ======================================================
+   Measurely Onboarding – Room Setup
+   ====================================================== */
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+
+  background:
+    radial-gradient(
+      1200px 600px at 50% -200px,
+      rgba(99, 102, 241, 0.12),
+      transparent 60%
+    ),
+    linear-gradient(
+      180deg,
+      #0f172a 0%,
+      #020617 100%
+    );
+
+
+  font-family: var(--font-main);
+  color: #e5e7eb;
+}
+
+/* ======================================================
+   3D ROOM CANVAS
+   ====================================================== */
+
+#roomCanvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+/* Slight boost so wireframe reads through glass */
+#roomCanvas canvas {
+  filter: saturate(1.1) contrast(1.05);
+}
+
+/* Canvas interaction hint */
+#canvasHint {
+  position: absolute;
+  bottom: 1rem;
+  left: 0;
+  width: 100%;
+  margin: 0;
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: rgba(148, 116, 200, 0.45);
+  pointer-events: none;
+  z-index: 2;
+  user-select: none;
+}
+
+@media (min-width: 900px) {
+  #canvasHint {
+    position: fixed;
+    width: calc(100vw - 480px);
+  }
+}
+
+/* =========================
+   HEADER — ONBOARDING SCALE
+   ========================= */
+
+.header-onboarding .header-title h1 {
+  font-size: 2.1rem;          /* ~72% of dashboard */
+  font-weight: 750;           /* keep confidence */
+  letter-spacing: -0.035em;   /* same premium tightness */
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.header-onboarding .header-title p {
+  margin: 0;
+  font-size: 0.85rem;         /* scaled relative to h1 */
+  color: var(--c-text-muted);
+  max-width: 520px;
+}
+
+.header-onboarding .header-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.header-onboarding .measurely-mark {
+  width: 30px;                /* SAME icon size */
+  height: 30px;
+  opacity: 0.75;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
+}
+
+.header-onboarding {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 20;
+
+  padding: 1.5rem 1.75rem 1.25rem;
+  /* top | sides | bottom */
+
+  background: linear-gradient(
+    to bottom,
+    rgba(15, 23, 42, 0.85),
+    rgba(15, 23, 42, 0)
+  );
+
+  pointer-events: none;
+}
+
+
+/* ======================================================
+   QUESTION PANEL (BASE – MOBILE FIRST)
+   ====================================================== */
+
+#questionPanel {
+  position: absolute;
+  z-index: 10;
+
+  left: 50%;
+  bottom: 6%;
+  transform: translateX(-50%) translateY(140%);
+
+  width: min(420px, 92%);
+  padding: 1.25rem 1.25rem 1.4rem;
+
+  background: linear-gradient(165deg, rgba(23,32,48,0.95), rgba(13,18,28,0.98));
+  backdrop-filter: blur(20px) saturate(200%);
+  -webkit-backdrop-filter: blur(20px) saturate(200%);
+
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.08);
+
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+  transition: transform 0.45s cubic-bezier(.2,.8,.2,1);
+
+  /* Mobile: cap height and lay out children as a column so fieldStack can scroll */
+  max-height: 85vh;
+  max-height: 85dvh; /* dynamic viewport height overrides on supporting browsers */
+  display: flex;
+  flex-direction: column;
+}
+
+#questionPanel.active {
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ======================================================
+   WIZARD PROGRESS BAR — dots + label
+   ====================================================== */
+
+.wizard-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.9rem;
+}
+
+.wizard-progress-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wizard-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  transition: background 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+  flex-shrink: 0;
+}
+
+.wizard-dot.done {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+}
+
+.wizard-dot.active {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  transform: scale(1.35);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+}
+
+.wizard-progress-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-accent);
+  opacity: 0.8;
+}
+
+/* ======================================================
+   DAVE COMMENTARY CHIP — floats above the question panel
+   ====================================================== */
+
+#daveChip {
+  position: fixed;
+  /* Sits just above the panel on mobile, in the canvas area on desktop */
+  bottom: calc(var(--panel-height, 420px) + 16px);
+  left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  z-index: 15;
+  pointer-events: none;
+
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+
+  max-width: min(380px, 90vw);
+  padding: 0.6rem 0.9rem;
+
+  background: linear-gradient(135deg, rgba(23, 32, 52, 0.95), rgba(15, 20, 38, 0.98));
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 12px;
+  box-shadow:
+    0 12px 32px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: #d1d5db;
+
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+#daveChip.chip-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+#daveChip.chip-out {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-8px);
+}
+
+.dave-chip-avatar {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  opacity: 0.85;
+  margin-top: 1px;
+}
+
+.dave-chip-text {
+  flex: 1;
+}
+
+/* Desktop: chip sits in the canvas area to the left of the panel */
+@media (min-width: 900px) {
+  #daveChip {
+    bottom: auto;
+    top: auto;
+    /* Vertically centred in the lower third of the canvas */
+    bottom: 2.5rem;
+    left: calc(50% - 240px); /* pull left, away from the right panel */
+    transform: translateY(12px);
+    max-width: 340px;
+  }
+
+  #daveChip.chip-visible {
+    transform: translateY(0);
+  }
+
+  #daveChip.chip-out {
+    transform: translateY(-8px);
+  }
+}
+
+/* ======================================================
+   PANEL TYPOGRAPHY
+   ====================================================== */
+
+.question {
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  margin-bottom: 0.25rem;
+}
+
+.sub {
+  font-size: 0.8rem;
+  color: var(--c-text-muted);
+  margin-bottom: 1rem;
+}
+
+/* ======================================================
+   FIELD STACK — unified scrollable block
+   ====================================================== */
+
+#fieldStack {
+  /* Layout */
+  display: flex;
+  flex-direction: column;
+  flex: 1;           /* fill available height inside the flex panel */
+  min-height: 0;     /* allow shrinking below content height in flexbox */
+
+  /* Scrolling */
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+
+  /* Single rounded container — no padding needed for shadow clearance because
+     there are no individual card box-shadows to clear. overflow-x:hidden
+     clips child content to these corners without backdrop-filter complications. */
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+}
+
+
+/* Subtle scrollbar (desktop only, WebKit) */
+#fieldStack::-webkit-scrollbar {
+  width: 6px;
+}
+
+#fieldStack::-webkit-scrollbar-thumb {
+  background: rgba(124, 92, 255, 0.35);
+  border-radius: 999px;
+}
+
+/* ======================================================
+   FIELD TYPOGRAPHY
+   ====================================================== */
+
+.field {
+  padding: 0.85rem 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.field label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--c-text-main);
+  margin-bottom: 0.15rem;
+  letter-spacing: -0.01em;
+}
+
+.field .sub {
+  font-size: 0.72rem;
+  color: var(--c-text-muted);
+  opacity: 0.7;
+  margin-bottom: 0.6rem;
+}
+
+.field .value {
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+  color: var(--c-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+
+
+
+/* ======================================================
+   ACTION BUTTONS
+   ====================================================== */
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1.25rem;
+  gap: 0.75rem;
+}
+
+/* ======================================================
+   DESKTOP LAYOUT — FIXED RIGHT PANEL (HARD OVERRIDE)
+   ====================================================== */
+
+@media (min-width: 900px) {
+
+  #questionPanel {
+    position: fixed;
+
+    /* 🔥 HARD RESET MOBILE POSITIONING */
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: auto;
+
+    transform: none;
+    max-height: none; /* reset mobile 85dvh cap — panel fills full viewport height */
+
+    width: 460px;
+    max-width: 460px;
+
+    display: flex;
+    flex-direction: column;
+
+    padding: 1.6rem 1.6rem 1.4rem;
+
+    border-radius: 0;
+
+    background: none;
+    backdrop-filter: none;
+    box-shadow: none;
+
+    z-index: 10;
+  }
+
+  /* Mobile "active" transform must be killed too */
+  #questionPanel.active {
+    transform: none;
+  }
+
+  /* --------------------------------------------------
+     SCROLLABLE CONTENT AREA
+  -------------------------------------------------- */
+
+  #fieldStack {
+    flex: 1;
+    overflow-y: auto;
+    /* Block already has its own background/border; no extra padding needed.
+       min-height:0 is required for flex children to scroll correctly. */
+    min-height: 0;
+  }
+
+  /* --------------------------------------------------
+     ACTIONS ALWAYS VISIBLE
+  -------------------------------------------------- */
+
+  .actions {
+    position: sticky;
+    bottom: 0;
+
+    padding-top: 1rem;
+    margin-top: 1rem;
+
+    background: linear-gradient(
+      to top,
+      rgba(12, 8, 30, 0.95),
+      rgba(12, 8, 30, 0)
+    );
+  }
+
+}
+
+
+/* ======================================================
+   LARGE DESKTOP / WIDESCREEN
+   ====================================================== */
+
+@media (min-width: 1400px) {
+  #questionPanel {
+    right: 6%;
+  }
+}
+
+/* ======================================================
+   UPLOAD OVERLAY
+   ====================================================== */
+
+.upload-card {
+  width: min(420px, 92%);
+  padding: 2rem 1.8rem;
+
+  background: linear-gradient(165deg, rgba(23,32,48,0.95), rgba(13,18,28,0.98));
+  backdrop-filter: blur(20px) saturate(200%);
+  -webkit-backdrop-filter: blur(20px) saturate(200%);
+
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.08);
+
+  box-shadow:
+    0 40px 100px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+
+  text-align: center;
+}
+
+
+.upload-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+
+  display: grid;
+  place-items: center;
+
+  background: rgba(5, 7, 15, 0.18);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+
+  transition: opacity 0.4s ease;
+}
+
+
+.upload-card h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.upload-card p {
+  font-size: 0.9rem;
+  color: var(--c-text-muted);
+  margin-bottom: 1.6rem;
+}
+
+
+/* ======================================================
+   DROP ZONE
+   ====================================================== */
+
+.upload-dropzone {
+  position: relative;
+  padding: 2rem 1.2rem;
+
+  border-radius: 16px;
+
+  border: 1px dashed rgba(255, 255, 255, 0.25);
+
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(99, 102, 241, 0.12),
+      transparent 65%
+    );
+
+  cursor: pointer;
+  transition: all 0.35s ease;
+}
+
+.upload-dropzone:hover,
+.upload-dropzone.dragover {
+  border-color: var(--c-accent);
+  background:
+    radial-gradient(
+      circle at center,
+      rgba(99, 102, 241, 0.18),
+      transparent 60%
+    );
+}
+
+
+.upload-dropzone span {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
+.upload-dropzone small {
+  font-size: 0.75rem;
+  opacity: 0.6;
+}
+
+.upload-dropzone input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.upload-dropzone.dragover {
+  border-color: #7c5cff;
+  background: rgba(124, 92, 255, 0.12);
+}
+
+.upload-hint {
+  margin-top: 1.2rem;
+  font-size: 0.7rem;
+  opacity: 0.55;
+}
+
+.handoff-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* 🔑 LET THE ROOM BREATHE */
+  background: rgba(5, 5, 10, 0.08); /* barely there */
+  backdrop-filter: blur(2px);
+
+  transition: opacity 0.35s ease;
+}
+
+
+.handoff-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.handoff-card {
+  padding: 1rem 1.4rem;
+  border-radius: 14px;
+
+  background: rgba(20, 20, 35, 0.55);
+  box-shadow:
+    0 10px 40px rgba(0,0,0,0.45),
+    inset 0 0 0 1px rgba(255,255,255,0.06);
+
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.handoff-card {
+  position: relative;
+  overflow: hidden; /* For the sweep effect */
+  /* ... existing styles ... */
+}
+
+/* The "Scanning" Sweep Effect */
+.handoff-card::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--measurely-accent) 35%, transparent),
+    transparent
+  );
+
+  animation: shimmer-slide 2.5s ease-in-out infinite;
+}
+
+
+@keyframes shimmer-slide {
+  0%   { left: -100%; }
+  100% { left: 140%; }
+}
+
+/* During the tour: sit above the overlay (99999) so the canvas
+   stays fully visible and interactive while tooltips show on the panel. */
+.tour-active #roomCanvas {
+  z-index: 100000;
+}
+
+@media (min-width: 900px) {
+  #roomCanvas {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: calc(100vw - 480px); /* leaves room for panel */
+    height: 100vh;
+    /* Default z-index keeps canvas below the welcome screen (z-30). */
+    z-index: 1;
+  }
+}
+
+/* ======================================================
+   SECTION HEADERS
+   (flat label rows inside the unified fieldStack block)
+   ====================================================== */
+
+.room-section-title {
+  padding: 0.5rem 1rem;
+
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.28);
+
+  background: rgba(255, 255, 255, 0.025);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* First child in the block — no top border */
+.room-section-title:first-child,
+.field:first-child {
+  border-top: none;
+}
+
+/* Field immediately after a section title — divider already on title */
+.room-section-title + .field {
+  border-top: none;
+}
+
+/* Rows fade in — no translateY so the block doesn't shift height during animation */
+#fieldStack .field {
+  opacity: 0;
+  animation: fieldFadeIn 0.35s ease forwards;
+}
+
+/* Stagger the entry of each row — covers all steps (max 8 fields) */
+#fieldStack .field:nth-child(1) { animation-delay: 0.04s; }
+#fieldStack .field:nth-child(2) { animation-delay: 0.08s; }
+#fieldStack .field:nth-child(3) { animation-delay: 0.12s; }
+#fieldStack .field:nth-child(4) { animation-delay: 0.16s; }
+#fieldStack .field:nth-child(5) { animation-delay: 0.20s; }
+#fieldStack .field:nth-child(6) { animation-delay: 0.24s; }
+#fieldStack .field:nth-child(7) { animation-delay: 0.28s; }
+#fieldStack .field:nth-child(8) { animation-delay: 0.32s; }
+
+@keyframes fieldFadeIn {
+  to { opacity: 1; }
+}
+
+/* Speaker placement fields appear instantly so Joyride can read a stable
+   bounding rect immediately — no opacity:0 or translateY offset to confuse
+   react-floater when it positions the tooltip. */
+#fieldStack .field--instant,
+#fieldStack .field--instant:nth-child(n) {
+  animation: none;
+  opacity: 1;
+  transform: none;
+}
+
+
+/* ======================================================
+   WELCOME SCREEN — full-page hero
+   ====================================================== */
+
+#welcomeScreen {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+
+  display: grid;
+  place-items: center;
+  overflow-y: auto;
+
+  /* Semi-transparent so the spinning 3D room shows through */
+  background:
+    radial-gradient(ellipse 120% 55% at 50% 110%, rgba(255, 79, 154, 0.09), transparent 60%),
+    radial-gradient(ellipse 90% 60% at 50% -5%,   rgba(99, 102, 241, 0.18), transparent 55%),
+    rgba(5, 8, 20, 0.82);
+
+  backdrop-filter: blur(7px) saturate(160%);
+  -webkit-backdrop-filter: blur(7px) saturate(160%);
+
+  transition: opacity 0.45s ease, transform 0.45s ease;
+}
+
+#welcomeScreen.welcome-out {
+  opacity: 0;
+  transform: scale(0.98) translateY(-10px);
+  pointer-events: none;
+}
+
+#welcomeScreen.hidden {
+  display: none;
+}
+
+/* Wave canvas — fills the whole screen behind content */
+#welcomeWaves {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.55; /* softer — room shows through alongside waves */
+}
+
+/* Hero content */
+.welcome-hero {
+  position: relative;
+  z-index: 2;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+
+  padding: 1rem 1.5rem 1.25rem;
+  max-width: 540px;
+  width: 100%;
+
+  animation: welcomeEnter 0.9s cubic-bezier(.16, 1, .3, 1) both;
+}
+
+@keyframes welcomeEnter {
+  from { opacity: 0; transform: translateY(28px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Logo mark ──────────────────────────────────────── */
+.welcome-logo-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  margin-bottom: 0.9rem;
+}
+
+.welcome-logo-wrap img {
+  width: 28px;
+  height: 28px;
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.7));
+}
+
+/* Glowing ring around the icon */
+.welcome-logo-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: rgba(99, 102, 241, 0.10);
+  border: 1px solid rgba(99, 102, 241, 0.30);
+  box-shadow:
+    0 0 0 6px rgba(99, 102, 241, 0.07),
+    0 0 28px rgba(99, 102, 241, 0.22);
+  animation: ringPulse 3s ease-in-out infinite;
+}
+
+@keyframes ringPulse {
+  0%, 100% { box-shadow: 0 0 0 6px rgba(99,102,241,0.07), 0 0 28px rgba(99,102,241,0.22); }
+  50%       { box-shadow: 0 0 0 10px rgba(99,102,241,0.04), 0 0 42px rgba(99,102,241,0.34); }
+}
+
+/* ── Eyebrow ────────────────────────────────────────── */
+.welcome-eyebrow {
+  margin: 0 0 0.6rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--c-accent);
+  opacity: 0.75;
+}
+
+/* ── Headline ───────────────────────────────────────── */
+.welcome-headline {
+  margin: 0 0 0.65rem;
+  font-size: clamp(1.9rem, 5vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 1.12;
+
+  background: linear-gradient(
+    150deg,
+    #f8fafc 0%,
+    #cbd5e1 45%,
+    #818cf8 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Sub ────────────────────────────────────────────── */
+.welcome-sub {
+  margin: 0 0 1.1rem;
+  max-width: 400px;
+  font-size: 0.88rem;
+  line-height: 1.65;
+  color: #64748b;
+}
+
+/* ── Feature trio ───────────────────────────────────── */
+.welcome-features {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: 100%;
+  max-width: 420px;
+  margin-bottom: 1.1rem;
+
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.welcome-feature {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.6rem 0.4rem 0.65rem;
+  transition: background 0.15s ease;
+}
+
+.welcome-feature:hover {
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.welcome-feature-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.22);
+  color: var(--c-accent-light);
+  flex-shrink: 0;
+}
+
+.welcome-feature-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.welcome-feature-text strong {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--c-text-main);
+  letter-spacing: -0.01em;
+}
+
+.welcome-feature-text span {
+  font-size: 0.67rem;
+  color: var(--c-text-muted);
+  opacity: 0.7;
+}
+
+.welcome-feature-divider {
+  width: 1px;
+  height: 44px;
+  background: rgba(255, 255, 255, 0.07);
+  flex-shrink: 0;
+}
+
+/* ── Button group ───────────────────────────────────── */
+.welcome-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 0.65rem;
+  width: 100%;
+  max-width: 420px;
+}
+
+/* PRIMARY — Begin setup */
+.welcome-cta {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+
+  padding: 0.75rem 1.25rem;
+
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  color: #fff;
+
+  border: none;
+  border-radius: 11px;
+
+  font-family: inherit;
+  font-size: 0.93rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.5),
+    0 8px 28px rgba(99, 102, 241, 0.38),
+    0 2px 6px rgba(0, 0, 0, 0.3);
+
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.welcome-cta:hover {
+  background: linear-gradient(135deg, #7173f4 0%, #5b52f0 100%);
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 1px rgba(99, 102, 241, 0.6),
+    0 14px 38px rgba(99, 102, 241, 0.48),
+    0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.welcome-cta:active {
+  transform: translateY(0);
+}
+
+/* SECONDARY — Skip */
+.welcome-skip {
+  flex-shrink: 0;
+  padding: 0.7rem 1rem;
+
+  background: rgba(255, 255, 255, 0.04);
+  color: #64748b;
+
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 11px;
+
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.welcome-skip:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+/* ── Hint ───────────────────────────────────────────── */
+.welcome-hint {
+  margin-top: 0.85rem;
+  font-size: 0.72rem;
+  color: #2d3f5a;
+  letter-spacing: 0.025em;
+}
+
+
+/* ======================================================
+   WIZARD VALIDATION ERRORS
+   ====================================================== */
+
+.field.has-error {
+  border-left-color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.25);
+  background: rgba(239, 68, 68, 0.04);
+}
+
+.field-error-msg {
+  margin: 0.55rem 0 0;
+  padding: 0;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: #f87171;
+  line-height: 1.5;
+}
