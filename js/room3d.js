@@ -27,12 +27,14 @@ export function initRoom3D({
   mountId,
   getRoomData,
   mode = "setup",
-  onSpeakerTap  = null,   // (side: "L"|"R") => void
-  onSpeakerDrag = null,   // ({ side, spk_spacing_m, spk_front_m }) => void
+  onSpeakerTap    = null,   // (side: "L"|"R") => void
+  onSpeakerDrag   = null,   // ({ side, spk_spacing_m, spk_front_m }) => void
+  onListenerDrag  = null,   // ({ listener_front_m, listener_offset_m }) => void
 }) {
   // Mutable callbacks — callers can replace after init via api.setCallbacks()
-  let _onSpeakerTap  = onSpeakerTap;
-  let _onSpeakerDrag = onSpeakerDrag;
+  let _onSpeakerTap    = onSpeakerTap;
+  let _onSpeakerDrag   = onSpeakerDrag;
+  let _onListenerDrag  = onListenerDrag;
 
 
   console.log("[Room3D] initRoom3D() called with mode:", mode);
@@ -246,6 +248,20 @@ export function initRoom3D({
   let _hoverTimer     = null; // debounce clearing hover to avoid flicker
   let _dragFloorY     = 0;    // Y of the active drag plane (set on pointerdown)
 
+  // ── Live object refs (repopulated every rebuild) ─────────
+  let _spkMeshL      = null;  // Left  speaker mesh (for auto-toe)
+  let _spkMeshR      = null;  // Right speaker mesh (for auto-toe)
+  let _beamGeoL      = null;  // Left  beam BufferGeometry (for live endpoint update)
+  let _beamGeoR      = null;  // Right beam BufferGeometry
+  let _listenStation = null;  // Group: sphere + rug + sofa + coffee table
+  let _autoToe       = true;  // When true, speakers always face the sphere
+  let _autoToeAngle  = 0;     // Last computed angle (radians) — readable via API
+
+  // ── Room-geometry refs (for live resize without full rebuild) ─
+  let _roomShell = null;  // LineSegments of the flat-ceiling wireframe box
+  let _roomFloor = null;  // Floor plane mesh
+  let _roomGrid  = null;  // GridHelper
+
   const DRAG_TAP_MS   = 230;
   const DRAG_PX       = 7;   // pixels of movement before a tap becomes a drag
 
@@ -255,6 +271,47 @@ export function initRoom3D({
   function _collectDraggables() {
     _draggables = [];
     roomGroup.traverse(obj => { if (obj.userData?.draggable) _draggables.push(obj); });
+  }
+
+  // ── Auto Toe-In ───────────────────────────────────────────
+  // Rotates both speaker meshes to face the listener sphere and
+  // updates each beam's endpoint to terminate at the sphere center.
+  function _applyAutoToe() {
+    if (!_autoToe || !_spkMeshL || !_spkMeshR) return;
+
+    // World XZ of the listen station (sphere is always at its origin in XZ)
+    let lx, lz;
+    if (_listenStation) {
+      lx = _listenStation.position.x;
+      lz = _listenStation.position.z;
+    } else {
+      const d   = getRoomData() || {};
+      const geo = d.geometry || d;
+      const s   = d.setup    || d;
+      lx = (s.listener_offset_m || 0);
+      lz = -(geo.length_m || 5) / 2 + (s.listener_front_m || 2.8);
+    }
+
+    for (const [spk, bGeo] of [[_spkMeshL, _beamGeoL], [_spkMeshR, _beamGeoR]]) {
+      if (!spk) continue;
+      const dx = lx - spk.position.x;
+      const dz = lz - spk.position.z;
+      // atan2(dx, dz): angle to rotate +Z-facing mesh so it points at (dx, dz)
+      spk.rotation.y = Math.atan2(dx, dz);
+
+      // Trim / extend beam so its far end hits the sphere center exactly
+      if (bGeo) {
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        const pos  = bGeo.attributes.position;
+        pos.setXYZ(1, 0, 0, dist);
+        pos.needsUpdate = true;
+        // Recompute dashes after vertex change
+        const lineObj = spk.children.find(c => c.isLine);
+        if (lineObj) lineObj.computeLineDistances();
+      }
+    }
+    // Store for external read (left speaker used as reference)
+    _autoToeAngle = _spkMeshL.rotation.y;
   }
 
   function _toNDC(e) {
@@ -365,11 +422,6 @@ export function initRoom3D({
     _dragMoveTarget.position.z = _dragPoint.z;
     _dragMoveTarget.position.y = _dragFloorY; // explicit floor lock
 
-    // Refresh dashed beam distances in-place (speakers only; no-op for furniture)
-    _dragMoveTarget.traverse(child => {
-      if (child.isLine) child.computeLineDistances();
-    });
-
     // Mirror opposite speaker symmetrically on X axis (speakers only)
     if (!isFurnitureDrag && _dragSide) {
       const mirrorSide = _dragSide === 'L' ? 'R' : 'L';
@@ -383,6 +435,9 @@ export function initRoom3D({
         mirror.traverse(child => { if (child.isLine) child.computeLineDistances(); });
       }
     }
+
+    // Auto-toe: rotate speakers to always face the listen station sphere
+    _applyAutoToe();
   }, { passive: true });
 
   // ── pointerup ────────────────────────────────────────────────
@@ -397,25 +452,33 @@ export function initRoom3D({
       _onSpeakerTap(_dragSide);
     }
 
-    // Fire speaker drag callback only for speaker drags
-    if (_isDragging && _onSpeakerDrag && _dragSide) {
+    if (_isDragging) {
       const d   = getRoomData();
-      const geo = d.geometry || d;
+      const geo = d?.geometry || d || {};
       const hL  = (geo.length_m || 4) / 2;
 
-      // Derive acoustic values from final move-target position
-      const newSpacing = Math.abs(_dragMoveTarget.position.x) * 2;
-      const newFront   = _dragMoveTarget.position.z + hL;
+      // Fire speaker drag callback (speakers only)
+      if (_onSpeakerDrag && _dragSide) {
+        const newSpacing = Math.abs(_dragMoveTarget.position.x) * 2;
+        const newFront   = _dragMoveTarget.position.z + hL;
+        _onSpeakerDrag({
+          side:           _dragSide,
+          spk_spacing_m:  Math.max(0.4,  parseFloat(newSpacing.toFixed(2))),
+          spk_front_m:    Math.max(0.05, parseFloat(newFront.toFixed(2)))
+        });
+      }
 
-      _onSpeakerDrag({
-        side:           _dragSide,
-        spk_spacing_m:  Math.max(0.4, parseFloat(newSpacing.toFixed(2))),
-        spk_front_m:    Math.max(0.05, parseFloat(newFront.toFixed(2)))
-      });
-    }
+      // Fire listener drag callback when the station was moved
+      if (_onListenerDrag && _dragMoveTarget === _listenStation) {
+        const newFront  = _listenStation.position.z + hL;
+        const newOffset = _listenStation.position.x - (d?.setup?.listener_offset_m || 0);
+        _onListenerDrag({
+          listener_front_m:  Math.max(0.3,  parseFloat(newFront.toFixed(2))),
+          listener_offset_m: parseFloat(newOffset.toFixed(2))
+        });
+      }
 
-    if (_isDragging) {
-      // Full rebuild to reconcile overlays, beams, and listener
+      // Full rebuild to reconcile overlays, beams, and station position
       rebuild();
     }
 
@@ -594,6 +657,9 @@ function rebuild() {
       return highY;
     }
 
+    // Reset room-geometry live refs; will be set for flat ceiling below
+    _roomShell = null; _roomFloor = null; _roomGrid = null;
+
     if (VISIBILITY.roomShell) {
       const wireMat = new THREE.LineBasicMaterial({
         color: colors.room,
@@ -604,10 +670,16 @@ function rebuild() {
       });
 
       if (!isSlanted && !isGable) {
-        const roomGeo = new THREE.BoxGeometry(room.width_m, room.height_m, room.length_m);
-        const roomEdges = new THREE.LineSegments(new THREE.EdgesGeometry(roomGeo), wireMat);
+        // Unit box scaled to room dims — lets setRoomWidth/Length resize it
+        // without a full rebuild by just updating roomEdges.scale.
+        const roomEdges = new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
+          wireMat
+        );
+        roomEdges.scale.set(room.width_m, room.height_m, room.length_m);
         roomEdges.renderOrder = 1;
         roomGroup.add(roomEdges);
+        _roomShell = roomEdges; // stored for live resize
       } else if (isSlanted) {
         // 8 vertices — each ceiling corner uses ceilingYAt
         const v = [
@@ -696,36 +768,32 @@ function rebuild() {
       }
     }
 
-    const floorGeo = new THREE.PlaneGeometry(room.width_m * 1.1, room.length_m * 1.1);
+    // Unit plane: scale.x = width, scale.y = length (plane local-Y maps to world-Z
+    // after the -90° X rotation). Stored for live resize.
     const floorMat = new THREE.MeshStandardMaterial({
       color: 0x0f172a,
       roughness: 0.2,
       metalness: 0.4,
       transparent: true,
-      opacity: 0.6,        // critical
+      opacity: 0.6,
       depthWrite: false
     });
-
-    const floor = new THREE.Mesh(floorGeo, floorMat);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1), floorMat);
     floor.rotation.x = -Math.PI / 2;
-    floor.position.y = -room.height_m / 2 - 0.01; // Tiny offset to prevent flickering
+    floor.scale.set(room.width_m, room.length_m, 1);
+    floor.position.y = -room.height_m / 2 - 0.01;
     roomGroup.add(floor);
+    _roomFloor = floor;
 
     /* ------------------------------------------
        GRID
     ------------------------------------------ */
     if (VISIBILITY.grid) {
-      const grid = new THREE.GridHelper(
-        10,
-        20,
-        colors.room,   // primary lines
-        0x334155       // softer slate for secondary lines
-      );
-
+      // GridHelper(size, divisions) — unit size scaled to room dimensions so
+      // setRoomWidth/Length can update scale.x / scale.z without rebuilding.
+      const grid = new THREE.GridHelper(1, 20, colors.room, 0x334155);
+      grid.scale.set(room.width_m, 1, room.length_m);
       grid.position.y = -room.height_m / 2;
-      grid.material.transparent = true;
-      grid.material.opacity = 0.38;     // 👈 the key number
-      grid.material.depthWrite = false;
 
       const gridMats = Array.isArray(grid.material) ? grid.material : [grid.material];
       gridMats.forEach(m => {
@@ -736,6 +804,7 @@ function rebuild() {
       });
 
       roomGroup.add(grid);
+      _roomGrid = grid; // stored for live resize
     }
 
     /* ------------------------------------------
@@ -820,6 +889,10 @@ function rebuild() {
 /* ------------------------------------------
         SPEAKERS + BEAMS (LEVEL AXIS LOCK)
     ------------------------------------------ */
+    // Reset speaker refs — will be set below when speakers are built
+    _spkMeshL = null; _spkMeshR = null;
+    _beamGeoL = null; _beamGeoR = null;
+
     if (renderStage === "speakers" || renderStage === "furnishings") {
       const toeRad = (room.toe_in_deg || 0) * Math.PI / 180;
       const baseY = -room.height_m / 2;
@@ -866,15 +939,16 @@ function rebuild() {
         speaker.userData.dragType     = 'speaker';
         speaker.userData.speakerSide  = side;
 
-        // Horizontal rotation only (Toe-in)
+        // Initial toe-in (may be overridden by _applyAutoToe after rebuild)
         speaker.rotation.y = (side === "L" ? 1 : -1) * toeRad;
 
-        // --- BEAMS (Perfectly Horizontal) ---
+        // --- BEAMS — extracted so _applyAutoToe can update the endpoint live ---
+        const beamGeo = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(0, 0, 0),
+          new THREE.Vector3(0, 0, room.length_m)
+        ]);
         const beam = new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(0, 0, 0),
-            new THREE.Vector3(0, 0, room.length_m)
-          ]),
+          beamGeo,
           new THREE.LineDashedMaterial({
             color: spkColor,
             dashSize: 0.25,
@@ -884,45 +958,27 @@ function rebuild() {
           })
         );
         beam.computeLineDistances();
-        
+
         speaker.add(beam);
         roomGroup.add(speaker);
+
+        // Store refs for live auto-toe updates
+        if (side === 'L') { _spkMeshL = speaker; _beamGeoL = beamGeo; }
+        else              { _spkMeshR = speaker; _beamGeoR = beamGeo; }
       });
     }
 
   /* ------------------------------------------
-      LISTENER (STUDIO HEIGHT SYNC)
+    LISTEN STATION GROUP
+    Single draggable unit: sphere + rug + sofa + coffee table.
+    Anchored at floor level at the listener position.
+    Speakers auto-track this group's XZ world position.
   ------------------------------------------ */
   const listenerZ = -room.length_m / 2 + room.listener_front_m;
-
-  // In Studio mode, seated height is usually 1.1m - 1.2m. 
-  // We use tweeter_height_m to allow fine-tuning.
-  const effectiveHeadHeight = isStudio 
-    ? Math.max(1.1, room.tweeter_height_m + 0.2) // Offset head above speaker height
+  const effectiveHeadHeight = isStudio
+    ? Math.max(1.1, room.tweeter_height_m + 0.2)
     : room.tweeter_height_m;
 
-  const isListHighlit = highlightTarget === 'listener';
-  const listener = new THREE.Mesh(
-    new THREE.SphereGeometry(isListHighlit ? 0.26 : 0.18, 24, 24),
-    new THREE.MeshBasicMaterial({
-      color: isListHighlit ? 0x22d3ee : colors.accent,
-      wireframe: true,
-      transparent: true,
-      opacity: isListHighlit ? 0.95 : 0.6
-    })
-  );
-
-// Force the head height to be exactly the same as the tweeter height
-  listener.position.set(
-    offsetX + (room.listener_offset_m || 0),
-    -room.height_m / 2 + room.tweeter_height_m,
-    listenerZ
-  );
-  roomGroup.add(listener);
-
-  /* ------------------------------------------
-    FURNITURE (Refined Modular Look)
-  ------------------------------------------ */
   const furnMat = new THREE.MeshStandardMaterial({
     color: colors.furniture,
     emissive: colors.furniture,
@@ -930,162 +986,131 @@ function rebuild() {
     wireframe: true,
     transparent: true,
     opacity: OP_OBJ,
-
-    depthTest: false,    // THIS fixes the flicker
+    depthTest: false,
     depthWrite: false
   });
 
-  /* ------------------------------------------
-    RUG (Restored)
-  ------------------------------------------ */
-  if (VISIBILITY.furniture.rug && room.opt_area_rug && !hasFocus) {
-    const rug = new THREE.Mesh(
-      new THREE.PlaneGeometry(
-        room.width_m * 0.45,
-        room.length_m * 0.35
-      ),
-      new THREE.MeshStandardMaterial({
-        color: 0x64748b,
+  {
+    const station = new THREE.Group();
+    // Anchor at floor level directly below the listener sphere
+    station.position.set(
+      offsetX + (room.listener_offset_m || 0),
+      -room.height_m / 2,
+      listenerZ
+    );
+
+    // ── Listener sphere (always visible) ──
+    const isListHighlit = highlightTarget === 'listener';
+    const sphere = new THREE.Mesh(
+      new THREE.SphereGeometry(isListHighlit ? 0.26 : 0.18, 24, 24),
+      new THREE.MeshBasicMaterial({
+        color: isListHighlit ? 0x22d3ee : colors.accent,
         wireframe: true,
         transparent: true,
-        opacity: 0.25,
-        depthWrite: false,
-        depthTest: false,
-        side: THREE.DoubleSide  // reliable raycasting from any camera angle
+        opacity: isListHighlit ? 0.95 : 0.6
       })
     );
+    // Local Y = height above floor (= tweeter height)
+    sphere.position.set(0, effectiveHeadHeight, 0);
+    station.add(sphere);
 
-    rug.rotation.x = -Math.PI / 2;
-    rug.position.set(
-      offsetX,
-      -room.height_m / 2 + 0.01,
-      listenerZ - 1.15
+    // ── Rug (local coords: centred in front of sphere) ──
+    if (VISIBILITY.furniture.rug && room.opt_area_rug && !hasFocus) {
+      const rug = new THREE.Mesh(
+        new THREE.PlaneGeometry(room.width_m * 0.45, room.length_m * 0.35),
+        new THREE.MeshStandardMaterial({
+          color: 0x64748b,
+          wireframe: true,
+          transparent: true,
+          opacity: 0.25,
+          depthWrite: false,
+          depthTest: false,
+          side: THREE.DoubleSide
+        })
+      );
+      rug.rotation.x = -Math.PI / 2;
+      rug.position.set(0, 0.01, -1.15);
+      station.add(rug);
+    }
+
+    // ── Sofa (home mode only) ──
+    if (VISIBILITY.furniture.sofa && !isStudio && room.opt_sofa && !hasFocus) {
+      const base = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.4, 0.9), furnMat);
+      base.position.y = 0.2;
+      station.add(base);
+
+      const back = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.5, 0.2), furnMat);
+      back.position.set(0, 0.55, 0.35);
+      station.add(back);
+
+      const armGeo = new THREE.BoxGeometry(0.2, 0.35, 0.9);
+      const lArm = new THREE.Mesh(armGeo, furnMat); lArm.position.set(-0.95, 0.4, 0);
+      const rArm = new THREE.Mesh(armGeo, furnMat); rArm.position.set( 0.95, 0.4, 0);
+      station.add(lArm, rArm);
+    }
+
+    // ── Coffee table (local coords: in front of sofa) ──
+    if (VISIBILITY.furniture.coffeeTable && room.opt_coffee_table && !hasFocus) {
+      const tTop = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.05, 0.6), furnMat);
+      tTop.position.set(0, 0.4, -1.2);
+      station.add(tTop);
+
+      const tLegGeo = new THREE.BoxGeometry(0.04, 0.4, 0.04);
+      [[-0.45, 0.2, -0.95], [0.45, 0.2, -0.95],
+       [-0.45, 0.2, -1.45], [0.45, 0.2, -1.45]].forEach(([lx, ly, lz]) => {
+        const leg = new THREE.Mesh(tLegGeo, furnMat);
+        leg.position.set(lx, ly, lz);
+        station.add(leg);
+      });
+    }
+
+    // ── Studio: desk + chair (positioned relative to speaker wall, not station) ──
+    if (isStudio && !hasFocus) {
+      const deskGroup = new THREE.Group();
+      const deskTop = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.05, 0.8), furnMat);
+      deskTop.position.y = 0.75;
+      deskGroup.add(deskTop);
+      const dLegGeo = new THREE.BoxGeometry(0.04, 0.75, 0.04);
+      [[-0.75,0.375,-0.35],[0.75,0.375,-0.35],[-0.75,0.375,0.35],[0.75,0.375,0.35]]
+        .forEach(p => { const l = new THREE.Mesh(dLegGeo, furnMat); l.position.set(...p); deskGroup.add(l); });
+      // Desk is fixed relative to speaker wall — add to roomGroup, not station
+      const deskZ = -room.length_m / 2 + room.spk_front_m + 0.4;
+      deskGroup.position.set(offsetX, -room.height_m / 2, deskZ);
+      roomGroup.add(deskGroup);
+
+      // Office chair (relative to station local)
+      const chairGroup = new THREE.Group();
+      chairGroup.position.set(0, 0, -0.15);
+      const s1 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.04, 0.1), furnMat);
+      const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.04, 0.6), furnMat);
+      s1.position.y = s2.position.y = 0.02;
+      chairGroup.add(s1, s2);
+      const stem = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.4, 0.08), furnMat);
+      stem.position.y = 0.2; chairGroup.add(stem);
+      const seat = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.08, 0.5), furnMat);
+      seat.position.y = 0.45; chairGroup.add(seat);
+      const sup = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.4, 0.04), furnMat);
+      sup.position.set(0, 0.65, 0.22); sup.rotation.x = -0.15; chairGroup.add(sup);
+      const bk = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.05), furnMat);
+      bk.position.set(0, 0.85, 0.28); chairGroup.add(bk);
+      station.add(chairGroup);
+    }
+
+    // ── Invisible hit plane — the drag handle for the whole station ──
+    // Covers the rug footprint; invisible but raycaster-hittable.
+    const hitPlane = new THREE.Mesh(
+      new THREE.PlaneGeometry(3.0, 3.0),
+      new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide })
     );
+    hitPlane.rotation.x = -Math.PI / 2;
+    hitPlane.position.y = 0.02;
+    hitPlane.userData.draggable = true;
+    hitPlane.userData.dragType  = 'furniture';
+    hitPlane.userData.dragGroup = station;
+    station.add(hitPlane);
 
-    // Draggable — XZ-plane locked; flat plane has no group so dragGroup is self
-    rug.userData.draggable = true;
-    rug.userData.dragType  = 'furniture';
-
-    roomGroup.add(rug);
-  }
-
-  // 1. SOFA (Only show if Home mode AND Sofa option is on)
-  if (VISIBILITY.furniture.sofa && !isStudio && room.opt_sofa && !hasFocus) {
-    const sofaGroup = new THREE.Group();
-
-    // The Base Seat — hit target for dragging the whole sofa group
-    const base = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.4, 0.9), furnMat);
-    base.position.y = 0.2;
-    base.userData.draggable  = true;
-    base.userData.dragType   = 'furniture';
-    base.userData.dragGroup  = sofaGroup; // move the whole Group, not just this mesh
-    sofaGroup.add(base);
-
-    // The Backrest
-    const back = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.5, 0.2), furnMat);
-    back.position.set(0, 0.55, 0.35); 
-    sofaGroup.add(back);
-
-    // The Arms
-    const armGeo = new THREE.BoxGeometry(0.2, 0.35, 0.9);
-    const leftArm = new THREE.Mesh(armGeo, furnMat);
-    leftArm.position.set(-0.95, 0.4, 0);
-    const rightArm = new THREE.Mesh(armGeo, furnMat);
-    rightArm.position.set(0.95, 0.4, 0);
-    sofaGroup.add(leftArm, rightArm);
-
-    // Position at listener coordinates
-    sofaGroup.position.set(offsetX, -room.height_m / 2, listenerZ);
-    roomGroup.add(sofaGroup);
-  }
-
-  // --- STUDIO MODE: WIREFRAME DESK & OFFICE CHAIR ---
-  if (isStudio && !hasFocus) {
-    // 1. THE DESK (Locked to the front wall/speakers)
-    const deskGroup = new THREE.Group();
-    
-    const deskTop = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.05, 0.8), furnMat);
-    deskTop.position.y = 0.75; 
-    deskGroup.add(deskTop);
-
-    const legGeo = new THREE.BoxGeometry(0.04, 0.75, 0.04);
-    const legPos = [[-0.75, 0.375, -0.35], [0.75, 0.375, -0.35], [-0.75, 0.375, 0.35], [0.75, 0.375, 0.35]];
-    legPos.forEach(p => {
-      const leg = new THREE.Mesh(legGeo, furnMat);
-      leg.position.set(...p);
-      deskGroup.add(leg);
-    });
-
-    // Position Desk: Front wall + speaker distance + desk depth/2
-    const deskZ = -room.length_m / 2 + room.spk_front_m + 0.4;
-    deskGroup.position.set(offsetX, -room.height_m / 2, deskZ);
-    roomGroup.add(deskGroup);
-
-
-    // 2. THE OFFICE CHAIR (Follows you as you roll back)
-    const chairGroup = new THREE.Group();
-    
-    const star1 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.04, 0.1), furnMat);
-    const star2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.04, 0.6), furnMat);
-    star1.position.y = star2.position.y = 0.02;
-    chairGroup.add(star1, star2);
-    
-    const stem = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.4, 0.08), furnMat);
-    stem.position.y = 0.2;
-    chairGroup.add(stem);
-    
-    const seat = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.08, 0.5), furnMat);
-    seat.position.y = 0.45;
-    chairGroup.add(seat);
-    
-    const support = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.4, 0.04), furnMat);
-    support.position.set(0, 0.65, 0.22);
-    support.rotation.x = -0.15; 
-    chairGroup.add(support);
-    
-    const backrest = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.05), furnMat);
-    backrest.position.set(0, 0.85, 0.28);
-    chairGroup.add(backrest);
-    
-    // POSITION CHAIR: Centered under the Sphere
-    // We subtract 0.25 so the sphere (head) sits over the seat, not the stem
-    chairGroup.position.set(
-      offsetX + (room.listener_offset_m || 0), 
-      -room.height_m / 2, 
-      listenerZ - 0.15 
-    );
-    roomGroup.add(chairGroup);
-  }
-
-  // --- COFFEE TABLE ---
-  if (VISIBILITY.furniture.coffeeTable && room.opt_coffee_table && !hasFocus) {
-    console.log("[Room3D] Adding coffee table frame");
-    const tableGroup = new THREE.Group();
-
-    // Table Top — hit target for dragging the whole table group
-    const top = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.05, 0.6), furnMat);
-    top.position.y = 0.4;
-    top.userData.draggable = true;
-    top.userData.dragType  = 'furniture';
-    top.userData.dragGroup = tableGroup; // move the whole Group
-    tableGroup.add(top);
-
-    // Four Legs
-    const legGeo = new THREE.BoxGeometry(0.04, 0.4, 0.04);
-    const legPositions = [
-      [-0.45, 0.2, -0.25], [0.45, 0.2, -0.25],
-      [-0.45, 0.2, 0.25],  [0.45, 0.2, 0.25]
-    ];
-
-    legPositions.forEach(pos => {
-      const leg = new THREE.Mesh(legGeo, furnMat);
-      leg.position.set(...pos);
-      tableGroup.add(leg);
-    });
-
-    // Table Position
-    tableGroup.position.set(offsetX, -room.height_m / 2, listenerZ - 1.2);
-    roomGroup.add(tableGroup);
+    roomGroup.add(station);
+    _listenStation = station; // stored for auto-toe + onListenerDrag
   }
 
   /* ------------------------------------------
@@ -1338,6 +1363,9 @@ function rebuild() {
 
   // Refresh draggable mesh list every rebuild so new meshes are registered
   _collectDraggables();
+
+  // Auto-toe: snap speakers to face the sphere after every full rebuild
+  _applyAutoToe();
 
   // ---- SMOOTHNESS (Spectral Turbulence Field) ----
   if (overlayEnabled(OVERLAYS.SMOOTHNESS)) {
@@ -2300,21 +2328,35 @@ function rebuild() {
     },
 
     /**
-     * Dynamically resize the room without a full data-store round-trip.
-     * Stores an in-memory override that rebuild() applies on top of getRoomData().
-     * Calling with null clears the override and defers back to the data store.
+     * Live-resize the room.  For flat-ceiling rooms we directly scale the stored
+     * mesh refs (no full rebuild — no flicker).  For slanted / gable ceilings the
+     * geometry is custom so we fall back to a full rebuild.
      */
     setRoomWidth(meters) {
-      _roomWidthOverride = (meters != null) ? Math.max(1.5, Number(meters)) : null;
-      rebuild();
-      // Re-centre OrbitControls target so the room stays in frame
+      const w = Math.max(1.5, Number(meters));
+      _roomWidthOverride = w;
+      if (_roomShell) {
+        _roomShell.scale.x = w;
+        if (_roomFloor) _roomFloor.scale.x = w;
+        if (_roomGrid)  _roomGrid.scale.x  = w;
+      } else {
+        rebuild();
+      }
       controls.target.set(0, 0, 0);
       controls.update();
     },
 
     setRoomLength(meters) {
-      _roomLengthOverride = (meters != null) ? Math.max(1.5, Number(meters)) : null;
-      rebuild();
+      const l = Math.max(1.5, Number(meters));
+      _roomLengthOverride = l;
+      if (_roomShell) {
+        _roomShell.scale.z = l;
+        // Plane local-Y maps to world Z after -90° rotation, so scale.y = length
+        if (_roomFloor) _roomFloor.scale.y = l;
+        if (_roomGrid)  _roomGrid.scale.z  = l;
+      } else {
+        rebuild();
+      }
       controls.target.set(0, 0, 0);
       controls.update();
     },
@@ -2324,12 +2366,37 @@ function rebuild() {
     },
 
     /**
+     * Enable / disable auto toe-in (speakers always face the listen station sphere).
+     * When disabled, speakers use the toe_in_deg value from getRoomData().
+     */
+    setAutoToe(enabled) {
+      _autoToe = Boolean(enabled);
+      if (_autoToe) {
+        _applyAutoToe();
+      } else {
+        // Restore static toe-in from room data
+        const d   = getRoomData() || {};
+        const s   = d.setup || d;
+        const deg = s.toe_in_deg || 0;
+        const rad = deg * Math.PI / 180;
+        if (_spkMeshL) _spkMeshL.rotation.y =  rad;
+        if (_spkMeshR) _spkMeshR.rotation.y = -rad;
+      }
+    },
+
+    /** Returns the current auto-toe angle in degrees (left speaker used as reference). */
+    getToeAngleDeg() {
+      return Math.round(Math.abs(_autoToeAngle) * 180 / Math.PI);
+    },
+
+    /**
      * Replace drag/tap callbacks after initialisation.
      * Useful when the host page needs to wire callbacks after room3D is ready.
      */
-    setCallbacks({ onSpeakerTap, onSpeakerDrag } = {}) {
-      if (onSpeakerTap  !== undefined) _onSpeakerTap  = onSpeakerTap;
-      if (onSpeakerDrag !== undefined) _onSpeakerDrag = onSpeakerDrag;
+    setCallbacks({ onSpeakerTap, onSpeakerDrag, onListenerDrag } = {}) {
+      if (onSpeakerTap   !== undefined) _onSpeakerTap   = onSpeakerTap;
+      if (onSpeakerDrag  !== undefined) _onSpeakerDrag  = onSpeakerDrag;
+      if (onListenerDrag !== undefined) _onListenerDrag = onListenerDrag;
     },
 
     startAutoSpin() {
