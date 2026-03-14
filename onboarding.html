@@ -296,24 +296,28 @@ if (hasOnboarded) {
 
 
 const steps = [
-  /* ------------------------------------------
-      STEP 0 — GATE (Room Use + Speaker Type)
-      Users complete this before the 3D room
-      flies in so the scene loads correctly.
-  ------------------------------------------ */
+  /* ─────────────────────────────────────────────────────────────
+     STEP 0 — USE  (Room type + Speaker type)
+     The 3D room is visible from the very first step with stage
+     "gate": just walls + listen station sphere, no speakers, no
+     furniture.  Changing room_type branches the speaker options
+     and auto-adds desk (studio) or sofa (home) via
+     handleEnvironmentChange() in UIController.
+  ───────────────────────────────────────────────────────────── */
   {
-    type: "gate",
-    title: "Let's set the scene",
-    desc: "Two quick questions help us build the right 3D room for you before we dive into dimensions.",
-    dave: "Getting these two right means the 3D room you see next will match your actual setup — not a generic default.",
+    type: "use",
+    sectionLabel: "Use",
+    title: "What's your setup?",
+    desc: "Pick your room use — we'll build the right 3D scene and filter speaker options to match.",
+    dave: "Studio or listening room? This single choice changes the default furniture, speaker shape, and placement — get it right and everything downstream snaps into place.",
     fields: [
       {
         key: "room_type",
         kind: "select",
         label: "Room Use",
-        sub: "Optimizes layout, furniture and speaker defaults",
+        sub: "Sets 3D furniture and speaker defaults",
         options: [
-          { value: "home", label: "Home / Hi-Fi listening room" },
+          { value: "home",   label: "Home / Hi-Fi listening room" },
           { value: "studio", label: "Studio / Workspace / Desktop" }
         ]
       },
@@ -321,49 +325,49 @@ const steps = [
         key: "setup.speaker_type",
         kind: "select",
         label: "Speaker Type",
-        sub: "Sets the 3D cabinet shape and default placement",
-        options: [
-          { value: "standmount",   label: "Standmount / Bookshelf" },
-          { value: "floorstander", label: "Floorstanding" },
-          { value: "panel",        label: "Panel / Electrostatic" },
-          { value: "monitor",      label: "Studio Monitor (Desk)" }
-        ]
+        sub: "Sets the 3D cabinet shape and placement",
+        // getOptions() is called by loadStep() to filter based on room_type
+        getOptions(state) {
+          if (state.room_type === "studio") {
+            return [{ value: "monitor", label: "Studio Monitor (Desk)" }];
+          }
+          return [
+            { value: "standmount",   label: "Standmount / Bookshelf" },
+            { value: "floorstander", label: "Floorstanding" },
+            { value: "panel",        label: "Panel / Electrostatic" }
+          ];
+        }
       }
     ]
   },
 
-  /* ------------------------------------------
-      STEP 1 — ROOM
-  ------------------------------------------ */
+  /* ─────────────────────────────────────────────────────────────
+     STEP 1 — DIMENSIONS
+  ───────────────────────────────────────────────────────────── */
   {
-    type: "room",
+    type: "dimensions",
+    sectionLabel: "Dimensions",
     title: "Room dimensions",
     desc: "Bass behaves like water — it pools in corners and along walls. Tell us the size of the container.",
-    dave: "Bass frequencies are long. In a 4m room, a 43Hz wave exactly fits wall-to-wall — that's the boom you can't EQ away. Measurely finds it.",
+    dave: "Bass frequencies are long. In a 4 m room, a 43 Hz wave exactly fits wall-to-wall — that's the boom you can't EQ away. Measurely finds it.",
     fields: [
       {
-        key: "geometry.length_m", // Nested in geometry
+        key: "geometry.length_m",
         label: "Room length",
         sub: "Front wall to back wall",
-        min: 2,
-        max: 10,
-        step: 0.05
+        min: 2, max: 10, step: 0.05
       },
       {
         key: "geometry.width_m",
         label: "Room width",
         sub: "Left wall to right wall",
-        min: 2,
-        max: 10,
-        step: 0.05
+        min: 2, max: 10, step: 0.05
       },
       {
         key: "geometry.height_m",
         label: "Ceiling height",
         sub: "Floor to ceiling (high side if slanted)",
-        min: 2,
-        max: 3.5,
-        step: 0.01
+        min: 2, max: 3.5, step: 0.01
       },
       {
         key: "geometry.ceiling_type",
@@ -371,9 +375,9 @@ const steps = [
         label: "Ceiling shape",
         sub: "Flat or slanted (pent) roof",
         options: [
-          { value: "flat", label: "Flat" },
+          { value: "flat",    label: "Flat" },
           { value: "slanted", label: "Slanted (pent roof)" },
-          { value: "gable", label: "Gabled (pitched roof)" }
+          { value: "gable",   label: "Gabled (pitched roof)" }
         ]
       },
       {
@@ -404,85 +408,18 @@ const steps = [
         key: "geometry.ceiling_height_secondary_m",
         label: "Low-side ceiling height",
         sub: "Eaves height (wall height where slope begins)",
-        min: 1.8,
-        max: 3.5,
-        step: 0.01,
+        min: 1.8, max: 3.5, step: 0.01,
         showIf: { key: "geometry.ceiling_type", value: ["slanted", "gable"] }
       }
     ]
   },
 
-  /* ------------------------------------------
-      STEP 2 — SPEAKERS
-  ------------------------------------------ */
+  /* ─────────────────────────────────────────────────────────────
+     STEP 2 — FURNITURE
+  ───────────────────────────────────────────────────────────── */
   {
-    type: "speakers",
-    title: "Speaker placement",
-    desc: "The single biggest lever for bass — without buying anything — is where you put your speakers.",
-    dave: "Distance from the front wall is everything for bass. 30cm from the wall and you're loading up a room mode. Pull them out to 60cm+ and it starts to clean up.",
-    fields: [
-      {
-        key: "setup.listener_offset_m",
-        label: "Listening position offset",
-        sub: "Shift the listening area left or right",
-        min: -2,
-        max: 2,
-        step: 0.05
-      },
-      {
-        key: "setup.spk_spacing_m",
-        label: "Speaker spacing",
-        sub: "Distance between left and right speakers",
-        min: 1.2,
-        max: 4,
-        step: 0.05
-      },
-      {
-        key: "setup.spk_front_m",
-        label: "Distance from front wall",
-        sub: "Speaker front to wall behind",
-        min: 0.01,
-        max: 1.5,
-        step: 0.05
-      },
-      {
-        key: "setup.tweeter_height_m",
-        label: "Tweeter height",
-        sub: "From floor",
-        min: 0.6,
-        max: 1.8,
-        step: 0.01
-      },
-      {
-        key: "setup.toe_in_deg",
-        label: "Toe-in angle",
-        sub: "Angle toward listening position",
-        min: 0,
-        max: 45,
-        step: 1
-      },
-      {
-        key: "setup.listener_front_m",
-        label: "Listening distance",
-        sub: "From speakers to your ears",
-        min: 1.5,
-        max: 4.5,
-        step: 0.05
-      },
-      {
-        key: "setup.subwoofer",
-        kind: "toggle",
-        label: "Subwoofer",
-        sub: "Do you have a subwoofer in the system?"
-      }
-    ]
-  },
-
-  /* ------------------------------------------
-      STEP 3 — MATERIALS & FURNISHINGS
-  ------------------------------------------ */
-  {
-    type: "materials",
+    type: "furniture",
+    sectionLabel: "Furniture",
     title: "What's in your room?",
     desc: "Hard surfaces bounce sound. Soft ones soak it up. Your sofa is doing real acoustic work whether you know it or not.",
     dave: "Tell us what's here — even a rug and a sofa already meaningfully change the numbers. Acoustic panels are a bonus, not a requirement.",
@@ -493,7 +430,7 @@ const steps = [
         label: "Floor type",
         sub: "Major effect on brightness and reflections",
         options: [
-          { value: "hard", label: "Hard floor (wood / tile)" },
+          { value: "hard",   label: "Hard floor (wood / tile)" },
           { value: "carpet", label: "Carpet" }
         ]
       },
@@ -520,10 +457,10 @@ const steps = [
         kind: "select",
         label: "Front / rear wall panels",
         options: [
-          { value: "none", label: "None" },
+          { value: "none",  label: "None" },
           { value: "front", label: "Front wall" },
-          { value: "rear", label: "Rear wall" },
-          { value: "both", label: "Front + rear walls" }
+          { value: "rear",  label: "Rear wall" },
+          { value: "both",  label: "Front + rear walls" }
         ]
       },
       {
@@ -531,10 +468,10 @@ const steps = [
         kind: "select",
         label: "Side wall panels",
         options: [
-          { value: "none", label: "None" },
-          { value: "left", label: "Left wall" },
+          { value: "none",  label: "None" },
+          { value: "left",  label: "Left wall" },
           { value: "right", label: "Right wall" },
-          { value: "both", label: "Both walls" }
+          { value: "both",  label: "Both walls" }
         ]
       },
       {
@@ -542,10 +479,10 @@ const steps = [
         kind: "select",
         label: "Bass traps",
         options: [
-          { value: "none", label: "None" },
+          { value: "none",  label: "None" },
           { value: "front", label: "Front corners" },
-          { value: "rear", label: "Rear corners" },
-          { value: "all", label: "All corners" }
+          { value: "rear",  label: "Rear corners" },
+          { value: "all",   label: "All corners" }
         ]
       },
       {
@@ -553,7 +490,7 @@ const steps = [
         kind: "select",
         label: "Ceiling cloud",
         options: [
-          { value: "none", label: "None" },
+          { value: "none",  label: "None" },
           { value: "cloud", label: "Ceiling cloud" }
         ]
       }
@@ -585,14 +522,16 @@ window.advanceWizard = () => nextBtn.click();
 ------------------------------------------ */
 function renderProgressDots() {
     if (!progressDots) return;
-    progressDots.innerHTML = steps.map((_, i) => {
+    progressDots.innerHTML = steps.map((s, i) => {
         let cls = 'wizard-dot';
         if (i < stepIndex)  cls += ' done';
         if (i === stepIndex) cls += ' active';
-        return `<span class="${cls}" aria-hidden="true"></span>`;
+        const label = s.sectionLabel || `Step ${i + 1}`;
+        return `<span class="${cls}" title="${label}" aria-label="${label}"></span>`;
     }).join('');
     if (progressLabel) {
-        progressLabel.textContent = `Step ${stepIndex + 1} of ${steps.length}`;
+        // Show the named section label instead of a generic "Step X of Y"
+        progressLabel.textContent = steps[stepIndex]?.sectionLabel || `Step ${stepIndex + 1} of ${steps.length}`;
     }
 }
 
@@ -657,58 +596,21 @@ function setSliderFill(slider, min, max) {
    VALIDATION
 ------------------------------------------ */
 const VALIDATION_RULES = {
-  room(s) {
-    const errs = [];
-    const geo = s.geometry; // Use the geometry bucket
+  // Step 0 — Use
+  use() { return []; },
 
-    if (geo.length_m >= 10) {
-        errs.push({ key: "geometry.length_m", msg: "Maximum room length is 10 m." });
-    }
-    if (geo.width_m >= 10) {
-        errs.push({ key: "geometry.width_m", msg: "Maximum room width is 10 m." });
-    }
-    if (geo.height_m > 3.5) {
-        errs.push({ key: "geometry.height_m", msg: "Maximum ceiling height is 3.5 m." });
-    }
+  // Step 1 — Dimensions
+  dimensions(s) {
+    const errs = [];
+    const geo = s.geometry;
+    if (geo.length_m >= 10) errs.push({ key: "geometry.length_m", msg: "Maximum room length is 10 m." });
+    if (geo.width_m  >= 10) errs.push({ key: "geometry.width_m",  msg: "Maximum room width is 10 m." });
+    if (geo.height_m > 3.5) errs.push({ key: "geometry.height_m", msg: "Maximum ceiling height is 3.5 m." });
     return errs;
   },
 
-  speakers(s) {
-    const errs = [];
-    const setup = s.setup;     // Use the setup bucket
-    const geo = s.geometry;   // Need geometry to compare against room size
-
-    if (setup.spk_spacing_m >= geo.width_m) {
-      errs.push({ 
-        key: "setup.spk_spacing_m",
-        msg: `Speaker spacing (${setup.spk_spacing_m.toFixed(2)} m) must be less than room width (${geo.width_m.toFixed(2)} m).` 
-      });
-    }
-
-    if (setup.spk_front_m >= geo.length_m / 2) {
-      errs.push({ 
-        key: "setup.spk_front_m",
-        msg: `Front-wall distance (${setup.spk_front_m.toFixed(2)} m) must be less than half the room length (${(geo.length_m / 2).toFixed(2)} m).` 
-      });
-    }
-
-    if (setup.listener_front_m >= geo.length_m - setup.spk_front_m) {
-      errs.push({ 
-        key: "setup.listener_front_m",
-        msg: `Listening distance is greater than the remaining room depth. Move closer to the speakers or push the speakers back.` 
-      });
-    }
-    
-    return errs;
-  },
-
-  gate() {
-    return [];
-  },
-
-  materials() {
-    return [];
-  },
+  // Step 2 — Furniture
+  furniture() { return []; },
 };
 
 function validate(wizardStep) {
@@ -762,28 +664,26 @@ function loadStep() {
     const step = steps[stepIndex];
 
     // 1. Sync 3D Stage AND Camera Focus
-    // Use window.room3D to ensure we are talking to the initialized instance
-    // Skip for the gate step — the room isn't visible yet
-    let targetStage = "";
+    // "use"  → stage "gate": just walls + sphere, no speakers, no furniture
+    // "dimensions" → stage "room": walls + placeholder speaker boxes
+    // "furniture"  → stage "furnishings": full room with speakers + furniture
+    let targetStage = "gate";
     let targetFocus = "";
 
-    if (step.type === "gate") {
-        // Room not visible yet; nothing to update
-    } else if (step.type === "room") {
+    if (step.type === "use") {
+        targetStage = "gate";
+        targetFocus = "";
+    } else if (step.type === "dimensions") {
         targetStage = "room";
         targetFocus = "dimensions";
-    } else if (step.type === "speakers") {
-        targetStage = "speakers";
-        targetFocus = "placement";
-    } else if (step.type === "materials") {
+    } else if (step.type === "furniture") {
         targetStage = "furnishings";
         targetFocus = "materials";
     }
 
-    if (step.type !== "gate" && window.room3D) {
-        // setStage is safe to call every time — room3d.js handles the renderStage internally
+    if (window.room3D) {
         window.room3D.setStage?.(targetStage);
-        window.room3D.focusOn?.(targetFocus);
+        if (targetFocus) window.room3D.focusOn?.(targetFocus);
     }
 
     // 2. Update headers + progress
@@ -807,8 +707,10 @@ function loadStep() {
         const factoryConfig = {
             ...f,
             type: f.kind || 'slider',
+            // Resolve dynamic options (e.g. speaker_type filtered by room_type)
+            options: f.getOptions ? f.getOptions(roomState) : f.options,
             displayFormat: { suffix: f.key.includes("deg") ? "°" : (f.kind !== 'select' && f.kind !== 'toggle' ? "m" : "") },
-            instant: step.type === "speakers"
+            instant: false
         };
 
         const currentVal = getDeepValue(roomState, f.key);
@@ -884,49 +786,36 @@ function loadStep() {
    NAVIGATION
 ------------------------------------------ */
 nextBtn.addEventListener("click", () => {
-    // 1. Validate the data for the current step before moving forward
+    // 1. Validate the current step
     const errs = validate(steps[stepIndex]);
-    if (errs.length) {
-        showErrors(errs);
-        return;
-    }
+    if (errs.length) { showErrors(errs); return; }
 
-    // 2. If leaving the gate step (0), reveal the 3D canvas (independent of 3D load state)
+    // 2. Leaving the Use step — stop the intro spin
     if (stepIndex === 0) {
-        const canvas = document.getElementById('roomCanvas');
-        const hint   = document.getElementById('canvasHint');
-        if (canvas) {
-            canvas.style.opacity       = '1';
-            canvas.style.transform     = 'scale(1) translateY(0)';
-            canvas.style.pointerEvents = '';
-        }
-        if (hint) hint.style.opacity = '1';
-        // Trigger auto-spin — safe no-op if 3D failed to load
-        try { window.room3D?.startAutoSpin(); } catch (_) {}
+        try { window.room3D?.stopAutoSpin(); } catch (_) {}
     }
 
-    // 3. Stop the spin if the user is past the gate step — safe if 3D not loaded
-    if (stepIndex > 0) { try { window.room3D?.stopAutoSpin(); } catch (_) {} }
-
-    // 4. Logic for moving to next step OR finishing
+    // 3. Advance or finish
     if (stepIndex < steps.length - 1) {
         stepIndex++;
         loadStep();
-        // Smooth scroll the panel back to top for long lists
         panel.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
-        // We are on the last step!
         finish();
     }
 });
 
 backBtn.addEventListener("click", () => {
     if (stepIndex > 0) {
-        if (window.room3D) window.room3D.stopAutoSpin();
-        
         stepIndex--;
         loadStep();
         panel.scrollTo({ top: 0, behavior: 'smooth' });
+        // Restore gentle auto-spin when returning to the Use step
+        if (stepIndex === 0) {
+            try { window.room3D?.startAutoSpin(); } catch (_) {}
+        } else {
+            try { window.room3D?.stopAutoSpin(); } catch (_) {}
+        }
     }
 });
 
@@ -1055,10 +944,30 @@ async function startApp() {
         window.room3D = null;
     }
 
-    // 4. Start the UI — always runs even if 3D failed to load
+    // 4. Set the initial 3D stage to "gate" (walls + sphere only — no speakers, no furniture)
+    //    then reveal the canvas so the room is live from Step 1 (Use step).
+    if (window.room3D) {
+        window.room3D.setStage?.('gate');
+        window.room3D.startAutoSpin?.();
+    }
+
+    // 5. Reveal the canvas — the welcome screen (z-index 30) sits on top for new users,
+    //    so the room shows through its blur as a preview before they click "Begin Setup".
+    requestAnimationFrame(() => {
+        const canvas = document.getElementById('roomCanvas');
+        const hint   = document.getElementById('canvasHint');
+        if (canvas) {
+            canvas.style.opacity       = '1';
+            canvas.style.transform     = 'scale(1) translateY(0)';
+            canvas.style.pointerEvents = '';
+        }
+        if (hint) hint.style.opacity = '1';
+    });
+
+    // 6. Start the UI — always runs even if 3D failed to load
     loadStep();
 
-    // Dismiss the 3D loading overlay after the first rendered frame
+    // 7. Dismiss the 3D loading overlay after the first rendered frame
     requestAnimationFrame(() => requestAnimationFrame(() => {
         const loader = document.getElementById('room3dLoader');
         if (loader) {

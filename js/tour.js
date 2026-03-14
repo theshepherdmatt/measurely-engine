@@ -65,6 +65,10 @@ export function createTour(steps, callbacks = {}) {
     const target = document.querySelector(step.target);
 
     if (!target) {
+      // Hide the old spotlight/tooltip immediately so the previous step's
+      // highlight doesn't "ghost" while we wait for the new target to appear.
+      if (elSpot) elSpot.style.display = 'none';
+      if (elTip)  elTip.style.display  = 'none';
       if (retries < MAX_RETRIES) { retries++; setTimeout(_showStep, 150); }
       return;
     }
