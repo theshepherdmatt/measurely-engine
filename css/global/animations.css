@@ -10,3 +10,132 @@
 .delay-1 { animation-delay: 0.1s; }
 .delay-2 { animation-delay: 0.2s; }
 .delay-3 { animation-delay: 0.3s; }
+
+/* ══════════════════════════════════════════════════════════
+   PAGE TRANSITIONS
+   Uses View Transitions API where available; falls back to
+   body opacity animation on browsers that don't support it.
+   ══════════════════════════════════════════════════════════ */
+
+/* Page entry — applied to <body> by the transition helper */
+@keyframes page-slide-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: none; }
+}
+
+@keyframes page-slide-out {
+    to { opacity: 0; transform: translateY(-8px); }
+}
+
+.page-entering {
+    animation: page-slide-in 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.page-exiting {
+    animation: page-slide-out 0.25s ease both;
+    pointer-events: none;
+}
+
+/* View Transitions API — cross-fade between pages */
+@keyframes vt-fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: none; }
+}
+
+@keyframes vt-fade-out {
+    to { opacity: 0; transform: translateY(-6px); }
+}
+
+::view-transition-old(root) {
+    animation: 220ms ease both vt-fade-out;
+}
+
+::view-transition-new(root) {
+    animation: 300ms cubic-bezier(0.2, 0.8, 0.2, 1) both vt-fade-in;
+}
+
+/* ══════════════════════════════════════════════════════════
+   DRAGGABLE 3D MESH STATES
+   These are applied by JS to nearby DOM elements as visual
+   feedback when the 3D drag system is active.
+   ══════════════════════════════════════════════════════════ */
+
+/* Field pulse — triggered when tap-to-focus jumps to a form field */
+@keyframes field-tap-pulse {
+    0%   { box-shadow: 0 0 0 0   rgba(34, 211, 238, 0.65); }
+    60%  { box-shadow: 0 0 0 12px rgba(34, 211, 238, 0); }
+    100% { box-shadow: none; }
+}
+
+.field--tapped {
+    animation: field-tap-pulse 0.75s ease forwards;
+}
+
+/* Drag-active state on the canvas container (cursor is set inline by JS) */
+.room-canvas--dragging {
+    user-select: none;
+    touch-action: none;
+}
+
+/* ══════════════════════════════════════════════════════════
+   DAVE CHIP VARIANTS (shared across onboarding + app pages)
+   ══════════════════════════════════════════════════════════ */
+
+@keyframes chip-enter {
+    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+    to   { opacity: 1; transform: none; }
+}
+
+@keyframes chip-exit {
+    to { opacity: 0; transform: translateY(-4px) scale(0.97); }
+}
+
+.chip-visible {
+    animation: chip-enter 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.chip-out {
+    animation: chip-exit 0.22s ease both;
+}
+
+/* ══════════════════════════════════════════════════════════
+   SCORE REVEAL — card fade-in stagger used on analysis page
+   ══════════════════════════════════════════════════════════ */
+
+@keyframes score-reveal {
+    from { opacity: 0; transform: scale(0.96) translateY(6px); }
+    to   { opacity: 1; transform: none; }
+}
+
+.score-card--reveal {
+    animation: score-reveal 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* Stagger helpers for score card rows */
+.score-card--reveal:nth-child(1) { animation-delay: 0.05s; }
+.score-card--reveal:nth-child(2) { animation-delay: 0.10s; }
+.score-card--reveal:nth-child(3) { animation-delay: 0.15s; }
+.score-card--reveal:nth-child(4) { animation-delay: 0.20s; }
+.score-card--reveal:nth-child(5) { animation-delay: 0.25s; }
+.score-card--reveal:nth-child(6) { animation-delay: 0.30s; }
+
+/* ══════════════════════════════════════════════════════════
+   ANALYSIS PULSE — 3D room pulse during wav processing
+   ══════════════════════════════════════════════════════════ */
+
+@keyframes analysis-ring {
+    0%   { opacity: 0.7; transform: scale(1); }
+    100% { opacity: 0;   transform: scale(1.9); }
+}
+
+.analysis-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 1px solid rgba(99, 102, 241, 0.6);
+    animation: analysis-ring 1.6s ease-out infinite;
+    pointer-events: none;
+}
+
+.analysis-ring:nth-child(2) { animation-delay: 0.55s; }
+.analysis-ring:nth-child(3) { animation-delay: 1.10s; }

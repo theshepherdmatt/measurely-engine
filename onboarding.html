@@ -7,8 +7,16 @@
 <link rel="icon" type="image/svg+xml" href="icons/dave.svg">
 <link rel="stylesheet" href="css/onboarding/index.css">
 
-<script src="js/vendor/three/three.min.js"></script>
-<script src="js/vendor/three/OrbitControls.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "./js/vendor/three/three.module.js"
+        }
+    }
+    </script>
+
+    <script src="js/vendor/three/three.min.js" defer></script>
+    <script src="js/vendor/three/OrbitControls.js" defer></script>
 
     <!-- PWA / App-like behaviour -->
     <link rel="manifest" href="manifest.json">
@@ -20,23 +28,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#0b1220">
 
-    <script>
-    document.addEventListener('click', function(event) {
-        var target = event.target;
-        // Walk up the DOM tree to find the 'a' tag (in case they clicked an icon inside the link)
-        while (target && target.nodeName !== 'A') {
-            target = target.parentNode;
-        }
-
-        if (target && target.href && target.getAttribute('target') !== '_blank') {
-            // Check if the link is internal (points to your Pi's IP)
-            if (target.href.indexOf(window.location.host) !== -1) {
-                event.preventDefault();
-                window.location.href = target.href;
-            }
-        }
-    }, false);
-    </script>
 
 </head>
 
@@ -914,12 +905,23 @@ function finish() {
         showDaveChip("That's your room. Now let's find out what it sounds like.", 8000);
 
         // Run the cinematic flyby, then navigate to the dashboard
+        function navigateToApp() {
+            if (document.startViewTransition) {
+                document.startViewTransition(() => {
+                    window.location.href = "app.html";
+                });
+            } else {
+                // Fallback: body fade
+                document.body.style.transition = 'opacity 0.3s ease';
+                document.body.style.opacity    = '0';
+                setTimeout(() => { window.location.href = "app.html"; }, 300);
+            }
+        }
+
         if (window.room3D?.flyby) {
-            window.room3D.flyby(() => {
-                window.location.href = "app.html";
-            });
+            window.room3D.flyby(navigateToApp);
         } else {
-            setTimeout(() => { window.location.href = "app.html"; }, 800);
+            setTimeout(navigateToApp, 500);
         }
 
     } catch (e) {
@@ -951,11 +953,51 @@ async function startApp() {
 
     console.log("[Wizard] Booting 3D with state:", roomState);
 
-    // 3. Init engine
+    // 3. Init engine with drag callbacks
     window.room3D = initRoom3D({
-        mountId: "roomCanvas",
-        getRoomData: () => roomState, 
-        mode: "setup"
+        mountId:    "roomCanvas",
+        getRoomData: () => roomState,
+        mode:       "setup",
+
+        // Tap a speaker → pulse the spacing field and scroll to it
+        onSpeakerTap(side) {
+            if (window.room3D?.highlight) window.room3D.highlight('speakers');
+            setTimeout(() => window.room3D?.highlight(null), 1200);
+
+            const target = document.getElementById('field-spk_spacing_m')
+                        ?? document.querySelector('[data-key="setup.spk_spacing_m"]');
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                target.classList.add('field--tapped');
+                setTimeout(() => target.classList.remove('field--tapped'), 800);
+            }
+        },
+
+        // Drag a speaker → write values back to state, sync sliders, show chip
+        onSpeakerDrag({ spk_spacing_m, spk_front_m }) {
+            roomState.setup.spk_spacing_m = spk_spacing_m;
+            roomState.setup.spk_front_m   = spk_front_m;
+
+            // Keep flat compat keys in sync
+            roomState.spk_spacing_m = spk_spacing_m;
+            roomState.spk_front_m   = spk_front_m;
+
+            // Sync sliders to the new values
+            const syncSlider = (key, val) => {
+                const el = document.querySelector(`[data-key="${key}"]`);
+                if (!el) return;
+                el.value = val;
+                import('./js/uiController.js').then(({ updateSliderFill }) => updateSliderFill(el));
+            };
+            syncSlider('setup.spk_spacing_m', spk_spacing_m);
+            syncSlider('setup.spk_front_m',   spk_front_m);
+
+            const nullHz = Math.round(343 / (4 * Math.max(spk_front_m, 0.05)));
+            showDaveChip(
+                `${spk_spacing_m.toFixed(2)} m apart · ${spk_front_m.toFixed(2)} m from wall · SBIR null ~${nullHz} Hz`,
+                4000
+            );
+        }
     });
 
     // 4. Start the UI

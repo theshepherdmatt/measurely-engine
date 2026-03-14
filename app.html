@@ -7,9 +7,36 @@
     <link rel="icon" type="image/svg+xml" href="icons/dave.svg">
     <link rel="stylesheet" href="css/dashboard/index.css">
 
-    <script src="js/plotly.min.js"></script>
-    <script src="js/vendor/three/three.min.js"></script>
-    <script src="js/vendor/three/OrbitControls.js"></script>
+    <!--
+        IMPORT MAP
+        Maps bare module specifiers to local vendor paths.
+        Must appear before any <script type="module"> in the document.
+        The "three" specifier resolves to our ESM bridge which re-exports
+        the UMD globalThis.THREE set by the deferred classic script below.
+    -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "./js/vendor/three/three.module.js"
+        }
+    }
+    </script>
+
+    <!--
+        VENDOR SCRIPTS — deferred so they never block HTML parsing / LCP.
+        Classic deferred scripts run before deferred module scripts in
+        document order, so globalThis.THREE is guaranteed to be set before
+        any <script type="module"> that imports "three" evaluates.
+    -->
+    <script src="js/vendor/three/three.min.js" defer></script>
+    <script src="js/vendor/three/OrbitControls.js" defer></script>
+
+    <!--
+        Plotly is 3.5 MB. Loaded deferred here so it doesn't block LCP.
+        The dashboard lazy-loads it further via ensurePlotly() before
+        the first chart render, so this tag is a preload hint only.
+    -->
+    <script src="js/plotly.min.js" defer></script>
 
     <!-- PWA / App-like behaviour -->
     <link rel="manifest" href="manifest.json">
@@ -23,7 +50,7 @@
 
 </head>
 
-<body>
+<body class="page-entering">
 
     <div class="page">
 

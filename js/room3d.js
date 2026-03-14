@@ -1,6 +1,13 @@
 /* ==========================================================
-   Measurely 3D Room Engine (Reusable) — DEBUG BUILD
+   Measurely 3D Room Engine (Reusable)
+   ==========================================================
+   THREE is imported via the "three" importmap specifier which
+   resolves to js/vendor/three/three.module.js — an ESM bridge
+   that re-exports the UMD globalThis.THREE namespace.
+   See: web/js/vendor/three/three.module.js for the upgrade path
+   to the true Three.js ESM build (enables tree-shaking with Vite).
    ========================================================== */
+import THREE from 'three';
 
 /* ----------------------------------------------------------
    SHARED CAMERA DEFAULT
@@ -19,8 +26,13 @@ export const DEFAULT_CAMERA = {
 export function initRoom3D({
   mountId,
   getRoomData,
-  mode = "setup"
+  mode = "setup",
+  onSpeakerTap  = null,   // (side: "L"|"R") => void
+  onSpeakerDrag = null,   // ({ side, spk_spacing_m, spk_front_m }) => void
 }) {
+  // Mutable callbacks — callers can replace after init via api.setCallbacks()
+  let _onSpeakerTap  = onSpeakerTap;
+  let _onSpeakerDrag = onSpeakerDrag;
 
 
   console.log("[Room3D] initRoom3D() called with mode:", mode);
@@ -200,13 +212,174 @@ export function initRoom3D({
     renderer.setSize(w, h);
   });
 
+  /* ------------------------------------------
+     DRAG & TAP SYSTEM
+     Handles:
+       • Tap  (< DRAG_TAP_MS, < DRAG_THRESHOLD_PX) → _onSpeakerTap(side)
+       • Drag (pointer held + moved)               → live speaker reposition
+                                                      → _onSpeakerDrag on release
+     OrbitControls is disabled for the duration of any drag.
+  ------------------------------------------ */
+  const _raycaster    = new THREE.Raycaster();
+  const _pointerNDC   = new THREE.Vector2();
+  const _dragPoint    = new THREE.Vector3();
+  const _dragPlane    = new THREE.Plane();
+
+  let _draggables     = [];   // repopulated after every rebuild()
+  let _dragTarget     = null; // THREE.Mesh currently being dragged
+  let _dragSide       = null; // "L" | "R"
+  let _isDragging     = false;
+  let _ptrDownTime    = 0;
+  let _ptrStartX      = 0;
+  let _ptrStartY      = 0;
+
+  const DRAG_TAP_MS   = 230;
+  const DRAG_PX       = 7;   // pixels of movement before a tap becomes a drag
+
+  function _collectDraggables() {
+    _draggables = [];
+    roomGroup.traverse(obj => { if (obj.userData?.draggable) _draggables.push(obj); });
+  }
+
+  function _toNDC(e) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    // Use first touch when available (mobile)
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    _pointerNDC.x =  ((cx - rect.left) / rect.width)  * 2 - 1;
+    _pointerNDC.y = -((cy - rect.top)  / rect.height) * 2 + 1;
+  }
+
+  function _hitDraggable() {
+    _raycaster.setFromCamera(_pointerNDC, camera);
+    const hits = _raycaster.intersectObjects(_draggables, false);
+    return hits.length > 0 ? hits[0].object : null;
+  }
+
+  // ── hover cursor ─────────────────────────────────────────────
+  renderer.domElement.addEventListener('pointermove', e => {
+    if (_dragTarget) return; // already dragging
+    _toNDC(e);
+    const hit = _hitDraggable();
+    renderer.domElement.style.cursor = hit ? 'grab' : '';
+  }, { passive: true });
+
+  // ── pointerdown ──────────────────────────────────────────────
+  renderer.domElement.addEventListener('pointerdown', e => {
+    _ptrDownTime = performance.now();
+    _ptrStartX   = e.clientX;
+    _ptrStartY   = e.clientY;
+    _isDragging  = false;
+    _dragTarget  = null;
+
+    _toNDC(e);
+    const hit = _hitDraggable();
+    if (!hit) return;
+
+    _dragTarget = hit;
+    _dragSide   = hit.userData.speakerSide;
+
+    // Build a horizontal drag plane at the speaker's current Y
+    _dragPlane.setFromNormalAndCoplanarPoint(
+      new THREE.Vector3(0, 1, 0),
+      _dragTarget.position.clone()
+    );
+
+    // Disable orbit so we own this gesture
+    controls.enabled = false;
+    renderer.domElement.setPointerCapture(e.pointerId);
+    e.stopPropagation();
+  }, { passive: false });
+
+  // ── pointermove ──────────────────────────────────────────────
+  renderer.domElement.addEventListener('pointermove', e => {
+    if (!_dragTarget) return;
+
+    const dx = e.clientX - _ptrStartX;
+    const dy = e.clientY - _ptrStartY;
+    if (!_isDragging && Math.hypot(dx, dy) < DRAG_PX) return;
+    _isDragging = true;
+
+    _toNDC(e);
+    _raycaster.setFromCamera(_pointerNDC, camera);
+
+    if (!_raycaster.ray.intersectPlane(_dragPlane, _dragPoint)) return;
+
+    const d   = getRoomData();
+    const geo = d.geometry || d;
+    const hW  = (geo.width_m  || 4) / 2;
+    const hL  = (geo.length_m || 4) / 2;
+
+    // Clamp within room bounds, leave a small margin
+    _dragPoint.x = THREE.MathUtils.clamp(_dragPoint.x, -hW + 0.15, hW - 0.15);
+    _dragPoint.z = THREE.MathUtils.clamp(_dragPoint.z, -hL + 0.05, hL - 0.15);
+
+    // Move the mesh live (no rebuild — stays at 60fps)
+    _dragTarget.position.x = _dragPoint.x;
+    _dragTarget.position.z = _dragPoint.z;
+
+    // Animate dashed beam children in place
+    _dragTarget.traverse(child => {
+      if (child.isLine) child.computeLineDistances();
+    });
+
+    // Mirror the opposite speaker symmetrically (enforce equal L/R x-distance)
+    const mirrorSide = _dragSide === 'L' ? 'R' : 'L';
+    const mirror = _draggables.find(
+      m => m.userData.speakerSide === mirrorSide && m.userData.dragType === 'speaker'
+    );
+    if (mirror) {
+      mirror.position.x = -_dragPoint.x;
+      mirror.position.z =  _dragPoint.z;
+      mirror.traverse(child => { if (child.isLine) child.computeLineDistances(); });
+    }
+  }, { passive: true });
+
+  // ── pointerup ────────────────────────────────────────────────
+  renderer.domElement.addEventListener('pointerup', e => {
+    controls.enabled = true;
+
+    if (!_dragTarget) return;
+
+    const wasTap = !_isDragging && (performance.now() - _ptrDownTime) < DRAG_TAP_MS;
+
+    if (wasTap && _onSpeakerTap) {
+      _onSpeakerTap(_dragSide);
+    }
+
+    if (_isDragging && _onSpeakerDrag) {
+      const d   = getRoomData();
+      const geo = d.geometry || d;
+      const hL  = (geo.length_m || 4) / 2;
+
+      // Derive acoustic values from final mesh position
+      const newSpacing = Math.abs(_dragTarget.position.x) * 2;
+      const newFront   = _dragTarget.position.z + hL;
+
+      _onSpeakerDrag({
+        side:           _dragSide,
+        spk_spacing_m:  Math.max(0.4, parseFloat(newSpacing.toFixed(2))),
+        spk_front_m:    Math.max(0.05, parseFloat(newFront.toFixed(2)))
+      });
+    }
+
+    if (_isDragging) {
+      // Full rebuild to reconcile overlays, beams, and listener
+      rebuild();
+    }
+
+    _dragTarget = null;
+    _dragSide   = null;
+    _isDragging = false;
+  }, { passive: true });
+
 
   /* ------------------------------------------
      REBUILD SCENE (GEOMETRY ONLY)
   ------------------------------------------ */
 function rebuild() {
-    renderStage = "furnishings"; 
-    console.log("[Room3D] 🔧 rebuild() called | mode =", currentMode);
+    // renderStage is set externally via setStage() — never override here.
+    console.log("[Room3D] 🔧 rebuild() | stage:", renderStage, "| mode:", currentMode);
 
     roomGroup.clear();
     colourState = "idle";
@@ -595,7 +768,12 @@ function rebuild() {
         const y = baseY + room.tweeter_height_m + tweeterOffsetFromCenter;
 
         speaker.position.set(x, y, z);
-        
+
+        // Tag for raycaster / drag system
+        speaker.userData.draggable    = true;
+        speaker.userData.dragType     = 'speaker';
+        speaker.userData.speakerSide  = side;
+
         // Horizontal rotation only (Toe-in)
         speaker.rotation.y = (side === "L" ? 1 : -1) * toeRad;
 
@@ -1055,6 +1233,9 @@ function rebuild() {
 
   renderHighlightOverlays(room);
   renderAnalysisOverlays(room);
+
+  // Refresh draggable mesh list every rebuild so new meshes are registered
+  _collectDraggables();
 
   // ---- SMOOTHNESS (Spectral Turbulence Field) ----
   if (overlayEnabled(OVERLAYS.SMOOTHNESS)) {
@@ -1990,6 +2171,15 @@ function rebuild() {
 
     getFocus() {
       return { id: focusedOverlay, score: activeScore, std: smoothnessStd };
+    },
+
+    /**
+     * Replace drag/tap callbacks after initialisation.
+     * Useful when the host page needs to wire callbacks after room3D is ready.
+     */
+    setCallbacks({ onSpeakerTap, onSpeakerDrag } = {}) {
+      if (onSpeakerTap  !== undefined) _onSpeakerTap  = onSpeakerTap;
+      if (onSpeakerDrag !== undefined) _onSpeakerDrag = onSpeakerDrag;
     },
 
     startAutoSpin() {

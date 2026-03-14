@@ -5,9 +5,17 @@
     <title>Measurely — Cinematic Demo</title>
     <link rel="stylesheet" href="css/onboarding/index.css">
     
-    <script src="js/vendor/three/three.min.js"></script>
-    <script src="js/vendor/three/OrbitControls.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "./js/vendor/three/three.module.js"
+        }
+    }
+    </script>
+
+    <script src="js/vendor/three/three.min.js" defer></script>
+    <script src="js/vendor/three/OrbitControls.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js" defer></script>
 
     <style>
         body { margin: 0; overflow: hidden; background: #0b1220; }
