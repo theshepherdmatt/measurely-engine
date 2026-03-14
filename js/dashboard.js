@@ -422,6 +422,88 @@ function addClarityOverlay(traces, freqs) {
     });
 }
 
+/**
+ * Adds a target curve trace to the chart.
+ * Studio → flat (0 dB relative to measured mean).
+ * Hi-Fi  → Harman-style sloped curve (gentle bass shelf + HF roll-off).
+ * @param {Array} traces - Plotly trace array to push into
+ * @param {number[]} freqs
+ * @param {number[]} mags
+ * @param {string} roomType  - 'studio' | anything else = hi-fi
+ */
+function addTargetCurveTrace(traces, freqs, mags, roomType) {
+    if (!freqs.length || !mags.length) return;
+
+    // Anchor the target at the measured mean in the 200Hz-2kHz midrange band
+    const midVals = mags.filter((_, i) => freqs[i] >= 200 && freqs[i] <= 2000);
+    const midMean = midVals.length
+        ? midVals.reduce((a, b) => a + b, 0) / midVals.length
+        : 0;
+
+    let targetY;
+    if (roomType === 'studio') {
+        // Flat reference line at the midrange mean
+        targetY = freqs.map(() => midMean);
+    } else {
+        // Harman 2020 approximation:
+        //  Bass shelf: +3 dB at 80 Hz, transitions between 80–400 Hz
+        //  HF roll-off: -1 dB/octave above 2 kHz
+        targetY = freqs.map(f => {
+            let offset = 0;
+            if (f < 80)  offset = 3.0;
+            else if (f < 400) offset = 3.0 - (Math.log10(f / 80) / Math.log10(400 / 80)) * 3.0;
+            if (f > 2000) offset -= Math.log2(f / 2000) * 1.0;
+            return midMean + offset;
+        });
+    }
+
+    traces.push({
+        x: freqs,
+        y: targetY,
+        type: "scatter",
+        mode: "lines",
+        name: roomType === 'studio' ? "Target: Flat" : "Target: Harman",
+        line: { dash: "dash", width: 2, color: roomType === 'studio' ? "#22c55e" : "#f97316" },
+        hoverinfo: "skip"
+    });
+}
+
+/**
+ * Adds Plotly annotations for peaks & dips in the bass region (20–500 Hz).
+ * Used by the Bandwidth card click.
+ */
+function addBassAnnotations(traces, freqs, mags, label) {
+    const annotations = [];
+    const bassFreqs = freqs.filter(f => f <= 500);
+    const bassMags  = mags.slice(0, bassFreqs.length);
+
+    for (let k = 2; k < bassMags.length - 2; k++) {
+        const prev = (bassMags[k-2] + bassMags[k-1]) / 2;
+        const next = (bassMags[k+1] + bassMags[k+2]) / 2;
+        const curr = bassMags[k];
+        const isPeak = curr - prev > 4 && curr - next > 4;
+        const isDip  = prev - curr > 4 && next - curr > 4;
+        if (!isPeak && !isDip) continue;
+
+        annotations.push({
+            x: bassFreqs[k], y: curr,
+            xref: "x", yref: "y",
+            text: isPeak ? `▲ ${Math.round(bassFreqs[k])} Hz` : `▼ ${Math.round(bassFreqs[k])} Hz`,
+            showarrow: true,
+            arrowhead: 2, arrowsize: 0.8,
+            arrowcolor: isPeak ? "rgba(239,68,68,0.8)" : "rgba(59,130,246,0.8)",
+            font: { size: 9, color: isPeak ? "#ef4444" : "#60a5fa" },
+            bgcolor: "rgba(15,23,42,0.75)",
+            ax: 0, ay: isPeak ? -28 : 28,
+            borderpad: 2
+        });
+    }
+
+    // Expose annotations on the chart via a custom layout patch stored on element
+    const chartEl = document.getElementById("frequencyChart");
+    if (chartEl) chartEl._bassAnnotations = annotations;
+}
+
 
 function updateRoomInsightText(metric, data) {
     console.log("🧠 updateRoomInsightText called with:", metric, data);
@@ -2254,152 +2336,253 @@ class MeasurelyDashboard {
 
         console.log("📊 Drawing chart with overlay:", this.activeMetricOverlay);
 
-        const all = CAPS.history
-            ? await fetch("/api/sessions/all").then(r => r.json())
-            : [];
+        // ── Impulse-response view (Reflections card) ──────────────────────
+        if (this.activeMetricOverlay === "side_reflections") {
+            this._renderImpulseResponseChart();
+            return;
+        }
 
-        const extractNum = (id) => {
-            const m = String(id).match(/(\d+)(?!.*\d)/);
-            return m ? parseInt(m[1], 10) : -1;
-        };
+        // ── Data source: API sessions (Pi) or currentData fallback (static) ──
+        let curvePairs = [];  // [{ freqs, mags, label, colour }]
 
-        const sessions = all
-            .slice()
-            .sort((a, b) => extractNum(b.id) - extractNum(a.id))
-            .filter(s => !(extractNum(s.id) === 0 && all.length > 1))
-            .slice(0, 4);
+        if (!isStaticHosting() && CAPS.history) {
+            try {
+                const all = await safeJson("/api/sessions/all") || [];
+                const extractNum = (id) => {
+                    const m = String(id).match(/(\d+)(?!.*\d)/);
+                    return m ? parseInt(m[1], 10) : -1;
+                };
+                const LABELS  = ["Latest", "Previous", "Earlier", "Oldest"];
+                const COLOURS = ["#3b82f6", "#a855f7", "#22c55e", "#f59e0b"];
+
+                const sessions = all
+                    .slice()
+                    .sort((a, b) => extractNum(b.id) - extractNum(a.id))
+                    .filter(s => !(extractNum(s.id) === 0 && all.length > 1))
+                    .slice(0, 4);
+
+                for (let i = 0; i < sessions.length; i++) {
+                    if (!this.activeChartSessions.has(i)) continue;
+                    const meta = sessions[i];
+                    if (!meta) continue;
+                    try {
+                        const curve = await safeJson(`/api/session/${meta.id}/report_curve`);
+                        if (curve && (curve.freqs || curve.freq)) {
+                            curvePairs.push({
+                                freqs:  curve.freqs || curve.freq || [],
+                                mags:   curve.mag   || curve.mags || [],
+                                label:  LABELS[i],
+                                colour: COLOURS[i],
+                                idx:    i
+                            });
+                        }
+                    } catch { /* skip missing session */ }
+                }
+            } catch { /* fall through to currentData */ }
+        }
+
+        // Fallback: use currentData directly (static hosting / browser analysis)
+        if (!curvePairs.length && this.currentData) {
+            const d = this.currentData;
+            const freqs = d.freqs || d.freq || d.frequency || [];
+            const mags  = d.mag   || d.mags || d.magnitude  || [];
+            if (freqs.length && mags.length) {
+                curvePairs.push({ freqs, mags, label: "Latest", colour: "#3b82f6", idx: 0 });
+            }
+        }
+
+        if (!curvePairs.length) return;  // nothing to plot
 
         const LABELS  = ["Latest", "Previous", "Earlier", "Oldest"];
         const COLOURS = ["#3b82f6", "#a855f7", "#22c55e", "#f59e0b"];
 
         const traces = [];
 
-        for (let i = 0; i < sessions.length; i++) {
+        for (let i = 0; i < curvePairs.length; i++) {
+            const { freqs, mags, label, colour, idx = i } = curvePairs[i];
 
-            if (!this.activeChartSessions.has(i)) continue;
-
-            const meta = sessions[i];
-            if (!meta) continue;
-
-            try {
-                const curve = await fetch(`/api/session/${meta.id}/report_curve`)
-                    .then(r => r.json());
-
-                const freqs = curve.freqs || [];
-                const mags  = curve.mag   || [];
+            // ── kept inside loop (same scope as before) ──────────────────
 
                 function movingAverage(arr, windowSize = 12) {
-                    const result = [];
-                    for (let i = 0; i < arr.length; i++) {
-                        let start = Math.max(0, i - windowSize);
-                        let end   = Math.min(arr.length - 1, i + windowSize);
-
-                        let sum = 0;
-                        let count = 0;
-
-                        for (let j = start; j <= end; j++) {
-                            sum += arr[j];
-                            count++;
-                        }
-                        result.push(sum / count);
-                    }
-                    return result;
+                function movingAverage(arr, windowSize = 12) {
+                const result = [];
+                for (let k = 0; k < arr.length; k++) {
+                    const start = Math.max(0, k - windowSize);
+                    const end   = Math.min(arr.length - 1, k + windowSize);
+                    let sum = 0, count = 0;
+                    for (let j = start; j <= end; j++) { sum += arr[j]; count++; }
+                    result.push(sum / count);
                 }
+                return result;
+            }
 
-                const smoothMag = movingAverage(mags, 12);
+            const smoothMag = movingAverage(mags, 12);
 
-                // ===============================
-                // Base frequency response
-                // ===============================
-                traces.push({
-                    x: freqs,
-                    y: mags,
-                    type: "scatter",
-                    mode: "lines",
-                    name: LABELS[i],
-                    line: {
-                        width: 2.5,
-                        color: COLOURS[i],
-                        shape: "spline",
-                        smoothing: 0.6
-                    },
-                    hoverinfo: "skip"
-                });
+            // ── Base frequency response trace ─────────────────────────────
+            traces.push({
+                x: freqs, y: mags,
+                type: "scatter", mode: "lines",
+                name: label,
+                line: { width: 2.5, color: colour, shape: "spline", smoothing: 0.6 },
+                hoverinfo: "skip"
+            });
 
-                // ===============================
-                // STEP 4 — Overlay Dispatcher
-                // ===============================
-
-                if (this.activeMetricOverlay === "smoothness") {
-                    addSmoothnessOverlay(traces, freqs, mags, smoothMag);
-                }
-
-                if (this.activeMetricOverlay === "balance") {
-                    addBalanceOverlay(traces, freqs, mags, LABELS[i]);
-                }
-
-                if (this.activeMetricOverlay === "peaks_dips") {
-                    addPeaksDipsOverlay(traces, freqs, mags, LABELS[i]);
-                }
-
-                if (this.activeMetricOverlay === "reflections") {
-                    addReflectionsOverlay(traces, freqs, mags, LABELS[i]);
-                }
-
-                if (this.activeMetricOverlay === "clarity") {
-                    addClarityOverlay(traces, freqs);
-                }
-
-            } catch {
-                console.warn("Curve load failed:", meta.id);
+            // ── Overlay dispatcher ────────────────────────────────────────
+            if (this.activeMetricOverlay === "smoothness") {
+                addSmoothnessOverlay(traces, freqs, mags, smoothMag);
+            }
+            if (this.activeMetricOverlay === "balance") {
+                addBalanceOverlay(traces, freqs, mags, label);
+            }
+            if (this.activeMetricOverlay === "peaks_dips" || this.activeMetricOverlay === "sbir") {
+                addPeaksDipsOverlay(traces, freqs, mags, label);
+            }
+            if (this.activeMetricOverlay === "reflections") {
+                addReflectionsOverlay(traces, freqs, mags, label);
+            }
+            if (this.activeMetricOverlay === "clarity") {
+                addClarityOverlay(traces, freqs);
+                addTargetCurveTrace(traces, freqs, mags, this._roomType());
+            }
+            if (this.activeMetricOverlay === "bandwidth") {
+                addBassAnnotations(traces, freqs, mags, label);
             }
         }
 
+        // ── Layout ────────────────────────────────────────────────────────
+        // Bandwidth view zooms into bass region; others show full spectrum
+        const isBassView = this.activeMetricOverlay === "bandwidth";
+        const xRange = isBassView
+            ? [Math.log10(20), Math.log10(500)]
+            : [Math.log10(20), Math.log10(20000)];
+        const xTicks = isBassView
+            ? { tickvals: [20,30,50,80,100,150,200,300,500], ticktext: ["20","30","50","80","100","150","200","300","500"] }
+            : { tickvals: [20,50,100,200,500,1000,2000,5000,10000,20000],
+                ticktext: ["20","50","100","200","500","1k","2k","5k","10k","20k"] };
+
+        // Collect any bass annotations set by addBassAnnotations()
+        const bassAnnotations = isBassView
+            ? (document.getElementById("frequencyChart")?._bassAnnotations ?? [])
+            : [];
+
         const layout = {
             xaxis: {
-                title: "Frequency (Hz)",
+                title: isBassView ? "Frequency Hz (Bass Region)" : "Frequency (Hz)",
                 type: "log",
-                range: [Math.log10(20), Math.log10(20000)],
-                tickvals: [20,50,100,200,500,1000,2000,5000,10000,20000],
-                ticktext: ["20","50","100","200","500","1k","2k","5k","10k","20k"],
-                ticks: "outside",
-                showline: true,
-                linewidth: 1,
-                linecolor: "#9ca3af",
-                showgrid: true,
-                gridcolor: "rgba(255,255,255,0.025)",
-                zeroline: false,
+                range: xRange,
+                ...xTicks,
+                ticks: "outside", showline: true, linewidth: 1, linecolor: "#9ca3af",
+                showgrid: true, gridcolor: "rgba(255,255,255,0.025)", zeroline: false,
                 tickfont: { size: 11, color: "rgba(255,255,255,0.6)" }
             },
             yaxis: {
                 title: "Level (dB)",
-                ticks: "outside",
-                showline: true,
-                linewidth: 1,
-                linecolor: "#9ca3af",
-                showgrid: true,
-                gridcolor: "rgba(255,255,255,0.03)",
-                zeroline: false,
+                ticks: "outside", showline: true, linewidth: 1, linecolor: "#9ca3af",
+                showgrid: true, gridcolor: "rgba(255,255,255,0.03)", zeroline: false,
                 tickfont: { size: 11, color: "rgba(255,255,255,0.6)" }
             },
             showlegend: true,
             legend: {
-                orientation: "h",
-                x: 0.5,
-                xanchor: "center",
-                y: -0.24,
-                yanchor: "top",
+                orientation: "h", x: 0.5, xanchor: "center",
+                y: -0.24, yanchor: "top",
                 font: { size: 10, color: "rgba(255,255,255,0.55)" }
             },
+            annotations: bassAnnotations,
             plot_bgcolor: "#1f2937",
             paper_bgcolor: "transparent",
             margin: { t: 16, r: 20, b: 90, l: 56 }
         };
 
         Plotly.react("frequencyChart", traces, layout, {
-            staticPlot: true,
+            staticPlot: false,
             displayModeBar: false,
             responsive: true
+        });
+    }
+
+    /** Returns the current room_type string (studio | home) from stored state. */
+    _roomType() {
+        try {
+            const saved = JSON.parse(localStorage.getItem('measurely_room') || 'null');
+            return saved?.room_type ?? this.currentData?.room?.room_type ?? 'home';
+        } catch { return 'home'; }
+    }
+
+    /** Renders an impulse-response time-domain chart for the Reflections card. */
+    _renderImpulseResponseChart() {
+        const chartEl = document.getElementById("frequencyChart");
+        if (!chartEl || !window.Plotly) return;
+
+        const refs = this.currentData?.reflections_ms ?? [];
+        if (!refs.length) {
+            // Show empty state message inside the chart div
+            chartEl.innerHTML = '<p style="color:#64748b;font-size:12px;padding:1rem;text-align:center;">No reflection data available — run a sweep to see the impulse response.</p>';
+            return;
+        }
+
+        const traces = [];
+
+        // Vertical lines at each reflection time (scatter with text mode)
+        const maxTime = Math.max(...refs, 20) * 1.2;
+        const xLines = [], yLines = [], textLabels = [];
+
+        refs.slice(0, 12).forEach((t, i) => {
+            // Each line = two points (bottom → top) separated by null
+            xLines.push(t, t, null);
+            yLines.push(0, 1, null);
+            textLabels.push(`${t.toFixed(1)} ms`, '', '');
+        });
+
+        traces.push({
+            x: xLines,
+            y: yLines,
+            type: "scatter",
+            mode: "lines+text",
+            text: textLabels,
+            textposition: "top center",
+            textfont: { size: 10, color: "rgba(251,191,36,0.85)" },
+            line: { color: "rgba(251,191,36,0.75)", width: 2 },
+            name: "Reflections",
+            hoverinfo: "skip",
+            connectgaps: false
+        });
+
+        // Shaded Haas zone (0–5ms)
+        traces.push({
+            x: [0, 5, 5, 0], y: [0, 0, 1.1, 1.1],
+            type: "scatter", mode: "lines",
+            fill: "toself",
+            fillcolor: "rgba(239,68,68,0.07)",
+            line: { width: 0 },
+            name: "Haas Zone (< 5 ms)",
+            hoverinfo: "skip"
+        });
+
+        const layout = {
+            xaxis: {
+                title: "Time (ms)", range: [0, maxTime],
+                showgrid: true, gridcolor: "rgba(255,255,255,0.025)",
+                zeroline: true, zerolinecolor: "rgba(255,255,255,0.2)",
+                tickfont: { size: 11, color: "rgba(255,255,255,0.6)" }
+            },
+            yaxis: {
+                visible: false, range: [0, 1.2]
+            },
+            showlegend: true,
+            legend: { orientation: "h", x: 0.5, xanchor: "center", y: -0.24, yanchor: "top",
+                font: { size: 10, color: "rgba(255,255,255,0.55)" } },
+            plot_bgcolor: "#1f2937",
+            paper_bgcolor: "transparent",
+            margin: { t: 16, r: 20, b: 90, l: 24 },
+            annotations: [{
+                x: 2.5, y: 1.05, xref: "x", yref: "y",
+                text: "Haas Zone (blur risk)", showarrow: false,
+                font: { size: 10, color: "rgba(239,68,68,0.7)" }
+            }]
+        };
+
+        Plotly.react("frequencyChart", traces, layout, {
+            staticPlot: false, displayModeBar: false, responsive: true
         });
     }
 

@@ -108,6 +108,10 @@ function analyse(ir, fs, freq, mag, room = {}, options = {}) {
         hasCoffeeTable = room.opt_coffee_table ?? false,
     } = options;
 
+    // Room context flags used for acoustic adjustments
+    const isStudio = (room.room_type === 'studio');
+    const hasDesk  = !!(room.opt_desk ?? room.environment?.furniture?.opt_desk);
+
     // Resolve engine modules (supports both ES modules and global script tags)
     const SM  = (typeof MeasurelySignalMath  !== 'undefined') ? MeasurelySignalMath
               : (typeof module !== 'undefined') ? require('./signal_math.js') : null;
@@ -171,17 +175,39 @@ function analyse(ir, fs, freq, mag, room = {}, options = {}) {
     // ------------------------------------------------------------------
     // 5. Scores
     // ------------------------------------------------------------------
+
+    // ── Target curve for balance scoring ────────────────────────────────
+    // Studio: flat reference (null = no tilt correction).
+    // Hi-Fi:  Harman 2020 approximation — gentle bass shelf + HF roll-off.
+    const harmanTarget = isStudio ? null : (centreHz) => {
+        // +3 dB shelf below 80 Hz, linear transition 80–400 Hz, -1 dB/oct above 2 kHz
+        let offset = 0;
+        if (centreHz < 80)       offset = 3.0;
+        else if (centreHz < 400) offset = 3.0 - (Math.log10(centreHz / 80) / Math.log10(400 / 80)) * 3.0;
+        if (centreHz > 2000)     offset -= Math.log2(centreHz / 2000) * 1.0;
+        return offset;
+    };
+
     const clarity = SC.scoreClarity(refs, sm, hasCoffeeTable);
 
     const scores = {
         bandwidth:   SC.scoreBandwidth(lo3, hi3),
-        balance:     SC.scoreBalance(bands, null),   // target curve can be injected later
+        balance:     SC.scoreBalance(bands, harmanTarget),
         peaks_dips:  SC.scoreModes(modeList),
         smoothness:  SC.scoreSmooth(sm),
         reflections: SC.scoreRef(refs),
         clarity,
     };
 
+    // ── Desk-reflection penalty (studio setups) ─────────────────────────
+    // A desk surface between speakers and listener creates early reflections
+    // in the 0.8–2 ms range that degrade both reflections and clarity scores.
+    if (isStudio && hasDesk) {
+        scores.reflections = Math.round(Math.max(0, scores.reflections - 1.5) * 10) / 10;
+        scores.clarity     = Math.round(Math.max(0, scores.clarity     - 1.0) * 10) / 10;
+    }
+
+    // overall is computed from the (potentially penalised) per-metric scores
     const baseScores = Object.values(scores).filter(s => isFinite(s));
     const baseOverall = baseScores.length > 0
         ? baseScores.reduce((a, b) => a + b, 0) / baseScores.length
@@ -271,6 +297,9 @@ function analyse(ir, fs, freq, mag, room = {}, options = {}) {
         reflections_ms:    refs.slice(0, 5),
         signal_integrity:  signalIntegrity,
         room_context:      acousticsContext,
+        room_type:         room.room_type ?? null,
+        is_studio:         isStudio,
+        desk_penalty_applied: isStudio && hasDesk,
     };
 
     const reportCurve = {
