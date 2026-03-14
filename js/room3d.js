@@ -1096,54 +1096,72 @@ function rebuild() {
       station.add(rug);
     }
 
-    // ── Sofa (home mode only) ──
+    // ── Sofa (home mode only) — fixed at ~75% of room length from front wall ──
+    // Placed in roomGroup (not station) so position is wall-relative, not listener-relative.
+    // When room length changes, sofaZ recalculates automatically on the next rebuild().
     if (VISIBILITY.furniture.sofa && !isStudio && room.opt_sofa && !hasFocus) {
+      const sofaGroup = new THREE.Group();
+      const sofaZ = -room.length_m / 2 + 0.75 * room.length_m; // 75 % from speaker wall
+
       const base = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.4, 0.9), furnMat);
       base.position.y = 0.2;
-      station.add(base);
+      sofaGroup.add(base);
 
       const back = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.5, 0.2), furnMat);
-      back.position.set(0, 0.55, 0.35);
-      station.add(back);
+      back.position.set(0, 0.55, 0.35); // back piece toward +z (back wall)
+      sofaGroup.add(back);
 
       const armGeo = new THREE.BoxGeometry(0.2, 0.35, 0.9);
       const lArm = new THREE.Mesh(armGeo, furnMat); lArm.position.set(-0.95, 0.4, 0);
       const rArm = new THREE.Mesh(armGeo, furnMat); rArm.position.set( 0.95, 0.4, 0);
-      station.add(lArm, rArm);
+      sofaGroup.add(lArm, rArm);
+
+      sofaGroup.position.set(offsetX, -room.height_m / 2, sofaZ);
+      roomGroup.add(sofaGroup);
     }
 
-    // ── Coffee table (local coords: in front of sofa) ──
+    // ── Coffee table — in front of sofa, toward speakers ──
     if (VISIBILITY.furniture.coffeeTable && room.opt_coffee_table && !hasFocus) {
+      const ctGroup   = new THREE.Group();
+      const sofaZ     = -room.length_m / 2 + 0.75 * room.length_m;
+      const ctZ       = sofaZ - 1.3; // ~1.3 m in front of sofa (toward speakers)
+
       const tTop = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.05, 0.6), furnMat);
-      tTop.position.set(0, 0.4, -1.2);
-      station.add(tTop);
+      tTop.position.y = 0.4;
+      ctGroup.add(tTop);
 
       const tLegGeo = new THREE.BoxGeometry(0.04, 0.4, 0.04);
-      [[-0.45, 0.2, -0.95], [0.45, 0.2, -0.95],
-       [-0.45, 0.2, -1.45], [0.45, 0.2, -1.45]].forEach(([lx, ly, lz]) => {
+      [[-0.45, 0.2, -0.3], [0.45, 0.2, -0.3],
+       [-0.45, 0.2,  0.3], [0.45, 0.2,  0.3]].forEach(([lx, ly, lz]) => {
         const leg = new THREE.Mesh(tLegGeo, furnMat);
         leg.position.set(lx, ly, lz);
-        station.add(leg);
+        ctGroup.add(leg);
       });
+
+      ctGroup.position.set(offsetX, -room.height_m / 2, ctZ);
+      roomGroup.add(ctGroup);
     }
 
-    // ── Studio: desk + chair (positioned relative to speaker wall, not station) ──
+    // ── Studio: desk + chair — fixed at ~20% of room length from front wall ──
+    // Both placed in roomGroup so they scale with room length automatically.
     if (isStudio && !hasFocus) {
+      // Desk at 20 % from speaker wall
+      const deskZ = -room.length_m / 2 + 0.20 * room.length_m;
+
       const deskGroup = new THREE.Group();
       const deskTop = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.05, 0.8), furnMat);
       deskTop.position.y = 0.75;
       deskGroup.add(deskTop);
       const dLegGeo = new THREE.BoxGeometry(0.04, 0.75, 0.04);
-      [[-0.75,0.375,-0.35],[0.75,0.375,-0.35],[-0.75,0.375,0.35],[0.75,0.375,0.35]]
+      [[-0.75, 0.375, -0.35], [0.75, 0.375, -0.35],
+       [-0.75, 0.375,  0.35], [0.75, 0.375,  0.35]]
         .forEach(p => { const l = new THREE.Mesh(dLegGeo, furnMat); l.position.set(...p); deskGroup.add(l); });
-      // Desk is fixed relative to speaker wall — add to roomGroup, not station
-      const deskZ = -room.length_m / 2 + room.spk_front_m + 0.4;
       deskGroup.position.set(offsetX, -room.height_m / 2, deskZ);
       roomGroup.add(deskGroup);
 
-      // Office chair (relative to station local)
+      // Office chair — just behind the desk (toward listener)
+      const chairZ = deskZ + 0.55;
       const chairGroup = new THREE.Group();
-      chairGroup.position.set(0, 0, -0.15);
       const s1 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.04, 0.1), furnMat);
       const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.04, 0.6), furnMat);
       s1.position.y = s2.position.y = 0.02;
@@ -1156,7 +1174,8 @@ function rebuild() {
       sup.position.set(0, 0.65, 0.22); sup.rotation.x = -0.15; chairGroup.add(sup);
       const bk = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.05), furnMat);
       bk.position.set(0, 0.85, 0.28); chairGroup.add(bk);
-      station.add(chairGroup);
+      chairGroup.position.set(offsetX, -room.height_m / 2, chairZ);
+      roomGroup.add(chairGroup);
     }
 
     // ── Invisible hit plane — the drag handle for the whole station ──
@@ -2292,6 +2311,18 @@ function rebuild() {
     setStage(newStage) {
       console.log("[Room3D] 🎭 setStage()", newStage);
       renderStage = newStage;
+      rebuild();
+    },
+
+    /**
+     * Instantly swap the visible furniture to match the current room data.
+     * Always forces "furnishings" stage so changes to room_type or speaker_type
+     * are immediately visible without waiting for the wizard to advance a step.
+     * @param {string} [typeHint] - optional hint ("studio"|"home") for logging
+     */
+    updateFurniture(typeHint) {
+      console.log("[Room3D] 🛋 updateFurniture()", typeHint ?? "");
+      renderStage = "furnishings";
       rebuild();
     },
 

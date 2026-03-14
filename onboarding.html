@@ -664,14 +664,14 @@ function loadStep() {
     const step = steps[stepIndex];
 
     // 1. Sync 3D Stage AND Camera Focus
-    // "use"  → stage "gate": just walls + sphere, no speakers, no furniture
-    // "dimensions" → stage "room": walls + placeholder speaker boxes
-    // "furniture"  → stage "furnishings": full room with speakers + furniture
-    let targetStage = "gate";
+    // "use"        → "furnishings": full room immediately so room_type changes are visible
+    // "dimensions" → "room": walls + placeholder speaker boxes
+    // "furniture"  → "furnishings": full room with speakers + furniture
+    let targetStage = "furnishings";
     let targetFocus = "";
 
     if (step.type === "use") {
-        targetStage = "gate";
+        targetStage = "furnishings";
         targetFocus = "";
     } else if (step.type === "dimensions") {
         targetStage = "room";
@@ -757,7 +757,14 @@ function loadStep() {
                 } else {
                     roomState[key] = val;
                 }
-                if (window.room3D && window.room3D.update) {
+
+                // For room_type and speaker_type: swap 3D assets instantly
+                // without waiting for Next to be clicked.
+                const bareKey = key.includes('.') ? key.split('.').pop() : key;
+                const isAssetKey = bareKey === 'room_type' || bareKey === 'speaker_type';
+                if (isAssetKey && window.room3D?.updateFurniture) {
+                    window.room3D.updateFurniture(String(val));
+                } else if (window.room3D?.update) {
                     window.room3D.update();
                 }
             },
@@ -944,10 +951,11 @@ async function startApp() {
         window.room3D = null;
     }
 
-    // 4. Set the initial 3D stage to "gate" (walls + sphere only — no speakers, no furniture)
-    //    then reveal the canvas so the room is live from Step 1 (Use step).
+    // 4. Set initial stage to "furnishings" so the default furniture is visible
+    //    while the user fills in step 0 (Use).  updateFurniture() will re-render
+    //    instantly when they change room_type or speaker_type.
     if (window.room3D) {
-        window.room3D.setStage?.('gate');
+        window.room3D.setStage?.('furnishings');
         window.room3D.startAutoSpin?.();
     }
 

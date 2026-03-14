@@ -2384,8 +2384,20 @@ class MeasurelyDashboard {
         // Fallback: use currentData directly (static hosting / browser analysis)
         if (!curvePairs.length && this.currentData) {
             const d = this.currentData;
-            const freqs = d.freqs || d.freq || d.frequency || [];
-            const mags  = d.mag   || d.mags || d.magnitude  || [];
+
+            // Ensure we always have flat JS arrays — data may arrive as JSON strings
+            // (e.g. parsed from localStorage) which Plotly cannot accept as trace data.
+            const toArray = (v) => {
+                if (Array.isArray(v)) return v;
+                if (typeof v === 'string') {
+                    try { const p = JSON.parse(v); return Array.isArray(p) ? p : []; }
+                    catch { return []; }
+                }
+                return [];
+            };
+
+            const freqs = toArray(d.freqs ?? d.freq ?? d.frequency ?? []);
+            const mags  = toArray(d.mag   ?? d.mags ?? d.magnitude  ?? []);
             if (freqs.length && mags.length) {
                 curvePairs.push({ freqs, mags, label: "Latest", colour: "#3b82f6", idx: 0 });
             }
