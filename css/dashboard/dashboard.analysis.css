@@ -425,6 +425,9 @@ body.ra-body-root {
 .ra-canvas {
     position: absolute;
     inset: 0;
+    /* Prevent iOS/iPadOS scroll interference while dragging the 3D scene */
+    touch-action: none;
+    overscroll-behavior: none;
 }
 
 /* Before / After toggle — overlaid on canvas top-center */

@@ -12,7 +12,10 @@
   -webkit-appearance: none;
   height: 6px;
   border-radius: 999px;
-  touch-action: pan-y;
+  /* Use touch-action: none so iOS/iPadOS doesn't intercept horizontal
+     slider drags as vertical scroll. The fieldStack parent container
+     remains scrollable when the touch starts outside the slider. */
+  touch-action: none;
 
   background: linear-gradient(
     90deg,

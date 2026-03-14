@@ -22,7 +22,7 @@
 
     <!-- PWA / App-like behaviour -->
     <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Measurely">
@@ -67,7 +67,7 @@
         <nav class="ra-header-nav">
             <a href="diagnose.html" class="engine-nav-tab">Diagnose</a>
             <a href="simulate.html" class="engine-nav-tab active" aria-current="page">Treatment Plan</a>
-            <a href="index.html" class="engine-nav-tab">Dashboard</a>
+            <a href="app.html" class="engine-nav-tab">← Dashboard</a>
         </nav>
     </header>
 
@@ -79,7 +79,12 @@
 
         <!-- LEFT: 3D room -->
         <div class="ra-canvas-wrap">
-            <div id="dashboardRoomCanvas" class="ra-canvas"></div>
+            <div id="dashboardRoomCanvas" class="ra-canvas" style="position:relative;">
+                <div class="room3d-loader" id="room3dLoader">
+                    <div class="room3d-spinner"></div>
+                    <p class="room3d-loader-text">Initialising 3D Room…</p>
+                </div>
+            </div>
 
             <!-- Mode badge overlay on canvas -->
             <div class="ra-canvas-badge" id="raModesBadge"></div>
@@ -339,6 +344,15 @@ async function initDashboardRoom() {
     });
 
     room3D.setStage("furnishings");
+
+    // Dismiss the 3D loading overlay after the first rendered frame
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        const loader = document.getElementById('room3dLoader');
+        if (loader) {
+            loader.classList.add('hidden');
+            setTimeout(() => { loader.style.display = 'none'; }, 500);
+        }
+    }));
 
     initSimulate(roomState);
 

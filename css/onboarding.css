@@ -32,11 +32,16 @@ html, body {
   position: absolute;
   inset: 0;
   z-index: 1;
+  /* Prevent iOS/iPadOS scroll hijack on the 3D drag area */
+  touch-action: none;
+  overscroll-behavior: none;
 }
 
 /* Slight boost so wireframe reads through glass */
 #roomCanvas canvas {
   filter: saturate(1.1) contrast(1.05);
+  /* Belt-and-braces: also set on the WebGL canvas element */
+  touch-action: none;
 }
 
 /* Canvas interaction hint */

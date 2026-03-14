@@ -22,7 +22,7 @@
 
     <!-- PWA / App-like behaviour -->
     <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Measurely">
@@ -269,7 +269,12 @@
 
 
 <!-- FULLSCREEN ROOM -->
-<div id="roomCanvas"></div>
+<div id="roomCanvas" style="position:relative;">
+    <div class="room3d-loader" id="room3dLoader">
+        <div class="room3d-spinner"></div>
+        <p class="room3d-loader-text">Initialising 3D Room…</p>
+    </div>
+</div>
 
 <!-- SLIDING QUESTION PANEL -->
 <div id="questionPanel">
@@ -280,6 +285,7 @@
 
   <div class="actions">
     <button id="backBtn" class="btn btn-secondary">← Dashboard</button>
+    <button class="btn btn-secondary" id="resetBtn" title="Reset all room settings to defaults">Reset</button>
     <button class="btn btn-secondary" id="flybyBtn">Simulation</button>
     <button id="saveBtn" class="btn btn-primary">Save</button>
   </div>
@@ -304,45 +310,77 @@ import { UIFactory } from './js/UIFactory.js';
 
 async function loadSavedRoom() {
   try {
-    const res = await fetch("/api/room/latest");
-    if (!res.ok) return;
+    let saved = null;
 
-    const saved = await res.json();
+    // 1. Try localStorage first (works offline / GitHub Pages)
+    try {
+      const ls = localStorage.getItem('measurely_room');
+      if (ls) saved = JSON.parse(ls);
+    } catch (_) {}
 
-    // Remove treatment plan fields so My Room only shows the real room
+    // 2. Try server — overrides localStorage if available
+    try {
+      const res = await fetch("/api/room/latest");
+      if (res.ok) {
+        const apiData = await res.json();
+        if (apiData && Object.keys(apiData).length > 0) {
+          saved = apiData;
+          // Keep localStorage in sync
+          localStorage.setItem('measurely_room', JSON.stringify(saved));
+        }
+      }
+    } catch (_) {
+      console.log("[Room] Server not reachable — using localStorage");
+    }
+
+    if (!saved) return;
+
+    // Apply saved data over the defaults
     roomState = structuredClone(DEFAULT_ROOM_STATE);
 
-    roomState.geometry = {
-      ...roomState.geometry,
-      ...saved.geometry
-    };
-
-    roomState.setup = {
-      ...roomState.setup,
-      ...saved.setup
-    };
-
-    roomState.environment = {
-      ...roomState.environment,
-      ...saved.environment,
-      furniture: {
-        ...roomState.environment.furniture,
-        ...saved.environment?.furniture
-      },
-      treatment: {
-        ...roomState.environment.treatment,
-        ...saved.environment?.treatment
-      }
-    };
-
-    if (saved.room_type) {
-      roomState.environment.room_type = saved.room_type;
+    if (saved.geometry) {
+      roomState.geometry = { ...roomState.geometry, ...saved.geometry };
+      // Coerce numeric strings that may have slipped in
+      ['length_m','width_m','height_m','ceiling_height_secondary_m'].forEach(k => {
+        if (roomState.geometry[k] != null) roomState.geometry[k] = parseFloat(roomState.geometry[k]);
+      });
     }
+
+    if (saved.setup) {
+      roomState.setup = { ...roomState.setup, ...saved.setup };
+      Object.keys(roomState.setup).forEach(k => {
+        const v = roomState.setup[k];
+        if (typeof v === 'string' && !isNaN(v)) roomState.setup[k] = parseFloat(v);
+      });
+    }
+
+    if (saved.environment) {
+      roomState.environment = {
+        ...roomState.environment,
+        ...saved.environment,
+        furniture: {
+          ...roomState.environment.furniture,
+          ...(saved.environment.furniture || {})
+        },
+        treatment: {
+          ...roomState.environment.treatment,
+          ...(saved.environment.treatment || {})
+        }
+      };
+    }
+
+    if (saved.room_type) roomState.room_type = saved.room_type;
+
+    // Also surface flat compat keys so getNestedRoomValue finds them on the
+    // first pass even before UIController remaps them to the nested paths.
+    roomState.length_m  = roomState.geometry.length_m;
+    roomState.width_m   = roomState.geometry.width_m;
+    roomState.height_m  = roomState.geometry.height_m;
 
     console.log("[Room] Loaded saved room:", roomState);
 
   } catch (e) {
-    console.warn("[Room] No saved room, using defaults");
+    console.warn("[Room] loadSavedRoom failed:", e);
   }
 }
 
@@ -392,17 +430,50 @@ const DEFAULT_ROOM_STATE = {
   studio_memory: { /* ... same as before ... */ }
 };
 
-let isRefreshingUI = false; // Add this here!
+let isRefreshingUI = false;
 
 let roomState = structuredClone(DEFAULT_ROOM_STATE);
 
 /* ------------------------------------------
    INIT 3D ROOM
+   NOTE: room3D is initialised before loadSavedRoom() because the canvas
+   must exist before we call update(). getRoomData always reads the live
+   roomState reference, so calling room3D.update() after load refreshes
+   the scene with the persisted data.
 ------------------------------------------ */
 const room3D = initRoom3D({
   mountId: "roomCanvas",
   getRoomData: () => roomState,
-  mode: "setup"
+  mode: "setup",
+  onSpeakerDrag({ spk_spacing_m, spk_front_m }) {
+    roomState.setup.spk_spacing_m = spk_spacing_m;
+    roomState.setup.spk_front_m   = spk_front_m;
+    roomState.spk_spacing_m       = spk_spacing_m;
+    roomState.spk_front_m         = spk_front_m;
+    // Sync sliders if they're visible
+    const syncSlider = (key, val) => {
+      const el = document.querySelector(`[data-key="${key}"]`);
+      if (!el) return;
+      el.value = val;
+      import('./js/uiController.js').then(({ updateSliderFill }) => updateSliderFill(el));
+    };
+    syncSlider('spk_spacing_m', spk_spacing_m);
+    syncSlider('spk_front_m',   spk_front_m);
+  },
+  onListenerDrag({ listener_front_m, listener_offset_m }) {
+    roomState.setup.listener_front_m   = listener_front_m;
+    roomState.setup.listener_offset_m  = listener_offset_m;
+    roomState.listener_front_m         = listener_front_m;
+    roomState.listener_offset_m        = listener_offset_m;
+    const syncSlider = (key, val) => {
+      const el = document.querySelector(`[data-key="${key}"]`);
+      if (!el) return;
+      el.value = val;
+      import('./js/uiController.js').then(({ updateSliderFill }) => updateSliderFill(el));
+    };
+    syncSlider('listener_front_m',  listener_front_m);
+    syncSlider('listener_offset_m', listener_offset_m);
+  }
 });
 
 /* ------------------------------------------
@@ -683,17 +754,35 @@ async function finish() {
   room3D.setMode("locked");
   panel.classList.remove("active");
 
+  const payload = {
+    room_type:   roomState.room_type || roomState.environment?.room_type || "home",
+    geometry:    roomState.geometry,
+    setup:       roomState.setup,
+    environment: roomState.environment,
+    saved_at:    new Date().toISOString()
+  };
+
+  // 1. Always save to localStorage (works offline / GitHub Pages)
+  try {
+    localStorage.setItem('measurely_room', JSON.stringify(payload));
+    window.__MEASURELY_ROOM__ = payload;
+    console.log("[Room] Saved to localStorage:", payload);
+  } catch (e) {
+    console.warn("[Room] localStorage save failed:", e);
+  }
+
+  // 2. Try server — silent on failure
   try {
     await fetch("/api/room/latest", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(roomState)
+      body: JSON.stringify(payload)
     });
   } catch (err) {
-    console.error("Failed to save room", err);
+    console.log("[Room] Server not reachable — saved to localStorage only");
   }
 
-  // Return to dashboard (no page reload — use history if available)
+  // Return to dashboard
   if (document.startViewTransition) {
     document.startViewTransition(() => { window.location.href = "app.html"; });
   } else {
@@ -702,6 +791,20 @@ async function finish() {
 }
 
 await loadSavedRoom();
+// Refresh 3D scene with the loaded data before rendering UI fields
+if (room3D?.update) room3D.update();
+
+// Dismiss the loading overlay after the first rendered frame
+(function dismissLoader() {
+    const loader = document.getElementById('room3dLoader');
+    if (!loader) return;
+    // Wait two RAF cycles so WebGL has painted at least one frame
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        loader.classList.add('hidden');
+        setTimeout(() => { loader.style.display = 'none'; }, 500);
+    }));
+}());
+
 /* ------------------------------------------
    START
 ------------------------------------------ */
@@ -851,14 +954,25 @@ window.applyToeCalc = function() {
   setTimeout(window.closeToeModal, 1200);
 };
 
-const saveBtn = document.getElementById("saveBtn");
-const backBtn = document.getElementById("backBtn");
+const saveBtn  = document.getElementById("saveBtn");
+const backBtn  = document.getElementById("backBtn");
+const resetBtn = document.getElementById("resetBtn");
 
 if (!saveBtn || !backBtn) {
   console.error("Buttons not found");
 }
 
 saveBtn.onclick = finish;
+
+resetBtn.onclick = () => {
+  if (!confirm("Reset all room settings to factory defaults? Your saved setup will be cleared.")) return;
+  roomState = structuredClone(DEFAULT_ROOM_STATE);
+  // Clear persisted data
+  try { localStorage.removeItem('measurely_room'); } catch (_) {}
+  if (room3D?.update) room3D.update();
+  renderAllSections();
+};
+
 backBtn.onclick = () => {
   if (document.startViewTransition) {
     document.startViewTransition(() => { window.location.href = "app.html"; });

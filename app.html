@@ -40,7 +40,7 @@
 
     <!-- PWA / App-like behaviour -->
     <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Measurely">
@@ -73,6 +73,15 @@
                     <p>What your room is doing to the sound, measured, not guessed.</p>
                 </div>
             </header>
+
+            <!-- ONBOARDING NUDGE — visible only when no room has been set up yet -->
+            <div id="onboardingNudge" class="card glass-panel animate-enter" style="display:none;margin-bottom:1rem;padding:1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;border-left:3px solid #6366f1;">
+                <div>
+                    <strong style="font-size:0.875rem;">Room not set up yet</strong>
+                    <p style="font-size:0.78rem;color:var(--c-text-muted,#94a3b8);margin:0.2rem 0 0;">Define your room dimensions and speaker positions to unlock accurate acoustic analysis.</p>
+                </div>
+                <a href="onboarding.html" class="btn btn-primary" style="white-space:nowrap;flex-shrink:0;">Start Setup →</a>
+            </div>
 
             <!-- TOP ROW: SCORE & ACTIONS -->
             <div class="grid-3 animate-enter delay-1">
@@ -467,6 +476,13 @@
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             window.dashboard = new MeasurelyDashboard();
+
+            // ── Onboarding nudge: show if room has never been set up ──────────
+            const nudge = document.getElementById('onboardingNudge');
+            if (nudge) {
+                const hasRoom = !!localStorage.getItem('measurely_room');
+                nudge.style.display = hasRoom ? 'none' : 'flex';
+            }
         });
     </script>
 
