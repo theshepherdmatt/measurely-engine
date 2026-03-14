@@ -282,6 +282,7 @@ export function initRoom3D({
 
   function _collectDraggables() {
     _draggables = [];
+    if (currentMode === 'locked') return; // orbit-only — no drag targets
     roomGroup.traverse(obj => { if (obj.userData?.draggable) _draggables.push(obj); });
   }
 

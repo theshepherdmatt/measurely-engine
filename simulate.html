@@ -350,7 +350,7 @@ async function initDashboardRoom() {
     window.room3D = initRoom3D({
         mountId: "dashboardRoomCanvas",
         getRoomData: () => window.__liveRoomState,
-        mode: "final"
+        mode: "locked"
     });
 
     room3D.setStage("furnishings");
