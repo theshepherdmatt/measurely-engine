@@ -681,8 +681,12 @@ async function finish() {
     console.error("Failed to save room", err);
   }
 
-  // Return to dashboard
-  window.location.href = "/index.html";
+  // Return to dashboard (no page reload — use history if available)
+  if (document.startViewTransition) {
+    document.startViewTransition(() => { window.location.href = "app.html"; });
+  } else {
+    window.location.href = "app.html";
+  }
 }
 
 await loadSavedRoom();
@@ -839,7 +843,11 @@ if (!saveBtn || !backBtn) {
 
 saveBtn.onclick = finish;
 backBtn.onclick = () => {
-  window.location.href = "/index.html";
+  if (document.startViewTransition) {
+    document.startViewTransition(() => { window.location.href = "app.html"; });
+  } else {
+    window.location.href = "app.html";
+  }
 };
 
 

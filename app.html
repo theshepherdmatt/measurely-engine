@@ -32,11 +32,10 @@
     <script src="js/vendor/three/OrbitControls.js" defer></script>
 
     <!--
-        Plotly is 3.5 MB. Loaded deferred here so it doesn't block LCP.
-        The dashboard lazy-loads it further via ensurePlotly() before
-        the first chart render, so this tag is a preload hint only.
+        Plotly (3.5 MB) is NOT loaded here.
+        dashboard.js calls loadPlotly() lazily the first time the
+        user enters the Analysis or Dashboard chart view.
     -->
-    <script src="js/plotly.min.js" defer></script>
 
     <!-- PWA / App-like behaviour -->
     <link rel="manifest" href="manifest.json">

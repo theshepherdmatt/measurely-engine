@@ -232,9 +232,14 @@ export function initRoom3D({
   let _ptrDownTime    = 0;
   let _ptrStartX      = 0;
   let _ptrStartY      = 0;
+  let _hoveredSide    = null; // "L" | "R" | null — drives emerald hover glow
+  let _hoverTimer     = null; // debounce clearing hover to avoid flicker
 
   const DRAG_TAP_MS   = 230;
   const DRAG_PX       = 7;   // pixels of movement before a tap becomes a drag
+
+  // Emerald green used for hover glow (#10b981)
+  const HOVER_COLOR   = 0x10b981;
 
   function _collectDraggables() {
     _draggables = [];
@@ -256,12 +261,27 @@ export function initRoom3D({
     return hits.length > 0 ? hits[0].object : null;
   }
 
-  // ── hover cursor ─────────────────────────────────────────────
+  // ── hover cursor + emerald glow ──────────────────────────────
   renderer.domElement.addEventListener('pointermove', e => {
     if (_dragTarget) return; // already dragging
     _toNDC(e);
     const hit = _hitDraggable();
     renderer.domElement.style.cursor = hit ? 'grab' : '';
+
+    const newSide = hit ? hit.userData.speakerSide : null;
+    if (newSide !== _hoveredSide) {
+      if (_hoverTimer) clearTimeout(_hoverTimer);
+      if (newSide) {
+        _hoveredSide = newSide;
+        rebuild();
+      } else {
+        // Small debounce when leaving to prevent jitter
+        _hoverTimer = setTimeout(() => {
+          _hoveredSide = null;
+          rebuild();
+        }, 60);
+      }
+    }
   }, { passive: true });
 
   // ── pointerdown ──────────────────────────────────────────────
@@ -744,14 +764,23 @@ function rebuild() {
       ["L", "R"].forEach(side => {
         const profile = getSpeakerProfile(room.speaker_type);
         const isSpkHighlit = highlightTarget === 'speakers';
-        
+        const isHovered    = _hoveredSide === side && !_isDragging;
+
+        // Priority: highlight > hover > default
+        const spkColor  = isSpkHighlit ? 0x22d3ee
+                        : isHovered    ? HOVER_COLOR
+                        : profile.color;
+        const spkOpacity = isSpkHighlit ? 0.9
+                         : isHovered    ? 0.88
+                         : Math.max(OP_OBJ, 0.5);
+
         const speaker = new THREE.Mesh(
           new THREE.BoxGeometry(profile.w, profile.h, profile.d),
           new THREE.MeshBasicMaterial({
-            color: isSpkHighlit ? 0x22d3ee : profile.color,
+            color: spkColor,
             wireframe: true,
             transparent: true,
-            opacity: isSpkHighlit ? 0.9 : Math.max(OP_OBJ, 0.5)
+            opacity: spkOpacity
           })
         );
 
@@ -784,11 +813,11 @@ function rebuild() {
             new THREE.Vector3(0, 0, room.length_m)
           ]),
           new THREE.LineDashedMaterial({
-            color: isSpkHighlit ? 0x22d3ee : profile.color,
+            color: spkColor,
             dashSize: 0.25,
             gapSize: 0.15,
             transparent: true,
-            opacity: isSpkHighlit ? 0.85 : 0.45
+            opacity: isSpkHighlit ? 0.85 : isHovered ? 0.75 : 0.45
           })
         );
         beam.computeLineDistances();
@@ -2114,17 +2143,41 @@ function rebuild() {
             home:        { pos: DEFAULT_CAMERA.pos,              look: DEFAULT_CAMERA.target },
             dimensions:  { pos: DEFAULT_CAMERA.pos,              look: DEFAULT_CAMERA.target },
             placement:   { pos: DEFAULT_CAMERA.pos,              look: DEFAULT_CAMERA.target },
-            // Materials: slightly higher angle to see floor furniture, same distance as home
+            // Materials: slightly higher angle to see floor furniture
             materials:   { pos: { x: 3.5, y: 6.0, z: 5.5 }, look: { x: 0, y: 0, z: 0 } }
           };
 
           const v = views[stepKey];
           if (!v) return;
 
-          // Update camera and orbit controls target
-          camera.position.set(v.pos.x, v.pos.y, v.pos.z);
-          controls.target.set(v.look.x, v.look.y, v.look.z);
-          controls.update();
+          // Smooth camera lerp — ease-in-out-quad over 600 ms
+          const FROM_POS  = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
+          const FROM_LOOK = { x: controls.target.x,  y: controls.target.y,  z: controls.target.z  };
+          const TO_POS    = v.pos;
+          const TO_LOOK   = v.look;
+          const DURATION  = 600; // ms
+          const t0        = performance.now();
+
+          flyAnim = {
+            tick(now) {
+              const raw = Math.min((now - t0) / DURATION, 1);
+              // Ease-in-out quad
+              const t = raw < 0.5 ? 2 * raw * raw : -1 + (4 - 2 * raw) * raw;
+
+              camera.position.set(
+                FROM_POS.x  + (TO_POS.x  - FROM_POS.x)  * t,
+                FROM_POS.y  + (TO_POS.y  - FROM_POS.y)  * t,
+                FROM_POS.z  + (TO_POS.z  - FROM_POS.z)  * t,
+              );
+              controls.target.set(
+                FROM_LOOK.x + (TO_LOOK.x - FROM_LOOK.x) * t,
+                FROM_LOOK.y + (TO_LOOK.y - FROM_LOOK.y) * t,
+                FROM_LOOK.z + (TO_LOOK.z - FROM_LOOK.z) * t,
+              );
+
+              if (raw >= 1) flyAnim = null; // done
+            }
+          };
         },
 
 

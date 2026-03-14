@@ -1,3 +1,28 @@
+/* ------------------------------------------------------------------
+   LAZY PLOTLY LOADER
+   Plotly (3.5 MB) is not in the HTML. Call loadPlotly() before
+   any chart render — it's a no-op after the first successful load.
+------------------------------------------------------------------ */
+let _plotlyPromise = null;
+
+function loadPlotly() {
+  if (window.Plotly) return Promise.resolve();
+  if (_plotlyPromise) return _plotlyPromise;
+
+  _plotlyPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'js/plotly.min.js';
+    script.onload  = () => resolve();
+    script.onerror = () => {
+      _plotlyPromise = null; // allow retry on next call
+      reject(new Error('[Dashboard] Failed to load Plotly'));
+    };
+    document.head.appendChild(script);
+  });
+
+  return _plotlyPromise;
+}
+
 const UI = {
   historyCardSelector: ".uploads-card",
   historyIdDatasetKey: "uploadId",        // ALWAYS uploads
@@ -2209,6 +2234,9 @@ class MeasurelyDashboard {
 
         const chartEl = document.getElementById("frequencyChart");
         if (!chartEl) return;
+
+        // Lazy-load Plotly on first chart render (3.5 MB deferred until needed)
+        await loadPlotly();
 
         console.log("📊 Drawing chart with overlay:", this.activeMetricOverlay);
 
