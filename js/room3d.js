@@ -416,10 +416,37 @@ function rebuild() {
     roomGroup.clear();
     colourState = "idle";
 
-    const data = getRoomData(); 
-    window.__MEASURELY_ROOM__ = data;
+    // Merge whatever getRoomData() returns over safe defaults so that
+    // missing or null configuration never prevents speakers from spawning.
+    const FALLBACK = {
+      geometry:    { length_m: 5, width_m: 4, height_m: 2.6,
+                     ceiling_type: 'flat', ceiling_slant_direction: 'left_to_right',
+                     ceiling_gable_axis: 'depth', ceiling_height_secondary_m: 2.0 },
+      setup:       { speaker_type: 'standmount', spk_spacing_m: 2.0, spk_front_m: 0.45,
+                     tweeter_height_m: 0.95, toe_in_deg: 12, listener_front_m: 2.8,
+                     listener_offset_m: 0, subwoofer: false },
+      environment: { room_type: 'home', floor_material: 'hard',
+                     furniture: { opt_area_rug: false, opt_sofa: false,
+                                  opt_coffee_table: false, opt_desk: false, opt_chair: false },
+                     treatment: { wall_panel_mode: 'none', side_panel_mode: 'none',
+                                  bass_trap_mode: 'none', ceiling_panel_mode: 'none' } }
+    };
 
-    if (!data) return;
+    const raw  = getRoomData() || {};
+    const data = {
+      ...FALLBACK,
+      ...raw,
+      geometry:    { ...FALLBACK.geometry,    ...(raw.geometry    || {}) },
+      setup:       { ...FALLBACK.setup,       ...(raw.setup       || {}) },
+      environment: { ...FALLBACK.environment, ...(raw.environment || {}),
+        furniture: { ...FALLBACK.environment.furniture,
+                     ...((raw.environment || {}).furniture || {}) },
+        treatment: { ...FALLBACK.environment.treatment,
+                     ...((raw.environment || {}).treatment || {}) }
+      }
+    };
+
+    window.__MEASURELY_ROOM__ = data;
 
     // 1. UNPACKING
     const geo   = data.geometry    || data;
@@ -2097,14 +2124,18 @@ function rebuild() {
   /* ------------------------------------------
      START
   ------------------------------------------ */
-  console.log("[Room3D] 🚀 Starting engine");
+  console.log("[Room3D] 🚀 Starting engine | mountId:", mountId, "| stage:", renderStage);
   rebuild();
   animate();
 
   /* ------------------------------------------
      PUBLIC API
+     Also exported to window.room3d so the
+     instance is always inspectable from the
+     browser console regardless of which page
+     initialised it.
   ------------------------------------------ */
-  return {
+  const api = {
     update: rebuild,
 
     setMode(newMode) {
@@ -2338,6 +2369,14 @@ function rebuild() {
         },
       };
     },
-    update: () => { rebuild(); }, 
-  }; 
-}   
+    update: () => { rebuild(); },
+
+    /** Expose the draggable mesh list for external inspection / THREE.DragControls. */
+    get draggableObjects() { return _draggables; },
+  };
+
+  // Always accessible from the browser console as window.room3d
+  window.room3d = api;
+
+  return api;
+}
