@@ -446,7 +446,7 @@ header, section, footer { position: relative; z-index: 1; }
             </button>
             <button class="sbox-btn" data-item="sofa">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2"/><path d="M2 11v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0z"/></svg>
-                Sofa
+                Listen Position
             </button>
             <button class="sbox-btn" data-item="bass_traps">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="3 20 12 4 21 20"/></svg>
@@ -748,9 +748,10 @@ const sandbox3D = initRoom3D({
     },
 
     onListenerDrag({ listener_front_m, listener_offset_m }) {
+        // Sync data store so future rebuild()s position the station correctly
         sandboxState.setup.listener_front_m  = listener_front_m;
         sandboxState.setup.listener_offset_m = listener_offset_m;
-        showChip(`Listen position · ${listener_front_m.toFixed(2)} m from front wall`);
+        showChip(`Listen position · ${listener_front_m.toFixed(2)} m from front`);
         if (hint) hint.style.opacity = '0';
 
         if (autoToeOn && sandbox3D.getToeAngleDeg) {
@@ -855,8 +856,9 @@ document.getElementById('sboxReset')?.addEventListener('click', () => {
     document.querySelector('.sbox-btn[data-item="rug"]')?.classList.add('active');
     if (hint) hint.style.opacity = '1';
 
+    // resetStation() clears position overrides so station rebuilds at data-store position
     sandbox3D.setAutoToe(true);
-    sandbox3D.update();
+    sandbox3D.resetStation();
     showChip('Room reset');
 });
 </script>
