@@ -269,7 +269,7 @@
 
 
 <!-- FULLSCREEN ROOM -->
-<div id="roomCanvas" style="position:relative;">
+<div id="roomCanvas">
     <div class="room3d-loader" id="room3dLoader">
         <div class="room3d-spinner"></div>
         <p class="room3d-loader-text">Initialising 3D Room…</p>
@@ -308,6 +308,14 @@ import { initRoom3D } from "./js/room3d.js";
 import { attachHighlightListeners, UIController, setNestedRoomValue, getNestedRoomValue } from './js/uiController.js';
 import { UIFactory } from './js/UIFactory.js';
 
+function isStaticHosting() {
+  const h = window.location.hostname;
+  if (h === 'localhost' || h === '127.0.0.1') return false;
+  if (/^192\.168\./.test(h) || /^10\./.test(h)) return false;
+  if (h.endsWith('.local')) return false;
+  return true;
+}
+
 async function loadSavedRoom() {
   try {
     let saved = null;
@@ -318,8 +326,8 @@ async function loadSavedRoom() {
       if (ls) saved = JSON.parse(ls);
     } catch (_) {}
 
-    // 2. Try server — overrides localStorage if available
-    try {
+    // 2. Try server only when running against a Pi backend
+    if (!isStaticHosting()) try {
       const res = await fetch("/api/room/latest");
       if (res.ok) {
         const apiData = await res.json();

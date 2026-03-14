@@ -31,7 +31,18 @@ const UI = {
   navId: "uploadsNav"
 };
 
+/* Returns true when running on GitHub Pages / measurely.uk (no Pi backend).
+   Used to skip /api/* calls that will 404, keeping the console clean. */
+function isStaticHosting() {
+  const h = window.location.hostname;
+  if (h === 'localhost' || h === '127.0.0.1') return false;
+  if (/^192\.168\./.test(h) || /^10\./.test(h)) return false;
+  if (h.endsWith('.local')) return false;
+  return true; // public domain → static deploy, no Pi
+}
+
 async function safeJson(url) {
+  if (isStaticHosting() && url.startsWith('/api/')) return null;
   try {
     const r = await fetch(url);
     if (!r.ok) return null;

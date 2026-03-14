@@ -79,7 +79,7 @@
 
         <!-- LEFT: 3D room -->
         <div class="ra-canvas-wrap">
-            <div id="dashboardRoomCanvas" class="ra-canvas" style="position:relative;">
+            <div id="dashboardRoomCanvas" class="ra-canvas">
                 <div class="room3d-loader" id="room3dLoader">
                     <div class="room3d-spinner"></div>
                     <p class="room3d-loader-text">Initialising 3D Room…</p>
@@ -308,27 +308,37 @@ window.attachHighlightListeners = attachHighlightListeners;
 
 window.__liveRoomState = null;
 
+function isStaticHosting() {
+    const h = window.location.hostname;
+    if (h === 'localhost' || h === '127.0.0.1') return false;
+    if (/^192\.168\./.test(h) || /^10\./.test(h)) return false;
+    if (h.endsWith('.local')) return false;
+    return true;
+}
+
 async function initDashboardRoom() {
     let roomState = null;
 
-    // 1. Try localStorage first (works offline / GitHub Pages)
+    // 1. Try localStorage first (works offline / GitHub Pages / static hosting)
     try {
         const ls = localStorage.getItem('measurely_room');
         if (ls) roomState = JSON.parse(ls);
     } catch (_) {}
 
-    // 2. Try server — overrides if available
-    try {
-        const res = await fetch("/api/room/latest");
-        if (res.ok) {
-            const apiData = await res.json();
-            if (apiData && Object.keys(apiData).length > 0) {
-                roomState = apiData;
-                localStorage.setItem('measurely_room', JSON.stringify(roomState));
+    // 2. Try server only when running against a Pi backend
+    if (!isStaticHosting()) {
+        try {
+            const res = await fetch("/api/room/latest");
+            if (res.ok) {
+                const apiData = await res.json();
+                if (apiData && Object.keys(apiData).length > 0) {
+                    roomState = apiData;
+                    localStorage.setItem('measurely_room', JSON.stringify(roomState));
+                }
             }
+        } catch (_) {
+            console.log("[SimulateRoom] Server not reachable — using localStorage");
         }
-    } catch (_) {
-        console.log("[SimulateRoom] Server not reachable — using localStorage");
     }
 
     if (!roomState) return;
