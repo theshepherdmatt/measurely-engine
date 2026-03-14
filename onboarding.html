@@ -781,8 +781,9 @@ function loadStep() {
     }
 
     if (step.type !== "gate" && window.room3D) {
-        if (window.room3D.currentStage !== targetStage) window.room3D.setStage(targetStage);
-        window.room3D.focusOn(targetFocus);
+        // setStage is safe to call every time — room3d.js handles the renderStage internally
+        window.room3D.setStage?.(targetStage);
+        window.room3D.focusOn?.(targetFocus);
     }
 
     // 2. Update headers + progress
@@ -831,31 +832,43 @@ function loadStep() {
 
     fieldStack.innerHTML = fieldsHtml;
 
-// 5. Trigger Central Controller
-    UIController.attach({
-        container: fieldStack,
-        state: roomState,
-        room3D: window.room3D,
-      onValueUpdate: (key, val) => {
-          setDeepValue(roomState, key, val);
-          if (key.includes('.')) {
-              const flatKey = key.split('.').pop();
-              roomState[flatKey] = val;
-          } else {
-              roomState[key] = val;
-          }
-          if (window.room3D && window.room3D.update) {
-              window.room3D.update();
-          }
-      },
-        onMacroChange: () => {
-            console.log("Macro change detected. Refreshing UI...");
-            if (!isRefreshingUI) loadStep();
-            if (window.room3D && window.room3D.update) {
-                window.room3D.update();
+    // 5. Null-check dimension sliders before wiring (only present on the room step)
+    // These are safe no-ops on the gate step where the sliders don't exist yet.
+    const widthSlider  = fieldStack.querySelector('[data-key="geometry.width_m"]');
+    const lengthSlider = fieldStack.querySelector('[data-key="geometry.length_m"]');
+    const heightSlider = fieldStack.querySelector('[data-key="geometry.height_m"]');
+    if (widthSlider)  widthSlider.addEventListener('input',  () => window.room3D?.update(), { passive: true });
+    if (lengthSlider) lengthSlider.addEventListener('input', () => window.room3D?.update(), { passive: true });
+    if (heightSlider) heightSlider.addEventListener('input', () => window.room3D?.update(), { passive: true });
+
+    // 6. Trigger Central Controller — wrapped so a UIController error never kills the wizard
+    try {
+        UIController.attach({
+            container: fieldStack,
+            state: roomState,
+            room3D: window.room3D,
+            onValueUpdate: (key, val) => {
+                setDeepValue(roomState, key, val);
+                if (key.includes('.')) {
+                    const flatKey = key.split('.').pop();
+                    roomState[flatKey] = val;
+                } else {
+                    roomState[key] = val;
+                }
+                if (window.room3D && window.room3D.update) {
+                    window.room3D.update();
+                }
+            },
+            onMacroChange: () => {
+                if (!isRefreshingUI) loadStep();
+                if (window.room3D && window.room3D.update) {
+                    window.room3D.update();
+                }
             }
-        }
-    });
+        });
+    } catch (uiErr) {
+        console.warn('[Wizard] UIController.attach() failed — wizard continues without live sync:', uiErr);
+    }
 
     // 6. UI Polish
     panel.classList.add("active");
