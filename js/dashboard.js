@@ -2416,7 +2416,6 @@ class MeasurelyDashboard {
             // ── kept inside loop (same scope as before) ──────────────────
 
                 function movingAverage(arr, windowSize = 12) {
-                function movingAverage(arr, windowSize = 12) {
                 const result = [];
                 for (let k = 0; k < arr.length; k++) {
                     const start = Math.max(0, k - windowSize);
