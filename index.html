@@ -621,6 +621,9 @@ const sandbox3D = initRoom3D({
     }
 });
 
+// Ensure speakers (not placeholder boxes) are rendered so they are draggable
+sandbox3D.setStage('speakers');
+
 // Start with a gentle auto-spin so it looks alive on first load
 sandbox3D.startAutoSpin();
 

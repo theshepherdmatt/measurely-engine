@@ -73,7 +73,10 @@ export function initRoom3D({
   let currentMode = mode;
   let analysisStart = null;
   let analysisPulse = 0;
-  let renderStage = "room"; 
+  // In 'setup' mode speakers must be draggable immediately — start in 'speakers'
+  // stage so real speaker meshes (with userData.draggable) are built on first
+  // rebuild(). Other modes keep 'room' as the starting placeholder stage.
+  let renderStage = (mode === "setup") ? "speakers" : "room";
   const activeOverlays = new Set();
   let focusedOverlay = null;
   let activeScore = 10;
@@ -234,6 +237,7 @@ export function initRoom3D({
   let _ptrStartY      = 0;
   let _hoveredSide    = null; // "L" | "R" | null — drives emerald hover glow
   let _hoverTimer     = null; // debounce clearing hover to avoid flicker
+  let _dragFloorY     = 0;    // Y of the active drag plane (set on pointerdown)
 
   const DRAG_TAP_MS   = 230;
   const DRAG_PX       = 7;   // pixels of movement before a tap becomes a drag
@@ -299,10 +303,13 @@ export function initRoom3D({
     _dragTarget = hit;
     _dragSide   = hit.userData.speakerSide;
 
-    // Build a horizontal drag plane at the speaker's current Y
+    // XZ floor plane — locked to the speaker's Y so the mesh never
+    // floats or sinks while dragging. Coplanar point is directly below/above
+    // the speaker on the Y axis, normal pointing straight up.
+    _dragFloorY = _dragTarget.position.y;
     _dragPlane.setFromNormalAndCoplanarPoint(
       new THREE.Vector3(0, 1, 0),
-      _dragTarget.position.clone()
+      new THREE.Vector3(0, _dragFloorY, 0)
     );
 
     // Disable orbit so we own this gesture
@@ -311,7 +318,7 @@ export function initRoom3D({
     e.stopPropagation();
   }, { passive: false });
 
-  // ── pointermove ──────────────────────────────────────────────
+  // ── pointermove (drag) ───────────────────────────────────────
   renderer.domElement.addEventListener('pointermove', e => {
     if (!_dragTarget) return;
 
@@ -323,6 +330,9 @@ export function initRoom3D({
     _toNDC(e);
     _raycaster.setFromCamera(_pointerNDC, camera);
 
+    // Intersect the locked XZ floor plane.
+    // If the ray is nearly parallel to the plane (edge case), skip the frame
+    // rather than snapping the speaker to infinity.
     if (!_raycaster.ray.intersectPlane(_dragPlane, _dragPoint)) return;
 
     const d   = getRoomData();
@@ -330,20 +340,21 @@ export function initRoom3D({
     const hW  = (geo.width_m  || 4) / 2;
     const hL  = (geo.length_m || 4) / 2;
 
-    // Clamp within room bounds, leave a small margin
+    // Clamp within room bounds with a small margin
     _dragPoint.x = THREE.MathUtils.clamp(_dragPoint.x, -hW + 0.15, hW - 0.15);
     _dragPoint.z = THREE.MathUtils.clamp(_dragPoint.z, -hL + 0.05, hL - 0.15);
 
-    // Move the mesh live (no rebuild — stays at 60fps)
+    // XZ only — Y is ALWAYS pinned to the drag floor plane (never floats/sinks)
     _dragTarget.position.x = _dragPoint.x;
     _dragTarget.position.z = _dragPoint.z;
+    _dragTarget.position.y = _dragFloorY; // explicit floor lock
 
-    // Animate dashed beam children in place
+    // Refresh dashed beam distances in-place (no full rebuild at 60fps)
     _dragTarget.traverse(child => {
       if (child.isLine) child.computeLineDistances();
     });
 
-    // Mirror the opposite speaker symmetrically (enforce equal L/R x-distance)
+    // Mirror opposite speaker symmetrically on X axis
     const mirrorSide = _dragSide === 'L' ? 'R' : 'L';
     const mirror = _draggables.find(
       m => m.userData.speakerSide === mirrorSide && m.userData.dragType === 'speaker'
@@ -351,6 +362,7 @@ export function initRoom3D({
     if (mirror) {
       mirror.position.x = -_dragPoint.x;
       mirror.position.z =  _dragPoint.z;
+      mirror.position.y =  _dragFloorY;
       mirror.traverse(child => { if (child.isLine) child.computeLineDistances(); });
     }
   }, { passive: true });
