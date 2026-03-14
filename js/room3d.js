@@ -178,6 +178,7 @@ export function initRoom3D({
 
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.domElement.style.touchAction = 'none'; // prevent iOS/iPad scroll hijack
   container.appendChild(renderer.domElement);
 
   console.log("[Room3D] Renderer + camera initialised");
@@ -416,6 +417,7 @@ export function initRoom3D({
     // Disable orbit so we own this gesture
     controls.enabled = false;
     renderer.domElement.setPointerCapture(e.pointerId);
+    e.preventDefault();   // stop iOS/iPad from starting a page scroll
     e.stopPropagation();
   }, { passive: false });
 
