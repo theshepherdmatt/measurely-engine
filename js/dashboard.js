@@ -1985,12 +1985,6 @@ class MeasurelyDashboard {
         const data = this.currentData;
         if (!data) return;
 
-        // Debugging Signal Integrity
-        console.log("[DEBUG] signal integrity raw:", {
-            root: data.signal_integrity,
-            scores: data.scores,
-            scores_signal: data.scores?.signal_integrity
-        });
 
         const s = data.scores || {};
 
@@ -2788,35 +2782,25 @@ class MeasurelyDashboard {
             el.addEventListener('click', handler);
         };
 
-        // Metric buttons (may not exist immediately)
+        // Metric / analysis-card trigger buttons
+        // The sidebar uses .analysis-card-trigger[data-overlay] — wire those
         setTimeout(() => {
-            const metricButtons = document.querySelectorAll("#metricNav .metric-btn");
+            const metricButtons = document.querySelectorAll(".analysis-card-trigger[data-overlay]");
 
             if (!metricButtons.length) {
-                console.warn("⚠️ No metric buttons found");
+                // Silently skip — this dashboard view may not include the analysis sidebar
                 return;
             }
 
             metricButtons.forEach(btn => {
                 btn.addEventListener("click", () => {
+                    metricButtons.forEach(b => b.classList.remove("active"));
+                    btn.classList.add("active");
 
-                    metricButtons.forEach(b => {
-                        b.classList.remove("btn-primary");
-                        b.classList.add("btn-utility");
-                    });
-
-                    btn.classList.remove("btn-utility");
-                    btn.classList.add("btn-primary");
-
-                    this.activeMetricOverlay = btn.dataset.metric;
-
-                    console.log("🎛 Metric selected:", this.activeMetricOverlay);
-
+                    this.activeMetricOverlay = btn.dataset.overlay;
                     this.updateFrequencyChartMulti();
                 });
             });
-
-            console.log("✅ Metric buttons wired");
 
         }, 0);
 

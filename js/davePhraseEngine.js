@@ -10,33 +10,42 @@
 
   DavePhraseEngine.prototype.load = async function () {
     if (this.bank) return;
-    const res = await fetch("dave_phrases.json");
-    this.bank = await res.json();
-    console.log("🧠 Dave phrases loaded");
+    try {
+      const res = await fetch("dave_phrases.json");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      this.bank = await res.json();
+      console.log("🧠 Dave phrases loaded");
+    } catch (err) {
+      console.warn("⚠️ Dave phrases unavailable:", err.message);
+      this.bank = null; // stays null — callers handle gracefully
+    }
   };
 
   // ---------- helpers ----------
 
   DavePhraseEngine.prototype.getBand = function (score) {
+    if (!this.bank) return "okay";
     return this.bank.meta.bands.find(
       b => score >= b.min && score <= b.max
     )?.id || "okay";
   };
 
   DavePhraseEngine.prototype.pickFirst = function (arr) {
-    return arr && arr.length ? arr[0] : "—";
+    return arr && arr.length ? arr[0] : null;
   };
 
   // ---------- public API ----------
 
   DavePhraseEngine.prototype.overall = function (score) {
+    if (!this.bank) return null;
     const band = this.getBand(score);
     return this.pickFirst(this.bank.overall?.[band]);
   };
 
   DavePhraseEngine.prototype.category = function (key, score) {
+    if (!this.bank) return null;
     const cat = this.bank.categories?.[key];
-    if (!cat) return "—";
+    if (!cat) return null;
     const band = this.getBand(score);
     return this.pickFirst(cat.phrases?.[band]);
   };
