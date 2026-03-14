@@ -1743,6 +1743,10 @@ class MeasurelyDashboard {
     showEmptyState() {
         if (document.getElementById('mly-empty-state')) return;
 
+        // Don't block analysis pages (diagnose / simulate) with the upload overlay.
+        // Those pages set window.CAPS.sweep = false — use that as the sentinel.
+        if (window.CAPS && typeof window.CAPS.sweep !== 'undefined') return;
+
         const hasRoom = !!localStorage.getItem('measurely_room');
 
         const el = document.createElement('div');

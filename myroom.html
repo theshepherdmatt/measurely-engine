@@ -11,6 +11,15 @@
 <script src="js/vendor/three/OrbitControls.js"></script>
 <script src="js/vendor/three/DragControls.js"></script>
 
+    <!-- Import map — must appear before any module script -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "./js/vendor/three/three.module.js"
+        }
+    }
+    </script>
+
     <!-- PWA / App-like behaviour -->
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -23,6 +32,8 @@
 
     <script>
     document.addEventListener('click', function(event) {
+        // Don't override if another handler already called preventDefault (e.g. a modal)
+        if (event.defaultPrevented) return;
         var target = event.target;
         // Walk up the DOM tree to find the 'a' tag (in case they clicked an icon inside the link)
         while (target && target.nodeName !== 'A') {

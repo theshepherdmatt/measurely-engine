@@ -827,32 +827,30 @@ function loadStep() {
     fieldStack.innerHTML = fieldsHtml;
 
 // 5. Trigger Central Controller
-    if (window.UIController) {
-        window.UIController.attach({
-            container: fieldStack,
-            state: roomState,
-            room3D: window.room3D,
-          onValueUpdate: (key, val) => {
-              setDeepValue(roomState, key, val);
-              if (key.includes('.')) {
-                  const flatKey = key.split('.').pop();
-                  roomState[flatKey] = val;
-              } else {
-                  roomState[key] = val;
-              }
-              if (window.room3D && window.room3D.update) {
-                  window.room3D.update();
-              }
-          },
-            onMacroChange: () => {
-                console.log("Macro change detected. Refreshing UI...");
-                if (!isRefreshingUI) loadStep(); 
-                if (window.room3D && window.room3D.update) {
-                    window.room3D.update();
-                }
+    UIController.attach({
+        container: fieldStack,
+        state: roomState,
+        room3D: window.room3D,
+      onValueUpdate: (key, val) => {
+          setDeepValue(roomState, key, val);
+          if (key.includes('.')) {
+              const flatKey = key.split('.').pop();
+              roomState[flatKey] = val;
+          } else {
+              roomState[key] = val;
+          }
+          if (window.room3D && window.room3D.update) {
+              window.room3D.update();
+          }
+      },
+        onMacroChange: () => {
+            console.log("Macro change detected. Refreshing UI...");
+            if (!isRefreshingUI) loadStep();
+            if (window.room3D && window.room3D.update) {
+                window.room3D.update();
             }
-        });
-    }
+        }
+    });
 
     // 6. UI Polish
     panel.classList.add("active");
@@ -875,7 +873,7 @@ nextBtn.addEventListener("click", () => {
         return;
     }
 
-    // 2. If leaving the gate step (0), fly the 3D room in
+    // 2. If leaving the gate step (0), reveal the 3D canvas (independent of 3D load state)
     if (stepIndex === 0) {
         const canvas = document.getElementById('roomCanvas');
         const hint   = document.getElementById('canvasHint');
@@ -885,12 +883,12 @@ nextBtn.addEventListener("click", () => {
             canvas.style.pointerEvents = '';
         }
         if (hint) hint.style.opacity = '1';
-        // Trigger auto-spin on first reveal
-        if (window.room3D) window.room3D.startAutoSpin();
+        // Trigger auto-spin — safe no-op if 3D failed to load
+        try { window.room3D?.startAutoSpin(); } catch (_) {}
     }
 
-    // 3. Stop the spin if the user is past the gate step
-    if (stepIndex > 0 && window.room3D) window.room3D.stopAutoSpin();
+    // 3. Stop the spin if the user is past the gate step — safe if 3D not loaded
+    if (stepIndex > 0) { try { window.room3D?.stopAutoSpin(); } catch (_) {} }
 
     // 4. Logic for moving to next step OR finishing
     if (stepIndex < steps.length - 1) {
@@ -989,8 +987,8 @@ async function startApp() {
 
     console.log("[Wizard] Booting 3D with state:", roomState);
 
-    // 3. Init engine with drag callbacks
-    window.room3D = initRoom3D({
+    // 3. Init engine with drag callbacks — wrapped so a 3D failure never blocks the wizard
+    try { window.room3D = initRoom3D({
         mountId:    "roomCanvas",
         getRoomData: () => roomState,
         mode:       "setup",
@@ -1034,9 +1032,12 @@ async function startApp() {
                 4000
             );
         }
-    });
+    }); } catch (e3d) {
+        console.warn("[Wizard] 3D init failed — wizard continues without 3D preview:", e3d);
+        window.room3D = null;
+    }
 
-    // 4. Start the UI — do NOT auto-spin yet; canvas is hidden until gate step passes
+    // 4. Start the UI — always runs even if 3D failed to load
     loadStep();
 }
 

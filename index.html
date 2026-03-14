@@ -486,11 +486,22 @@ header, section, footer { position: relative; z-index: 1; }
     </div>
 
     <div style="margin-top:2.5rem">
-        <a href="/onboarding.html" class="btn btn-primary">
+        <a id="setupRoomCta" href="onboarding.html" class="btn btn-primary">
             Set up your real room →
         </a>
     </div>
 </section>
+<script>
+// If the user has already onboarded, the CTA becomes "Edit My Room" → myroom.html
+(function() {
+    const hasRoom = !!localStorage.getItem('measurely_room');
+    const cta = document.getElementById('setupRoomCta');
+    if (cta && hasRoom) {
+        cta.href = 'myroom.html';
+        cta.textContent = 'Edit My Room →';
+    }
+})();
+</script>
 
 <style>
 /* ── Sandbox Section ──────────────────────────────────────── */
