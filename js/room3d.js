@@ -84,6 +84,12 @@ export function initRoom3D({
   let simulatePanels = false;
   let flyAnim = null;
 
+  // Dynamic room-size overrides set via setRoomWidth() / setRoomLength().
+  // Applied on top of whatever getRoomData() returns so the geometry
+  // updates live when UI sliders change.
+  let _roomWidthOverride  = null;
+  let _roomLengthOverride = null;
+
   function overlayEnabled(id) {
     return activeOverlays.has(id);
   }
@@ -229,8 +235,9 @@ export function initRoom3D({
   const _dragPlane    = new THREE.Plane();
 
   let _draggables     = [];   // repopulated after every rebuild()
-  let _dragTarget     = null; // THREE.Mesh currently being dragged
-  let _dragSide       = null; // "L" | "R"
+  let _dragTarget     = null; // THREE.Mesh that was hit by the raycaster
+  let _dragMoveTarget = null; // Object3D that actually moves (Group for furniture, same as _dragTarget for speakers)
+  let _dragSide       = null; // "L" | "R" (speakers only)
   let _isDragging     = false;
   let _ptrDownTime    = 0;
   let _ptrStartX      = 0;
@@ -295,18 +302,21 @@ export function initRoom3D({
     _ptrStartY   = e.clientY;
     _isDragging  = false;
     _dragTarget  = null;
+    _dragMoveTarget = null;
 
     _toNDC(e);
     const hit = _hitDraggable();
     if (!hit) return;
 
-    _dragTarget = hit;
-    _dragSide   = hit.userData.speakerSide;
+    _dragTarget     = hit;
+    _dragSide       = hit.userData.speakerSide ?? null;
+    // For furniture groups the hit mesh carries a dragGroup reference;
+    // for speakers the hit mesh IS the move target.
+    _dragMoveTarget = hit.userData.dragGroup ?? hit;
 
-    // XZ floor plane — locked to the speaker's Y so the mesh never
-    // floats or sinks while dragging. Coplanar point is directly below/above
-    // the speaker on the Y axis, normal pointing straight up.
-    _dragFloorY = _dragTarget.position.y;
+    // XZ floor plane locked to the MOVE TARGET'S Y (group Y for furniture,
+    // mesh Y for speakers) so nothing floats or sinks during drag.
+    _dragFloorY = _dragMoveTarget.position.y;
     _dragPlane.setFromNormalAndCoplanarPoint(
       new THREE.Vector3(0, 1, 0),
       new THREE.Vector3(0, _dragFloorY, 0)
@@ -340,30 +350,38 @@ export function initRoom3D({
     const hW  = (geo.width_m  || 4) / 2;
     const hL  = (geo.length_m || 4) / 2;
 
-    // Clamp within room bounds with a small margin
-    _dragPoint.x = THREE.MathUtils.clamp(_dragPoint.x, -hW + 0.15, hW - 0.15);
-    _dragPoint.z = THREE.MathUtils.clamp(_dragPoint.z, -hL + 0.05, hL - 0.15);
+    // Wider boundary margin for furniture vs speakers
+    const isFurnitureDrag = _dragTarget?.userData?.dragType === 'furniture';
+    const margin = isFurnitureDrag ? 0.3 : 0.15;
+    const zMinMargin = isFurnitureDrag ? 0.3 : 0.05;
+
+    // Clamp within room bounds
+    _dragPoint.x = THREE.MathUtils.clamp(_dragPoint.x, -hW + margin,     hW - margin);
+    _dragPoint.z = THREE.MathUtils.clamp(_dragPoint.z, -hL + zMinMargin, hL - margin);
 
     // XZ only — Y is ALWAYS pinned to the drag floor plane (never floats/sinks)
-    _dragTarget.position.x = _dragPoint.x;
-    _dragTarget.position.z = _dragPoint.z;
-    _dragTarget.position.y = _dragFloorY; // explicit floor lock
+    // Use _dragMoveTarget so furniture Groups move as a whole
+    _dragMoveTarget.position.x = _dragPoint.x;
+    _dragMoveTarget.position.z = _dragPoint.z;
+    _dragMoveTarget.position.y = _dragFloorY; // explicit floor lock
 
-    // Refresh dashed beam distances in-place (no full rebuild at 60fps)
-    _dragTarget.traverse(child => {
+    // Refresh dashed beam distances in-place (speakers only; no-op for furniture)
+    _dragMoveTarget.traverse(child => {
       if (child.isLine) child.computeLineDistances();
     });
 
-    // Mirror opposite speaker symmetrically on X axis
-    const mirrorSide = _dragSide === 'L' ? 'R' : 'L';
-    const mirror = _draggables.find(
-      m => m.userData.speakerSide === mirrorSide && m.userData.dragType === 'speaker'
-    );
-    if (mirror) {
-      mirror.position.x = -_dragPoint.x;
-      mirror.position.z =  _dragPoint.z;
-      mirror.position.y =  _dragFloorY;
-      mirror.traverse(child => { if (child.isLine) child.computeLineDistances(); });
+    // Mirror opposite speaker symmetrically on X axis (speakers only)
+    if (!isFurnitureDrag && _dragSide) {
+      const mirrorSide = _dragSide === 'L' ? 'R' : 'L';
+      const mirror = _draggables.find(
+        m => m.userData.speakerSide === mirrorSide && m.userData.dragType === 'speaker'
+      );
+      if (mirror) {
+        mirror.position.x = -_dragPoint.x;
+        mirror.position.z =  _dragPoint.z;
+        mirror.position.y =  _dragFloorY;
+        mirror.traverse(child => { if (child.isLine) child.computeLineDistances(); });
+      }
     }
   }, { passive: true });
 
@@ -379,14 +397,15 @@ export function initRoom3D({
       _onSpeakerTap(_dragSide);
     }
 
-    if (_isDragging && _onSpeakerDrag) {
+    // Fire speaker drag callback only for speaker drags
+    if (_isDragging && _onSpeakerDrag && _dragSide) {
       const d   = getRoomData();
       const geo = d.geometry || d;
       const hL  = (geo.length_m || 4) / 2;
 
-      // Derive acoustic values from final mesh position
-      const newSpacing = Math.abs(_dragTarget.position.x) * 2;
-      const newFront   = _dragTarget.position.z + hL;
+      // Derive acoustic values from final move-target position
+      const newSpacing = Math.abs(_dragMoveTarget.position.x) * 2;
+      const newFront   = _dragMoveTarget.position.z + hL;
 
       _onSpeakerDrag({
         side:           _dragSide,
@@ -400,9 +419,10 @@ export function initRoom3D({
       rebuild();
     }
 
-    _dragTarget = null;
-    _dragSide   = null;
-    _isDragging = false;
+    _dragTarget     = null;
+    _dragMoveTarget = null;
+    _dragSide       = null;
+    _isDragging     = false;
   }, { passive: true });
 
 
@@ -452,6 +472,10 @@ function rebuild() {
     const geo   = data.geometry    || data;
     const setup = data.setup       || data;
     const env   = data.environment || data;
+
+    // Apply live overrides (from setRoomWidth / setRoomLength API calls)
+    if (_roomWidthOverride  !== null) geo.width_m  = _roomWidthOverride;
+    if (_roomLengthOverride !== null) geo.length_m = _roomLengthOverride;
     
     // Check for furniture and treatment sub-objects
     const furn  = (env.furniture) ? env.furniture : env;
@@ -926,9 +950,9 @@ function rebuild() {
         transparent: true,
         opacity: 0.25,
         depthWrite: false,
-        depthTest: false
+        depthTest: false,
+        side: THREE.DoubleSide  // reliable raycasting from any camera angle
       })
-
     );
 
     rug.rotation.x = -Math.PI / 2;
@@ -938,6 +962,10 @@ function rebuild() {
       listenerZ - 1.15
     );
 
+    // Draggable — XZ-plane locked; flat plane has no group so dragGroup is self
+    rug.userData.draggable = true;
+    rug.userData.dragType  = 'furniture';
+
     roomGroup.add(rug);
   }
 
@@ -945,9 +973,12 @@ function rebuild() {
   if (VISIBILITY.furniture.sofa && !isStudio && room.opt_sofa && !hasFocus) {
     const sofaGroup = new THREE.Group();
 
-    // The Base Seat
+    // The Base Seat — hit target for dragging the whole sofa group
     const base = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.4, 0.9), furnMat);
     base.position.y = 0.2;
+    base.userData.draggable  = true;
+    base.userData.dragType   = 'furniture';
+    base.userData.dragGroup  = sofaGroup; // move the whole Group, not just this mesh
     sofaGroup.add(base);
 
     // The Backrest
@@ -1031,9 +1062,12 @@ function rebuild() {
     console.log("[Room3D] Adding coffee table frame");
     const tableGroup = new THREE.Group();
 
-    // Table Top (Thinner for a glass/modern look)
+    // Table Top — hit target for dragging the whole table group
     const top = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.05, 0.6), furnMat);
     top.position.y = 0.4;
+    top.userData.draggable = true;
+    top.userData.dragType  = 'furniture';
+    top.userData.dragGroup = tableGroup; // move the whole Group
     tableGroup.add(top);
 
     // Four Legs
@@ -2263,6 +2297,26 @@ function rebuild() {
     highlight(target) {
       highlightTarget = target;
       rebuild();
+    },
+
+    /**
+     * Dynamically resize the room without a full data-store round-trip.
+     * Stores an in-memory override that rebuild() applies on top of getRoomData().
+     * Calling with null clears the override and defers back to the data store.
+     */
+    setRoomWidth(meters) {
+      _roomWidthOverride = (meters != null) ? Math.max(1.5, Number(meters)) : null;
+      rebuild();
+      // Re-centre OrbitControls target so the room stays in frame
+      controls.target.set(0, 0, 0);
+      controls.update();
+    },
+
+    setRoomLength(meters) {
+      _roomLengthOverride = (meters != null) ? Math.max(1.5, Number(meters)) : null;
+      rebuild();
+      controls.target.set(0, 0, 0);
+      controls.update();
     },
 
     getFocus() {

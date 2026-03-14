@@ -754,9 +754,14 @@ function renderAllSections() {
         container: fieldStack,
         state: roomState,
         room3D: room3D,
-        onValueUpdate: () => {}, // Handled by UIController & room3D.update()
+        onValueUpdate: (key, val) => {
+            // Forward room-dimension changes to the live 3D API so the room
+            // resizes immediately without waiting for a data-store round-trip.
+            if (key === 'width_m'  && room3D?.setRoomWidth)  room3D.setRoomWidth(val);
+            if (key === 'length_m' && room3D?.setRoomLength) room3D.setRoomLength(val);
+        },
         onMacroChange: () => {
-            renderAllSections(); 
+            renderAllSections();
         }
     });
 } 
