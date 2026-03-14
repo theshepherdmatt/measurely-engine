@@ -217,11 +217,25 @@ window.__liveRoomState = null;
 
 async function initDashboardRoom() {
     let roomState = null;
+
+    // 1. Try localStorage first (works offline / GitHub Pages / static hosting)
+    try {
+        const ls = localStorage.getItem('measurely_room');
+        if (ls) roomState = JSON.parse(ls);
+    } catch (_) {}
+
+    // 2. Try server — overrides localStorage if available
     try {
         const res = await fetch("/api/room/latest");
-        if (res.ok) roomState = await res.json();
-    } catch (e) {
-        console.warn("[DiagnoseRoom] No saved room, skipping render");
+        if (res.ok) {
+            const apiData = await res.json();
+            if (apiData && Object.keys(apiData).length > 0) {
+                roomState = apiData;
+                localStorage.setItem('measurely_room', JSON.stringify(roomState));
+            }
+        }
+    } catch (_) {
+        console.log("[DiagnoseRoom] Server not reachable — using localStorage");
     }
 
     if (!roomState) return;
