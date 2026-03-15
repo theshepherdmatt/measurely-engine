@@ -390,6 +390,45 @@ header, section, footer { position: relative; z-index: 1; }
 
 <body>
 
+<!-- AUTH AUTO-FORWARD OVERLAY
+     Injected immediately if a valid auth token is found in localStorage,
+     preventing the landing page from flickering before the redirect fires. -->
+<script>
+(function () {
+    try {
+        var raw = localStorage.getItem('pocketbase_auth');
+        if (!raw) return;
+        var auth = JSON.parse(raw);
+        if (!auth.token) return;
+        // Decode JWT payload to check expiry (no sig verification needed)
+        var parts = auth.token.split('.');
+        if (parts.length !== 3) return;
+        var payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+        if (payload.exp && payload.exp * 1000 < Date.now()) return;
+        // Token looks valid — cover the page instantly
+        var style = document.createElement('style');
+        style.textContent = '@keyframes _mlySpin{to{transform:rotate(360deg)}}';
+        document.head.appendChild(style);
+        var el = document.createElement('div');
+        el.id = 'mlyAutoFwdOverlay';
+        el.style.cssText = [
+            'position:fixed', 'inset:0', 'z-index:9999',
+            'background:#0b1220',
+            'display:flex', 'align-items:center', 'justify-content:center',
+            'flex-direction:column', 'gap:1rem',
+        ].join(';');
+        el.innerHTML =
+            '<div style="width:36px;height:36px;border:2px solid rgba(99,102,241,0.25);' +
+            'border-top-color:#6366f1;border-radius:50%;animation:_mlySpin 0.75s linear infinite"></div>' +
+            '<p style="font-family:system-ui,sans-serif;font-size:0.875rem;' +
+            'color:#94a3b8;letter-spacing:0.02em;margin:0;">Loading your space\u2026</p>';
+        // body may not exist yet if script is in <head>, but we placed it in <body>
+        document.body.appendChild(el);
+        window._mlyHasValidToken = true;
+    } catch (_) {}
+}());
+</script>
+
 <header class="topbar">
     <img src="./icons/mainlogo.svg" alt="Measurely">
     <div id="auth-user-slot"></div>
@@ -834,6 +873,17 @@ document.querySelectorAll('.faq-q').forEach(function(btn) {
 <script src="js/sync.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/profile.js"></script>
-<script>document.addEventListener('DOMContentLoaded', () => window.MeasurelyAuth?.init());</script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    await window.MeasurelyAuth?.init();
+    if (window._mlyHasValidToken && window.MeasurelyAuth?.getUser()) {
+        // Confirmed valid session — go straight to the dashboard
+        window.location.replace('app.html');
+    } else {
+        // No valid session — remove the overlay if it was injected
+        document.getElementById('mlyAutoFwdOverlay')?.remove();
+    }
+});
+</script>
 </body>
 </html>

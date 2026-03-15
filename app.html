@@ -52,6 +52,46 @@
 
 <body class="page-entering">
 
+    <!-- AUTH GUARD OVERLAY
+         Covers the page while we verify the session token, preventing a flash
+         of unauthenticated content on direct links / hard refreshes. -->
+    <script>
+    (function () {
+        try {
+            var raw = localStorage.getItem('pocketbase_auth');
+            var hasToken = false;
+            if (raw) {
+                var auth = JSON.parse(raw);
+                if (auth.token) {
+                    var parts = auth.token.split('.');
+                    if (parts.length === 3) {
+                        var payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+                        hasToken = !payload.exp || payload.exp * 1000 > Date.now();
+                    }
+                }
+            }
+            var style = document.createElement('style');
+            style.textContent = '@keyframes _mlySpinG{to{transform:rotate(360deg)}}';
+            document.head.appendChild(style);
+            var el = document.createElement('div');
+            el.id = 'mlyAuthGuard';
+            el.style.cssText = [
+                'position:fixed', 'inset:0', 'z-index:9998',
+                'background:#0b1220',
+                'display:flex', 'align-items:center', 'justify-content:center',
+                'flex-direction:column', 'gap:1rem',
+            ].join(';');
+            el.innerHTML =
+                '<div style="width:36px;height:36px;border:2px solid rgba(99,102,241,0.25);' +
+                'border-top-color:#6366f1;border-radius:50%;animation:_mlySpinG 0.75s linear infinite"></div>' +
+                '<p style="font-family:system-ui,sans-serif;font-size:0.875rem;' +
+                'color:#94a3b8;letter-spacing:0.02em;margin:0;">' +
+                (hasToken ? 'Loading your space\u2026' : 'Just a moment\u2026') + '</p>';
+            document.body.appendChild(el);
+        } catch (_) {}
+    }());
+    </script>
+
     <!-- PORTRAIT-MODE LOCK OVERLAY (hidden in landscape / desktop) -->
     <div id="portraitLock" aria-live="polite" role="alertdialog" aria-modal="true" aria-labelledby="plTitle">
         <svg class="pl-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
@@ -1154,7 +1194,24 @@
         });
     }());
 </script>
-<script>document.addEventListener('DOMContentLoaded', () => window.MeasurelyAuth?.init());</script>
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    await window.MeasurelyAuth?.init();
+
+    const guard = document.getElementById('mlyAuthGuard');
+    if (window.MeasurelyAuth?.getUser()) {
+        // Authenticated — remove guard and let the page render normally
+        guard?.remove();
+    } else {
+        // Not authenticated — remove guard then prompt sign-in.
+        // We open the modal rather than redirecting so guest browsing still works
+        // (user can dismiss/skip the modal and explore the empty dashboard).
+        guard?.remove();
+        // Small delay so the dashboard paints before the modal opens
+        setTimeout(() => window.MeasurelyAuth?.openModal('signin'), 120);
+    }
+});
+</script>
 
 </body>
 
