@@ -89,7 +89,7 @@
     </p>
     <div class="flyby-room-stats" id="flybyRoomStats"></div>
     <div class="flyby-completion-actions">
-      <button id="completionGoBtn" class="btn btn-primary">Go to Dashboard &rarr;</button>
+      <button id="completionGoBtn" class="btn btn-primary">Explore My Dashboard</button>
     </div>
     <button id="completionBackBtn" type="button" class="flyby-back-link">Stay &amp; explore room</button>
   </div>
@@ -963,6 +963,11 @@ function finish() {
 
         // ── Helpers ────────────────────────────────────────────────
         function navigateToApp() {
+            // Clean up all overlays before leaving
+            document.body.classList.remove('flyby-active');
+            document.getElementById('cinemaVignette')?.style && (document.getElementById('cinemaVignette').style.opacity = '0');
+            document.getElementById('completionModal')?.classList.remove('open');
+
             if (document.startViewTransition) {
                 document.startViewTransition(() => { window.location.href = "app.html"; });
             } else {

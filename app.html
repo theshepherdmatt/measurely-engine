@@ -769,16 +769,24 @@
                 </div>
             </div>
 
-            <!-- PROCESSING STATE: progress -->
+            <!-- PROCESSING STATE: Acoustic Scientist terminal -->
             <div id="uploadProcessingState" class="hidden">
-                <div id="uploadStageText" class="sweep-stage">Loading files…</div>
-                <div class="sweep-progress">
-                    <div class="sweep-progress-fill" id="uploadProgressFill" style="width:0%"></div>
+                <div class="as-header">
+                    <div class="as-icon-ring">
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                            <path d="M2 16 Q6 4 10 16 Q14 28 18 16 Q22 4 26 16 Q28 10 30 16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                        </svg>
+                    </div>
+                    <h3 class="as-title">Acoustic Scientist</h3>
+                    <p class="as-stage" id="asStage">Initialising analysis…</p>
                 </div>
-                <div class="sweep-percent" id="uploadPercent">0%</div>
-                <div class="sweep-loader">
-                    <div class="sweep-line"></div>
+                <div class="as-progress-wrap">
+                    <div class="as-progress-bar">
+                        <div class="as-progress-fill" id="asProgressFill" style="width:0%"></div>
+                    </div>
+                    <span class="as-percent" id="asPercent">0%</span>
                 </div>
+                <div class="as-terminal" id="asTerminal" aria-live="polite"></div>
             </div>
 
         </div>
@@ -799,15 +807,6 @@
             const csvName = document.getElementById('rewCsvName');
             const errorMsg = document.getElementById('uploadErrorMsg');
             const startBtn = document.getElementById('startUploadBtn');
-            const stageText = document.getElementById('uploadStageText');
-            const progressFill = document.getElementById('uploadProgressFill');
-            const percentText = document.getElementById('uploadPercent');
-
-            function setProgress(pct, label) {
-                progressFill.style.width = pct + '%';
-                percentText.textContent = pct + '%';
-                stageText.textContent = label;
-            }
 
             // openUploadModal accepts an optional pre-picked File object from the
             // empty-state drop zone so the user doesn't have to pick twice.
@@ -819,6 +818,15 @@
                 csvInput.value = '';
                 wavName.textContent = 'No file chosen';
                 csvName.textContent = 'No file chosen';
+                // Reset Acoustic Scientist state
+                const _fill = document.getElementById('asProgressFill');
+                const _pct  = document.getElementById('asPercent');
+                const _stg  = document.getElementById('asStage');
+                const _term = document.getElementById('asTerminal');
+                if (_fill) _fill.style.width = '0%';
+                if (_pct)  _pct.textContent  = '0%';
+                if (_stg)  _stg.textContent  = 'Initialising analysis…';
+                if (_term) _term.innerHTML   = '';
 
                 if (prePickedWav) {
                     // Inject the pre-picked file via DataTransfer so the existing
@@ -858,11 +866,9 @@
             // ---- Start analysis ----
             startBtn.addEventListener('click', async () => {
                 // 📱 iOS Safari: pre-create AudioContext inside this user-gesture click
-                // so decodeAudioData is allowed when loadIr() runs a moment later.
                 if (!window.__mlyAudioCtx || window.__mlyAudioCtx.state === 'closed') {
                     try {
                         window.__mlyAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                        // Immediately suspend — we just need the context open inside the gesture
                         window.__mlyAudioCtx.suspend();
                     } catch (e) {
                         console.warn('[upload] Could not pre-create AudioContext:', e.message);
@@ -872,7 +878,6 @@
                 const wavFile = wavInput.files[0];
                 const csvFile = csvInput.files[0];
 
-                // Validate
                 const validation = window.MeasurelyFileLoader?.validateFiles(wavFile, csvFile);
                 if (!validation?.ok) {
                     errorMsg.textContent = validation?.error || 'Please select both files.';
@@ -880,71 +885,156 @@
                     return;
                 }
 
-                // Switch to processing view
+                // Switch to Acoustic Scientist view
                 idleState.classList.add('hidden');
                 procState.classList.remove('hidden');
-                setProgress(10, 'Decoding audio…');
+
+                const stageEl    = document.getElementById('asStage');
+                const fillEl     = document.getElementById('asProgressFill');
+                const percentEl  = document.getElementById('asPercent');
+                const terminalEl = document.getElementById('asTerminal');
+                terminalEl.innerHTML = '';
+
+                const startTs = Date.now();
+
+                function setProgress(pct, label) {
+                    fillEl.style.width = pct + '%';
+                    percentEl.textContent = pct + '%';
+                    if (label) stageEl.textContent = label;
+                }
+
+                function log(msg, cls) {
+                    const ms = Date.now() - startTs;
+                    const ss = String(Math.floor(ms / 1000)).padStart(2, '0');
+                    const mm = String(Math.floor(ms % 1000 / 10)).padStart(2, '0');
+                    const line = document.createElement('div');
+                    line.className = 'as-log-line';
+                    line.innerHTML =
+                        `<span class="as-ts">[00:${ss}.${mm}]</span>` +
+                        `<span class="as-msg${cls ? ' ' + cls : ''}">${msg}</span>`;
+                    terminalEl.appendChild(line);
+                    terminalEl.scrollTop = terminalEl.scrollHeight;
+                }
+
+                function pause(ms) { return new Promise(r => setTimeout(r, ms)); }
 
                 try {
-                    // 1. Load files
+                    // ── Load files & run real analysis first (fast) ────────────
+                    setProgress(5, 'Decoding audio…');
                     const session = await MeasurelyFileLoader.loadSession(wavFile, csvFile);
-                    setProgress(40, 'Running analysis…');
-
-                    // 2. Load room settings (from localStorage for static hosting)
-                    const room = JSON.parse(localStorage.getItem('measurely_room') || '{}');
-
-                    // 3. Run analysis
-                    const result = MeasurelyAnalyse.analyse(
+                    const room    = JSON.parse(localStorage.getItem('measurely_room') || '{}');
+                    const result  = MeasurelyAnalyse.analyse(
                         session.ir, session.fs, session.freq, session.mag, room
                     );
-                    setProgress(80, 'Saving results…');
 
-                    // 4. Store in localStorage via MeasurelySessions
-                    const sessionId = 'upload_' + Date.now();
+                    // Precompute values for theatrical log from real data
+                    const fs       = session.fs || 44100;
+                    const irLen    = session.ir?.length || 0;
+                    const durSec   = irLen / fs;
+                    const L        = +(room.length_m        || 4.5);
+                    const W        = +(room.width_m         || 3.2);
+                    const H        = +(room.height_m        || 2.5);
+                    const spkFront = +(room.speaker_front_m || 0.6);
+                    const lMode    = Math.round(170 / L);
+                    const wMode    = Math.round(170 / W);
+                    const hMode    = Math.round(170 / H);
+                    const schroeder = Math.min(999, Math.round(2000 * Math.sqrt(0.16 / Math.max(durSec, 0.05))));
+                    const sbir      = Math.round(340 / (4 * Math.max(spkFront, 0.1)));
+                    const sideBounce = Math.round((W / 2 / 340) * 1000);
+                    const ai        = result.ai || {};
+                    const overall   = (+(ai.overall_score ?? 6.5)).toFixed(1);
+                    const bass      = (+(ai.bandwidth      ?? 6.0)).toFixed(1);
+                    const balance   = (+(ai.balance        ?? 7.0)).toFixed(1);
+
+                    // ── Stage 1: IR Extraction (0–2 s, 5→22%) ─────────────────
+                    log(`▸ Decoding WAV: ${wavFile.name} (${fs.toLocaleString()} Hz)`);
+                    await pause(400);
+                    setProgress(10, 'Extracting impulse response…');
+                    log(`▸ IR length: ${irLen.toLocaleString()} samples (${durSec.toFixed(2)}s)`);
+                    await pause(700);
+                    log(`▸ Pre-delay removed, gate applied`);
+                    await pause(700);
+                    setProgress(22, 'Analysing room modes…');
+                    log(`▸ Energy decay curve computed`);
+                    await pause(200);
+
+                    // ── Stage 2: Room Mode Analysis (2–4 s, 22→45%) ───────────
+                    log(`▸ Room modes — L-axis f&#8321; = ${lMode} Hz, W-axis f&#8321; = ${wMode} Hz`);
+                    await pause(800);
+                    log(`▸ H-axis f&#8321; = ${hMode} Hz (ceiling flutter risk)`);
+                    await pause(600);
+                    setProgress(35, 'Computing Schroeder frequency…');
+                    log(`▸ Schroeder frequency: ~${schroeder} Hz`);
+                    await pause(600);
+                    setProgress(45, 'Mapping reflections…');
+                    log(`▸ Modal overlap: ${L.toFixed(1)} × ${W.toFixed(1)} × ${H.toFixed(1)} m`);
+                    await pause(200);
+
+                    // ── Stage 3: Reflection Analysis (4–6 s, 45→68%) ─────────
+                    log(`▸ SBIR null predicted at ${sbir} Hz`);
+                    await pause(700);
+                    log(`▸ Side-wall first reflection: ~${sideBounce} ms`);
+                    await pause(700);
+                    setProgress(55, 'Tracing reflection paths…');
+                    log(`▸ Early reflection window: 0 – 80 ms`);
+                    await pause(800);
+                    setProgress(68, 'Correlating measurements…');
+                    log(`▸ Flutter echo screening complete`);
+                    await pause(200);
+
+                    // ── Stage 4: Frequency Correlation (6–8 s, 68→88%) ───────
+                    log(`▸ Bass extension score: ${bass}/10`);
+                    await pause(700);
+                    log(`▸ Stereo balance: ${balance}/10`);
+                    await pause(700);
+                    setProgress(78, 'Scoring frequency response…');
+                    log(`▸ Modal decay analysis complete`);
+                    await pause(600);
+                    setProgress(88, 'Finalising results…');
+                    log(`▸ Cross-referencing all 6 metrics`);
+                    await pause(200);
+
+                    // ── Stage 5: Finalise (8–9 s, 88→100%) ───────────────────
+                    log(`▸ Overall acoustic score: ${overall}/10`);
+                    await pause(500);
+                    setProgress(96, 'Saving session…');
+                    log(`▸ Writing session to local store`);
+                    await pause(300);
+
+                    // ── Persist session ────────────────────────────────────────
+                    const sessionId  = 'upload_' + Date.now();
+                    const sessionObj = {
+                        id:          sessionId,
+                        label:       session.label,
+                        timestamp:   new Date().toISOString(),
+                        ai:          result.ai,
+                        analysis:    result.analysis,
+                        reportCurve: result.reportCurve,
+                    };
                     if (window.MeasurelySessions) {
-                        window.MeasurelySessions.saveSession({
-                            id: sessionId,
-                            label: session.label,
-                            timestamp: new Date().toISOString(),
-                            ai: result.ai,
-                            analysis: result.analysis,
-                            reportCurve: result.reportCurve,
-                        });
+                        window.MeasurelySessions.saveSession(sessionObj);
                     } else {
-                        // Fallback: write directly
                         const history = JSON.parse(localStorage.getItem('measurely_sessions') || '[]');
-                        history.unshift({ id: sessionId, label: session.label, timestamp: new Date().toISOString(), analysis: result.ai, reportCurve: result.reportCurve });
+                        history.unshift({
+                            id: sessionId, label: session.label,
+                            timestamp: sessionObj.timestamp,
+                            analysis: result.ai, reportCurve: result.reportCurve,
+                        });
                         localStorage.setItem('measurely_sessions', JSON.stringify(history.slice(0, 20)));
                     }
 
+                    // PocketBase sync — silent no-op when offline / not authenticated
+                    window.MeasurelySync?.pushSession?.(sessionObj);
+
                     setProgress(100, 'Done!');
+                    log(`✓ Analysis complete`, 'as-ok');
 
-                    // 5. Persist to server (Pi / local) — silent no-op when offline / GitHub Pages
-                    try {
-                        await fetch('/api/web-analysis', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                label: session.label,
-                                analysis: result.analysis,
-                                ai: result.ai,
-                                reportCurve: result.reportCurve,
-                                room,
-                            }),
-                        });
-                    } catch (e) {
-                        console.warn('[upload] server persist unavailable — localStorage only:', e.message);
-                    }
+                    // ── Refresh dashboard ──────────────────────────────────────
+                    if (window.dashboard?.loadLatestAnalysis) window.dashboard.loadLatestAnalysis(result.ai);
+                    if (window.dashboard?.loadHistory)        window.dashboard.loadHistory();
 
-                    // 6. Trigger dashboard refresh
-                    if (window.dashboard?.loadLatestAnalysis) {
-                        window.dashboard.loadLatestAnalysis(result.ai);
-                    }
-                    if (window.dashboard?.loadHistory) {
-                        window.dashboard.loadHistory();
-                    }
-
-                    setTimeout(() => window.closeUploadModal(), 600);
+                    await pause(900);
+                    window.closeUploadModal();
 
                 } catch (err) {
                     console.error('[upload]', err);

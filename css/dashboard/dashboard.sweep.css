@@ -2,6 +2,120 @@
    Sweep Progress Modal UI
    ========================= */
 
+/* ─────────────────────────────────────────────
+   Acoustic Scientist — terminal processing UI
+   ───────────────────────────────────────────── */
+
+.as-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 1.5rem 1rem 1rem;
+    text-align: center;
+}
+
+.as-icon-ring {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #6366f1;
+    background: rgba(99, 102, 241, 0.12);
+    border: 1.5px solid rgba(99, 102, 241, 0.28);
+    margin-bottom: 0.25rem;
+}
+
+.as-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #f0f4f8;
+}
+
+.as-stage {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--c-text-muted, #94a3b8);
+    min-height: 1.2em;
+}
+
+.as-progress-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0 1.5rem;
+    margin-bottom: 1rem;
+}
+
+.as-progress-bar {
+    flex: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.as-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #6366f1, #818cf8);
+    border-radius: 3px;
+    transition: width 0.4s ease;
+}
+
+.as-percent {
+    font-size: 0.75rem;
+    color: #6366f1;
+    font-variant-numeric: tabular-nums;
+    min-width: 3ch;
+    text-align: right;
+}
+
+.as-terminal {
+    margin: 0 1.25rem 1.5rem;
+    height: 150px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 10px;
+    padding: 0.75rem;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 0.72rem;
+    line-height: 1.6;
+    text-align: left;
+}
+
+.as-log-line {
+    display: flex;
+    gap: 0.75em;
+    animation: asLineFade 0.25s ease;
+}
+
+@keyframes asLineFade {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.as-ts {
+    color: rgba(99, 102, 241, 0.7);
+    flex-shrink: 0;
+}
+
+.as-msg {
+    color: #cbd5e1;
+}
+
+.as-msg.as-ok {
+    color: #4ade80;
+}
+
+.as-msg.as-warn {
+    color: #facc15;
+}
+
 .sweep-log-panel {
     margin-top: 1rem;
     height: 160px;
