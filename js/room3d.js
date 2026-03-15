@@ -2296,15 +2296,15 @@ function rebuild() {
         // 0 – start: capture current state (filled in below)
         null,
         // 1 – rise to god's-eye establishing shot
-        { pos: { x:  W * 0.2,  y: H * 5.2, z:  L * 0.4  }, look: { x: 0,   y: 0,       z: 0       }, ms: 1400 },
+        { pos: { x:  W * 0.2,  y: H * 5.2, z:  L * 0.4  }, look: { x: 0,   y: 0,        z: 0        }, ms: 2000 },
         // 2 – swoop around the right side at mid height
-        { pos: { x:  W * 2.0,  y: H * 1.2, z:  L * 1.5  }, look: { x: 0,   y: 0,       z: -L * 0.2}, ms: 1200 },
+        { pos: { x:  W * 2.0,  y: H * 1.2, z:  L * 1.5  }, look: { x: 0,   y: 0,        z: -L * 0.2 }, ms: 1700 },
         // 3 – push in close to the speaker wall, low
-        { pos: { x:  W * 0.3,  y: H * 0.3, z: -L * 1.6  }, look: { x: 0,   y: -H * 0.2, z: lz     }, ms: 1200 },
+        { pos: { x:  W * 0.3,  y: H * 0.3, z: -L * 1.6  }, look: { x: 0,   y: -H * 0.2, z: lz      }, ms: 1700 },
         // 4 – arc up to ceiling midpoint looking toward the sweet spot
-        { pos: { x: -W * 0.3,  y: H * 2.5, z:  L * 0.8  }, look: { x: lx,  y: ly,       z: lz     }, ms: 1200 },
-        // 5 – slow descent to the listening position (ear height, looking at speakers)
-        { pos: { x: lx,        y: ly,       z: lz + 0.5  }, look: { x: 0,   y: ly - 0.05, z: -L + 0.6 }, ms: 2200 },
+        { pos: { x: -W * 0.3,  y: H * 2.5, z:  L * 0.8  }, look: { x: lx,  y: ly,       z: lz      }, ms: 1700 },
+        // 5 – slow, weighted descent to the listening sweet spot
+        { pos: { x: lx,        y: ly,       z: lz + 0.5  }, look: { x: 0,   y: ly - 0.05, z: -L + 0.6 }, ms: 3200 },
       ];
 
       // Snapshot current camera state as waypoint 0
