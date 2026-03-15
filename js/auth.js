@@ -227,15 +227,24 @@
                     <button class="mly-auth-nav-btn" id="mlyNavSignIn" type="button">Sign in</button>`;
                 slot.querySelector('#mlyNavSignIn')?.addEventListener('click', () => _openModal('signin'));
             } else {
-                const initial = (user.email || user.username || '?')[0].toUpperCase();
+                const initial   = (user.email || user.username || '?')[0].toUpperCase();
+                const avatarUrl = user.avatar
+                    ? `${PB_URL}/api/files/users/${user.id}/${user.avatar}`
+                    : null;
+                const avatarInner = avatarUrl
+                    ? `<img src="${avatarUrl}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+                    : initial;
+
                 slot.innerHTML = `
                     <div class="mly-auth-avatar-wrap">
                         <button class="mly-auth-avatar" id="mlyNavAvatar" type="button"
-                                aria-label="Account menu" aria-expanded="false" aria-haspopup="true">
-                            ${initial}
+                                aria-label="Account menu" aria-expanded="false" aria-haspopup="true"
+                                style="${avatarUrl ? 'padding:0;overflow:hidden;' : ''}">
+                            ${avatarInner}
                         </button>
                         <div class="mly-auth-dropdown" id="mlyNavDropdown" hidden>
                             <p class="mly-auth-dropdown-email">${user.email || user.username}</p>
+                            <button class="mly-auth-dropdown-item-profile" id="mlyNavProfile" type="button">Hi-Fi Profile</button>
                             <button class="mly-auth-dropdown-item" id="mlyNavSignOut" type="button">Sign out</button>
                         </div>
                     </div>`;
@@ -256,6 +265,11 @@
                         avatar.setAttribute('aria-expanded', 'false');
                         document.removeEventListener('click', handler);
                     }
+                });
+
+                slot.querySelector('#mlyNavProfile')?.addEventListener('click', () => {
+                    dropdown.hidden = true;
+                    window.MeasurelyProfile?.openModal();
                 });
 
                 slot.querySelector('#mlyNavSignOut')?.addEventListener('click', () => {

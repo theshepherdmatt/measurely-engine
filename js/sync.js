@@ -236,6 +236,9 @@
                 localStorage.setItem(LS_ONBOARD, 'true');
             }
 
+            // Pull Hi-Fi profile (gear, genres, listening level) into cache
+            await pullProfile().catch(() => {});
+
         } catch (err) {
             console.warn('[sync] pullAll failed:', err?.message);
         }
@@ -276,6 +279,69 @@
         }
     }
 
+    // ── Module-level profile cache ───────────────────────────────────────────
+    // Populated by pullProfile(); read by getProfile() and window.__MLY_PROFILE__.
+    let _cachedProfile = null;
+
+    // ── Push Hi-Fi profile to the users collection ────────────────────────────
+    // PocketBase file uploads must use FormData, so avatar gets special handling.
+    async function pushProfile(data, avatarFile) {
+        if (!_authenticated()) return;
+        const pb     = _pb();
+        const userId = _userId();
+
+        const form = new FormData();
+        form.append('gear_list',       JSON.stringify(data.gear_list       ?? []));
+        form.append('genres',          JSON.stringify(data.genres          ?? []));
+        form.append('listening_level', data.listening_level ?? '');
+        form.append('public_profile',  data.public_profile ? 'true' : 'false');
+        if (avatarFile instanceof File) form.append('avatar', avatarFile);
+
+        try {
+            await pb.collection('users').update(userId, form);
+            _cachedProfile             = { ...(_cachedProfile || {}), ...data };
+            window.__MLY_PROFILE__     = _cachedProfile;
+        } catch (err) {
+            console.warn('[sync] pushProfile failed:', err?.message);
+            throw err;   // re-throw so profile.js can show the error
+        }
+    }
+
+    // ── Pull Hi-Fi profile fields from the users record ───────────────────────
+    // Returns the normalised profile object (or null on failure).
+    // Also caches to _cachedProfile / window.__MLY_PROFILE__ for Co-Pilot access.
+    async function pullProfile() {
+        if (!_authenticated()) return null;
+        const pb     = _pb();
+        const userId = _userId();
+
+        try {
+            const record = await pb.collection('users').getOne(userId);
+
+            // gear_list and genres are stored as JSON strings in PocketBase
+            const _parseJson = (v, fallback) => {
+                if (Array.isArray(v)) return v;
+                try { return v ? JSON.parse(v) : fallback; } catch (_) { return fallback; }
+            };
+
+            _cachedProfile = {
+                gear_list:       _parseJson(record.gear_list, []),
+                genres:          _parseJson(record.genres,    []),
+                listening_level: record.listening_level ?? '',
+                public_profile:  !!record.public_profile,
+                avatar:          record.avatar ?? '',
+            };
+            window.__MLY_PROFILE__ = _cachedProfile;
+            return _cachedProfile;
+        } catch (err) {
+            console.warn('[sync] pullProfile failed:', err?.message);
+            return null;
+        }
+    }
+
+    /** Returns the in-memory profile cache without hitting the network. */
+    function getProfile() { return _cachedProfile; }
+
     // ── Merge helper ─────────────────────────────────────────────────────────
     // Deduplicates by session.id, keeping the newer record (by _cloud_updated > timestamp).
     function _mergeSessions(local, cloud) {
@@ -311,6 +377,9 @@
         pullAll,
         pushLocalData,
         deleteSession,
+        pushProfile,
+        pullProfile,
+        getProfile,
     };
 
 })();
