@@ -34,6 +34,17 @@
 
 <body>
 
+<!-- PORTRAIT-MODE LOCK OVERLAY (hidden in landscape / desktop) -->
+<div id="portraitLock" aria-live="polite" role="alertdialog" aria-modal="true" aria-labelledby="plTitle">
+    <svg class="pl-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="4" y="2" width="16" height="20" rx="2"/>
+        <line x1="12" y1="18" x2="12.01" y2="18"/>
+    </svg>
+    <p class="pl-title" id="plTitle">Please rotate your device</p>
+    <p class="pl-sub">Measurely is designed for landscape view. Rotate your phone or tablet sideways to continue.</p>
+</div>
+
 <!-- HEADER -->
 <header class="header header-onboarding">
     <div class="header-title">

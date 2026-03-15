@@ -1,0 +1,52 @@
+/* portrait-lock.css
+   Shown on mobile/tablet devices when the screen is in portrait orientation.
+   Only visible on touch devices narrower than 900 px in portrait mode.
+*/
+
+#portraitLock {
+  display: none;
+}
+
+@media (max-width: 900px) and (orientation: portrait) {
+  #portraitLock {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    background: #0b1220;
+    padding: 32px 24px;
+    text-align: center;
+  }
+
+  #portraitLock .pl-icon {
+    width: 72px;
+    height: 72px;
+    color: #6366f1;
+    animation: pl-rotate 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+  }
+
+  #portraitLock .pl-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #f8fafc;
+    margin: 0;
+    line-height: 1.3;
+  }
+
+  #portraitLock .pl-sub {
+    font-size: 0.9rem;
+    color: #94a3b8;
+    margin: 0;
+    line-height: 1.6;
+    max-width: 300px;
+  }
+}
+
+@keyframes pl-rotate {
+  from { transform: rotate(0deg);  }
+  to   { transform: rotate(90deg); }
+}

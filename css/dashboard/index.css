@@ -3,6 +3,7 @@
 /* global foundation */
 @import "../global/tokens.css?v=2";
 @import "../global/base.css?v=2";
+@import "../global/portrait-lock.css";
 @import "../global/buttons.css?v=2";
 @import "../global/forms.css?v=2";
 @import "../global/cards.css?v=2";
