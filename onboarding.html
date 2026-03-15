@@ -208,12 +208,11 @@
   </div>
 </div>
 
-<script type="module" src="js/onboarding-guide.js"></script>
+<script src="js/section-intro.js"></script>
 
 <script type="module">
 import { initRoom3D } from "./js/room3d.js";
 import { attachHighlightListeners, UIController } from './js/uiController.js';
-import { onboardingSteps, onboardingStyles } from './js/onboarding-tour.js';
 import { UIFactory } from './js/UIFactory.js';
 
 
@@ -321,7 +320,7 @@ if (hasOnboarded) {
   welcomeScreen.classList.add('hidden');
 } else {
   document.getElementById('tourBtn').addEventListener('click', () => {
-    dismissWelcome(() => window.startTour?.());
+    dismissWelcome(() => window.SectionIntro?.show('use'));
   });
 
   document.getElementById('skipBtn').addEventListener('click', () => {
@@ -886,7 +885,12 @@ function loadStep() {
 
     // 6. UI Polish
     panel.classList.add("active");
-    window.syncTourToWizard?.(stepIndex);
+
+    // Show section intro modal the first time this section is entered,
+    // but only after the welcome screen has been dismissed (or for returning users).
+    if (welcomeScreen.classList.contains('hidden')) {
+        window.SectionIntro?.show(steps[stepIndex]?.type);
+    }
 
     nextBtn.textContent = (stepIndex === steps.length - 1) ? "Save room & measure →" : "Next";
     backBtn.disabled = stepIndex === 0;
