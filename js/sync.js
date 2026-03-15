@@ -28,6 +28,17 @@
     // requests don't abort each other.
     const NO_CANCEL = { requestKey: null };
 
+    // PocketBase filter builder — always uses single quotes and 'and' operator.
+    // e.g. _f('user', id)                  → "user = 'id'"
+    // e.g. _f('user', id, 'session_id', s) → "user = 'id' and session_id = 's'"
+    function _f(...pairs) {
+        const parts = [];
+        for (let i = 0; i < pairs.length; i += 2) {
+            parts.push(pairs[i] + " = '" + pairs[i + 1] + "'");
+        }
+        return parts.join(' and ');
+    }
+
     // ── Helper: get authenticated PocketBase instance ───────────────────────
     function _pb() {
         const getter = window._pb;
@@ -88,7 +99,7 @@
 
         try {
             const existing = await pb.collection('rooms')
-                .getFirstListItem('user = "' + userId + '"', NO_CANCEL)
+                .getFirstListItem(_f('user', userId), NO_CANCEL)
                 .catch(() => null);
 
             if (existing) {
@@ -109,7 +120,7 @@
 
         try {
             const record = await pb.collection('rooms')
-                .getFirstListItem('user = "' + userId + '"', NO_CANCEL)
+                .getFirstListItem(_f('user', userId), NO_CANCEL)
                 .catch(() => null);
 
             if (!record) return null;
@@ -201,7 +212,7 @@
         try {
             const existing = await pb.collection('sessions')
                 .getFirstListItem(
-                    'user = "' + userId + '" && session_id = "' + session.id + '"',
+                    _f('user', userId, 'session_id', session.id),
                     NO_CANCEL
                 )
                 .catch(() => null);
@@ -241,7 +252,7 @@
         try {
             // Pull room
             const roomRecord = await pb.collection('rooms')
-                .getFirstListItem('user = "' + userId + '"', NO_CANCEL)
+                .getFirstListItem(_f('user', userId), NO_CANCEL)
                 .catch(() => null);
 
             if (roomRecord) {
@@ -263,7 +274,7 @@
             // Pull sessions
             const sessionRecords = await pb.collection('sessions')
                 .getList(1, 50, {
-                    filter: 'user = "' + userId + '"',
+                    filter: _f('user', userId),
                     sort:   '-timestamp',
                     ...NO_CANCEL,
                 })
@@ -342,7 +353,7 @@
         try {
             const record = await pb.collection('sessions')
                 .getFirstListItem(
-                    'user = "' + userId + '" && session_id = "' + id + '"',
+                    _f('user', userId, 'session_id', id),
                     NO_CANCEL
                 )
                 .catch(() => null);
