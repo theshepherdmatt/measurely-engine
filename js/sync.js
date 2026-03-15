@@ -85,7 +85,7 @@
 
         try {
             const existing = await pb.collection('rooms')
-                .getFirstListItem(`user="${userId}"`)
+                .getFirstListItem('user = "' + userId + '"')
                 .catch(() => null);
 
             if (existing) {
@@ -106,7 +106,7 @@
 
         try {
             const record = await pb.collection('rooms')
-                .getFirstListItem(`user="${userId}"`)
+                .getFirstListItem('user = "' + userId + '"')
                 .catch(() => null);
 
             if (!record) return null;
@@ -185,7 +185,7 @@
 
         try {
             const existing = await pb.collection('sessions')
-                .getFirstListItem(`user="${userId}" && session_id="${session.id}"`)
+                .getFirstListItem('user = "' + userId + '" && session_id = "' + session.id + '"')
                 .catch(() => null);
 
             if (existing) {
@@ -223,7 +223,7 @@
         try {
             // Pull room
             const roomRecord = await pb.collection('rooms')
-                .getFirstListItem(`user="${userId}"`)
+                .getFirstListItem('user = "' + userId + '"')
                 .catch(() => null);
 
             if (roomRecord) {
@@ -244,7 +244,7 @@
 
             // Pull sessions
             const sessionRecords = await pb.collection('sessions')
-                .getList(1, 50, { filter: `user="${userId}"`, sort: '-timestamp' })
+                .getList(1, 50, { filter: 'user = "' + userId + '"', sort: '-timestamp' })
                 .catch(() => null);
 
             if (sessionRecords?.items?.length) {
@@ -322,7 +322,7 @@
 
         try {
             const record = await pb.collection('sessions')
-                .getFirstListItem(`user="${userId}" && session_id="${id}"`)
+                .getFirstListItem('user = "' + userId + '" && session_id = "' + id + '"')
                 .catch(() => null);
             if (record) await pb.collection('sessions').delete(record.id);
         } catch (err) {
