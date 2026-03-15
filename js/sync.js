@@ -4,17 +4,20 @@
  * Depends on: auth.js (window._pb accessor) loaded before this.
  * Exposes:    window.MeasurelySync
  *
- * All methods are no-ops when the user is not authenticated.
- * Safe to call unconditionally from room.js / sessions.js / speakers.js.
+ * When the user is authenticated every push goes straight to PocketBase.
+ * When the user is NOT authenticated data is cached in localStorage and a
+ * 'mly:pendingdata' CustomEvent is dispatched so the UI can surface a
+ * "Save to Cloud" prompt. On next sign-in pushLocalData() flushes it all.
  */
 
 (function () {
     'use strict';
 
-    const LS_ROOM     = 'measurely_room';
-    const LS_SESSIONS = 'measurely_sessions';
-    const LS_SPEAKER  = 'mly.speaker.key';
-    const LS_ONBOARD  = 'measurely_onboarded';
+    const LS_ROOM            = 'measurely_room';
+    const LS_SESSIONS        = 'measurely_sessions';
+    const LS_SPEAKER         = 'mly.speaker.key';
+    const LS_ONBOARD         = 'measurely_onboarded';
+    const LS_PENDING_PROFILE = 'mly_pending_profile';
 
     // ── Helper: get authenticated PocketBase instance ───────────────────────
     function _pb() {
@@ -31,11 +34,38 @@
         return _pb()?.authStore?.model?.id ?? null;
     }
 
+    // ── Pending-profile helpers ──────────────────────────────────────────────
+    // Profile data entered while not logged in is persisted here so it isn't
+    // lost, and gets pushed to PocketBase on the next sign-in.
+
+    function _cachePendingProfile(data) {
+        try {
+            const existing = getPendingProfile() ?? {};
+            localStorage.setItem(LS_PENDING_PROFILE, JSON.stringify({ ...existing, ...data }));
+        } catch (_) {}
+    }
+
+    /** Returns the locally-cached pending profile, or null. */
+    function getPendingProfile() {
+        try {
+            const raw = localStorage.getItem(LS_PENDING_PROFILE);
+            return raw ? JSON.parse(raw) : null;
+        } catch (_) { return null; }
+    }
+
+    /**
+     * Returns true when there is any local data not yet confirmed as synced to
+     * the cloud (either pending sessions or a pending profile).
+     */
+    function hasPendingData() {
+        if (localStorage.getItem(LS_PENDING_PROFILE)) return true;
+        try {
+            const sessions = JSON.parse(localStorage.getItem(LS_SESSIONS) || '[]');
+            return sessions.length > 0;
+        } catch (_) { return false; }
+    }
+
     // ── Push room config ─────────────────────────────────────────────────────
-    // Maps the localStorage nested format → PocketBase collection fields:
-    //   payload.geometry    → dimensions
-    //   payload.setup       → speaker_pos
-    //   payload.environment → treatment
     async function pushRoom() {
         if (!_authenticated()) return;
         const raw = localStorage.getItem(LS_ROOM);
@@ -69,9 +99,6 @@
     }
 
     // ── Pull room config from cloud ───────────────────────────────────────────
-    // Returns the normalised room object (same shape as localStorage payload)
-    // or null if the user has no cloud record yet.
-    // Also writes the result to localStorage when the cloud record is newer.
     async function pullRoom() {
         if (!_authenticated()) return null;
         const pb     = _pb();
@@ -84,7 +111,6 @@
 
             if (!record) return null;
 
-            // Re-assemble into the shape myroom.html expects
             const normalised = {
                 geometry:    record.dimensions  ?? {},
                 setup:       record.speaker_pos ?? {},
@@ -93,7 +119,6 @@
                 saved_at:    record.updated,
             };
 
-            // Persist locally — prefer cloud when we have a valid record
             const localRaw = localStorage.getItem(LS_ROOM);
             const localTs  = localRaw ? (JSON.parse(localRaw)?.saved_at ?? 0) : 0;
             const cloudTs  = record.updated ?? 0;
@@ -109,28 +134,53 @@
         }
     }
 
-    // ── Push a single session ────────────────────────────────────────────────
+    // ── Push a single session ─────────────────────────────────────────────────
+    // Accepts two session shapes:
+    //   A) From app.html Acoustic Scientist:
+    //      { id, label, timestamp, ai: {overall_score,…}, analysis, reportCurve,
+    //        room_modes, schroeder_freq, sbir_null, scores }
+    //   B) From localStorage (via MeasurelySessions.saveSession):
+    //      { id, label, timestamp, overall_score,…, analysis, reportCurve }
     async function pushSession(session) {
-        if (!_authenticated() || !session?.id) return;
+        if (!session?.id) return;
+
+        // Normalise scores: handle both nested-ai and flat shapes
+        const ai = (session.ai && typeof session.ai === 'object') ? session.ai : {};
+
+        if (!_authenticated()) {
+            // Sessions already live in localStorage — just signal pending data
+            window.dispatchEvent(new CustomEvent('mly:pendingdata', { detail: { type: 'session' } }));
+            return;
+        }
+
         const pb     = _pb();
         const userId = _userId();
 
         const payload = {
             user:          userId,
             session_id:    session.id,
-            label:         session.label         ?? '',
-            timestamp:     session.timestamp      ?? new Date().toISOString(),
-            overall_score: session.overall_score  ?? null,
-            peaks_dips:    session.peaks_dips     ?? null,
-            reflections:   session.reflections    ?? null,
-            bandwidth:     session.bandwidth      ?? null,
-            balance:       session.balance        ?? null,
-            smoothness:    session.smoothness     ?? null,
-            clarity:       session.clarity        ?? null,
-            has_analysis:  session.has_analysis   ?? false,
+            label:         session.label              ?? '',
+            timestamp:     session.timestamp           ?? new Date().toISOString(),
+            // Scores — try nested ai first, then flat fields
+            overall_score: ai.overall_score  ?? session.overall_score  ?? null,
+            peaks_dips:    ai.peaks_dips     ?? session.peaks_dips     ?? null,
+            reflections:   ai.reflections    ?? session.reflections    ?? null,
+            bandwidth:     ai.bandwidth      ?? session.bandwidth      ?? null,
+            balance:       ai.balance        ?? session.balance        ?? null,
+            smoothness:    ai.smoothness     ?? session.smoothness     ?? null,
+            clarity:       ai.clarity        ?? session.clarity        ?? null,
+            has_analysis:  session.has_analysis
+                           ?? (Object.keys(ai).length > 0 || !!session.analysis),
             note:          session.note           ?? '',
             analysis:      session.analysis       ?? null,
             report_curve:  session.reportCurve    ?? null,
+            // Acoustic Scientist metadata (new fields)
+            room_modes:     session.room_modes    != null
+                            ? JSON.stringify(session.room_modes)    : null,
+            schroeder_freq: session.schroeder_freq ?? null,
+            sbir_null:      session.sbir_null      ?? null,
+            scores:         session.scores         != null
+                            ? JSON.stringify(session.scores)        : null,
         };
 
         try {
@@ -148,7 +198,7 @@
         }
     }
 
-    // ── Push speaker preference + onboarded flag ─────────────────────────────
+    // ── Push speaker preference + onboarded flag ──────────────────────────────
     async function pushPrefs() {
         if (!_authenticated()) return;
         const pb     = _pb();
@@ -164,7 +214,7 @@
         }
     }
 
-    // ── Pull all cloud data into localStorage ────────────────────────────────
+    // ── Pull all cloud data into localStorage ─────────────────────────────────
     async function pullAll() {
         if (!_authenticated()) return;
         const pb     = _pb();
@@ -187,7 +237,6 @@
                 const localRaw = localStorage.getItem(LS_ROOM);
                 const localTs  = localRaw ? (JSON.parse(localRaw)?.saved_at ?? 0) : 0;
                 const cloudTs  = roomRecord.updated ?? 0;
-
                 if (!localTs || new Date(cloudTs) >= new Date(localTs)) {
                     localStorage.setItem(LS_ROOM, JSON.stringify(normalised));
                 }
@@ -195,48 +244,45 @@
 
             // Pull sessions
             const sessionRecords = await pb.collection('sessions')
-                .getList(1, 50, {
-                    filter:  `user="${userId}"`,
-                    sort:    '-timestamp',
-                })
+                .getList(1, 50, { filter: `user="${userId}"`, sort: '-timestamp' })
                 .catch(() => null);
 
             if (sessionRecords?.items?.length) {
                 const cloudSessions = sessionRecords.items.map(r => ({
-                    id:            r.session_id,
-                    label:         r.label,
-                    timestamp:     r.timestamp,
-                    overall_score: r.overall_score,
-                    peaks_dips:    r.peaks_dips,
-                    reflections:   r.reflections,
-                    bandwidth:     r.bandwidth,
-                    balance:       r.balance,
-                    smoothness:    r.smoothness,
-                    clarity:       r.clarity,
-                    has_analysis:  r.has_analysis,
-                    note:          r.note,
-                    analysis:      r.analysis ?? null,
-                    reportCurve:   r.report_curve ?? null,
+                    id:             r.session_id,
+                    label:          r.label,
+                    timestamp:      r.timestamp,
+                    overall_score:  r.overall_score,
+                    peaks_dips:     r.peaks_dips,
+                    reflections:    r.reflections,
+                    bandwidth:      r.bandwidth,
+                    balance:        r.balance,
+                    smoothness:     r.smoothness,
+                    clarity:        r.clarity,
+                    has_analysis:   r.has_analysis,
+                    note:           r.note,
+                    analysis:       r.analysis       ?? null,
+                    reportCurve:    r.report_curve   ?? null,
+                    // Acoustic Scientist metadata
+                    room_modes:     r.room_modes     ? _parseJson(r.room_modes, null)  : null,
+                    schroeder_freq: r.schroeder_freq ?? null,
+                    sbir_null:      r.sbir_null      ?? null,
+                    scores:         r.scores         ? _parseJson(r.scores, null)      : null,
                     _cloud_updated: r.updated,
                 }));
 
                 const localRaw  = localStorage.getItem(LS_SESSIONS);
                 const localSess = localRaw ? JSON.parse(localRaw) : [];
-
-                const merged = _mergeSessions(localSess, cloudSessions);
+                const merged    = _mergeSessions(localSess, cloudSessions);
                 localStorage.setItem(LS_SESSIONS, JSON.stringify(merged.slice(0, 20)));
             }
 
             // Pull prefs
             const user = pb.authStore.model;
-            if (user?.speaker_key) {
-                localStorage.setItem(LS_SPEAKER, user.speaker_key);
-            }
-            if (user?.onboarded) {
-                localStorage.setItem(LS_ONBOARD, 'true');
-            }
+            if (user?.speaker_key) localStorage.setItem(LS_SPEAKER, user.speaker_key);
+            if (user?.onboarded)   localStorage.setItem(LS_ONBOARD, 'true');
 
-            // Pull Hi-Fi profile (gear, genres, listening level) into cache
+            // Pull Hi-Fi profile into cache
             await pullProfile().catch(() => {});
 
         } catch (err) {
@@ -244,25 +290,31 @@
         }
     }
 
-    // ── On first login: push all existing localStorage data up ───────────────
+    // ── On login: push all local-only data up to PocketBase ───────────────────
     async function pushLocalData() {
         if (!_authenticated()) return;
 
-        // Push room
         await pushRoom();
 
-        // Push all sessions
-        const raw = localStorage.getItem(LS_SESSIONS);
+        const raw      = localStorage.getItem(LS_SESSIONS);
         const sessions = raw ? JSON.parse(raw) : [];
-        for (const s of sessions) {
-            await pushSession(s);
-        }
+        for (const s of sessions) await pushSession(s);
 
-        // Push prefs
         await pushPrefs();
+
+        // Flush any profile data that was entered while not authenticated
+        const pending = getPendingProfile();
+        if (pending) {
+            try {
+                await pushProfile(pending, null);
+                // pushProfile clears LS_PENDING_PROFILE on success
+            } catch (err) {
+                console.warn('[sync] pushLocalData: pending profile flush failed:', err?.message);
+            }
+        }
     }
 
-    // ── Delete a session from cloud ──────────────────────────────────────────
+    // ── Delete a session from cloud ───────────────────────────────────────────
     async function deleteSession(id) {
         if (!_authenticated() || !id) return;
         const pb     = _pb();
@@ -272,21 +324,27 @@
             const record = await pb.collection('sessions')
                 .getFirstListItem(`user="${userId}" && session_id="${id}"`)
                 .catch(() => null);
-
             if (record) await pb.collection('sessions').delete(record.id);
         } catch (err) {
             console.warn('[sync] deleteSession failed:', err?.message);
         }
     }
 
-    // ── Module-level profile cache ───────────────────────────────────────────
-    // Populated by pullProfile(); read by getProfile() and window.__MLY_PROFILE__.
+    // ── Module-level profile cache ────────────────────────────────────────────
     let _cachedProfile = null;
 
     // ── Push Hi-Fi profile to the users collection ────────────────────────────
-    // PocketBase file uploads must use FormData, so avatar gets special handling.
+    // When unauthenticated: caches to localStorage and fires 'mly:pendingdata'.
+    // When authenticated:   saves via FormData (required for the avatar file field).
     async function pushProfile(data, avatarFile) {
-        if (!_authenticated()) return;
+        // Always persist locally first — data survives page reloads & auth changes
+        _cachePendingProfile(data);
+
+        if (!_authenticated()) {
+            window.dispatchEvent(new CustomEvent('mly:pendingdata', { detail: { type: 'profile' } }));
+            return; // caller interprets no-throw as "saved locally — ok"
+        }
+
         const pb     = _pb();
         const userId = _userId();
 
@@ -299,17 +357,17 @@
 
         try {
             await pb.collection('users').update(userId, form);
-            _cachedProfile             = { ...(_cachedProfile || {}), ...data };
-            window.__MLY_PROFILE__     = _cachedProfile;
+            _cachedProfile         = { ...(_cachedProfile || {}), ...data };
+            window.__MLY_PROFILE__ = _cachedProfile;
+            // Clear pending cache now that it's safely in the cloud
+            localStorage.removeItem(LS_PENDING_PROFILE);
         } catch (err) {
             console.warn('[sync] pushProfile failed:', err?.message);
-            throw err;   // re-throw so profile.js can show the error
+            throw err; // re-throw so profile.js can show the error
         }
     }
 
     // ── Pull Hi-Fi profile fields from the users record ───────────────────────
-    // Returns the normalised profile object (or null on failure).
-    // Also caches to _cachedProfile / window.__MLY_PROFILE__ for Co-Pilot access.
     async function pullProfile() {
         if (!_authenticated()) return null;
         const pb     = _pb();
@@ -317,12 +375,6 @@
 
         try {
             const record = await pb.collection('users').getOne(userId);
-
-            // gear_list and genres are stored as JSON strings in PocketBase
-            const _parseJson = (v, fallback) => {
-                if (Array.isArray(v)) return v;
-                try { return v ? JSON.parse(v) : fallback; } catch (_) { return fallback; }
-            };
 
             _cachedProfile = {
                 gear_list:       _parseJson(record.gear_list, []),
@@ -342,33 +394,29 @@
     /** Returns the in-memory profile cache without hitting the network. */
     function getProfile() { return _cachedProfile; }
 
-    // ── Merge helper ─────────────────────────────────────────────────────────
-    // Deduplicates by session.id, keeping the newer record (by _cloud_updated > timestamp).
+    // ── Internal helpers ──────────────────────────────────────────────────────
+
+    function _parseJson(v, fallback) {
+        if (Array.isArray(v) || (v && typeof v === 'object')) return v;
+        try { return v ? JSON.parse(v) : fallback; } catch (_) { return fallback; }
+    }
+
     function _mergeSessions(local, cloud) {
         const map = new Map();
-
-        // Index local sessions
         local.forEach(s => map.set(s.id, s));
-
-        // Merge cloud sessions — cloud wins on conflict if it was updated more recently
         cloud.forEach(cs => {
             const existing = map.get(cs.id);
-            if (!existing) {
-                map.set(cs.id, cs);
-                return;
-            }
+            if (!existing) { map.set(cs.id, cs); return; }
             const cloudT = cs._cloud_updated ? new Date(cs._cloud_updated).getTime() : 0;
             const localT = existing.timestamp ? new Date(existing.timestamp).getTime() : 0;
             if (cloudT > localT) map.set(cs.id, { ...existing, ...cs });
         });
-
-        // Sort newest first
         return Array.from(map.values()).sort((a, b) =>
             new Date(b.timestamp || 0) - new Date(a.timestamp || 0)
         );
     }
 
-    // ── Expose ───────────────────────────────────────────────────────────────
+    // ── Expose ────────────────────────────────────────────────────────────────
     window.MeasurelySync = {
         pushRoom,
         pullRoom,
@@ -380,6 +428,8 @@
         pushProfile,
         pullProfile,
         getProfile,
+        getPendingProfile,
+        hasPendingData,
     };
 
 })();

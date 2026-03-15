@@ -271,37 +271,55 @@
         btn.textContent = 'Saving…';
         if (status) { status.textContent = ''; status.className = 'mly-profile-save-status'; }
 
+        const formData = _readForm();
+        const isAuth   = !!window.MeasurelyAuth?.getUser();
+
         try {
-            const formData = _readForm();
+            // pushProfile caches locally first; if not authenticated it returns
+            // without throwing (data is in localStorage).
             await window.MeasurelySync?.pushProfile(formData, _avatarFile);
-
-            // Refresh auth model so avatar renders immediately in nav
-            if (_avatarFile) {
-                try {
-                    const user = window.MeasurelyAuth?.getUser();
-                    if (user && window._pb) {
-                        const fresh = await window._pb().collection('users').getOne(user.id);
-                        window._pb().authStore.save(window._pb().authStore.token, fresh);
-                    }
-                } catch (_) {}
-            }
-
-            _profile    = { ..._profile, ...formData };
-            _avatarFile = null;
-            window.__MLY_PROFILE__ = _profile;
-
-            if (status) { status.textContent = 'Saved ✓'; status.classList.add('ok'); }
-            setTimeout(() => {
-                if (status) status.textContent = '';
-                closeModal();
-            }, 950);
         } catch (err) {
             console.error('[profile] save failed:', err);
             if (status) { status.textContent = 'Save failed — please try again'; status.classList.add('err'); }
-        } finally {
             btn.disabled    = false;
             btn.textContent = 'Save Profile';
+            return;
         }
+
+        // Always update the in-memory cache
+        _profile               = { ..._profile, ...formData };
+        window.__MLY_PROFILE__ = _profile;
+
+        if (!isAuth) {
+            // Show "saved locally" message; leave modal open so user can sign in
+            if (status) {
+                status.textContent = 'Saved locally — sign in to back up to cloud';
+                status.classList.add('ok');
+            }
+            btn.disabled    = false;
+            btn.textContent = 'Save Profile';
+            return;
+        }
+
+        // Authenticated path — refresh avatar in nav then close
+        if (_avatarFile) {
+            try {
+                const user = window.MeasurelyAuth?.getUser();
+                if (user && window._pb) {
+                    const fresh = await window._pb().collection('users').getOne(user.id);
+                    window._pb().authStore.save(window._pb().authStore.token, fresh);
+                }
+            } catch (_) {}
+        }
+
+        _avatarFile = null;
+        if (status) { status.textContent = 'Saved ✓'; status.classList.add('ok'); }
+        btn.disabled    = false;
+        btn.textContent = 'Save Profile';
+        setTimeout(() => {
+            if (status) status.textContent = '';
+            closeModal();
+        }, 950);
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -312,8 +330,16 @@
      */
     async function openModal() {
         _inject();
+
+        // Try cloud first (authenticated), then fall back to locally-cached pending profile
         const cloud = await window.MeasurelySync?.pullProfile().catch(() => null);
-        if (cloud) _profile = cloud;
+        if (cloud) {
+            _profile = cloud;
+        } else {
+            const pending = window.MeasurelySync?.getPendingProfile();
+            if (pending) _profile = pending;
+        }
+
         _populate(_profile);
         _backdrop.classList.add('open');
         document.body.classList.add('mly-auth-open'); // borrow body-scroll-lock
@@ -339,9 +365,11 @@
                 window.__MLY_PROFILE__ = null;
                 return;
             }
+            // On sign-in: cloud data wins; pending local profile was already flushed
+            // by MeasurelySync.pushLocalData() which auth.js calls after sign-in.
             const cloud = await window.MeasurelySync?.pullProfile().catch(() => null);
             if (cloud) {
-                _profile = cloud;
+                _profile               = cloud;
                 window.__MLY_PROFILE__ = cloud;
             }
         });

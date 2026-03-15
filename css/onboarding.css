@@ -1239,9 +1239,13 @@ body.flyby-active #cinemaVignette {
   z-index: 200;
 
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 1.5rem;
+  padding-top: clamp(1.5rem, 8vh, 4rem);
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+  padding-bottom: 1.5rem;
+  overflow-y: auto;
   box-sizing: border-box;
 
   background: rgba(0, 0, 0, 0.45);
