@@ -328,19 +328,12 @@ async function loadSavedRoom() {
       if (ls) saved = JSON.parse(ls);
     } catch (_) {}
 
-    // 2. Try server only when running against a Pi backend
-    if (!isStaticHosting()) try {
-      const res = await fetch("/api/room/latest");
-      if (res.ok) {
-        const apiData = await res.json();
-        if (apiData && Object.keys(apiData).length > 0) {
-          saved = apiData;
-          // Keep localStorage in sync
-          localStorage.setItem('measurely_room', JSON.stringify(saved));
-        }
-      }
+    // 2. Try PocketBase cloud when the user is signed in — cloud wins if newer
+    try {
+      const cloud = await window.MeasurelySync?.pullRoom();
+      if (cloud) saved = cloud;
     } catch (_) {
-      console.log("[Room] Server not reachable — using localStorage");
+      console.log("[Room] Cloud pull failed — using localStorage");
     }
 
     if (!saved) return;
@@ -781,16 +774,8 @@ async function finish() {
     console.warn("[Room] localStorage save failed:", e);
   }
 
-  // 2. Try server — silent on failure
-  try {
-    await fetch("/api/room/latest", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-  } catch (err) {
-    console.log("[Room] Server not reachable — saved to localStorage only");
-  }
+  // 2. Push to PocketBase when signed in — silent on failure
+  window.MeasurelySync?.pushRoom();
 
   // Return to dashboard
   if (document.startViewTransition) {
@@ -803,6 +788,55 @@ async function finish() {
 await loadSavedRoom();
 // Refresh 3D scene with the loaded data before rendering UI fields
 if (room3D?.update) room3D.update();
+
+// ── Cloud sync on login ──────────────────────────────────────────────────────
+// When the user signs in while the page is open, pull their latest room from
+// PocketBase, merge into roomState, and rebuild the 3D scene immediately.
+function _applyRoomData(saved) {
+  if (!saved) return;
+  roomState = structuredClone(DEFAULT_ROOM_STATE);
+  if (saved.geometry) {
+    roomState.geometry = { ...roomState.geometry, ...saved.geometry };
+    ['length_m','width_m','height_m','ceiling_height_secondary_m'].forEach(k => {
+      if (roomState.geometry[k] != null) roomState.geometry[k] = parseFloat(roomState.geometry[k]);
+    });
+  }
+  if (saved.setup) {
+    roomState.setup = { ...roomState.setup, ...saved.setup };
+    Object.keys(roomState.setup).forEach(k => {
+      const v = roomState.setup[k];
+      if (typeof v === 'string' && !isNaN(v)) roomState.setup[k] = parseFloat(v);
+    });
+  }
+  if (saved.environment) {
+    roomState.environment = {
+      ...roomState.environment,
+      ...saved.environment,
+      furniture: { ...roomState.environment.furniture, ...(saved.environment.furniture || {}) },
+      treatment: { ...roomState.environment.treatment, ...(saved.environment.treatment || {}) },
+    };
+  }
+  if (saved.room_type) roomState.room_type = saved.room_type;
+  roomState.length_m = roomState.geometry.length_m;
+  roomState.width_m  = roomState.geometry.width_m;
+  roomState.height_m = roomState.geometry.height_m;
+  window.__MEASURELY_ROOM__ = roomState;
+  if (room3D?.update) room3D.update();
+}
+
+// Register auth-change listener — fires if the user signs in mid-session
+window.addEventListener('DOMContentLoaded', () => {
+  window.MeasurelyAuth?.onAuthChange(async (user, prev) => {
+    // Only act on sign-in (prev was null/undefined, now have user)
+    if (user && !prev) {
+      const cloud = await window.MeasurelySync?.pullRoom();
+      if (cloud) {
+        _applyRoomData(cloud);
+        console.log('[Room] Cloud room applied after sign-in');
+      }
+    }
+  });
+});
 
 // Dismiss the loading overlay after the first rendered frame
 (function dismissLoader() {
@@ -1042,6 +1076,7 @@ backBtn.onclick = () => {
 <div id="auth-root"></div>
 <script src="js/sync.js"></script>
 <script src="js/auth.js"></script>
+<script src="js/profile.js"></script>
 <script>document.addEventListener('DOMContentLoaded', () => window.MeasurelyAuth?.init());</script>
 
 </body>
