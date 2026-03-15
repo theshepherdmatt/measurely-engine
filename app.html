@@ -95,6 +95,28 @@
                 <a href="onboarding.html" class="btn btn-primary" style="white-space:nowrap;flex-shrink:0;">Start Setup →</a>
             </div>
 
+            <!-- SAVE TO CLOUD NUDGE — shown when local data exists but user is not signed in -->
+            <div id="cloudSyncBanner" hidden
+                 class="card glass-panel animate-enter"
+                 style="margin-bottom:1rem;padding:0.85rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;border-left:3px solid #f59e0b;">
+                <div>
+                    <strong style="font-size:0.875rem;">Your data is saved locally</strong>
+                    <p style="font-size:0.78rem;color:var(--c-text-muted,#94a3b8);margin:0.2rem 0 0;">
+                        Sign in to back up your measurements and Hi-Fi profile to the cloud.
+                    </p>
+                </div>
+                <div style="display:flex;gap:0.5rem;align-items:center;flex-shrink:0;">
+                    <button type="button" id="cloudSyncSignIn"
+                            class="btn btn-primary"
+                            style="white-space:nowrap;font-size:0.8rem;padding:0.45rem 0.9rem;">
+                        Sign in &amp; sync →
+                    </button>
+                    <button type="button" id="cloudSyncDismiss"
+                            style="background:none;border:none;color:var(--c-text-muted,#94a3b8);cursor:pointer;padding:0.3rem 0.5rem;font-size:1.2rem;line-height:1;"
+                            aria-label="Dismiss">&times;</button>
+                </div>
+            </div>
+
             <!-- TOP ROW: SCORE & ACTIONS -->
             <div class="grid-3 animate-enter delay-1">
 
@@ -1010,6 +1032,19 @@
                         ai:          result.ai,
                         analysis:    result.analysis,
                         reportCurve: result.reportCurve,
+                        // Acoustic Scientist metadata — persisted to sessions collection
+                        room_modes:     { l: lMode, w: wMode, h: hMode },
+                        schroeder_freq: schroeder,
+                        sbir_null:      sbir,
+                        scores: {
+                            overall:     +(ai.overall_score ?? 0),
+                            peaks_dips:  +(ai.peaks_dips    ?? 0),
+                            reflections: +(ai.reflections   ?? 0),
+                            bandwidth:   +(ai.bandwidth     ?? 0),
+                            balance:     +(ai.balance       ?? 0),
+                            smoothness:  +(ai.smoothness    ?? 0),
+                            clarity:     +(ai.clarity       ?? 0),
+                        },
                     };
                     if (window.MeasurelySessions) {
                         window.MeasurelySessions.saveSession(sessionObj);
@@ -1072,6 +1107,53 @@
 <script src="js/sync.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/profile.js"></script>
+
+<script>
+    // ── Save-to-Cloud banner controller ──────────────────────────────────────
+    // Shows a nudge when the user has local-only data and is not signed in.
+    // Hides automatically when the user signs in (auth change fires).
+    (function () {
+        var DISMISSED_KEY = 'mly_cloud_banner_dismissed';
+
+        function _banner()  { return document.getElementById('cloudSyncBanner'); }
+        function _isAuth()  { return !!window.MeasurelyAuth?.getUser(); }
+        function _hasPending() { return window.MeasurelySync?.hasPendingData?.() ?? false; }
+
+        function _show() {
+            var el = _banner();
+            if (el && !sessionStorage.getItem(DISMISSED_KEY)) el.removeAttribute('hidden');
+        }
+        function _hide() {
+            var el = _banner();
+            if (el) el.setAttribute('hidden', '');
+        }
+
+        window.addEventListener('DOMContentLoaded', function () {
+            document.getElementById('cloudSyncSignIn')?.addEventListener('click', function () {
+                window.MeasurelyAuth?.openModal('signin');
+            });
+            document.getElementById('cloudSyncDismiss')?.addEventListener('click', function () {
+                sessionStorage.setItem(DISMISSED_KEY, '1');
+                _hide();
+            });
+
+            // Show after a short delay so auth.init() can restore any saved token
+            setTimeout(function () {
+                if (!_isAuth() && _hasPending()) _show();
+            }, 700);
+
+            // React to data being saved locally while not authenticated
+            window.addEventListener('mly:pendingdata', function () {
+                if (!_isAuth()) _show();
+            });
+
+            // Hide as soon as the user signs in
+            window.MeasurelyAuth?.onAuthChange(function (user) {
+                if (user) _hide();
+            });
+        });
+    }());
+</script>
 <script>document.addEventListener('DOMContentLoaded', () => window.MeasurelyAuth?.init());</script>
 
 </body>
