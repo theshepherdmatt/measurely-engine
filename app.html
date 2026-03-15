@@ -996,7 +996,7 @@
                     const L        = +(room.length_m        || 4.5);
                     const W        = +(room.width_m         || 3.2);
                     const H        = +(room.height_m        || 2.5);
-                    const spkFront = +(room.speaker_front_m || 0.6);
+                    const spkFront = +(room.spk_front_m ?? room.speaker_front_m ?? 0.6);
                     const lMode    = Math.round(170 / L);
                     const wMode    = Math.round(170 / W);
                     const hMode    = Math.round(170 / H);
