@@ -1849,49 +1849,10 @@ class MeasurelyDashboard {
 
         const el = document.createElement('div');
         el.id = 'mly-empty-state';
-
-        // Overlay sits above the page content but lets the 3D room
-        // canvas breathe behind it — light backdrop, not a full block.
-        el.style.cssText = [
-            'position:fixed',
-            'inset:0',
-            'display:flex',
-            'align-items:center',
-            'justify-content:center',
-            'z-index:200',
-            'padding:1.5rem',
-            'background:rgba(8,13,26,0.55)',
-            'backdrop-filter:blur(6px)',
-            '-webkit-backdrop-filter:blur(6px)',
-        ].join(';');
-
-        // ── REW guide (hidden by default, toggled inline) ──────────────
-        const rewGuideHtml = `
-        <div id="mly-rew-guide" style="display:none;margin-top:1.25rem;text-align:left;
-             background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);
-             border-radius:0.75rem;padding:1rem 1.1rem;">
-          <p style="font-size:0.78rem;font-weight:700;color:#c084fc;margin:0 0 0.6rem;
-             letter-spacing:0.04em;text-transform:uppercase;">How to export from REW</p>
-          <ol style="margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:0.5rem;">
-            <li style="font-size:0.82rem;color:#d1d5db;line-height:1.5;">
-              Run a sine sweep in REW<br>
-              <span style="color:#94a3b8;font-size:0.75rem;">Measure &rarr; Measure — use the default sweep settings</span>
-            </li>
-            <li style="font-size:0.82rem;color:#d1d5db;line-height:1.5;">
-              Export the impulse response<br>
-              <span style="color:#94a3b8;font-size:0.75rem;">File &rarr; Export &rarr; Export impulse response as WAV</span>
-            </li>
-            <li style="font-size:0.82rem;color:#d1d5db;line-height:1.5;">
-              Upload that WAV here<br>
-              <span style="color:#94a3b8;font-size:0.75rem;">The file will be analysed entirely in your browser — nothing is uploaded to a server</span>
-            </li>
-          </ol>
-          <p style="margin:0.75rem 0 0;font-size:0.75rem;color:#6b7280;">
-            REW is free at
-            <a href="https://www.roomeqwizard.com/" target="_blank" rel="noopener"
-               style="color:#c084fc;text-decoration:none;">roomeqwizard.com &rarr;</a>
-          </p>
-        </div>`;
+        // Re-use the section-intro backdrop styles (blur, dark tint, flex-center)
+        el.className = 'section-intro-backdrop';
+        el.style.display = 'flex';
+        el.style.zIndex  = '300';
 
         // ── No room profile yet — steer to onboarding first ────────────
         const noRoomHtml = `
@@ -1935,78 +1896,76 @@ class MeasurelyDashboard {
           </a>
         </div>`;
 
-        // ── Has room — show the upload prompt ──────────────────────────
+        // ── Has room — show instruction card (dismissable, no forced upload) ──
         const hasRoomHtml = `
-        <div style="max-width:480px;width:100%;
-             background:linear-gradient(160deg,rgba(28,36,54,0.97),rgba(15,20,36,0.99));
-             border:1px solid rgba(99,102,241,0.25);border-radius:1.5rem;
-             padding:2.25rem 2rem;text-align:center;
-             box-shadow:0 32px 80px rgba(0,0,0,0.65),inset 0 1px 0 rgba(255,255,255,0.05);">
+        <div class="section-intro-card" style="max-width:480px;">
 
-          <div style="width:3.5rem;height:3.5rem;border-radius:50%;
-               background:linear-gradient(135deg,#6366f1,#8b5cf6);
-               display:flex;align-items:center;justify-content:center;
-               margin:0 auto 1.25rem;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none"
-                 viewBox="0 0 24 24" stroke="white" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+          <div class="section-intro-icon-wrap">
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" fill="none"
+                 viewBox="0 0 40 40" aria-hidden="true">
+              <rect x="5" y="5" width="30" height="30" rx="4"
+                    stroke="currentColor" stroke-width="2" fill="none"/>
+              <path d="M11 30 V22 M20 30 V14 M29 30 V19"
+                    stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
             </svg>
           </div>
 
-          <h2 style="font-size:1.35rem;font-weight:800;margin:0 0 0.6rem;color:#f9fafb;
-               letter-spacing:-0.03em;">Your room is ready</h2>
-          <p style="color:#94a3b8;font-size:0.9rem;line-height:1.65;margin:0 0 0.5rem;">
-            Upload the WAV impulse response from REW and we'll score your room's acoustics
-            and map every issue to the 3D model you just built.
-          </p>
-          <p style="color:#64748b;font-size:0.78rem;margin:0 0 1.5rem;">
-            Processed in your browser &middot; Nothing leaves your device
+          <h2 class="section-intro-title">Ready to measure</h2>
+          <p class="section-intro-body">
+            Run a sine sweep in REW, export the impulse response as a WAV, then
+            upload it here. Measurely will score your room's acoustics and map every
+            issue to the 3D model you just built — entirely in your browser.
           </p>
 
-          <!-- Drag-and-drop zone -->
-          <div id="mly-empty-dropzone"
-               style="position:relative;border:1.5px dashed rgba(99,102,241,0.45);
-                      border-radius:1rem;padding:1.75rem 1rem;margin-bottom:1rem;
-                      cursor:pointer;transition:border-color .2s,background .2s;
-                      background:radial-gradient(circle at center,rgba(99,102,241,0.08),transparent 70%);">
-            <input type="file" id="mly-empty-wav-input" accept=".wav,audio/wav"
-                   aria-label="WAV impulse response file"
-                   style="position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;">
-            <p style="margin:0 0 0.25rem;font-size:0.95rem;font-weight:600;color:#e2e8f0;">
-              Drop your REW WAV here
+          <div id="mly-rew-guide" style="
+               text-align:left;
+               background:rgba(255,255,255,0.04);
+               border:1px solid rgba(255,255,255,0.08);
+               border-radius:0.85rem;
+               padding:1rem 1.15rem;
+               margin-bottom:1.5rem;">
+            <p style="font-size:0.72rem;font-weight:700;color:#a5b4fc;margin:0 0 0.65rem;
+               letter-spacing:0.06em;text-transform:uppercase;">How to get a WAV from REW</p>
+            <ol style="margin:0;padding-left:1.15rem;display:flex;flex-direction:column;gap:0.55rem;">
+              <li style="font-size:0.82rem;color:#d1d5db;line-height:1.5;">
+                Run a sine sweep in REW
+                <span style="display:block;color:#64748b;font-size:0.75rem;">
+                  Measure &rarr; Measure — default sweep settings are fine
+                </span>
+              </li>
+              <li style="font-size:0.82rem;color:#d1d5db;line-height:1.5;">
+                Export the impulse response
+                <span style="display:block;color:#64748b;font-size:0.75rem;">
+                  File &rarr; Export &rarr; Export impulse response as WAV
+                </span>
+              </li>
+              <li style="font-size:0.82rem;color:#d1d5db;line-height:1.5;">
+                Upload that WAV here
+                <span style="display:block;color:#64748b;font-size:0.75rem;">
+                  Nothing leaves your device &middot; Analysed entirely in your browser
+                </span>
+              </li>
+            </ol>
+            <p style="margin:0.75rem 0 0;font-size:0.75rem;color:#4b5563;">
+              REW is free at
+              <a href="https://www.roomeqwizard.com/" target="_blank" rel="noopener"
+                 style="color:#818cf8;text-decoration:none;">roomeqwizard.com &rarr;</a>
             </p>
-            <p style="margin:0;font-size:0.8rem;color:#64748b;">or tap to choose a file</p>
           </div>
 
-          <button id="mly-empty-upload-btn"
-                  style="display:inline-flex;align-items:center;gap:0.5rem;
-                         background:linear-gradient(135deg,#6366f1,#4f46e5);color:white;
-                         border:none;border-radius:0.75rem;padding:0.8rem 1.75rem;
-                         font-size:0.95rem;font-weight:700;cursor:pointer;font-family:inherit;
-                         box-shadow:0 8px 24px rgba(99,102,241,0.4);
-                         opacity:0.4;pointer-events:none;transition:opacity .2s,transform .15s;"
-                  disabled>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none"
-                 viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-              <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-            </svg>
-            Analyse
-          </button>
-
-          <div style="margin-top:1rem;">
-            <button id="mly-rew-guide-toggle"
-                    style="background:none;border:none;color:#6366f1;font-size:0.8rem;
-                           font-family:inherit;cursor:pointer;text-decoration:underline;
-                           text-underline-offset:2px;padding:0;">
-              Don't have a WAV yet? How to export from REW &darr;
+          <div style="margin-bottom:0.75rem;">
+            <button id="mly-empty-upload-btn"
+                    class="btn btn-primary section-intro-cta">
+              Upload a measurement &rarr;
             </button>
           </div>
-          ${rewGuideHtml}
 
-          <p style="margin-top:1rem;font-size:0.75rem;color:#374151;">
-            <a href="onboarding.html" style="color:#6b7280;text-decoration:none;">
+          <button id="mly-empty-dismiss" class="flyby-back-link">
+            Explore the dashboard first
+          </button>
+
+          <p style="margin-top:1.1rem;font-size:0.72rem;color:#374151;">
+            <a href="onboarding.html" style="color:#4b5563;text-decoration:none;">
               Edit room profile &rarr;
             </a>
           </p>
@@ -2014,64 +1973,22 @@ class MeasurelyDashboard {
 
         el.innerHTML = hasRoom ? hasRoomHtml : noRoomHtml;
         document.body.appendChild(el);
+        // Spring entrance using the section-intro animation
+        requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('open')));
 
         if (!hasRoom) return;
 
-        // ── Wire up the drop zone ──────────────────────────────────────
-        const dropzone  = document.getElementById('mly-empty-dropzone');
-        const fileInput = document.getElementById('mly-empty-wav-input');
-        const analyseBtn = document.getElementById('mly-empty-upload-btn');
-        let pickedFile = null;
-
-        const activateBtn = (file) => {
-            pickedFile = file;
-            dropzone.querySelector('p').textContent = file.name;
-            dropzone.querySelector('p').style.color = '#a5b4fc';
-            dropzone.style.borderColor = 'rgba(99,102,241,0.85)';
-            analyseBtn.disabled = false;
-            analyseBtn.style.opacity = '1';
-            analyseBtn.style.pointerEvents = 'auto';
-        };
-
-        fileInput.addEventListener('change', () => {
-            if (fileInput.files[0]) activateBtn(fileInput.files[0]);
+        // ── "Upload a measurement" → open the upload modal and dismiss ──
+        document.getElementById('mly-empty-upload-btn')?.addEventListener('click', () => {
+            el.classList.remove('open');
+            el.addEventListener('transitionend', () => el.remove(), { once: true });
+            window.openUploadModal?.();
         });
 
-        dropzone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropzone.style.borderColor = '#6366f1';
-            dropzone.style.background = 'radial-gradient(circle at center,rgba(99,102,241,0.16),transparent 70%)';
-        });
-        dropzone.addEventListener('dragleave', () => {
-            dropzone.style.borderColor = 'rgba(99,102,241,0.45)';
-            dropzone.style.background = 'radial-gradient(circle at center,rgba(99,102,241,0.08),transparent 70%)';
-        });
-        dropzone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            const file = e.dataTransfer.files[0];
-            if (file && (file.name.endsWith('.wav') || file.type === 'audio/wav')) {
-                activateBtn(file);
-            }
-        });
-
-        analyseBtn.addEventListener('click', () => {
-            if (!pickedFile) return;
-            // Pre-populate the upload modal's file input with our picked file,
-            // then hand off to the existing modal/analysis pipeline.
-            el.remove();
-            if (typeof window.openUploadModal === 'function') {
-                window.openUploadModal(pickedFile);
-            }
-        });
-
-        // ── REW guide toggle ───────────────────────────────────────────
-        document.getElementById('mly-rew-guide-toggle')?.addEventListener('click', function () {
-            const guide = document.getElementById('mly-rew-guide');
-            const open  = guide.style.display === 'none' || guide.style.display === '';
-            guide.style.display = open ? 'block' : 'none';
-            this.textContent = open
-                ? 'Hide REW guide \u2191'
-                : "Don't have a WAV yet? How to export from REW \u2193";
+        // ── "Explore the dashboard first" → dismiss overlay entirely ───
+        document.getElementById('mly-empty-dismiss')?.addEventListener('click', () => {
+            el.classList.remove('open');
+            el.addEventListener('transitionend', () => el.remove(), { once: true });
         });
     }
 
