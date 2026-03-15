@@ -1045,3 +1045,119 @@ html, body {
   color: #f87171;
   line-height: 1.5;
 }
+
+
+/* ======================================================
+   MOBILE LANDSCAPE — SPLIT LAYOUT
+   Fixes: canvas + panel + chip all stacking on top of
+   each other on phones / small tablets in landscape.
+   Layout: canvas 54% left | panel 46% right, full height.
+   ====================================================== */
+
+@media (max-width: 899px) and (orientation: landscape) {
+
+  /* ── Canvas: left column ─────────────────────────── */
+  #roomCanvas {
+    position: fixed;
+    inset: 0 auto 0 0;   /* top:0 right:auto bottom:0 left:0 */
+    width: 54%;
+    height: 100%;
+  }
+
+  /* Canvas hint stays inside the left column */
+  #canvasHint {
+    width: 54%;
+  }
+
+  /* ── Question panel: right column ───────────────── */
+  #questionPanel {
+    position: fixed;
+    top: 0;
+    left: 54%;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    max-width: none;
+    max-height: none;
+    border-radius: 0;
+    border-left: 1px solid rgba(255, 255, 255, 0.07);
+    border-top: none;
+    border-right: none;
+    border-bottom: none;
+    padding: 0.85rem 1rem 0.9rem;
+    overflow-y: auto;
+
+    /* Override bottom-sheet transform — just use opacity */
+    transform: none;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+  }
+
+  #questionPanel.active {
+    transform: none;
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* ── Dave chip: lower-left inside canvas area ────── */
+  #daveChip {
+    bottom: 1.5rem;
+    left: 1rem;
+    /* Remove centring transform — chip is left-anchored */
+    transform: translateY(12px);
+    max-width: calc(54% - 2rem);
+  }
+
+  #daveChip.chip-visible {
+    transform: translateY(0);
+  }
+
+  #daveChip.chip-out {
+    transform: translateY(-8px);
+  }
+
+  /* ── Header: constrained to the canvas column ────── */
+  .header-onboarding {
+    width: 54%;
+    padding: 0.55rem 0.85rem;
+    box-sizing: border-box;
+  }
+
+  .header-onboarding .header-title h1 {
+    font-size: 1rem;
+  }
+
+  /* Hide subtitle to save vertical space */
+  .header-onboarding .header-title p {
+    display: none;
+  }
+
+  /* Auth slot lives inside the header which has pointer-events:none —
+     restore pointer-events so sign-in button is clickable */
+  #auth-user-slot {
+    pointer-events: auto;
+  }
+
+  /* ── Compact panel typography ────────────────────── */
+  .question {
+    font-size: 0.95rem;
+  }
+
+  .sub {
+    font-size: 0.73rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .actions {
+    margin-top: 0.55rem;
+    gap: 0.5rem;
+  }
+
+  /* ── Tour: canvas stays at normal z-index in split layout ── */
+  /* (Joyride tooltips are in the right panel column, so the
+     canvas z-index escalation would only bury the panel) */
+  .tour-active #roomCanvas {
+    z-index: 1;
+  }
+}

@@ -32,18 +32,26 @@
     }
 
     // ── Push room config ─────────────────────────────────────────────────────
-    // PocketBase doesn't have a native "upsert" via REST, so we:
-    //   1. Try to fetch the user's existing room record
-    //   2. If found → update it; if not → create it
+    // Maps the localStorage nested format → PocketBase collection fields:
+    //   payload.geometry    → dimensions
+    //   payload.setup       → speaker_pos
+    //   payload.environment → treatment
     async function pushRoom() {
         if (!_authenticated()) return;
         const raw = localStorage.getItem(LS_ROOM);
         if (!raw) return;
-        let config;
-        try { config = JSON.parse(raw); } catch (_) { return; }
+        let payload;
+        try { payload = JSON.parse(raw); } catch (_) { return; }
 
         const pb     = _pb();
         const userId = _userId();
+
+        const record = {
+            user:        userId,
+            dimensions:  payload.geometry    ?? payload,
+            speaker_pos: payload.setup       ?? {},
+            treatment:   payload.environment ?? {},
+        };
 
         try {
             const existing = await pb.collection('rooms')
@@ -51,12 +59,53 @@
                 .catch(() => null);
 
             if (existing) {
-                await pb.collection('rooms').update(existing.id, { config });
+                await pb.collection('rooms').update(existing.id, record);
             } else {
-                await pb.collection('rooms').create({ user: userId, config });
+                await pb.collection('rooms').create(record);
             }
         } catch (err) {
             console.warn('[sync] pushRoom failed:', err?.message);
+        }
+    }
+
+    // ── Pull room config from cloud ───────────────────────────────────────────
+    // Returns the normalised room object (same shape as localStorage payload)
+    // or null if the user has no cloud record yet.
+    // Also writes the result to localStorage when the cloud record is newer.
+    async function pullRoom() {
+        if (!_authenticated()) return null;
+        const pb     = _pb();
+        const userId = _userId();
+
+        try {
+            const record = await pb.collection('rooms')
+                .getFirstListItem(`user="${userId}"`)
+                .catch(() => null);
+
+            if (!record) return null;
+
+            // Re-assemble into the shape myroom.html expects
+            const normalised = {
+                geometry:    record.dimensions  ?? {},
+                setup:       record.speaker_pos ?? {},
+                environment: record.treatment   ?? {},
+                room_type:   record.dimensions?.room_type ?? record.room_type ?? 'home',
+                saved_at:    record.updated,
+            };
+
+            // Persist locally — prefer cloud when we have a valid record
+            const localRaw = localStorage.getItem(LS_ROOM);
+            const localTs  = localRaw ? (JSON.parse(localRaw)?.saved_at ?? 0) : 0;
+            const cloudTs  = record.updated ?? 0;
+
+            if (!localTs || new Date(cloudTs) >= new Date(localTs)) {
+                localStorage.setItem(LS_ROOM, JSON.stringify(normalised));
+            }
+
+            return normalised;
+        } catch (err) {
+            console.warn('[sync] pullRoom failed:', err?.message);
+            return null;
         }
     }
 
@@ -127,16 +176,20 @@
                 .getFirstListItem(`user="${userId}"`)
                 .catch(() => null);
 
-            if (roomRecord?.config) {
+            if (roomRecord) {
+                const normalised = {
+                    geometry:    roomRecord.dimensions  ?? {},
+                    setup:       roomRecord.speaker_pos ?? {},
+                    environment: roomRecord.treatment   ?? {},
+                    room_type:   roomRecord.dimensions?.room_type ?? 'home',
+                    saved_at:    roomRecord.updated,
+                };
                 const localRaw = localStorage.getItem(LS_ROOM);
-                const local    = localRaw ? JSON.parse(localRaw) : null;
+                const localTs  = localRaw ? (JSON.parse(localRaw)?.saved_at ?? 0) : 0;
+                const cloudTs  = roomRecord.updated ?? 0;
 
-                // Prefer whichever has the newer saved_at timestamp
-                const cloudTs = new Date(roomRecord.updated).getTime();
-                const localTs = local?.saved_at ? new Date(local.saved_at).getTime() : 0;
-
-                if (cloudTs >= localTs) {
-                    localStorage.setItem(LS_ROOM, JSON.stringify(roomRecord.config));
+                if (!localTs || new Date(cloudTs) >= new Date(localTs)) {
+                    localStorage.setItem(LS_ROOM, JSON.stringify(normalised));
                 }
             }
 
@@ -183,6 +236,9 @@
                 localStorage.setItem(LS_ONBOARD, 'true');
             }
 
+            // Pull Hi-Fi profile (gear, genres, listening level) into cache
+            await pullProfile().catch(() => {});
+
         } catch (err) {
             console.warn('[sync] pullAll failed:', err?.message);
         }
@@ -223,6 +279,69 @@
         }
     }
 
+    // ── Module-level profile cache ───────────────────────────────────────────
+    // Populated by pullProfile(); read by getProfile() and window.__MLY_PROFILE__.
+    let _cachedProfile = null;
+
+    // ── Push Hi-Fi profile to the users collection ────────────────────────────
+    // PocketBase file uploads must use FormData, so avatar gets special handling.
+    async function pushProfile(data, avatarFile) {
+        if (!_authenticated()) return;
+        const pb     = _pb();
+        const userId = _userId();
+
+        const form = new FormData();
+        form.append('gear_list',       JSON.stringify(data.gear_list       ?? []));
+        form.append('genres',          JSON.stringify(data.genres          ?? []));
+        form.append('listening_level', data.listening_level ?? '');
+        form.append('public_profile',  data.public_profile ? 'true' : 'false');
+        if (avatarFile instanceof File) form.append('avatar', avatarFile);
+
+        try {
+            await pb.collection('users').update(userId, form);
+            _cachedProfile             = { ...(_cachedProfile || {}), ...data };
+            window.__MLY_PROFILE__     = _cachedProfile;
+        } catch (err) {
+            console.warn('[sync] pushProfile failed:', err?.message);
+            throw err;   // re-throw so profile.js can show the error
+        }
+    }
+
+    // ── Pull Hi-Fi profile fields from the users record ───────────────────────
+    // Returns the normalised profile object (or null on failure).
+    // Also caches to _cachedProfile / window.__MLY_PROFILE__ for Co-Pilot access.
+    async function pullProfile() {
+        if (!_authenticated()) return null;
+        const pb     = _pb();
+        const userId = _userId();
+
+        try {
+            const record = await pb.collection('users').getOne(userId);
+
+            // gear_list and genres are stored as JSON strings in PocketBase
+            const _parseJson = (v, fallback) => {
+                if (Array.isArray(v)) return v;
+                try { return v ? JSON.parse(v) : fallback; } catch (_) { return fallback; }
+            };
+
+            _cachedProfile = {
+                gear_list:       _parseJson(record.gear_list, []),
+                genres:          _parseJson(record.genres,    []),
+                listening_level: record.listening_level ?? '',
+                public_profile:  !!record.public_profile,
+                avatar:          record.avatar ?? '',
+            };
+            window.__MLY_PROFILE__ = _cachedProfile;
+            return _cachedProfile;
+        } catch (err) {
+            console.warn('[sync] pullProfile failed:', err?.message);
+            return null;
+        }
+    }
+
+    /** Returns the in-memory profile cache without hitting the network. */
+    function getProfile() { return _cachedProfile; }
+
     // ── Merge helper ─────────────────────────────────────────────────────────
     // Deduplicates by session.id, keeping the newer record (by _cloud_updated > timestamp).
     function _mergeSessions(local, cloud) {
@@ -252,11 +371,15 @@
     // ── Expose ───────────────────────────────────────────────────────────────
     window.MeasurelySync = {
         pushRoom,
+        pullRoom,
         pushSession,
         pushPrefs,
         pullAll,
         pushLocalData,
         deleteSession,
+        pushProfile,
+        pullProfile,
+        getProfile,
     };
 
 })();

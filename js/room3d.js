@@ -124,7 +124,48 @@ export function initRoom3D({
 
   const baseScale = isDesktop ? 1.1 : 1;
 
-  const LINE_BOOST = isTablet ? 1.35 : 1.0;
+  // WebGL lineWidth is capped at 1px on most GPUs (it's a spec limitation).
+  // On high-DPR mobile (2–3×) that becomes visually sub-pixel.
+  // On tablet/mobile we replace LineSegments with thin mesh tube geometry so
+  // the wireframe is reliably visible regardless of device pixel ratio.
+  // EDGE_TUBE_T: tube cross-section in metres (negligible in 3D, visible on screen).
+  const EDGE_TUBE_T   = isTablet ? 0.038 : 0.016;
+  const useFatEdges   = isTablet;   // desktop keeps fast LineSegments path
+
+  /**
+   * Build a single thin mesh tube between two Vector3 points.
+   * BoxGeometry(t, len, t) with Y-axis aligned to the edge direction.
+   */
+  function _edgeTube(v1, v2, t, mat) {
+    const dir = new THREE.Vector3().subVectors(v2, v1);
+    const len = dir.length();
+    if (len < 1e-4) return null;
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(t, len, t), mat);
+    mesh.position.set((v1.x + v2.x) / 2, (v1.y + v2.y) / 2, (v1.z + v2.z) / 2);
+    mesh.quaternion.setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      dir.normalize()
+    );
+    mesh.renderOrder = 1;
+    return mesh;
+  }
+
+  /**
+   * Build a Group of fat mesh tubes for an arbitrary edge list.
+   * @param {THREE.Vector3[]} verts
+   * @param {[number,number][]} pairs  — index pairs into verts
+   * @param {number} t                — tube cross-section in metres
+   * @param {THREE.Material} mat
+   */
+  function _fatEdgeGroup(verts, pairs, t, mat) {
+    const g = new THREE.Group();
+    g.renderOrder = 1;
+    pairs.forEach(([a, b]) => {
+      const tube = _edgeTube(verts[a], verts[b], t, mat);
+      if (tube) g.add(tube);
+    });
+    return g;
+  }
 
 
   console.log("[Room3D] baseScale =", baseScale);
@@ -459,25 +500,55 @@ function rebuild() {
     _roomShell = null; _roomFloor = null; _roomGrid = null;
 
     if (VISIBILITY.roomShell) {
-      const wireMat = new THREE.LineBasicMaterial({
-        color: colors.room,
-        transparent: true,
-        opacity: focusedOverlay ? 0.18 : 1.0,
-        depthTest: false,
-        depthWrite: false
-      });
+      // Desktop: LineBasicMaterial + scalable unit box (fast live-resize path).
+      // Mobile/tablet: mesh tube geometry per edge — reliable thickness at all DPR.
+      const shellOpacity = focusedOverlay ? 0.18 : 1.0;
+
+      const wireMat = useFatEdges
+        ? new THREE.MeshBasicMaterial({
+            color: colors.room,
+            transparent: true,
+            opacity: shellOpacity,
+            depthTest: false,
+            depthWrite: false,
+          })
+        : new THREE.LineBasicMaterial({
+            color: colors.room,
+            transparent: true,
+            opacity: shellOpacity,
+            depthTest: false,
+            depthWrite: false,
+          });
 
       if (!isSlanted && !isGable) {
-        // Unit box scaled to room dims — lets setRoomWidth/Length resize it
-        // without a full rebuild by just updating roomEdges.scale.
-        const roomEdges = new THREE.LineSegments(
-          new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
-          wireMat
-        );
-        roomEdges.scale.set(room.width_m, room.height_m, room.length_m);
-        roomEdges.renderOrder = 1;
-        roomGroup.add(roomEdges);
-        _roomShell = roomEdges; // stored for live resize
+        if (useFatEdges) {
+          // Fat tubes using actual room dimensions.
+          // NOTE: _roomShell is intentionally left null so setRoomWidth/Length
+          // falls back to rebuild() — acceptable on mobile where drag-resize is rare.
+          const bverts = [
+            new THREE.Vector3(-hW, floorY, -hL),
+            new THREE.Vector3( hW, floorY, -hL),
+            new THREE.Vector3( hW, floorY,  hL),
+            new THREE.Vector3(-hW, floorY,  hL),
+            new THREE.Vector3(-hW, floorY + room.height_m, -hL),
+            new THREE.Vector3( hW, floorY + room.height_m, -hL),
+            new THREE.Vector3( hW, floorY + room.height_m,  hL),
+            new THREE.Vector3(-hW, floorY + room.height_m,  hL),
+          ];
+          const bpairs = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+          roomGroup.add(_fatEdgeGroup(bverts, bpairs, EDGE_TUBE_T, wireMat));
+        } else {
+          // Desktop: unit box scaled to room dims — lets setRoomWidth/Length resize it
+          // without a full rebuild by just updating roomEdges.scale.
+          const roomEdges = new THREE.LineSegments(
+            new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
+            wireMat
+          );
+          roomEdges.scale.set(room.width_m, room.height_m, room.length_m);
+          roomEdges.renderOrder = 1;
+          roomGroup.add(roomEdges);
+          _roomShell = roomEdges; // stored for live resize
+        }
       } else if (isSlanted) {
         // 8 vertices — each ceiling corner uses ceilingYAt
         const v = [
@@ -497,12 +568,16 @@ function rebuild() {
           [0,4],[1,5],[2,6],[3,7]
         ];
 
-        const points = [];
-        edgePairs.forEach(([a, b]) => { points.push(v[a], v[b]); });
-        const geo = new THREE.BufferGeometry().setFromPoints(points);
-        const edges = new THREE.LineSegments(geo, wireMat);
-        edges.renderOrder = 1;
-        roomGroup.add(edges);
+        if (useFatEdges) {
+          roomGroup.add(_fatEdgeGroup(v, edgePairs, EDGE_TUBE_T, wireMat));
+        } else {
+          const points = [];
+          edgePairs.forEach(([a, b]) => { points.push(v[a], v[b]); });
+          const geo = new THREE.BufferGeometry().setFromPoints(points);
+          const edges = new THREE.LineSegments(geo, wireMat);
+          edges.renderOrder = 1;
+          roomGroup.add(edges);
+        }
       } else if (isGable) {
         // 10 vertices: 4 floor + 4 eaves + 2 ridge
         const eavesY = lowY;
@@ -523,18 +598,22 @@ function rebuild() {
             new THREE.Vector3(  0, peakY,   hL), // 9 ridge back
           ];
           const edgePairs = [
-            [0,1],[1,2],[2,3],[3,0],       // floor
-            [0,4],[1,5],[2,6],[3,7],       // verticals
-            [4,7],[5,6],                    // side wall tops (eaves)
-            [8,9],                          // ridge
-            [4,8],[8,5],[7,9],[9,6],       // gable slopes
+            [0,1],[1,2],[2,3],[3,0],
+            [0,4],[1,5],[2,6],[3,7],
+            [4,7],[5,6],
+            [8,9],
+            [4,8],[8,5],[7,9],[9,6],
           ];
-          const points = [];
-          edgePairs.forEach(([a, b]) => { points.push(v[a], v[b]); });
-          const geo = new THREE.BufferGeometry().setFromPoints(points);
-          const edges = new THREE.LineSegments(geo, wireMat);
-          edges.renderOrder = 1;
-          roomGroup.add(edges);
+          if (useFatEdges) {
+            roomGroup.add(_fatEdgeGroup(v, edgePairs, EDGE_TUBE_T, wireMat));
+          } else {
+            const points = [];
+            edgePairs.forEach(([a, b]) => { points.push(v[a], v[b]); });
+            const geo = new THREE.BufferGeometry().setFromPoints(points);
+            const edges = new THREE.LineSegments(geo, wireMat);
+            edges.renderOrder = 1;
+            roomGroup.add(edges);
+          }
         } else {
           // Ridge runs left-to-right (X), slopes on Z
           const v = [
@@ -550,18 +629,22 @@ function rebuild() {
             new THREE.Vector3( hW, peakY,    0), // 9 ridge right
           ];
           const edgePairs = [
-            [0,1],[1,2],[2,3],[3,0],       // floor
-            [0,4],[1,5],[2,6],[3,7],       // verticals
-            [4,5],[6,7],                    // front/back wall tops (eaves)
-            [8,9],                          // ridge
-            [4,8],[8,7],[5,9],[9,6],       // gable slopes
+            [0,1],[1,2],[2,3],[3,0],
+            [0,4],[1,5],[2,6],[3,7],
+            [4,5],[6,7],
+            [8,9],
+            [4,8],[8,7],[5,9],[9,6],
           ];
-          const points = [];
-          edgePairs.forEach(([a, b]) => { points.push(v[a], v[b]); });
-          const geo = new THREE.BufferGeometry().setFromPoints(points);
-          const edges = new THREE.LineSegments(geo, wireMat);
-          edges.renderOrder = 1;
-          roomGroup.add(edges);
+          if (useFatEdges) {
+            roomGroup.add(_fatEdgeGroup(v, edgePairs, EDGE_TUBE_T, wireMat));
+          } else {
+            const points = [];
+            edgePairs.forEach(([a, b]) => { points.push(v[a], v[b]); });
+            const geo = new THREE.BufferGeometry().setFromPoints(points);
+            const edges = new THREE.LineSegments(geo, wireMat);
+            edges.renderOrder = 1;
+            roomGroup.add(edges);
+          }
         }
       }
     }
@@ -589,14 +672,16 @@ function rebuild() {
     if (VISIBILITY.grid) {
       // GridHelper(size, divisions) — unit size scaled to room dimensions so
       // setRoomWidth/Length can update scale.x / scale.z without rebuilding.
-      const grid = new THREE.GridHelper(1, 20, colors.room, 0x334155);
+      // Fewer divisions on mobile so lines are further apart and more legible.
+      const gridDivisions = isTablet ? 10 : 20;
+      const grid = new THREE.GridHelper(1, gridDivisions, colors.room, 0x334155);
       grid.scale.set(room.width_m, 1, room.length_m);
       grid.position.y = -room.height_m / 2;
 
       const gridMats = Array.isArray(grid.material) ? grid.material : [grid.material];
       gridMats.forEach(m => {
         m.transparent = true;
-        m.opacity = focusedOverlay ? 0.1 : 0.45;
+        m.opacity = focusedOverlay ? 0.1 : (isTablet ? 0.65 : 0.45);
         m.depthTest = false;
         m.depthWrite = false;
       });
