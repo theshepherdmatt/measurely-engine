@@ -27,16 +27,7 @@ export function initRoom3D({
   mountId,
   getRoomData,
   mode = "setup",
-  onSpeakerTap    = null,   // (side: "L"|"R") => void
-  onSpeakerDrag   = null,   // ({ side, spk_spacing_m, spk_front_m }) => void
-  onListenerDrag  = null,   // ({ listener_front_m, listener_offset_m }) => void
 }) {
-  // Mutable callbacks — callers can replace after init via api.setCallbacks()
-  let _onSpeakerTap    = onSpeakerTap;
-  let _onSpeakerDrag   = onSpeakerDrag;
-  let _onListenerDrag  = onListenerDrag;
-
-
   console.log("[Room3D] initRoom3D() called with mode:", mode);
 
   const container = document.getElementById(mountId);
@@ -224,30 +215,7 @@ export function initRoom3D({
     renderer.setSize(w, h);
   });
 
-  /* ------------------------------------------
-     DRAG & TAP SYSTEM
-     Handles:
-       • Tap  (< DRAG_TAP_MS, < DRAG_THRESHOLD_PX) → _onSpeakerTap(side)
-       • Drag (pointer held + moved)               → live speaker reposition
-                                                      → _onSpeakerDrag on release
-     OrbitControls is disabled for the duration of any drag.
-  ------------------------------------------ */
-  const _raycaster    = new THREE.Raycaster();
-  const _pointerNDC   = new THREE.Vector2();
-  const _dragPoint    = new THREE.Vector3();
-  const _dragPlane    = new THREE.Plane();
-
-  let _draggables     = [];   // repopulated after every rebuild()
-  let _dragTarget     = null; // THREE.Mesh that was hit by the raycaster
-  let _dragMoveTarget = null; // Object3D that actually moves (Group for furniture, same as _dragTarget for speakers)
-  let _dragSide       = null; // "L" | "R" (speakers only)
-  let _isDragging     = false;
-  let _ptrDownTime    = 0;
-  let _ptrStartX      = 0;
-  let _ptrStartY      = 0;
-  let _hoveredSide    = null; // "L" | "R" | null — drives emerald hover glow
-  let _hoverTimer     = null; // debounce clearing hover to avoid flicker
-  let _dragFloorY     = 0;    // Y of the active drag plane (set on pointerdown)
+  // ── Live object refs (repopulated every rebuild) ─────────
 
   // ── Live object refs (repopulated every rebuild) ─────────
   let _spkMeshL      = null;  // Left  speaker mesh (for auto-toe)
@@ -263,28 +231,6 @@ export function initRoom3D({
   let _roomFloor = null;  // Floor plane mesh
   let _roomGrid  = null;  // GridHelper
 
-  // ── Listen-station position overrides ────────────────────────
-  // Set live during pointermove so rebuild() never snaps the station back.
-  // Cleared only when the caller explicitly resets (e.g. sboxReset).
-  let _stationFrontOverride  = null; // meters from front wall
-  let _stationOffsetOverride = null; // absolute X in room-group space
-
-  // ── Station visual state ──────────────────────────────────────
-  let _stationDragging    = false;   // true while the station is being dragged
-  let _stationHovered     = false;   // true while pointer is over the station
-  let _stationSphereMesh  = null;    // live ref to the sphere mesh (set in rebuild)
-
-  const DRAG_TAP_MS   = 230;
-  const DRAG_PX       = 7;   // pixels of movement before a tap becomes a drag
-
-  // Emerald green used for hover glow (#10b981)
-  const HOVER_COLOR   = 0x10b981;
-
-  function _collectDraggables() {
-    _draggables = [];
-    if (currentMode === 'locked') return; // orbit-only — no drag targets
-    roomGroup.traverse(obj => { if (obj.userData?.draggable) _draggables.push(obj); });
-  }
 
   // ── Auto Toe-In ───────────────────────────────────────────
   // Rotates both speaker meshes to face the listener sphere using the
@@ -339,205 +285,6 @@ export function initRoom3D({
     _autoToeAngle = _spkMeshL.rotation.y;
   }
 
-  function _toNDC(e) {
-    const rect = renderer.domElement.getBoundingClientRect();
-    // Use first touch when available (mobile)
-    const cx = e.touches ? e.touches[0].clientX : e.clientX;
-    const cy = e.touches ? e.touches[0].clientY : e.clientY;
-    _pointerNDC.x =  ((cx - rect.left) / rect.width)  * 2 - 1;
-    _pointerNDC.y = -((cy - rect.top)  / rect.height) * 2 + 1;
-  }
-
-  function _hitDraggable() {
-    _raycaster.setFromCamera(_pointerNDC, camera);
-    const hits = _raycaster.intersectObjects(_draggables, false);
-    return hits.length > 0 ? hits[0].object : null;
-  }
-
-  // ── hover cursor + emerald glow ──────────────────────────────
-  renderer.domElement.addEventListener('pointermove', e => {
-    if (_dragTarget) return; // already dragging
-    _toNDC(e);
-    const hit = _hitDraggable();
-    renderer.domElement.style.cursor = hit ? 'grab' : '';
-
-    // Speaker hover → rebuild to update speaker colors
-    const newSide = hit ? hit.userData.speakerSide : null;
-    if (newSide !== _hoveredSide) {
-      if (_hoverTimer) clearTimeout(_hoverTimer);
-      if (newSide) {
-        _hoveredSide = newSide;
-        rebuild();
-      } else {
-        _hoverTimer = setTimeout(() => { _hoveredSide = null; rebuild(); }, 60);
-      }
-    }
-
-    // Station hover → directly tint sphere (no rebuild, avoids flicker)
-    const nowOverStation = !!(hit && hit.userData.dragGroup === _listenStation);
-    if (nowOverStation !== _stationHovered) {
-      _stationHovered = nowOverStation;
-      if (_stationSphereMesh) {
-        _stationSphereMesh.material.color.setHex(
-          _stationHovered ? HOVER_COLOR : 0x818cf8
-        );
-      }
-    }
-  }, { passive: true });
-
-  // ── pointerdown ──────────────────────────────────────────────
-  renderer.domElement.addEventListener('pointerdown', e => {
-    _ptrDownTime = performance.now();
-    _ptrStartX   = e.clientX;
-    _ptrStartY   = e.clientY;
-    _isDragging  = false;
-    _dragTarget  = null;
-    _dragMoveTarget = null;
-
-    _toNDC(e);
-    const hit = _hitDraggable();
-    if (!hit) return;
-
-    _dragTarget     = hit;
-    _dragSide       = hit.userData.speakerSide ?? null;
-    _dragMoveTarget = hit.userData.dragGroup ?? hit;
-
-    // Station drag: flag it and immediately turn the sphere emerald green
-    if (_dragMoveTarget === _listenStation) {
-      _stationDragging = true;
-      if (_stationSphereMesh) _stationSphereMesh.material.color.setHex(HOVER_COLOR);
-    }
-
-    // XZ floor plane locked to the MOVE TARGET'S Y
-    _dragFloorY = _dragMoveTarget.position.y;
-    _dragPlane.setFromNormalAndCoplanarPoint(
-      new THREE.Vector3(0, 1, 0),
-      new THREE.Vector3(0, _dragFloorY, 0)
-    );
-
-    // Disable orbit so we own this gesture
-    controls.enabled = false;
-    renderer.domElement.setPointerCapture(e.pointerId);
-    e.preventDefault();   // stop iOS/iPad from starting a page scroll
-    e.stopPropagation();
-  }, { passive: false });
-
-  // ── pointermove (drag) ───────────────────────────────────────
-  renderer.domElement.addEventListener('pointermove', e => {
-    if (!_dragTarget) return;
-
-    const dx = e.clientX - _ptrStartX;
-    const dy = e.clientY - _ptrStartY;
-    if (!_isDragging && Math.hypot(dx, dy) < DRAG_PX) return;
-    _isDragging = true;
-
-    _toNDC(e);
-    _raycaster.setFromCamera(_pointerNDC, camera);
-
-    // Intersect the locked XZ floor plane.
-    // If the ray is nearly parallel to the plane (edge case), skip the frame
-    // rather than snapping the speaker to infinity.
-    if (!_raycaster.ray.intersectPlane(_dragPlane, _dragPoint)) return;
-
-    const d   = getRoomData();
-    const geo = d.geometry || d;
-    const hW  = (geo.width_m  || 4) / 2;
-    const hL  = (geo.length_m || 4) / 2;
-
-    // Wider boundary margin for furniture vs speakers
-    const isFurnitureDrag = _dragTarget?.userData?.dragType === 'furniture';
-    const margin = isFurnitureDrag ? 0.3 : 0.15;
-    const zMinMargin = isFurnitureDrag ? 0.3 : 0.05;
-
-    // Clamp within room bounds
-    _dragPoint.x = THREE.MathUtils.clamp(_dragPoint.x, -hW + margin,     hW - margin);
-    _dragPoint.z = THREE.MathUtils.clamp(_dragPoint.z, -hL + zMinMargin, hL - margin);
-
-    // XZ only — Y is ALWAYS pinned to the drag floor plane (never floats/sinks)
-    _dragMoveTarget.position.x = _dragPoint.x;
-    _dragMoveTarget.position.z = _dragPoint.z;
-    _dragMoveTarget.position.y = _dragFloorY;
-
-    // ── Live state sync for station drag ──────────────────────
-    // Update overrides NOW so that if rebuild() fires for any reason
-    // (overlay change, resize, etc.) it recreates the station at the
-    // dragged position rather than the data-store position.
-    if (_dragMoveTarget === _listenStation) {
-      const effL = _roomLengthOverride ?? ((getRoomData()?.geometry || {}).length_m || 5);
-      _stationFrontOverride  = Math.max(0.3, _dragPoint.z + effL / 2);
-      _stationOffsetOverride = _dragPoint.x;
-    }
-
-    // Mirror opposite speaker symmetrically on X axis (speakers only)
-    if (!isFurnitureDrag && _dragSide) {
-      const mirrorSide = _dragSide === 'L' ? 'R' : 'L';
-      const mirror = _draggables.find(
-        m => m.userData.speakerSide === mirrorSide && m.userData.dragType === 'speaker'
-      );
-      if (mirror) {
-        mirror.position.x = -_dragPoint.x;
-        mirror.position.z =  _dragPoint.z;
-        mirror.position.y =  _dragFloorY;
-        mirror.traverse(child => { if (child.isLine) child.computeLineDistances(); });
-      }
-    }
-
-    // Auto-toe: rotate speakers to always face the listen station sphere
-    _applyAutoToe();
-  }, { passive: true });
-
-  // ── pointerup ────────────────────────────────────────────────
-  renderer.domElement.addEventListener('pointerup', e => {
-    controls.enabled = true;
-
-    if (!_dragTarget) return;
-
-    const wasTap = !_isDragging && (performance.now() - _ptrDownTime) < DRAG_TAP_MS;
-
-    if (wasTap && _onSpeakerTap) {
-      _onSpeakerTap(_dragSide);
-    }
-
-    // Clear station drag flag BEFORE rebuild so the sphere renders in default color
-    _stationDragging = false;
-    _stationHovered  = false;
-
-    if (_isDragging) {
-      const d   = getRoomData();
-      const geo = d?.geometry || d || {};
-      const hL  = (_roomLengthOverride ?? (geo.length_m || 4)) / 2;
-
-      // Speaker drag callback
-      if (_onSpeakerDrag && _dragSide) {
-        const newSpacing = Math.abs(_dragMoveTarget.position.x) * 2;
-        const newFront   = _dragMoveTarget.position.z + hL;
-        _onSpeakerDrag({
-          side:           _dragSide,
-          spk_spacing_m:  Math.max(0.4,  parseFloat(newSpacing.toFixed(2))),
-          spk_front_m:    Math.max(0.05, parseFloat(newFront.toFixed(2)))
-        });
-      }
-
-      // Station drag callback — always uses the override values we set during
-      // pointermove so the data store ends up exactly where the group is.
-      if (_onListenerDrag && _dragMoveTarget === _listenStation
-          && _stationFrontOverride !== null) {
-        _onListenerDrag({
-          listener_front_m:  parseFloat(_stationFrontOverride.toFixed(2)),
-          listener_offset_m: parseFloat((_stationOffsetOverride ?? 0).toFixed(2))
-        });
-        // The override stays set — rebuild() below will use it, then the
-        // data store matches the override, so future rebuilds are consistent.
-      }
-
-      rebuild();
-    }
-
-    _dragTarget     = null;
-    _dragMoveTarget = null;
-    _dragSide       = null;
-    _isDragging     = false;
-  }, { passive: true });
 
 
   /* ------------------------------------------
@@ -951,15 +698,9 @@ function rebuild() {
       ["L", "R"].forEach(side => {
         const profile = getSpeakerProfile(room.speaker_type);
         const isSpkHighlit = highlightTarget === 'speakers';
-        const isHovered    = _hoveredSide === side && !_isDragging;
 
-        // Priority: highlight > hover > default
-        const spkColor  = isSpkHighlit ? 0x22d3ee
-                        : isHovered    ? HOVER_COLOR
-                        : profile.color;
-        const spkOpacity = isSpkHighlit ? 0.9
-                         : isHovered    ? 0.88
-                         : Math.max(OP_OBJ, 0.5);
+        const spkColor   = isSpkHighlit ? 0x22d3ee : profile.color;
+        const spkOpacity = isSpkHighlit ? 0.9 : Math.max(OP_OBJ, 0.5);
 
         const speaker = new THREE.Mesh(
           new THREE.BoxGeometry(profile.w, profile.h, profile.d),
@@ -985,11 +726,6 @@ function rebuild() {
 
         speaker.position.set(x, y, z);
 
-        // Tag for raycaster / drag system
-        speaker.userData.draggable    = true;
-        speaker.userData.dragType     = 'speaker';
-        speaker.userData.speakerSide  = side;
-
         // Initial toe-in (may be overridden by _applyAutoToe after rebuild)
         speaker.rotation.y = (side === "L" ? 1 : -1) * toeRad;
 
@@ -1005,7 +741,7 @@ function rebuild() {
             dashSize: 0.25,
             gapSize: 0.15,
             transparent: true,
-            opacity: isSpkHighlit ? 0.85 : isHovered ? 0.75 : 0.45
+            opacity: isSpkHighlit ? 0.85 : 0.45
           })
         );
         beam.computeLineDistances();
@@ -1021,61 +757,43 @@ function rebuild() {
 
   /* ------------------------------------------
     LISTEN STATION GROUP
-    Single draggable unit: sphere + rug + sofa + coffee table.
-    Position comes from the live overrides when set (drag in progress or
-    completed), otherwise falls back to the data-store values.
-    This is the single source of truth — children are NEVER repositioned
-    individually; only the Group anchor moves.
+    Sphere + rug + sofa + coffee table anchored at the listen position.
   ------------------------------------------ */
 
-  // Apply overrides into the room object so ALL downstream code (overlays,
-  // reflections, etc.) sees the dragged position, not the stale data-store value.
-  const _sFront   = _stationFrontOverride  ?? room.listener_front_m;
-  const _sOffsetX = _stationOffsetOverride ?? (offsetX + (room.listener_offset_m || 0));
-  room.listener_front_m  = _sFront;   // patch room so overlays stay in sync
-
-  const listenerZ = -room.length_m / 2 + _sFront;
+  const listenerZ = -room.length_m / 2 + room.listener_front_m;
   const effectiveHeadHeight = isStudio
     ? Math.max(1.1, room.tweeter_height_m + 0.2)
     : room.tweeter_height_m;
 
-  // Station-active colour (hover or drag → emerald green)
-  const stationActive   = _stationHovered || _stationDragging;
-  const stationAccent   = stationActive ? HOVER_COLOR : colors.accent;
-  const stationFurnCol  = stationActive ? HOVER_COLOR : colors.furniture;
-
   const furnMat = new THREE.MeshStandardMaterial({
-    color:            stationFurnCol,
-    emissive:         stationFurnCol,
-    emissiveIntensity: stationActive ? 0.55 : 0.35,
+    color:            colors.furniture,
+    emissive:         colors.furniture,
+    emissiveIntensity: 0.35,
     wireframe: true,
     transparent: true,
-    opacity: stationActive ? Math.max(OP_OBJ, 0.55) : OP_OBJ,
+    opacity: OP_OBJ,
     depthTest: false,
     depthWrite: false
   });
 
   {
     const station = new THREE.Group();
-    // Anchor: floor level at the listen position (single source of truth)
-    station.position.set(_sOffsetX, -room.height_m / 2, listenerZ);
+    station.position.set(offsetX + (room.listener_offset_m || 0), -room.height_m / 2, listenerZ);
 
     // ── Listener sphere (always visible) ──
     const isListHighlit = highlightTarget === 'listener';
-    const sphereColor   = isListHighlit ? 0x22d3ee : stationAccent;
+    const sphereColor   = isListHighlit ? 0x22d3ee : colors.accent;
     const sphere = new THREE.Mesh(
       new THREE.SphereGeometry(isListHighlit ? 0.26 : 0.18, 24, 24),
       new THREE.MeshBasicMaterial({
         color:       sphereColor,
         wireframe:   true,
         transparent: true,
-        opacity:     stationActive ? 0.95 : (isListHighlit ? 0.95 : 0.6)
+        opacity:     isListHighlit ? 0.95 : 0.6
       })
     );
     sphere.position.set(0, effectiveHeadHeight, 0);
     station.add(sphere);
-    // Store ref so hover/drag handlers can tint it without a full rebuild
-    _stationSphereMesh = sphere;
 
     // ── Rug (local coords: centred in front of sphere) ──
     if (VISIBILITY.furniture.rug && room.opt_area_rug && !hasFocus) {
@@ -1178,21 +896,8 @@ function rebuild() {
       roomGroup.add(chairGroup);
     }
 
-    // ── Invisible hit plane — the drag handle for the whole station ──
-    // Covers the rug footprint; invisible but raycaster-hittable.
-    const hitPlane = new THREE.Mesh(
-      new THREE.PlaneGeometry(3.0, 3.0),
-      new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide })
-    );
-    hitPlane.rotation.x = -Math.PI / 2;
-    hitPlane.position.y = 0.02;
-    hitPlane.userData.draggable = true;
-    hitPlane.userData.dragType  = 'furniture';
-    hitPlane.userData.dragGroup = station;
-    station.add(hitPlane);
-
     roomGroup.add(station);
-    _listenStation = station; // stored for auto-toe + onListenerDrag
+    _listenStation = station; // stored for auto-toe
   }
 
   /* ------------------------------------------
@@ -1442,9 +1147,6 @@ function rebuild() {
 
   renderHighlightOverlays(room);
   renderAnalysisOverlays(room);
-
-  // Refresh draggable mesh list every rebuild so new meshes are registered
-  _collectDraggables();
 
   // Auto-toe: snap speakers to face the sphere after every full rebuild
   _applyAutoToe();
@@ -2483,16 +2185,6 @@ function rebuild() {
       return Math.round(Math.abs(_autoToeAngle) * 180 / Math.PI);
     },
 
-    /**
-     * Replace drag/tap callbacks after initialisation.
-     * Useful when the host page needs to wire callbacks after room3D is ready.
-     */
-    setCallbacks({ onSpeakerTap, onSpeakerDrag, onListenerDrag } = {}) {
-      if (onSpeakerTap   !== undefined) _onSpeakerTap   = onSpeakerTap;
-      if (onSpeakerDrag  !== undefined) _onSpeakerDrag  = onSpeakerDrag;
-      if (onListenerDrag !== undefined) _onListenerDrag = onListenerDrag;
-    },
-
     startAutoSpin() {
       controls.autoRotate = true;
     },
@@ -2584,19 +2276,6 @@ function rebuild() {
         },
       };
     },
-    /**
-     * Clear the listen-station position overrides and rebuild from data store.
-     * Call this after an external reset so the station snaps back to the
-     * configured position rather than the last dragged position.
-     */
-    resetStation() {
-      _stationFrontOverride  = null;
-      _stationOffsetOverride = null;
-      rebuild();
-    },
-
-    /** Expose the draggable mesh list for external inspection / THREE.DragControls. */
-    get draggableObjects() { return _draggables; },
   };
 
   // Always accessible from the browser console as window.room3d

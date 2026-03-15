@@ -971,51 +971,11 @@ async function startApp() {
 
     console.log("[Wizard] Booting 3D with state:", roomState);
 
-    // 3. Init engine with drag callbacks — wrapped so a 3D failure never blocks the wizard
+    // 3. Init 3D engine — wrapped so a failure never blocks the wizard
     try { window.room3D = initRoom3D({
-        mountId:    "roomCanvas",
+        mountId:     "roomCanvas",
         getRoomData: () => roomState,
-        mode:       "setup",
-
-        // Tap a speaker → pulse the spacing field and scroll to it
-        onSpeakerTap(side) {
-            if (window.room3D?.highlight) window.room3D.highlight('speakers');
-            setTimeout(() => window.room3D?.highlight(null), 1200);
-
-            const target = document.getElementById('field-spk_spacing_m')
-                        ?? document.querySelector('[data-key="setup.spk_spacing_m"]');
-            if (target) {
-                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                target.classList.add('field--tapped');
-                setTimeout(() => target.classList.remove('field--tapped'), 800);
-            }
-        },
-
-        // Drag a speaker → write values back to state, sync sliders, show chip
-        onSpeakerDrag({ spk_spacing_m, spk_front_m }) {
-            roomState.setup.spk_spacing_m = spk_spacing_m;
-            roomState.setup.spk_front_m   = spk_front_m;
-
-            // Keep flat compat keys in sync
-            roomState.spk_spacing_m = spk_spacing_m;
-            roomState.spk_front_m   = spk_front_m;
-
-            // Sync sliders to the new values
-            const syncSlider = (key, val) => {
-                const el = document.querySelector(`[data-key="${key}"]`);
-                if (!el) return;
-                el.value = val;
-                import('./js/uiController.js').then(({ updateSliderFill }) => updateSliderFill(el));
-            };
-            syncSlider('setup.spk_spacing_m', spk_spacing_m);
-            syncSlider('setup.spk_front_m',   spk_front_m);
-
-            const nullHz = Math.round(343 / (4 * Math.max(spk_front_m, 0.05)));
-            showDaveChip(
-                `${spk_spacing_m.toFixed(2)} m apart · ${spk_front_m.toFixed(2)} m from wall · SBIR null ~${nullHz} Hz`,
-                4000
-            );
-        }
+        mode:        "setup",
     }); } catch (e3d) {
         console.warn("[Wizard] 3D init failed — wizard continues without 3D preview:", e3d);
         window.room3D = null;
