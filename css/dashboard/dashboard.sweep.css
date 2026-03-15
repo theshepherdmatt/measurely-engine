@@ -75,3 +75,27 @@
 .btn-danger.is-critical:active {
     transform: translateY(1px);
 }
+
+/* Skip / explore link below the main action buttons */
+.sweep-skip-row {
+    margin-top: 0.75rem;
+    text-align: center;
+}
+
+.sweep-skip-link {
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: inherit;
+    font-size: 0.78rem;
+    color: var(--c-text-muted);
+    cursor: pointer;
+    opacity: 0.65;
+    transition: opacity 0.15s ease, color 0.15s ease;
+    letter-spacing: 0.01em;
+}
+
+.sweep-skip-link:hover {
+    opacity: 1;
+    color: var(--c-text-main);
+}
