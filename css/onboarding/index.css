@@ -9,6 +9,7 @@
 @import "../global/forms.css";
 @import "../global/cards.css";
 @import "../global/animations.css";
+@import "../global/modals.css";
 
 @import "../onboarding.css";
 @import "../global/auth.css";

@@ -712,8 +712,13 @@
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             const cancelBtn = document.getElementById("cancelUploadBtn");
-            if (!cancelBtn) return;
-            cancelBtn.addEventListener("click", () => window.closeUploadModal && window.closeUploadModal());
+            if (cancelBtn) {
+                cancelBtn.addEventListener("click", () => window.closeUploadModal && window.closeUploadModal());
+            }
+            const skipBtn = document.getElementById("skipUploadBtn");
+            if (skipBtn) {
+                skipBtn.addEventListener("click", () => window.closeUploadModal && window.closeUploadModal());
+            }
         });
     </script>
 
@@ -756,6 +761,11 @@
                 <div class="sweep-actions">
                     <button id="startUploadBtn" class="btn btn-primary">Analyse</button>
                     <button id="cancelUploadBtn" class="btn btn-danger">Cancel</button>
+                </div>
+                <div class="sweep-skip-row">
+                    <button id="skipUploadBtn" type="button" class="sweep-skip-link">
+                        Just browsing? Skip for now &rarr;
+                    </button>
                 </div>
             </div>
 
@@ -950,7 +960,14 @@
 
 
 
-    <script type="module" src="js/dashboard-guide.js"></script>
+    <script src="js/section-intro.js"></script>
+    <script>
+        // Show the dashboard intro modal on first visit
+        document.addEventListener('DOMContentLoaded', () => {
+            // Small delay so the page content is visible behind the blur
+            setTimeout(() => window.SectionIntro?.show('dashboard'), 400);
+        });
+    </script>
 
     <script>
         // ── GitHub Pages SPA redirect: restore deep-link from ?p= param ────────────
