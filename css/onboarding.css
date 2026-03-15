@@ -1160,4 +1160,241 @@ html, body {
   .tour-active #roomCanvas {
     z-index: 1;
   }
+
+  /* ── Flyby: expand canvas to full width in landscape split ── */
+  body.flyby-active #roomCanvas {
+    width: 100%;
+    /* Transition inherits the existing opacity/transform; add width */
+    transition:
+      opacity 0.9s cubic-bezier(0.2, 0.8, 0.2, 1),
+      transform 1.1s cubic-bezier(0.2, 0.8, 0.2, 1),
+      width 0.7s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  body.flyby-active #questionPanel {
+    transform: translateX(30px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.4s ease, transform 0.5s ease;
+  }
+}
+
+
+/* ======================================================
+   CINEMATIC FLYBY — fullscreen canvas & completion modal
+   ====================================================== */
+
+/* ── Fade out UI when flyby-active is on body ─────── */
+
+body.flyby-active #questionPanel {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(40px);
+  transition: opacity 0.45s ease, transform 0.55s ease;
+}
+
+body.flyby-active #questionPanel.active {
+  transform: translateX(-50%) translateY(40px);
+}
+
+body.flyby-active .header-onboarding {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+body.flyby-active #daveChip {
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+body.flyby-active #canvasHint {
+  opacity: 0 !important;
+}
+
+/* ── Cinematic radial vignette ──────────────────────── */
+#cinemaVignette {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse at 55% 48%,
+    transparent 28%,
+    rgba(0, 0, 0, 0.58) 80%
+  );
+  opacity: 0;
+  transition: opacity 1.4s ease;
+}
+
+body.flyby-active #cinemaVignette {
+  opacity: 1;
+}
+
+
+/* ── Completion modal backdrop ──────────────────────── */
+.flyby-completion-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  box-sizing: border-box;
+
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.flyby-completion-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.flyby-completion-backdrop.hidden {
+  display: none !important;
+}
+
+
+/* ── Completion modal card ──────────────────────────── */
+.flyby-completion-card {
+  width: min(420px, 100%);
+  padding: 2rem 1.75rem 1.75rem;
+
+  background: linear-gradient(
+    165deg,
+    rgba(20, 28, 46, 0.97),
+    rgba(10, 15, 26, 0.99)
+  );
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 20px;
+  box-shadow:
+    0 40px 100px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+  text-align: center;
+
+  transform: scale(0.92) translateY(24px);
+  opacity: 0;
+  transition:
+    transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 0.08s,
+    opacity   0.35s ease 0.08s;
+}
+
+.flyby-completion-backdrop.open .flyby-completion-card {
+  transform: scale(1) translateY(0);
+  opacity: 1;
+}
+
+
+/* ── Animated check ring ────────────────────────────── */
+.flyby-check-ring {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  margin: 0 auto 1.3rem;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  border: 2px solid rgba(16, 185, 129, 0.32);
+
+  animation: flybyCheckPop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.5s both;
+}
+
+@keyframes flybyCheckPop {
+  from { transform: scale(0.45); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
+.flyby-completion-title {
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  margin: 0 0 0.6rem;
+  color: #f0f4f8;
+}
+
+.flyby-completion-sub {
+  font-size: 0.875rem;
+  color: var(--c-text-muted);
+  line-height: 1.65;
+  margin: 0 auto 1.3rem;
+  max-width: 340px;
+}
+
+
+/* ── Room stats row ────────────────────────────────── */
+.flyby-room-stats {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  padding: 0.7rem 1rem;
+
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+}
+
+.flyby-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.flyby-stat-val {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--c-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.flyby-stat-lbl {
+  font-size: 0.68rem;
+  color: var(--c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+
+/* ── CTA button ────────────────────────────────────── */
+.flyby-completion-actions {
+  margin-bottom: 0.8rem;
+}
+
+.flyby-completion-actions .btn-primary {
+  width: 100%;
+  justify-content: center;
+  height: 44px;
+  font-size: 0.93rem;
+}
+
+
+/* ── "Stay and explore" ghost link ─────────────────── */
+.flyby-back-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.78rem;
+  color: var(--c-text-muted);
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.flyby-back-link:hover {
+  opacity: 1;
 }

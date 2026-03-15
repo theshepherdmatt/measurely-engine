@@ -93,3 +93,45 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ======================================================
+   MOBILE LANDSCAPE — compact header & tighter layout
+   Activates on phones / small tablets that passed the
+   portrait-lock and are now in landscape (< 900px wide).
+   ====================================================== */
+@media (max-width: 899px) and (orientation: landscape) {
+
+  /* Tighten the page padding so content isn't buried */
+  .main-content {
+    padding: 0.85rem 1rem;
+    gap: 1rem;
+  }
+
+  /* Header row: title + auth button side by side */
+  .header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  /* Scale down the h1 — 2.9rem is enormous on 320px-tall screens */
+  .header-title h1 {
+    font-size: 1.4rem;
+  }
+
+  /* Hide the subtitle to save vertical space */
+  .header-title p {
+    display: none;
+  }
+
+  /* Push auth slot to the right */
+  .header #auth-user-slot {
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  /* 2-col grid still works on narrow landscape */
+  .grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

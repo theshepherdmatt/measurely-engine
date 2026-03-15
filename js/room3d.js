@@ -2286,23 +2286,25 @@ function rebuild() {
       const L = room.length_m / 2;
       const H = room.height_m / 2;
 
-      // Cinematic waypoints: each segment interpolates from the previous position
-      // to this one over `ms` milliseconds, with ease-in-out-quad.
+      // Listening sweet-spot in Three.js room-space coordinates
+      // (room centred at origin; front wall = z:-L, back = z:+L, floor = y:-H)
+      const lx = room.listener_offset_m  || 0;
+      const lz = -L + (room.listener_front_m || 2.8);
+      const ly = -H + 1.1;   // seated ear height above floor
+
       const waypoints = [
         // 0 – start: capture current state (filled in below)
         null,
-        // 1 – pull up for a god's-eye overview
-        { pos: { x:  W * 0.3, y: H * 5.5, z:  L * 0.5  }, look: { x: 0,        y: 0,         z: 0       }, ms: 1700 },
-        // 2 – swoop in from the listener side, medium height
-        { pos: { x:  W * 1.4, y: H * 1.4, z:  L * 2.2  }, look: { x: 0,        y: 0,         z: -L * 0.3}, ms: 1500 },
-        // 3 – dive low, heading toward the speaker wall
-        { pos: { x:  W * 0.2, y: -H * 0.2, z:  L * 0.2 }, look: { x: -W * 0.5, y: -H * 0.4, z: -L      }, ms: 1400 },
-        // 4 – close on left speaker
-        { pos: { x: -W * 1.6, y:  H * 0.2, z: -L * 0.6 }, look: { x: -W * 0.6, y: -H * 0.4, z: -L      }, ms: 1400 },
-        // 5 – sweep back along the left wall (shows side panels)
-        { pos: { x: -W * 1.8, y:  H * 1.2, z:  L * 1.0 }, look: { x: 0,        y: 0,         z: 0       }, ms: 1500 },
-        // 6 – return home
-        { pos: DEFAULT_CAMERA.pos, look: DEFAULT_CAMERA.target, ms: 1700 },
+        // 1 – rise to god's-eye establishing shot
+        { pos: { x:  W * 0.2,  y: H * 5.2, z:  L * 0.4  }, look: { x: 0,   y: 0,       z: 0       }, ms: 1400 },
+        // 2 – swoop around the right side at mid height
+        { pos: { x:  W * 2.0,  y: H * 1.2, z:  L * 1.5  }, look: { x: 0,   y: 0,       z: -L * 0.2}, ms: 1200 },
+        // 3 – push in close to the speaker wall, low
+        { pos: { x:  W * 0.3,  y: H * 0.3, z: -L * 1.6  }, look: { x: 0,   y: -H * 0.2, z: lz     }, ms: 1200 },
+        // 4 – arc up to ceiling midpoint looking toward the sweet spot
+        { pos: { x: -W * 0.3,  y: H * 2.5, z:  L * 0.8  }, look: { x: lx,  y: ly,       z: lz     }, ms: 1200 },
+        // 5 – slow descent to the listening position (ear height, looking at speakers)
+        { pos: { x: lx,        y: ly,       z: lz + 0.5  }, look: { x: 0,   y: ly - 0.05, z: -L + 0.6 }, ms: 2200 },
       ];
 
       // Snapshot current camera state as waypoint 0
@@ -2312,7 +2314,7 @@ function rebuild() {
         ms: 0,
       };
 
-      // Build cumulative timestamps for each transition
+      // Build cumulative timestamps
       let cum = 0;
       const tStamps = waypoints.map(wp => { const s = cum; cum += wp.ms; return s; });
       const totalMs = cum;
@@ -2325,11 +2327,13 @@ function rebuild() {
           const elapsed = now - t0;
 
           if (elapsed >= totalMs) {
-            camera.position.set(DEFAULT_CAMERA.pos.x, DEFAULT_CAMERA.pos.y, DEFAULT_CAMERA.pos.z);
-            controls.target.set(DEFAULT_CAMERA.target.x, DEFAULT_CAMERA.target.y, DEFAULT_CAMERA.target.z);
+            // Land precisely at the listening position — leave controls disabled
+            // so the caller (completion modal) decides what to do next.
+            const fin = waypoints[waypoints.length - 1];
+            camera.position.set(fin.pos.x, fin.pos.y, fin.pos.z);
+            controls.target.set(fin.look.x, fin.look.y, fin.look.z);
             controls.update();
             flyAnim = null;
-            controls.enabled = true;
             onDone?.();
             return;
           }
@@ -2342,8 +2346,10 @@ function rebuild() {
 
           const segDur = waypoints[si + 1].ms;
           const raw    = (elapsed - tStamps[si]) / segDur;
-          // Ease-in-out quadratic
-          const t = raw < 0.5 ? 2 * raw * raw : -1 + (4 - 2 * raw) * raw;
+          // Ease-in-out cubic (smoother than quadratic — gentler deceleration on landing)
+          const t = raw < 0.5
+            ? 4 * raw * raw * raw
+            : 1 - Math.pow(-2 * raw + 2, 3) / 2;
 
           const a = waypoints[si];
           const b = waypoints[si + 1];
@@ -2360,6 +2366,15 @@ function rebuild() {
           );
         },
       };
+    },
+
+    /** Reset camera to the default overview position and re-enable orbit controls. */
+    resetCamera() {
+      flyAnim = null;
+      camera.position.set(DEFAULT_CAMERA.pos.x, DEFAULT_CAMERA.pos.y, DEFAULT_CAMERA.pos.z);
+      controls.target.set(DEFAULT_CAMERA.target.x, DEFAULT_CAMERA.target.y, DEFAULT_CAMERA.target.z);
+      controls.enabled = true;
+      controls.update();
     },
   };
 

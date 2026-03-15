@@ -71,6 +71,30 @@
 </div>
 <p id="canvasHint" aria-hidden="true" style="opacity:0;transition:opacity 0.6s ease 0.5s;">Drag to rotate&nbsp;&nbsp;·&nbsp;&nbsp;Scroll to zoom</p>
 
+<!-- Cinematic vignette — radial darkening fades in during flyby -->
+<div id="cinemaVignette" aria-hidden="true"></div>
+
+<!-- Room setup completion modal — shown after flyby lands at listening position -->
+<div id="completionModal" class="flyby-completion-backdrop hidden" aria-hidden="true">
+  <div class="flyby-completion-card">
+    <div class="flyby-check-ring">
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <circle cx="20" cy="20" r="18" stroke="currentColor" stroke-width="2"/>
+        <polyline points="11,21 17,27 29,13" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <h2 class="flyby-completion-title">Listening Room Mapped</h2>
+    <p class="flyby-completion-sub">
+      Your room is set up. Head to the dashboard to upload a sweep measurement and hear exactly what your space is doing to the sound.
+    </p>
+    <div class="flyby-room-stats" id="flybyRoomStats"></div>
+    <div class="flyby-completion-actions">
+      <button id="completionGoBtn" class="btn btn-primary">Go to Dashboard &rarr;</button>
+    </div>
+    <button id="completionBackBtn" type="button" class="flyby-back-link">Stay &amp; explore room</button>
+  </div>
+</div>
+
 <!-- WELCOME SCREEN (first-visit only) -->
 <div id="welcomeScreen">
   <canvas id="welcomeWaves" aria-hidden="true"></canvas>
@@ -184,12 +208,11 @@
   </div>
 </div>
 
-<script type="module" src="js/onboarding-guide.js"></script>
+<script src="js/section-intro.js"></script>
 
 <script type="module">
 import { initRoom3D } from "./js/room3d.js";
 import { attachHighlightListeners, UIController } from './js/uiController.js';
-import { onboardingSteps, onboardingStyles } from './js/onboarding-tour.js';
 import { UIFactory } from './js/UIFactory.js';
 
 
@@ -297,7 +320,7 @@ if (hasOnboarded) {
   welcomeScreen.classList.add('hidden');
 } else {
   document.getElementById('tourBtn').addEventListener('click', () => {
-    dismissWelcome(() => window.startTour?.());
+    dismissWelcome(() => window.SectionIntro?.show('use'));
   });
 
   document.getElementById('skipBtn').addEventListener('click', () => {
@@ -862,7 +885,12 @@ function loadStep() {
 
     // 6. UI Polish
     panel.classList.add("active");
-    window.syncTourToWizard?.(stepIndex);
+
+    // Show section intro modal the first time this section is entered,
+    // but only after the welcome screen has been dismissed (or for returning users).
+    if (welcomeScreen.classList.contains('hidden')) {
+        window.SectionIntro?.show(steps[stepIndex]?.type);
+    }
 
     nextBtn.textContent = (stepIndex === steps.length - 1) ? "Save room & measure →" : "Next";
     backBtn.disabled = stepIndex === 0;
@@ -931,26 +959,61 @@ function finish() {
         btn.textContent = "Room saved — let's measure →";
         btn.style.background = "linear-gradient(135deg, #10b981, #059669)";
 
-        showDaveChip("That's your room. Now let's find out what it sounds like.", 8000);
+        showDaveChip("That's your room. Now let's find out what it sounds like.", 7000);
 
-        // Run the cinematic flyby, then navigate to the dashboard
+        // ── Helpers ────────────────────────────────────────────────
         function navigateToApp() {
             if (document.startViewTransition) {
-                document.startViewTransition(() => {
-                    window.location.href = "app.html";
-                });
+                document.startViewTransition(() => { window.location.href = "app.html"; });
             } else {
-                // Fallback: body fade
                 document.body.style.transition = 'opacity 0.3s ease';
                 document.body.style.opacity    = '0';
                 setTimeout(() => { window.location.href = "app.html"; }, 300);
             }
         }
 
+        function showCompletionModal() {
+            const modal = document.getElementById('completionModal');
+            if (!modal) { navigateToApp(); return; }
+
+            // Populate room dimension stats
+            const statsEl = document.getElementById('flybyRoomStats');
+            if (statsEl && roomState.geometry) {
+                const g = roomState.geometry;
+                statsEl.innerHTML =
+                    `<div class="flyby-stat"><span class="flyby-stat-val">${(+g.width_m).toFixed(1)}m</span><span class="flyby-stat-lbl">Width</span></div>` +
+                    `<div class="flyby-stat"><span class="flyby-stat-val">${(+g.length_m).toFixed(1)}m</span><span class="flyby-stat-lbl">Length</span></div>` +
+                    `<div class="flyby-stat"><span class="flyby-stat-val">${(+g.height_m).toFixed(1)}m</span><span class="flyby-stat-lbl">Height</span></div>`;
+            }
+
+            modal.classList.remove('hidden');
+            modal.removeAttribute('aria-hidden');
+            // Tiny rAF delay so the display:none→flex transition fires
+            requestAnimationFrame(() => requestAnimationFrame(() => modal.classList.add('open')));
+        }
+
+        // Wire up completion modal buttons (safe to add multiple times — guarded by flag)
+        if (!window._completionWired) {
+            window._completionWired = true;
+            document.getElementById('completionGoBtn')?.addEventListener('click', navigateToApp);
+            document.getElementById('completionBackBtn')?.addEventListener('click', () => {
+                document.getElementById('completionModal')?.classList.remove('open');
+                setTimeout(() => {
+                    document.getElementById('completionModal')?.classList.add('hidden');
+                    document.getElementById('completionModal')?.setAttribute('aria-hidden', 'true');
+                }, 350);
+                document.body.classList.remove('flyby-active');
+                window.room3D?.resetCamera?.();
+            });
+        }
+
+        // ── Enter cinematic mode — expand canvas, fade out UI ─────
+        document.body.classList.add('flyby-active');
+
         if (window.room3D?.flyby) {
-            window.room3D.flyby(navigateToApp);
+            window.room3D.flyby(showCompletionModal);
         } else {
-            setTimeout(navigateToApp, 500);
+            setTimeout(showCompletionModal, 500);
         }
 
     } catch (e) {
