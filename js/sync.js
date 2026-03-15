@@ -32,18 +32,26 @@
     }
 
     // ── Push room config ─────────────────────────────────────────────────────
-    // PocketBase doesn't have a native "upsert" via REST, so we:
-    //   1. Try to fetch the user's existing room record
-    //   2. If found → update it; if not → create it
+    // Maps the localStorage nested format → PocketBase collection fields:
+    //   payload.geometry    → dimensions
+    //   payload.setup       → speaker_pos
+    //   payload.environment → treatment
     async function pushRoom() {
         if (!_authenticated()) return;
         const raw = localStorage.getItem(LS_ROOM);
         if (!raw) return;
-        let config;
-        try { config = JSON.parse(raw); } catch (_) { return; }
+        let payload;
+        try { payload = JSON.parse(raw); } catch (_) { return; }
 
         const pb     = _pb();
         const userId = _userId();
+
+        const record = {
+            user:        userId,
+            dimensions:  payload.geometry    ?? payload,
+            speaker_pos: payload.setup       ?? {},
+            treatment:   payload.environment ?? {},
+        };
 
         try {
             const existing = await pb.collection('rooms')
@@ -51,12 +59,53 @@
                 .catch(() => null);
 
             if (existing) {
-                await pb.collection('rooms').update(existing.id, { config });
+                await pb.collection('rooms').update(existing.id, record);
             } else {
-                await pb.collection('rooms').create({ user: userId, config });
+                await pb.collection('rooms').create(record);
             }
         } catch (err) {
             console.warn('[sync] pushRoom failed:', err?.message);
+        }
+    }
+
+    // ── Pull room config from cloud ───────────────────────────────────────────
+    // Returns the normalised room object (same shape as localStorage payload)
+    // or null if the user has no cloud record yet.
+    // Also writes the result to localStorage when the cloud record is newer.
+    async function pullRoom() {
+        if (!_authenticated()) return null;
+        const pb     = _pb();
+        const userId = _userId();
+
+        try {
+            const record = await pb.collection('rooms')
+                .getFirstListItem(`user="${userId}"`)
+                .catch(() => null);
+
+            if (!record) return null;
+
+            // Re-assemble into the shape myroom.html expects
+            const normalised = {
+                geometry:    record.dimensions  ?? {},
+                setup:       record.speaker_pos ?? {},
+                environment: record.treatment   ?? {},
+                room_type:   record.dimensions?.room_type ?? record.room_type ?? 'home',
+                saved_at:    record.updated,
+            };
+
+            // Persist locally — prefer cloud when we have a valid record
+            const localRaw = localStorage.getItem(LS_ROOM);
+            const localTs  = localRaw ? (JSON.parse(localRaw)?.saved_at ?? 0) : 0;
+            const cloudTs  = record.updated ?? 0;
+
+            if (!localTs || new Date(cloudTs) >= new Date(localTs)) {
+                localStorage.setItem(LS_ROOM, JSON.stringify(normalised));
+            }
+
+            return normalised;
+        } catch (err) {
+            console.warn('[sync] pullRoom failed:', err?.message);
+            return null;
         }
     }
 
@@ -127,16 +176,20 @@
                 .getFirstListItem(`user="${userId}"`)
                 .catch(() => null);
 
-            if (roomRecord?.config) {
+            if (roomRecord) {
+                const normalised = {
+                    geometry:    roomRecord.dimensions  ?? {},
+                    setup:       roomRecord.speaker_pos ?? {},
+                    environment: roomRecord.treatment   ?? {},
+                    room_type:   roomRecord.dimensions?.room_type ?? 'home',
+                    saved_at:    roomRecord.updated,
+                };
                 const localRaw = localStorage.getItem(LS_ROOM);
-                const local    = localRaw ? JSON.parse(localRaw) : null;
+                const localTs  = localRaw ? (JSON.parse(localRaw)?.saved_at ?? 0) : 0;
+                const cloudTs  = roomRecord.updated ?? 0;
 
-                // Prefer whichever has the newer saved_at timestamp
-                const cloudTs = new Date(roomRecord.updated).getTime();
-                const localTs = local?.saved_at ? new Date(local.saved_at).getTime() : 0;
-
-                if (cloudTs >= localTs) {
-                    localStorage.setItem(LS_ROOM, JSON.stringify(roomRecord.config));
+                if (!localTs || new Date(cloudTs) >= new Date(localTs)) {
+                    localStorage.setItem(LS_ROOM, JSON.stringify(normalised));
                 }
             }
 
@@ -252,6 +305,7 @@
     // ── Expose ───────────────────────────────────────────────────────────────
     window.MeasurelySync = {
         pushRoom,
+        pullRoom,
         pushSession,
         pushPrefs,
         pullAll,
