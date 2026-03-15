@@ -164,7 +164,13 @@
             _closeModal();
             _updateNav(_pb.authStore.model);
             _notify(_pb.authStore.model);
-            // Pull cloud data, then push any local-only data
+            // If we're not already on the dashboard, redirect there now.
+            // app.html will run its own pullAll/pushLocalData on init.
+            if (!window.location.pathname.includes('app.html')) {
+                window.location.replace('app.html');
+                return;
+            }
+            // On the dashboard: sync in-place
             await window.MeasurelySync?.pullAll();
             await window.MeasurelySync?.pushLocalData();
         } catch (err) {
@@ -209,6 +215,10 @@
             _closeModal();
             _updateNav(_pb.authStore.model);
             _notify(_pb.authStore.model);
+            if (!window.location.pathname.includes('app.html')) {
+                window.location.replace('app.html');
+                return;
+            }
             await window.MeasurelySync?.pullAll();
             await window.MeasurelySync?.pushLocalData();
         } catch (err) {
@@ -332,8 +342,11 @@
         async signOut() {
             if (!_pb) return;
             _pb.authStore.clear();
+            // Clear any cached auth-adjacent state
+            try { localStorage.removeItem('mly_pending_profile'); } catch (_) {}
             _updateNav(null);
             _notify(null);
+            window.location.replace('index.html');
         },
 
         getUser() {

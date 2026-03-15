@@ -8,6 +8,11 @@
  * When the user is NOT authenticated data is cached in localStorage and a
  * 'mly:pendingdata' CustomEvent is dispatched so the UI can surface a
  * "Save to Cloud" prompt. On next sign-in pushLocalData() flushes it all.
+ *
+ * All PocketBase API calls use { requestKey: null } to opt out of the SDK's
+ * auto-cancellation, which would otherwise abort duplicate in-flight requests
+ * (e.g. pushSession from Acoustic Scientist + pushLocalData racing each other,
+ * or pullAll + profile auth-change listener both calling pullProfile).
  */
 
 (function () {
@@ -18,6 +23,10 @@
     const LS_SPEAKER         = 'mly.speaker.key';
     const LS_ONBOARD         = 'measurely_onboarded';
     const LS_PENDING_PROFILE = 'mly_pending_profile';
+
+    // No-cancel option — applied to every PocketBase call so rapid duplicate
+    // requests don't abort each other.
+    const NO_CANCEL = { requestKey: null };
 
     // ── Helper: get authenticated PocketBase instance ───────────────────────
     function _pb() {
@@ -34,10 +43,9 @@
         return _pb()?.authStore?.model?.id ?? null;
     }
 
-    // ── Pending-profile helpers ──────────────────────────────────────────────
-    // Profile data entered while not logged in is persisted here so it isn't
-    // lost, and gets pushed to PocketBase on the next sign-in.
+    function _delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+    // ── Pending-profile helpers ──────────────────────────────────────────────
     function _cachePendingProfile(data) {
         try {
             const existing = getPendingProfile() ?? {};
@@ -45,7 +53,6 @@
         } catch (_) {}
     }
 
-    /** Returns the locally-cached pending profile, or null. */
     function getPendingProfile() {
         try {
             const raw = localStorage.getItem(LS_PENDING_PROFILE);
@@ -53,10 +60,6 @@
         } catch (_) { return null; }
     }
 
-    /**
-     * Returns true when there is any local data not yet confirmed as synced to
-     * the cloud (either pending sessions or a pending profile).
-     */
     function hasPendingData() {
         if (localStorage.getItem(LS_PENDING_PROFILE)) return true;
         try {
@@ -85,13 +88,13 @@
 
         try {
             const existing = await pb.collection('rooms')
-                .getFirstListItem(`user="${userId}"`)
+                .getFirstListItem('user = "' + userId + '"', NO_CANCEL)
                 .catch(() => null);
 
             if (existing) {
-                await pb.collection('rooms').update(existing.id, record);
+                await pb.collection('rooms').update(existing.id, record, NO_CANCEL);
             } else {
-                await pb.collection('rooms').create(record);
+                await pb.collection('rooms').create(record, NO_CANCEL);
             }
         } catch (err) {
             console.warn('[sync] pushRoom failed:', err?.message);
@@ -106,7 +109,7 @@
 
         try {
             const record = await pb.collection('rooms')
-                .getFirstListItem(`user="${userId}"`)
+                .getFirstListItem('user = "' + userId + '"', NO_CANCEL)
                 .catch(() => null);
 
             if (!record) return null;
@@ -141,6 +144,9 @@
     //        room_modes, schroeder_freq, sbir_null, scores }
     //   B) From localStorage (via MeasurelySessions.saveSession):
     //      { id, label, timestamp, overall_score,…, analysis, reportCurve }
+    //
+    // A 500 ms delay is applied before the API call to let any in-flight
+    // pushLocalData() loop finish first and avoid races.
     async function pushSession(session) {
         if (!session?.id) return;
 
@@ -148,50 +154,62 @@
         const ai = (session.ai && typeof session.ai === 'object') ? session.ai : {};
 
         if (!_authenticated()) {
-            // Sessions already live in localStorage — just signal pending data
             window.dispatchEvent(new CustomEvent('mly:pendingdata', { detail: { type: 'session' } }));
             return;
         }
 
+        // Small delay — prevents auto-cancellation when pushSession is called
+        // immediately after pushLocalData (which already pushed all local sessions).
+        await _delay(500);
+
+        // Re-check auth in case the session expired during the delay
+        if (!_authenticated()) return;
+
         const pb     = _pb();
         const userId = _userId();
+
+        // Sanitise numeric fields — replace NaN/undefined with null
+        const _num = v => (Number.isFinite(v) ? v : null);
 
         const payload = {
             user:          userId,
             session_id:    session.id,
-            label:         session.label              ?? '',
-            timestamp:     session.timestamp           ?? new Date().toISOString(),
+            label:         session.label     ?? '',
+            timestamp:     session.timestamp ?? new Date().toISOString(),
             // Scores — try nested ai first, then flat fields
-            overall_score: ai.overall_score  ?? session.overall_score  ?? null,
-            peaks_dips:    ai.peaks_dips     ?? session.peaks_dips     ?? null,
-            reflections:   ai.reflections    ?? session.reflections    ?? null,
-            bandwidth:     ai.bandwidth      ?? session.bandwidth      ?? null,
-            balance:       ai.balance        ?? session.balance        ?? null,
-            smoothness:    ai.smoothness     ?? session.smoothness     ?? null,
-            clarity:       ai.clarity        ?? session.clarity        ?? null,
+            overall_score: _num(ai.overall_score  ?? session.overall_score),
+            peaks_dips:    _num(ai.peaks_dips     ?? session.peaks_dips),
+            reflections:   _num(ai.reflections    ?? session.reflections),
+            bandwidth:     _num(ai.bandwidth      ?? session.bandwidth),
+            balance:       _num(ai.balance        ?? session.balance),
+            smoothness:    _num(ai.smoothness     ?? session.smoothness),
+            clarity:       _num(ai.clarity        ?? session.clarity),
             has_analysis:  session.has_analysis
                            ?? (Object.keys(ai).length > 0 || !!session.analysis),
-            note:          session.note           ?? '',
-            analysis:      session.analysis       ?? null,
-            report_curve:  session.reportCurve    ?? null,
-            // Acoustic Scientist metadata (new fields)
+            note:          session.note      ?? '',
+            analysis:      session.analysis  ?? null,
+            report_curve:  session.reportCurve ?? null,
+            // Acoustic Scientist metadata
             room_modes:     session.room_modes    != null
-                            ? JSON.stringify(session.room_modes)    : null,
-            schroeder_freq: session.schroeder_freq ?? null,
-            sbir_null:      session.sbir_null      ?? null,
-            scores:         session.scores         != null
-                            ? JSON.stringify(session.scores)        : null,
+                            ? JSON.stringify(session.room_modes)  : null,
+            schroeder_freq: _num(session.schroeder_freq),
+            sbir_null:      _num(session.sbir_null),
+            scores:         session.scores != null
+                            ? JSON.stringify(session.scores)      : null,
         };
 
         try {
             const existing = await pb.collection('sessions')
-                .getFirstListItem(`user="${userId}" && session_id="${session.id}"`)
+                .getFirstListItem(
+                    'user = "' + userId + '" && session_id = "' + session.id + '"',
+                    NO_CANCEL
+                )
                 .catch(() => null);
 
             if (existing) {
-                await pb.collection('sessions').update(existing.id, payload);
+                await pb.collection('sessions').update(existing.id, payload, NO_CANCEL);
             } else {
-                await pb.collection('sessions').create(payload);
+                await pb.collection('sessions').create(payload, NO_CANCEL);
             }
         } catch (err) {
             console.warn('[sync] pushSession failed:', err?.message);
@@ -208,7 +226,7 @@
         const onboarded   = !!localStorage.getItem(LS_ONBOARD);
 
         try {
-            await pb.collection('users').update(userId, { speaker_key, onboarded });
+            await pb.collection('users').update(userId, { speaker_key, onboarded }, NO_CANCEL);
         } catch (err) {
             console.warn('[sync] pushPrefs failed:', err?.message);
         }
@@ -223,7 +241,7 @@
         try {
             // Pull room
             const roomRecord = await pb.collection('rooms')
-                .getFirstListItem(`user="${userId}"`)
+                .getFirstListItem('user = "' + userId + '"', NO_CANCEL)
                 .catch(() => null);
 
             if (roomRecord) {
@@ -244,7 +262,11 @@
 
             // Pull sessions
             const sessionRecords = await pb.collection('sessions')
-                .getList(1, 50, { filter: `user="${userId}"`, sort: '-timestamp' })
+                .getList(1, 50, {
+                    filter: 'user = "' + userId + '"',
+                    sort:   '-timestamp',
+                    ...NO_CANCEL,
+                })
                 .catch(() => null);
 
             if (sessionRecords?.items?.length) {
@@ -261,13 +283,12 @@
                     clarity:        r.clarity,
                     has_analysis:   r.has_analysis,
                     note:           r.note,
-                    analysis:       r.analysis       ?? null,
-                    reportCurve:    r.report_curve   ?? null,
-                    // Acoustic Scientist metadata
-                    room_modes:     r.room_modes     ? _parseJson(r.room_modes, null)  : null,
+                    analysis:       r.analysis    ?? null,
+                    reportCurve:    r.report_curve ?? null,
+                    room_modes:     r.room_modes   ? _parseJson(r.room_modes, null) : null,
                     schroeder_freq: r.schroeder_freq ?? null,
                     sbir_null:      r.sbir_null      ?? null,
-                    scores:         r.scores         ? _parseJson(r.scores, null)      : null,
+                    scores:         r.scores         ? _parseJson(r.scores, null)  : null,
                     _cloud_updated: r.updated,
                 }));
 
@@ -277,7 +298,7 @@
                 localStorage.setItem(LS_SESSIONS, JSON.stringify(merged.slice(0, 20)));
             }
 
-            // Pull prefs
+            // Pull prefs from auth model
             const user = pb.authStore.model;
             if (user?.speaker_key) localStorage.setItem(LS_SPEAKER, user.speaker_key);
             if (user?.onboarded)   localStorage.setItem(LS_ONBOARD, 'true');
@@ -302,12 +323,10 @@
 
         await pushPrefs();
 
-        // Flush any profile data that was entered while not authenticated
         const pending = getPendingProfile();
         if (pending) {
             try {
                 await pushProfile(pending, null);
-                // pushProfile clears LS_PENDING_PROFILE on success
             } catch (err) {
                 console.warn('[sync] pushLocalData: pending profile flush failed:', err?.message);
             }
@@ -322,9 +341,12 @@
 
         try {
             const record = await pb.collection('sessions')
-                .getFirstListItem(`user="${userId}" && session_id="${id}"`)
+                .getFirstListItem(
+                    'user = "' + userId + '" && session_id = "' + id + '"',
+                    NO_CANCEL
+                )
                 .catch(() => null);
-            if (record) await pb.collection('sessions').delete(record.id);
+            if (record) await pb.collection('sessions').delete(record.id, NO_CANCEL);
         } catch (err) {
             console.warn('[sync] deleteSession failed:', err?.message);
         }
@@ -334,15 +356,12 @@
     let _cachedProfile = null;
 
     // ── Push Hi-Fi profile to the users collection ────────────────────────────
-    // When unauthenticated: caches to localStorage and fires 'mly:pendingdata'.
-    // When authenticated:   saves via FormData (required for the avatar file field).
     async function pushProfile(data, avatarFile) {
-        // Always persist locally first — data survives page reloads & auth changes
         _cachePendingProfile(data);
 
         if (!_authenticated()) {
             window.dispatchEvent(new CustomEvent('mly:pendingdata', { detail: { type: 'profile' } }));
-            return; // caller interprets no-throw as "saved locally — ok"
+            return;
         }
 
         const pb     = _pb();
@@ -356,14 +375,13 @@
         if (avatarFile instanceof File) form.append('avatar', avatarFile);
 
         try {
-            await pb.collection('users').update(userId, form);
+            await pb.collection('users').update(userId, form, NO_CANCEL);
             _cachedProfile         = { ...(_cachedProfile || {}), ...data };
             window.__MLY_PROFILE__ = _cachedProfile;
-            // Clear pending cache now that it's safely in the cloud
             localStorage.removeItem(LS_PENDING_PROFILE);
         } catch (err) {
             console.warn('[sync] pushProfile failed:', err?.message);
-            throw err; // re-throw so profile.js can show the error
+            throw err;
         }
     }
 
@@ -374,7 +392,7 @@
         const userId = _userId();
 
         try {
-            const record = await pb.collection('users').getOne(userId);
+            const record = await pb.collection('users').getOne(userId, NO_CANCEL);
 
             _cachedProfile = {
                 gear_list:       _parseJson(record.gear_list, []),
@@ -391,7 +409,6 @@
         }
     }
 
-    /** Returns the in-memory profile cache without hitting the network. */
     function getProfile() { return _cachedProfile; }
 
     // ── Internal helpers ──────────────────────────────────────────────────────

@@ -113,7 +113,7 @@ function buildRoomGeometryAnalysis(room, room_context) {
         wall_treatment
     } = r;
 
-    const measuredSBIR = room_context?.sbir ?? null;
+    const measuredSBIR = room_context?.sbir?.front_wall ?? null;
 
     const hasGeometry =
         typeof length_m === "number" &&
