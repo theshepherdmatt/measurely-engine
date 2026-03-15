@@ -3,7 +3,7 @@
    Modal, user menu, sign-in/up forms
    ============================================================ */
 
-/* ── Backdrop ─────────────────────────────────────────────── */
+/* ── Backdrop (also the scroll container) ─────────────────── */
 .mly-auth-backdrop {
     display: none;
     position: fixed;
@@ -11,33 +11,42 @@
     background: rgba(0, 0, 0, 0.65);
     backdrop-filter: blur(4px);
     z-index: 900;
+    overflow-y: auto;
+    /* flex layout centres the modal when there's room, scrolls when there isn't */
+    align-items: flex-start;
+    justify-content: center;
+    padding: 24px 16px;
+    box-sizing: border-box;
 }
-.mly-auth-backdrop.open { display: block; }
+.mly-auth-backdrop.open { display: flex; }
 
 /* Prevent body scroll when modal open */
 body.mly-auth-open { overflow: hidden; }
 
 /* ── Modal container ──────────────────────────────────────── */
 .mly-auth-modal {
-    display: none;
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) scale(0.96);
-    width: min(460px, calc(100vw - 32px));
+    position: relative;
+    width: min(460px, 100%);
     background: rgba(11, 18, 32, 0.98);
     border: 1px solid rgba(99, 102, 241, 0.25);
     border-radius: 20px;
     padding: 36px 32px 28px;
     box-shadow: 0 32px 80px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04);
-    z-index: 910;
+    /* vertical centering when viewport is tall enough */
+    margin: auto;
     transition: transform 0.2s ease, opacity 0.2s ease;
+    transform: scale(0.96);
     opacity: 0;
+    flex-shrink: 0;
 }
-.mly-auth-modal.open {
-    display: block;
-    transform: translate(-50%, -50%) scale(1);
+.mly-auth-backdrop.open .mly-auth-modal {
+    transform: scale(1);
     opacity: 1;
+}
+
+/* ── Mobile adjustments for scroll padding ────────────────── */
+@media (max-height: 640px) {
+    .mly-auth-backdrop { padding: 16px; }
 }
 
 /* ── Panel (sign-in / sign-up) ────────────────────────────── */

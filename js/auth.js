@@ -42,7 +42,7 @@
         if (!root) return;
 
         root.innerHTML = `
-<div class="mly-auth-backdrop" id="mlyAuthBackdrop" aria-hidden="true"></div>
+<div class="mly-auth-backdrop" id="mlyAuthBackdrop" aria-hidden="true">
 <div class="mly-auth-modal" id="mlyAuthModal" role="dialog" aria-modal="true" aria-labelledby="mlyAuthTitle">
 
     <!-- Sign-in panel -->
@@ -97,10 +97,13 @@
         <button type="button" class="mly-auth-btn-ghost" id="mlySkipBtn2">Continue without signing in →</button>
     </div>
 
+</div>
 </div>`;
 
-        // Wire up interactions
-        document.getElementById('mlyAuthBackdrop').addEventListener('click', _closeModal);
+        // Wire up interactions — close only when clicking the backdrop itself, not the modal inside
+        document.getElementById('mlyAuthBackdrop').addEventListener('click', function(e) {
+            if (e.target === this) _closeModal();
+        });
         document.getElementById('mlySkipBtn').addEventListener('click', _closeModal);
         document.getElementById('mlySkipBtn2').addEventListener('click', _closeModal);
         document.getElementById('mlyGoSignUp').addEventListener('click', () => _switchPanel('signup'));
@@ -129,20 +132,16 @@
 
     function _openModal(mode = 'signin') {
         _renderModal();
-        const modal    = document.getElementById('mlyAuthModal');
         const backdrop = document.getElementById('mlyAuthBackdrop');
-        if (!modal) return;
+        if (!backdrop) return;
         if (mode === 'signup') _switchPanel('signup');
-        modal.classList.add('open');
         backdrop.classList.add('open');
         document.body.classList.add('mly-auth-open');
-        modal.querySelector('input')?.focus();
+        backdrop.querySelector('input')?.focus();
     }
 
     function _closeModal() {
-        const modal    = document.getElementById('mlyAuthModal');
         const backdrop = document.getElementById('mlyAuthBackdrop');
-        modal?.classList.remove('open');
         backdrop?.classList.remove('open');
         document.body.classList.remove('mly-auth-open');
     }
