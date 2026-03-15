@@ -1,0 +1,276 @@
+/* ============================================================
+   auth.css — Measurely account system styles
+   Modal, user menu, sign-in/up forms
+   ============================================================ */
+
+/* ── Backdrop ─────────────────────────────────────────────── */
+.mly-auth-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(4px);
+    z-index: 900;
+}
+.mly-auth-backdrop.open { display: block; }
+
+/* Prevent body scroll when modal open */
+body.mly-auth-open { overflow: hidden; }
+
+/* ── Modal container ──────────────────────────────────────── */
+.mly-auth-modal {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.96);
+    width: min(460px, calc(100vw - 32px));
+    background: rgba(11, 18, 32, 0.98);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: 20px;
+    padding: 36px 32px 28px;
+    box-shadow: 0 32px 80px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04);
+    z-index: 910;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+    opacity: 0;
+}
+.mly-auth-modal.open {
+    display: block;
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+}
+
+/* ── Panel (sign-in / sign-up) ────────────────────────────── */
+.mly-auth-panel { display: flex; flex-direction: column; gap: 0; }
+
+/* ── Text ─────────────────────────────────────────────────── */
+.mly-auth-title {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--c-text-main, #f8fafc);
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+}
+
+.mly-auth-sub {
+    font-size: 0.85rem;
+    color: var(--c-text-muted, #94a3b8);
+    margin: 0 0 22px;
+    line-height: 1.5;
+}
+
+/* ── Form elements ────────────────────────────────────────── */
+.mly-auth-label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.55);
+    margin-bottom: 14px;
+}
+
+.mly-auth-input {
+    padding: 11px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--c-text-main, #f8fafc);
+    font-size: 0.9rem;
+    font-family: var(--font-main, system-ui, sans-serif);
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.mly-auth-input:focus {
+    border-color: rgba(99, 102, 241, 0.55);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.mly-auth-input::placeholder { color: rgba(255, 255, 255, 0.22); }
+
+/* ── Error message ────────────────────────────────────────── */
+.mly-auth-error {
+    font-size: 0.82rem;
+    color: #f87171;
+    min-height: 20px;
+    margin-bottom: 12px;
+    line-height: 1.4;
+}
+
+/* ── Primary button ───────────────────────────────────────── */
+.mly-auth-btn-primary {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: none;
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    color: #fff;
+    font-size: 0.95rem;
+    font-weight: 700;
+    font-family: var(--font-main, system-ui, sans-serif);
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.12s, box-shadow 0.15s;
+    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.35);
+    margin-bottom: 14px;
+}
+.mly-auth-btn-primary:hover:not(:disabled) {
+    opacity: 0.9;
+    box-shadow: 0 6px 24px rgba(99, 102, 241, 0.5);
+}
+.mly-auth-btn-primary:active:not(:disabled) { transform: scale(0.98); }
+.mly-auth-btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ── Switch link (sign in ↔ sign up) ─────────────────────── */
+.mly-auth-switch {
+    font-size: 0.82rem;
+    color: var(--c-text-muted, #94a3b8);
+    text-align: center;
+    margin: 0 0 4px;
+}
+
+.mly-auth-link {
+    background: none;
+    border: none;
+    color: #a5b4fc;
+    font-size: inherit;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: underline;
+    text-decoration-color: rgba(165, 180, 252, 0.4);
+    transition: color 0.15s;
+}
+.mly-auth-link:hover { color: #c7d2fe; }
+
+/* ── Divider ──────────────────────────────────────────────── */
+.mly-auth-divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: rgba(255, 255, 255, 0.18);
+    font-size: 0.75rem;
+    margin: 10px 0;
+}
+.mly-auth-divider::before,
+.mly-auth-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.09);
+}
+
+/* ── Ghost / skip button ──────────────────────────────────── */
+.mly-auth-btn-ghost {
+    width: 100%;
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 0.82rem;
+    font-family: var(--font-main, system-ui, sans-serif);
+    cursor: pointer;
+    padding: 6px 0;
+    transition: color 0.15s;
+    text-align: center;
+}
+.mly-auth-btn-ghost:hover { color: rgba(255, 255, 255, 0.65); }
+
+/* ── Mobile adjustments ───────────────────────────────────── */
+@media (max-width: 480px) {
+    .mly-auth-modal { padding: 28px 20px 22px; }
+    .mly-auth-title { font-size: 1.15rem; }
+}
+
+/* ── Nav: "Sign in" button (logged-out state) ─────────────── */
+.mly-auth-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    background: rgba(99, 102, 241, 0.08);
+    color: #a5b4fc;
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-family: var(--font-main, system-ui, sans-serif);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+.mly-auth-nav-btn:hover {
+    background: rgba(99, 102, 241, 0.18);
+    border-color: rgba(99, 102, 241, 0.7);
+    color: #c7d2fe;
+}
+
+/* ── Nav: avatar + dropdown (logged-in state) ─────────────── */
+.mly-auth-avatar-wrap {
+    position: relative;
+}
+
+.mly-auth-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    color: #fff;
+    font-size: 0.82rem;
+    font-weight: 700;
+    font-family: var(--font-main, system-ui, sans-serif);
+    border: none;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+    transition: box-shadow 0.15s, transform 0.12s;
+}
+.mly-auth-avatar:hover {
+    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.6);
+    transform: scale(1.06);
+}
+
+.mly-auth-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 200px;
+    background: rgba(15, 23, 42, 0.98);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+    padding: 8px;
+    z-index: 800;
+    backdrop-filter: blur(12px);
+}
+
+.mly-auth-dropdown-email {
+    font-size: 0.78rem;
+    color: var(--c-text-muted, #94a3b8);
+    padding: 6px 10px 8px;
+    margin: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    word-break: break-all;
+}
+
+.mly-auth-dropdown-item {
+    display: block;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 7px;
+    border: none;
+    background: none;
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.83rem;
+    font-family: var(--font-main, system-ui, sans-serif);
+    cursor: pointer;
+    text-align: left;
+    margin-top: 4px;
+    transition: background 0.12s, color 0.12s;
+}
+.mly-auth-dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: #f87171;
+}

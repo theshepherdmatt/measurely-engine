@@ -90,6 +90,7 @@ function saveSession({ id, label, timestamp, ai, analysis, reportCurve }) {
     // Deduplicate by id, then prepend newest
     const filtered = existing.filter(s => s.id !== id);
     lsWrite([record, ...filtered]);
+    window.MeasurelySync?.pushSession(record);
 
     console.log('[sessions] saved:', id);
     return record;
@@ -105,6 +106,7 @@ function updateNote(id, note) {
     if (idx !== -1) {
         sessions[idx].note = note;
         lsWrite(sessions);
+        window.MeasurelySync?.pushSession(sessions[idx]);
     }
 }
 

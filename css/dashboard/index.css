@@ -19,3 +19,4 @@
 @import "./dashboard.analysis.css?v=2";
 @import "./dashboard.progressbar.css?v=2";
 @import "./dashboard.sweep.css?v=2";
+@import "../global/auth.css";

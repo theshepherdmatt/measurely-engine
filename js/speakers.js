@@ -418,6 +418,7 @@ function _buildDropdown(savedKey) {
         const key  = sel.value;
         const prof = SPEAKER_PROFILES[key] || null;
         localStorage.setItem(LS_KEY, key);
+        window.MeasurelySync?.pushPrefs();
         window.activeSpeaker = prof;
         updateHint();
 

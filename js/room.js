@@ -148,6 +148,7 @@ export async function saveRoom() {
   // 1. Always save to localStorage (works offline / GitHub Pages)
   localStorage.setItem('measurely_room', JSON.stringify(payload));
   window.__MEASURELY_ROOM__ = payload;
+  window.MeasurelySync?.pushRoom();
 
   // 2. Try server sync (Pi) — silent on failure
   try {

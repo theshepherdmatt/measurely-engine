@@ -91,6 +91,9 @@ header, section, footer { position: relative; z-index: 1; }
     background: rgba(0,0,0,.35);
     border-bottom: 1px solid var(--border-soft);
     z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 .topbar img { height: 2.2rem; }
 
@@ -380,12 +383,15 @@ header, section, footer { position: relative; z-index: 1; }
 [data-animate][data-delay="3"] { transition-delay: 0.3s; }
 [data-animate][data-delay="4"] { transition-delay: 0.4s; }
 </style>
+<link rel="stylesheet" href="css/global/auth.css">
+<script src="https://cdn.jsdelivr.net/npm/pocketbase/dist/pocketbase.umd.js"></script>
 </head>
 
 <body>
 
 <header class="topbar">
     <img src="./icons/mainlogo.svg" alt="Measurely">
+    <div id="auth-user-slot"></div>
 </header>
 
 <!-- HERO -->
@@ -822,5 +828,10 @@ document.querySelectorAll('.faq-q').forEach(function(btn) {
     });
 });
 </script>
+
+<div id="auth-root"></div>
+<script src="js/sync.js"></script>
+<script src="js/auth.js"></script>
+<script>document.addEventListener('DOMContentLoaded', () => window.MeasurelyAuth?.init());</script>
 </body>
 </html>

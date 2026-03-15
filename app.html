@@ -47,7 +47,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#0b1220">
-
+    <script src="https://cdn.jsdelivr.net/npm/pocketbase/dist/pocketbase.umd.js"></script>
 </head>
 
 <body class="page-entering">
@@ -83,6 +83,7 @@
                     </h1>
                     <p>What your room is doing to the sound, measured, not guessed.</p>
                 </div>
+                <div id="auth-user-slot" style="margin-left:auto;flex-shrink:0;"></div>
             </header>
 
             <!-- ONBOARDING NUDGE — visible only when no room has been set up yet -->
@@ -967,7 +968,10 @@
         }());
     </script>
 
-
+<div id="auth-root"></div>
+<script src="js/sync.js"></script>
+<script src="js/auth.js"></script>
+<script>document.addEventListener('DOMContentLoaded', () => window.MeasurelyAuth?.init());</script>
 
 </body>
 
