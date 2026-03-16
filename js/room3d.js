@@ -270,7 +270,7 @@ export function initRoom3D({
   let _beamGeoL      = null;  // Left  beam BufferGeometry (for live endpoint update)
   let _beamGeoR      = null;  // Right beam BufferGeometry
   let _listenStation = null;  // Group: sphere + rug + sofa + coffee table
-  let _autoToe       = true;  // When true, speakers always face the sphere
+  let _autoToe       = false; // Auto-toe disabled by default; use toe_in_deg from room data
   let _autoToeAngle  = 0;     // Last computed angle (radians) — readable via API
 
   // ── Room-geometry refs (for live resize without full rebuild) ─
