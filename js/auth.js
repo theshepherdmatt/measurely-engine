@@ -214,6 +214,12 @@
     }
 
     // ── Google OAuth2 handler ────────────────────────────────────────────────
+    //
+    // Redirect URL registered in Google Cloud Console (and in PocketBase OAuth2
+    // settings) must be exactly:  https://api.measurely.uk/api/oauth2-redirect
+    // The PocketBase SDK builds this URL automatically from PB_URL — no need to
+    // pass it manually.  Just make sure the Google Console entry matches.
+    //
     async function _handleGoogleSignIn(btnId) {
         if (!_pb) return;
         const btn = document.getElementById(btnId);
@@ -222,20 +228,65 @@
             btn.classList.add('mly-auth-btn-google--loading');
         }
 
+        // ── Diagnostic pre-flight ─────────────────────────────────────────────
+        // Logs the raw auth-methods response so we can see the exact shape the
+        // server returns.  This reveals SDK/server version mismatches immediately:
+        //   SDK ≤ 0.20  →  { providers: [...] }           (top-level)
+        //   SDK ≥ 0.21  →  { oauth2: { providers: [...] } }  (nested)
+        // If "providers" is undefined in the authWithOAuth2 call, this is why.
         try {
-            const authData = await _pb.collection('users').authWithOAuth2({ provider: 'google' });
-            const record   = authData.record;
-            const meta     = authData.meta ?? {};
+            const methods = await _pb.collection('users').listAuthMethods();
+            console.group('[auth] listAuthMethods() pre-flight');
+            console.log('raw response:', JSON.parse(JSON.stringify(methods)));
+            console.log('top-level providers (SDK ≤0.20):', methods?.providers);
+            console.log('oauth2.providers  (SDK ≥0.21):', methods?.oauth2?.providers);
+            console.groupEnd();
+        } catch (diagErr) {
+            console.warn('[auth] listAuthMethods pre-flight failed — server unreachable or CORS issue');
+            console.dir(diagErr);
+        }
 
-            // Map Google name and avatar URL to the user record if not already set.
-            // PocketBase stores name/avatarUrl on the record for OAuth2 users, but we
-            // patch explicitly so the fields are reliably populated.
+        try {
+            const authData = await _pb.collection('users').authWithOAuth2({
+                provider: 'google',
+
+                // Explicit popup handler so we control the window dimensions and
+                // can gracefully handle popup-blockers (common on mobile).
+                // The SDK still manages the redirect-polling and code exchange.
+                urlCallback(url) {
+                    const popup = window.open(
+                        url,
+                        'measurely_google_oauth2',
+                        'width=520,height=640,left=200,top=100,resizable=yes,scrollbars=yes'
+                    );
+                    if (!popup || popup.closed) {
+                        // Popup blocked — fall back to same-tab redirect.
+                        // The SDK will receive the code via the redirect URL.
+                        window.location.href = url;
+                    }
+                },
+            });
+
+            const record = authData.record;
+            const meta   = authData.meta ?? {};
+
+            // ── Explicit auth persistence ─────────────────────────────────────
+            // PocketBase's LocalAuthStore already auto-saves to localStorage on
+            // every successful auth.  We call save() explicitly here as a
+            // belt-and-suspenders guard against any timing edge-cases, ensuring
+            // the token survives a page refresh immediately after OAuth2 completes.
+            try {
+                if (_pb.authStore.token) {
+                    _pb.authStore.save(_pb.authStore.token, _pb.authStore.model);
+                }
+            } catch (_) {}
+
+            // ── Profile sync — map Google name + avatar to PocketBase record ──
             const patch = {};
-            if (meta.name  && !record.name)      patch.name      = meta.name;
+            if (meta.name      && !record.name)      patch.name      = meta.name;
             if (meta.avatarUrl && !record.avatarUrl) patch.avatarUrl = meta.avatarUrl;
             if (Object.keys(patch).length) {
                 await _pb.collection('users').update(record.id, patch, { requestKey: null }).catch(() => {});
-                // Reflect patch in the live auth model so _updateNav reads correctly
                 Object.assign(_pb.authStore.model, patch);
             }
 
@@ -243,13 +294,11 @@
             _updateNav(_pb.authStore.model);
             _notify(_pb.authStore.model);
 
-            // Post-login handshake — pull room/profile, seed defaults if new user
             const isNewUser = !!authData.meta?.isNew;
             await _postLoginHandshake(isNewUser);
 
             window.toast?.('Signed in with Google ✓', 'success');
 
-            // Navigate or refresh
             if (!window.location.pathname.includes('app.html')) {
                 window.location.replace('app.html');
                 return;
@@ -261,10 +310,20 @@
                 btn.disabled = false;
                 btn.classList.remove('mly-auth-btn-google--loading');
             }
-            // User dismissed the Google popup — not an error worth surfacing
-            if (err?.isAbort || /cancel|popup|close/i.test(err?.message ?? '')) return;
+
+            // User dismissed the popup — silent, not an error
+            if (err?.isAbort || /cancel|popup|close|user.*denied/i.test(err?.message ?? '')) return;
+
+            // ── Full error dump for debugging ─────────────────────────────────
+            console.group('[auth] Google OAuth2 error');
+            console.dir(err);                          // full object — check .data.providers
+            console.log('message:', err?.message);
+            console.log('status: ', err?.status);
+            console.log('data:   ', err?.data);
+            console.log('stack:  ', err?.stack);
+            console.groupEnd();
+
             window.toast?.(_friendlyError(err), 'error');
-            console.error('[auth] Google OAuth error:', err);
         }
     }
 
