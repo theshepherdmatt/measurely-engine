@@ -94,6 +94,12 @@
         <!-- RIGHT: control panel -->
         <aside class="ra-panel card glass-panel">
 
+            <!-- Tab nav -->
+            <div class="ra-tabs">
+                <button class="ra-tab ra-tab--active" data-pane="pane-simulate">Simulate</button>
+                <button class="ra-tab" data-pane="pane-fixroom">Fix My Room</button>
+            </div>
+
             <!-- ─────────────────────────────────
                  SIMULATE CONTENT
             ───────────────────────────────── -->
@@ -296,6 +302,47 @@
                 </div>
 
             </div><!-- /pane-simulate -->
+
+
+            <!-- ─────────────────────────────────
+                 FIX MY ROOM PANE
+            ───────────────────────────────── -->
+            <div class="ra-pane ra-pane--hidden" id="pane-fixroom">
+
+                <div class="fix-intro">
+                    <p class="fix-intro-text">Tell us your budget and we'll rank every treatment by acoustic bang-per-buck — cheapest wins first.</p>
+                </div>
+
+                <!-- Budget slider -->
+                <div class="fix-budget-wrap">
+                    <div class="fix-budget-top">
+                        <span class="fix-budget-label">Budget</span>
+                        <span class="fix-budget-val">£<span id="fix-budget-display">250</span></span>
+                    </div>
+                    <input type="range" id="fix-budget-slider" class="measurely-slider"
+                           min="0" max="1000" step="25" value="250">
+                    <div class="fix-budget-ticks">
+                        <span>£0</span><span>£250</span><span>£500</span><span>£750</span><span>£1000+</span>
+                    </div>
+                </div>
+
+                <!-- Score improvement summary -->
+                <div class="fix-summary" id="fix-summary">
+                    <div class="fix-summary-inner">
+                        <div class="fix-summary-score">
+                            <span class="fix-summary-now" id="fix-summary-now">—</span>
+                            <span class="fix-summary-arrow">→</span>
+                            <span class="fix-summary-predicted" id="fix-summary-predicted">—</span>
+                            <span class="fix-summary-unit">/10</span>
+                        </div>
+                        <p class="fix-summary-label" id="fix-summary-label">Loading room data…</p>
+                    </div>
+                </div>
+
+                <!-- Recommendation list -->
+                <div id="fix-recommendations" class="fix-recs"></div>
+
+            </div><!-- /pane-fixroom -->
 
         </aside>
 
@@ -810,6 +857,280 @@ const baselinePoll = setInterval(() => {
         runSimulation();
     }
 }, 200);
+</script>
+
+
+<!-- ═══════════════════════════════════════
+     TAB SWITCHER
+═══════════════════════════════════════ -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.ra-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            const targetId = tab.dataset.pane;
+            document.querySelectorAll('.ra-tab').forEach(t => t.classList.remove('ra-tab--active'));
+            document.querySelectorAll('.ra-pane').forEach(p => p.classList.add('ra-pane--hidden'));
+            tab.classList.add('ra-tab--active');
+            document.getElementById(targetId)?.classList.remove('ra-pane--hidden');
+            if (targetId === 'pane-fixroom') runFixMyRoom();
+        });
+    });
+});
+</script>
+
+
+<!-- ═══════════════════════════════════════
+     FIX MY ROOM ENGINE
+═══════════════════════════════════════ -->
+<script>
+// ── Treatment catalog ──────────────────────────────────────────
+// Each treatment declares:
+//   costMin/costMid/costMax  — rough GBP range
+//   deltas                   — score improvements per metric (0–10 scale)
+//   alreadyHas(room)         — returns true if room already has this
+//   fixes                    — which metric keys this primarily addresses
+//   why                      — Dave-style one-liner explaining the effect
+
+const TREATMENTS = [
+    {
+        id: 'rug',
+        name: 'Area Rug',
+        costMin: 30, costMid: 80, costMax: 200,
+        deltas: { reflections: 0.6, smoothness: 0.5, clarity: 0.3 },
+        fixes: ['reflections', 'smoothness'],
+        why: 'Hard floors act like a mirror for sound. A thick rug kills the floor bounce that muddies the midrange.',
+        alreadyHas: (r) => {
+            const v = window.getNestedRoomValue ? window.getNestedRoomValue(r, 'opt_area_rug') : r.opt_area_rug;
+            return v === true;
+        }
+    },
+    {
+        id: 'rear-bass-traps',
+        name: 'Rear Corner Bass Traps',
+        costMin: 80, costMid: 160, costMax: 350,
+        deltas: { peaks_dips: 1.4, bandwidth: 1.6, smoothness: 0.6 },
+        fixes: ['peaks_dips', 'bandwidth'],
+        why: 'Bass piles up in corners. Floor-to-ceiling traps in the rear corners are the single best thing you can do for low-frequency accuracy.',
+        alreadyHas: (r) => ['rear', 'all'].includes(r.bass_trap_mode ?? 'none')
+    },
+    {
+        id: 'ceiling-cloud',
+        name: 'Ceiling Cloud',
+        costMin: 100, costMid: 200, costMax: 400,
+        deltas: { reflections: 1.2, clarity: 1.3, smoothness: 0.3 },
+        fixes: ['reflections', 'clarity'],
+        why: 'The ceiling reflection arrives about 5ms after the direct sound — just long enough to smear transients and collapse the soundstage. A cloud fixes this.',
+        alreadyHas: (r) => (r.ceiling_panel_mode ?? 'none') === 'cloud'
+    },
+    {
+        id: 'rear-wall-panels',
+        name: 'Rear Wall Absorption',
+        costMin: 60, costMid: 140, costMax: 300,
+        deltas: { reflections: 0.9, smoothness: 0.7, clarity: 0.4 },
+        fixes: ['reflections', 'smoothness'],
+        why: 'The rear wall sends a delayed copy of every transient straight back at your head. A couple of broadband panels there buys you more perceived clarity than almost anything else.',
+        alreadyHas: (r) => ['rear', 'both'].includes(r.wall_panel_mode ?? 'none')
+    },
+    {
+        id: 'side-panels',
+        name: 'Side Wall Panels',
+        costMin: 80, costMid: 180, costMax: 380,
+        deltas: { reflections: 0.8, clarity: 0.8, balance: 0.5 },
+        fixes: ['reflections', 'clarity', 'balance'],
+        why: 'First-reflection points on both side walls are the primary cause of stereo smear. Get these right and the imaging snaps into focus.',
+        alreadyHas: (r) => (r.side_panel_mode ?? 'none') === 'both'
+    },
+    {
+        id: 'front-wall-panels',
+        name: 'Front Wall Absorption',
+        costMin: 60, costMid: 130, costMax: 280,
+        deltas: { peaks_dips: 0.7, reflections: 0.6, clarity: 0.5 },
+        fixes: ['peaks_dips', 'clarity'],
+        why: 'Absorption directly behind the speakers reduces comb filtering caused by wall-to-cone reflections — particularly useful for monitors placed close to the front wall.',
+        alreadyHas: (r) => ['front', 'both'].includes(r.wall_panel_mode ?? 'none')
+    },
+    {
+        id: 'front-bass-traps',
+        name: 'Front Corner Bass Traps',
+        costMin: 80, costMid: 160, costMax: 350,
+        deltas: { peaks_dips: 0.9, bandwidth: 1.0, smoothness: 0.4 },
+        fixes: ['peaks_dips', 'bandwidth'],
+        why: 'Once the rear corners are treated, the front corners are the next biggest modal build-up point. Adding traps here gives you fuller, more even bass across the room.',
+        alreadyHas: (r) => ['front', 'all'].includes(r.bass_trap_mode ?? 'none')
+    },
+    {
+        id: 'sofa',
+        name: 'Sofa or Soft Seating',
+        costMin: 100, costMid: 300, costMax: 700,
+        deltas: { reflections: 0.5, smoothness: 0.5, peaks_dips: 0.3 },
+        fixes: ['reflections', 'smoothness'],
+        why: 'A sofa behind the listening position is one of the cheapest-per-square-metre broadband absorbers you can get — and you can sit on it.',
+        alreadyHas: (r) => {
+            const v = window.getNestedRoomValue ? window.getNestedRoomValue(r, 'opt_sofa') : r.opt_sofa;
+            return v === true;
+        }
+    }
+];
+
+// ── Impact score: total metric improvement weighted by a room's weak spots ──
+function treatmentImpact(treatment, baseline) {
+    let total = 0;
+    for (const [metric, delta] of Object.entries(treatment.deltas)) {
+        // Weight impact more heavily for already-weak metrics
+        const current = baseline[metric] ?? 5;
+        const headroom = Math.max(0, 10 - current);
+        const weight = 0.5 + (headroom / 10) * 0.5; // 0.5–1.0
+        total += delta * weight;
+    }
+    return total;
+}
+
+// ── Overall score helper (simple average) ─────────────────────
+function avgScore(scores) {
+    const keys = ['peaks_dips', 'reflections', 'bandwidth', 'smoothness', 'balance', 'clarity'];
+    const vals = keys.map(k => scores[k] ?? 5).filter(v => typeof v === 'number');
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+}
+
+// ── Main Fix My Room renderer ─────────────────────────────────
+function runFixMyRoom() {
+    const baseline = getBaselineScores();
+    const room     = window.__baselineRoom;
+    const budget   = parseInt(document.getElementById('fix-budget-slider')?.value ?? 250, 10);
+    const recsEl   = document.getElementById('fix-recommendations');
+    const sumNowEl = document.getElementById('fix-summary-now');
+    const sumPredEl= document.getElementById('fix-summary-predicted');
+    const sumLblEl = document.getElementById('fix-summary-label');
+
+    if (!recsEl) return;
+
+    const baselineAvg = avgScore(baseline);
+    if (sumNowEl) sumNowEl.textContent = baselineAvg.toFixed(1);
+
+    // Filter out already-owned treatments
+    const candidates = TREATMENTS.filter(t => !room || !t.alreadyHas(room));
+
+    if (candidates.length === 0) {
+        recsEl.innerHTML = '<p class="fix-empty">Your room is already fully treated. Nice work.</p>';
+        if (sumPredEl) sumPredEl.textContent = baselineAvg.toFixed(1);
+        if (sumLblEl) sumLblEl.textContent = 'No further treatments needed.';
+        return;
+    }
+
+    // Sort by ROI (impact per £, weighted for room weak spots)
+    const ranked = candidates
+        .map(t => ({
+            ...t,
+            impact: treatmentImpact(t, baseline),
+            roi: treatmentImpact(t, baseline) / t.costMid
+        }))
+        .sort((a, b) => b.roi - a.roi);
+
+    // Walk the list, accumulate cost and predicted deltas
+    let spent = 0;
+    const predictedScores = { ...baseline };
+    const affordable = [];
+    const outOfBudget = [];
+
+    for (const t of ranked) {
+        if (spent + t.costMin <= budget) {
+            spent += t.costMid;
+            affordable.push(t);
+            for (const [metric, delta] of Object.entries(t.deltas)) {
+                predictedScores[metric] = Math.min(10, (predictedScores[metric] ?? 5) + delta);
+            }
+        } else {
+            outOfBudget.push(t);
+        }
+    }
+
+    const predictedAvg = avgScore(predictedScores);
+    if (sumPredEl) sumPredEl.textContent = predictedAvg.toFixed(1);
+
+    const delta = predictedAvg - baselineAvg;
+    if (sumLblEl) {
+        if (affordable.length === 0) {
+            sumLblEl.textContent = 'Increase your budget to see recommendations.';
+        } else if (delta < 0.1) {
+            sumLblEl.textContent = 'These treatments maintain your current score.';
+        } else {
+            sumLblEl.textContent = `+${delta.toFixed(1)} point improvement with ${affordable.length} treatment${affordable.length > 1 ? 's' : ''}.`;
+        }
+    }
+
+    // Render cards
+    let html = '';
+
+    if (affordable.length > 0) {
+        html += `<div class="fix-group-label">Within budget · £${Math.min(spent, budget).toLocaleString()} spent</div>`;
+        affordable.forEach((t, i) => {
+            const gains = Object.entries(t.deltas)
+                .sort((a, b) => b[1] - a[1])
+                .map(([k, v]) => `<span class="fix-metric-chip fix-chip-good">+${v.toFixed(1)} ${metricLabel(k)}</span>`)
+                .join('');
+            html += `
+            <div class="fix-rec-card fix-rec-affordable">
+                <div class="fix-rec-rank">${i + 1}</div>
+                <div class="fix-rec-body">
+                    <div class="fix-rec-head">
+                        <span class="fix-rec-name">${t.name}</span>
+                        <span class="fix-rec-cost">£${t.costMin}–£${t.costMax}</span>
+                    </div>
+                    <p class="fix-rec-why">${t.why}</p>
+                    <div class="fix-rec-chips">${gains}</div>
+                </div>
+            </div>`;
+        });
+    }
+
+    if (outOfBudget.length > 0) {
+        html += `<div class="fix-group-label fix-group-label--dim">Over budget — save up for these</div>`;
+        outOfBudget.forEach((t, i) => {
+            const gains = Object.entries(t.deltas)
+                .sort((a, b) => b[1] - a[1])
+                .map(([k, v]) => `<span class="fix-metric-chip fix-chip-dim">+${v.toFixed(1)} ${metricLabel(k)}</span>`)
+                .join('');
+            html += `
+            <div class="fix-rec-card fix-rec-overbudget">
+                <div class="fix-rec-rank fix-rec-rank--dim">${affordable.length + i + 1}</div>
+                <div class="fix-rec-body">
+                    <div class="fix-rec-head">
+                        <span class="fix-rec-name">${t.name}</span>
+                        <span class="fix-rec-cost fix-rec-cost--dim">£${t.costMin}–£${t.costMax}</span>
+                    </div>
+                    <p class="fix-rec-why fix-rec-why--dim">${t.why}</p>
+                    <div class="fix-rec-chips">${gains}</div>
+                </div>
+            </div>`;
+        });
+    }
+
+    recsEl.innerHTML = html;
+}
+
+function metricLabel(key) {
+    return { peaks_dips: 'Peaks', reflections: 'Reflections', bandwidth: 'Bandwidth',
+             smoothness: 'Smoothness', balance: 'Balance', clarity: 'Clarity' }[key] ?? key;
+}
+
+// ── Wire up budget slider ──────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    const slider  = document.getElementById('fix-budget-slider');
+    const display = document.getElementById('fix-budget-display');
+    if (!slider) return;
+    slider.addEventListener('input', () => {
+        const v = parseInt(slider.value, 10);
+        if (display) display.textContent = v >= 1000 ? '1000+' : v;
+        runFixMyRoom();
+    });
+});
+
+// Re-run whenever simulation data updates
+window.addEventListener('measurely:simUpdated', () => {
+    if (!document.getElementById('pane-fixroom')?.classList.contains('ra-pane--hidden')) {
+        runFixMyRoom();
+    }
+});
 </script>
 
 

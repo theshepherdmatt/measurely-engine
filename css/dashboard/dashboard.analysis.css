@@ -986,3 +986,250 @@ body.ra-body-root {
         grid-template-columns: repeat(3, 1fr);
     }
 }
+
+/* =========================================================
+   FIX MY ROOM PANE
+   ========================================================= */
+
+/* Intro blurb */
+.fix-intro {
+    margin-bottom: 1.1rem;
+}
+.fix-intro-text {
+    font-size: 0.82rem;
+    color: var(--c-text-muted);
+    line-height: 1.55;
+    margin: 0;
+}
+
+/* ── Budget slider section ─────────────────────────────── */
+.fix-budget-wrap {
+    background: rgba(99,102,241,0.07);
+    border: 1px solid rgba(99,102,241,0.2);
+    border-radius: 12px;
+    padding: 1rem 1.1rem 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.fix-budget-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.5rem;
+}
+
+.fix-budget-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgba(255,255,255,0.45);
+}
+
+.fix-budget-val {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: #a5b4fc;
+    letter-spacing: -0.02em;
+}
+
+.fix-budget-ticks {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.35rem;
+    font-size: 0.62rem;
+    color: rgba(148,163,184,0.4);
+}
+
+/* ── Score improvement summary ────────────────────────── */
+.fix-summary {
+    background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(79,70,229,0.06));
+    border: 1px solid rgba(99,102,241,0.25);
+    border-radius: 12px;
+    padding: 0.9rem 1.1rem;
+    margin-bottom: 1.1rem;
+}
+
+.fix-summary-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+.fix-summary-score {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+}
+
+.fix-summary-now {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: rgba(255,255,255,0.55);
+}
+
+.fix-summary-arrow {
+    font-size: 1rem;
+    color: rgba(99,102,241,0.6);
+}
+
+.fix-summary-predicted {
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #4ade80;
+}
+
+.fix-summary-unit {
+    font-size: 0.9rem;
+    color: var(--c-text-muted);
+}
+
+.fix-summary-label {
+    font-size: 0.78rem;
+    color: #a5b4fc;
+    margin: 0;
+}
+
+/* ── Recommendation list ──────────────────────────────── */
+.fix-recs {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.fix-group-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: rgba(148,163,184,0.5);
+    padding: 0.4rem 0 0.2rem;
+}
+
+.fix-group-label--dim {
+    color: rgba(148,163,184,0.3);
+    margin-top: 0.4rem;
+}
+
+/* Card */
+.fix-rec-card {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.85rem 0.9rem;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.07);
+    background: rgba(255,255,255,0.03);
+    transition: background 0.15s;
+}
+
+.fix-rec-affordable {
+    border-color: rgba(99,102,241,0.2);
+    background: rgba(99,102,241,0.05);
+}
+
+.fix-rec-affordable:hover {
+    background: rgba(99,102,241,0.09);
+}
+
+.fix-rec-overbudget {
+    opacity: 0.5;
+}
+
+/* Rank badge */
+.fix-rec-rank {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: rgba(99,102,241,0.25);
+    border: 1px solid rgba(99,102,241,0.4);
+    color: #a5b4fc;
+    font-size: 0.7rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+}
+
+.fix-rec-rank--dim {
+    background: rgba(255,255,255,0.05);
+    border-color: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.3);
+}
+
+/* Body */
+.fix-rec-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.fix-rec-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-bottom: 0.3rem;
+}
+
+.fix-rec-name {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--c-text-main);
+}
+
+.fix-rec-cost {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #a5b4fc;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.fix-rec-cost--dim {
+    color: rgba(148,163,184,0.4);
+}
+
+.fix-rec-why {
+    font-size: 0.75rem;
+    color: var(--c-text-muted);
+    line-height: 1.5;
+    margin: 0 0 0.45rem;
+}
+
+.fix-rec-why--dim {
+    opacity: 0.6;
+}
+
+/* Metric chips */
+.fix-rec-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+}
+
+.fix-metric-chip {
+    font-size: 0.62rem;
+    font-weight: 700;
+    padding: 0.15rem 0.45rem;
+    border-radius: 999px;
+}
+
+.fix-chip-good {
+    background: rgba(74,222,128,0.12);
+    border: 1px solid rgba(74,222,128,0.25);
+    color: #4ade80;
+}
+
+.fix-chip-dim {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.3);
+}
+
+.fix-empty {
+    font-size: 0.82rem;
+    color: var(--c-text-muted);
+    text-align: center;
+    padding: 2rem 0;
+}
