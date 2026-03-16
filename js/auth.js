@@ -299,16 +299,14 @@
 
     // ── Google OAuth2 — Phase 1: initiate redirect ───────────────────────────
     //
-    // Bypasses authWithOAuth2() (which calls listAuthMethods() internally and
-    // crashes on the server's old {authProviders:[]} response shape).
+    // Root cause: the PocketBase SDK calls listAuthMethods() with a
+    //   ?fields=mfa,otp,password,oauth2 filter that strips the nested
+    //   providers array from the oauth2 object before it reaches JS.
+    //   Result: oauth2.providers is undefined → crash.
     //
-    // Instead: call listAuthMethods() ourselves, normalise both response
-    // formats, store the PKCE verifier + state, then do a full-page redirect
-    // to Google.  Phase 2 (authWithOAuth2Code) completes the exchange when
-    // the user lands back here.
-    //
-    // The redirect URI registered in Google Cloud Console and PocketBase must
-    // be exactly:  https://api.measurely.uk/api/oauth2-redirect
+    // Fix: raw fetch to /api/collections/users/auth-methods with NO query
+    //   string.  We know Google is enabled, so there is no "discovery" needed —
+    //   just grab the provider's server-generated state + PKCE values and go.
     //
     async function _handleGoogleSignIn(btnId) {
         if (!_pb) { console.error('[auth] _pb is null — PocketBase SDK missing?'); return; }
@@ -319,40 +317,42 @@
         }
 
         try {
-            const methods = await _pb.collection('users').listAuthMethods();
+            // Raw fetch — no ?fields= filter so the full oauth2.providers array
+            // is returned exactly as the server stores it.
+            const resp = await fetch(`${PB_URL}/api/collections/users/auth-methods`);
+            if (!resp.ok) throw new Error(`auth-methods returned HTTP ${resp.status}`);
+            const methods = await resp.json();
 
-            // Normalise: old SDK/server returns top-level authProviders array;
-            // new SDK/server nests it under oauth2.providers.
+            console.log('[auth] auth-methods (raw):', methods);
+
+            // Handle both PocketBase response shapes:
+            //   New (≥ v0.22):  { oauth2: { providers: [...] } }
+            //   Old (≤ v0.21):  { authProviders: [...] }
             const providers =
-                methods?.authProviders ??
                 methods?.oauth2?.providers ??
+                methods?.authProviders ??
                 [];
-
-            console.log('[auth] listAuthMethods() providers:', providers);
 
             const google = providers.find(p => p.name === 'google');
             if (!google) {
-                console.error('[auth] Google provider not found. Full response:', methods);
+                console.error('[auth] Google provider not found. Providers:', providers);
                 window.toast?.('Google sign-in is not configured on this server.', 'error');
                 if (btn) { btn.disabled = false; btn.classList.remove('mly-auth-btn-google--loading'); }
                 return;
             }
 
             // This page is both the launch point and the callback destination.
-            // PocketBase's authUrl ends with redirect_uri= (no value); we supply
-            // the current page URL so Google/PocketBase redirect back here with
-            // ?code= and ?state= after the user authenticates.
+            // authUrl already contains client_id, scope, code_challenge, state, etc.
+            // Appending the encoded redirect URI completes the redirect_uri param.
             const redirectUri = window.location.origin + window.location.pathname;
 
-            // Persist PKCE state — retrieved in Phase 2 (_completeOAuthLogin)
+            // Persist PKCE verifier + state so Phase 2 can complete the exchange.
             try {
                 localStorage.setItem('mly_oauth_state',    google.state);
                 localStorage.setItem('mly_oauth_verifier', google.codeVerifier);
                 localStorage.setItem('mly_oauth_redirect', redirectUri);
             } catch (_) {}
 
-            // Navigate to Google. authUrl already contains client_id, scope,
-            // code_challenge, state, etc. — we only append the redirect destination.
             window.location.href = google.authUrl + encodeURIComponent(redirectUri);
 
         } catch (err) {
