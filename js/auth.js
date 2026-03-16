@@ -95,15 +95,13 @@
     async function _completeOAuthLogin(code, state) {
         const storedState  = localStorage.getItem('mly_oauth_state');
         const codeVerifier = localStorage.getItem('mly_oauth_verifier');
-        const redirectUri  = localStorage.getItem('mly_oauth_redirect');
 
         // Clean up PKCE storage regardless of outcome
-        ['mly_oauth_state', 'mly_oauth_verifier', 'mly_oauth_redirect'].forEach(k => {
-            try { localStorage.removeItem(k); } catch (_) {}
-        });
+        try { localStorage.removeItem('mly_oauth_state');    } catch (_) {}
+        try { localStorage.removeItem('mly_oauth_verifier'); } catch (_) {}
 
-        if (!codeVerifier || !redirectUri) {
-            console.warn('[auth] OAuth2 callback: missing PKCE verifier or redirectUri — aborting');
+        if (!codeVerifier) {
+            console.warn('[auth] OAuth2 callback: missing PKCE verifier — aborting');
             return;
         }
         if (state !== storedState) {
@@ -118,7 +116,7 @@
                 'google',
                 code,
                 codeVerifier,
-                redirectUri      // must match exactly what was used in Phase 1
+                REDIRECT_URI     // must match exactly what is registered in Google Console
             );
 
             const record = authData.record;
@@ -344,19 +342,13 @@
                 return;
             }
 
-            // This page is both the launch point and the callback destination.
-            // authUrl already contains client_id, scope, code_challenge, state, etc.
-            // Appending the encoded redirect URI completes the redirect_uri param.
-            const redirectUri = window.location.origin + window.location.pathname;
-
             // Persist PKCE verifier + state so Phase 2 can complete the exchange.
             try {
                 localStorage.setItem('mly_oauth_state',    google.state);
                 localStorage.setItem('mly_oauth_verifier', google.codeVerifier);
-                localStorage.setItem('mly_oauth_redirect', redirectUri);
             } catch (_) {}
 
-            window.location.href = google.authUrl + encodeURIComponent(redirectUri);
+            window.location.href = google.authUrl + encodeURIComponent(REDIRECT_URI);
 
         } catch (err) {
             if (btn) {
