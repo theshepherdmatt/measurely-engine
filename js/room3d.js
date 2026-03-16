@@ -699,12 +699,12 @@ function rebuild() {
 
         case "panel":
           return {
-            w: 0.90,
-            h: 0.80,
-            d: 0.08,
+            w: 0.55,
+            h: 1.55,
+            d: 0.06,
             color: 0xa5b4fc,
-            lift: 0.05,
-            tweeterPos: 0.65 // acoustic centre, not literal tweeter
+            floorStand: true, // sits on floor, not tweeter-height positioned
+            tweeterPos: 0.50  // acoustic centre at mid-panel
           };
 
         case "standmount":
@@ -757,17 +757,26 @@ function rebuild() {
           })
         );
 
-        // X and Z remain based on spacing and front-wall distance
+        // X position — always based on speaker spacing
         const x = offsetX + (side === "L" ? -1 : 1) * room.spk_spacing_m / 2;
-        const z = -room.length_m / 2 + room.spk_front_m;
 
-        /**
-         * LEVEL LOCK LOGIC:
-         * We want the "tweeter" point of the speaker box to be exactly at room.tweeter_height_m.
-         * profile.tweeterPos represents where the tweeter is on the box (e.g., 0.2 is 20% down from top).
-         */
-        const tweeterOffsetFromCenter = (profile.h / 2) - (profile.h * (profile.tweeterPos || 0.5));
-        const y = baseY + room.tweeter_height_m + tweeterOffsetFromCenter;
+        let y, z;
+        if (profile.onDesk) {
+          // Desk monitors: snap to desk surface (desk top at 0.775 m above floor)
+          const deskSurface = baseY + 0.775;
+          y = deskSurface + profile.h / 2;
+          // Place at the front edge of the desk (20% of room depth from front wall, offset back slightly)
+          z = -room.length_m / 2 + 0.20 * room.length_m - 0.15;
+        } else if (profile.floorStand) {
+          // Floor-standing panels (electrostatics): bottom sits on floor, toe toward listener
+          y = baseY + profile.h / 2;
+          z = -room.length_m / 2 + room.spk_front_m;
+        } else {
+          // Free-standing speakers: level-lock tweeter to tweeter_height_m
+          const tweeterOffsetFromCenter = (profile.h / 2) - (profile.h * (profile.tweeterPos || 0.5));
+          y = baseY + room.tweeter_height_m + tweeterOffsetFromCenter;
+          z = -room.length_m / 2 + room.spk_front_m;
+        }
 
         speaker.position.set(x, y, z);
 
@@ -807,8 +816,8 @@ function rebuild() {
 
   const listenerZ = -room.length_m / 2 + room.listener_front_m;
   const effectiveHeadHeight = isStudio
-    ? Math.max(1.1, room.tweeter_height_m + 0.2)
-    : room.tweeter_height_m;
+    ? 1.22  // seated ear height at a desk (~desk surface 0.75m + ~0.47m seated posture)
+    : room.tweeter_height_m; // ear roughly at tweeter axis when seated on sofa
 
   // Solid furniture fill — slate-600, fully opaque with proper depth so pieces
   // sit correctly in the scene and don't ghost against the dark background.
@@ -871,7 +880,8 @@ function rebuild() {
         opacity:     isListHighlit ? 0.95 : 0.90
       })
     );
-    sphere.position.set(0, effectiveHeadHeight, 0);
+    // Home: shift sphere into sofa seat (+Z = toward back wall); studio: centred at desk
+    sphere.position.set(0, effectiveHeadHeight, isStudio ? 0 : 0.15);
     station.add(sphere);
 
     // ── Rug (local coords: centred in front of sphere) ──
@@ -1538,6 +1548,8 @@ function rebuild() {
   }
 
   function renderWallLabels(room) {
+    // Only show labels in analysis mode — not during setup wizard
+    if (currentMode === 'setup') return;
     // Skip when any overlay is focused — labels clutter the focused view
     if (focusedOverlay) return;
 

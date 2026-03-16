@@ -76,6 +76,7 @@ function handleEnvironmentChange(type, state) {
         "setup.spk_front_m": 0.10,
         "setup.listener_front_m": 1.40,
         "setup.spk_spacing_m": 1.20,
+        "geometry.ceiling_type": "flat",
         // Added .furniture. to these paths
         "environment.furniture.opt_desk": true,
         "environment.furniture.opt_chair": true,
