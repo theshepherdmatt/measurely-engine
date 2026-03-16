@@ -30,6 +30,13 @@
    HEADER
    ========================= */
 
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
 .header-title h1 {
   font-size: 2.9rem;          /* was 2.5rem */
   font-weight: 750;           /* subtle confidence bump */
