@@ -9,6 +9,12 @@
  *   <script src="js/sync.js"></script>
  *   <script src="js/auth.js"></script>
  *   <script>document.addEventListener('DOMContentLoaded', () => window.MeasurelyAuth.init());</script>
+ *
+ * Google OAuth2 flow (manual PKCE redirect — bypasses SDK's authWithOAuth2
+ * which fails when the server returns the old {authProviders:[]} shape):
+ *
+ *   Phase 1 — button click  → listAuthMethods() → store state+verifier → redirect to Google
+ *   Phase 2 — page load     → detect ?code=&state= → authWithOAuth2Code() → session
  */
 
 (function () {
@@ -17,18 +23,18 @@
     // ── Config ──────────────────────────────────────────────────────────────
     const PB_URL = 'https://api.measurely.uk';
 
-    // ── State ───────────────────────────────────────────────────────────────
-    let _pb        = null;
-    let _listeners = [];
-
-    // ── Initialise PocketBase client ────────────────────────────────────────
-    function _createClient() {
-        if (!window.PocketBase) {
-            console.warn('[auth] PocketBase SDK not loaded — auth disabled');
-            return null;
-        }
-        return new window.PocketBase(PB_URL);
+    // ── PocketBase client — initialised at module load time (Task 3) ────────
+    // Initialising here (not inside init()) ensures _pb is never null when
+    // a button handler fires, even if init() hasn't been awaited yet.
+    let _pb = null;
+    if (window.PocketBase) {
+        try { _pb = new window.PocketBase(PB_URL); }
+        catch (e) { console.error('[auth] PocketBase constructor failed:', e); }
+    } else {
+        console.warn('[auth] PocketBase SDK not loaded — auth disabled');
     }
+
+    let _listeners = [];
 
     // ── Notify listeners ────────────────────────────────────────────────────
     function _notify(user) {
@@ -75,6 +81,79 @@
         }
 
         await window.MeasurelySync?.pushLocalData();
+    }
+
+    // ── Google OAuth2 — Phase 2: complete login after redirect back ──────────
+    //
+    // Called from init() when the page URL contains ?code= and ?state=.
+    // Uses authWithOAuth2Code which does NOT call listAuthMethods() internally,
+    // so it is immune to the SDK/server response-shape mismatch.
+    //
+    async function _completeOAuthLogin(code, state) {
+        const storedState  = localStorage.getItem('mly_oauth_state');
+        const codeVerifier = localStorage.getItem('mly_oauth_verifier');
+        const redirectUri  = localStorage.getItem('mly_oauth_redirect');
+
+        // Clean up PKCE storage regardless of outcome
+        ['mly_oauth_state', 'mly_oauth_verifier', 'mly_oauth_redirect'].forEach(k => {
+            try { localStorage.removeItem(k); } catch (_) {}
+        });
+
+        if (!codeVerifier || !redirectUri) {
+            console.warn('[auth] OAuth2 callback: missing PKCE verifier or redirectUri — aborting');
+            return;
+        }
+        if (state !== storedState) {
+            console.warn('[auth] OAuth2 callback: state mismatch (CSRF check failed) — aborting');
+            return;
+        }
+
+        console.log('[auth] OAuth2 Phase 2 — exchanging code via authWithOAuth2Code');
+
+        try {
+            const authData = await _pb.collection('users').authWithOAuth2Code(
+                'google',
+                code,
+                codeVerifier,
+                redirectUri      // must match exactly what was used in Phase 1
+            );
+
+            const record = authData.record;
+            const meta   = authData.meta ?? {};
+
+            // ── Persist session ───────────────────────────────────────────────
+            try {
+                if (_pb.authStore.token) {
+                    _pb.authStore.save(_pb.authStore.token, _pb.authStore.model);
+                    document.cookie = _pb.authStore.exportToCookie({ httpOnly: false });
+                }
+            } catch (_) {}
+
+            // ── Profile sync — map Google name + avatar to PocketBase record ──
+            const patch = {};
+            if (meta.name      && !record.name)      patch.name      = meta.name;
+            if (meta.avatarUrl && !record.avatarUrl) patch.avatarUrl = meta.avatarUrl;
+            if (Object.keys(patch).length) {
+                await _pb.collection('users').update(record.id, patch, { requestKey: null }).catch(() => {});
+                Object.assign(_pb.authStore.model, patch);
+            }
+
+            _updateNav(_pb.authStore.model);
+            _notify(_pb.authStore.model);
+
+            const isNewUser = !!authData.meta?.isNew;
+            await _postLoginHandshake(isNewUser);
+
+            window.toast?.('Signed in with Google ✓', 'success');
+
+            if (!window.location.pathname.includes('app.html')) {
+                window.location.replace('app.html');
+            }
+
+        } catch (err) {
+            console.error('[auth] OAuth2 code exchange failed:', err);
+            window.toast?.(_friendlyError(err), 'error');
+        }
     }
 
     // ── Modal HTML ──────────────────────────────────────────────────────────
@@ -218,15 +297,21 @@
         document.body.classList.remove('mly-auth-open');
     }
 
-    // ── Google OAuth2 handler ────────────────────────────────────────────────
+    // ── Google OAuth2 — Phase 1: initiate redirect ───────────────────────────
     //
-    // Redirect URL registered in Google Cloud Console (and in PocketBase OAuth2
-    // settings) must be exactly:  https://api.measurely.uk/api/oauth2-redirect
-    // The PocketBase SDK builds this URL automatically from PB_URL — no need to
-    // pass it manually.  Just make sure the Google Console entry matches.
+    // Bypasses authWithOAuth2() (which calls listAuthMethods() internally and
+    // crashes on the server's old {authProviders:[]} response shape).
+    //
+    // Instead: call listAuthMethods() ourselves, normalise both response
+    // formats, store the PKCE verifier + state, then do a full-page redirect
+    // to Google.  Phase 2 (authWithOAuth2Code) completes the exchange when
+    // the user lands back here.
+    //
+    // The redirect URI registered in Google Cloud Console and PocketBase must
+    // be exactly:  https://api.measurely.uk/api/oauth2-redirect
     //
     async function _handleGoogleSignIn(btnId) {
-        if (!_pb) return;
+        if (!_pb) { console.error('[auth] _pb is null — PocketBase SDK missing?'); return; }
         const btn = document.getElementById(btnId);
         if (btn) {
             btn.disabled = true;
@@ -234,59 +319,48 @@
         }
 
         try {
-            const authData = await _pb.collection('users').authWithOAuth2({
-                provider: 'google',
-                urlCallback: (url) => {
-                    window.location.href = url;
-                },
-            });
+            const methods = await _pb.collection('users').listAuthMethods();
 
-            const record = authData.record;
-            const meta   = authData.meta ?? {};
+            // Normalise: old SDK/server returns top-level authProviders array;
+            // new SDK/server nests it under oauth2.providers.
+            const providers =
+                methods?.authProviders ??
+                methods?.oauth2?.providers ??
+                [];
 
-            // ── Explicit auth persistence ─────────────────────────────────────
-            try {
-                if (_pb.authStore.token) {
-                    _pb.authStore.save(_pb.authStore.token, _pb.authStore.model);
-                    // Export to cookie so session persists across dashboard/treatment pages
-                    document.cookie = _pb.authStore.exportToCookie({ httpOnly: false });
-                }
-            } catch (_) {}
+            console.log('[auth] listAuthMethods() providers:', providers);
 
-            // ── Profile sync — map Google name + avatar to PocketBase record ──
-            const patch = {};
-            if (meta.name      && !record.name)      patch.name      = meta.name;
-            if (meta.avatarUrl && !record.avatarUrl) patch.avatarUrl = meta.avatarUrl;
-            if (Object.keys(patch).length) {
-                await _pb.collection('users').update(record.id, patch, { requestKey: null }).catch(() => {});
-                Object.assign(_pb.authStore.model, patch);
-            }
-
-            _closeModal();
-            _updateNav(_pb.authStore.model);
-            _notify(_pb.authStore.model);
-
-            const isNewUser = !!authData.meta?.isNew;
-            await _postLoginHandshake(isNewUser);
-
-            window.toast?.('Signed in with Google ✓', 'success');
-
-            if (!window.location.pathname.includes('app.html')) {
-                window.location.replace('app.html');
+            const google = providers.find(p => p.name === 'google');
+            if (!google) {
+                console.error('[auth] Google provider not found. Full response:', methods);
+                window.toast?.('Google sign-in is not configured on this server.', 'error');
+                if (btn) { btn.disabled = false; btn.classList.remove('mly-auth-btn-google--loading'); }
                 return;
             }
-            window.dashboard?.loadLatestSession?.();
+
+            // This page is both the launch point and the callback destination.
+            // PocketBase's authUrl ends with redirect_uri= (no value); we supply
+            // the current page URL so Google/PocketBase redirect back here with
+            // ?code= and ?state= after the user authenticates.
+            const redirectUri = window.location.origin + window.location.pathname;
+
+            // Persist PKCE state — retrieved in Phase 2 (_completeOAuthLogin)
+            try {
+                localStorage.setItem('mly_oauth_state',    google.state);
+                localStorage.setItem('mly_oauth_verifier', google.codeVerifier);
+                localStorage.setItem('mly_oauth_redirect', redirectUri);
+            } catch (_) {}
+
+            // Navigate to Google. authUrl already contains client_id, scope,
+            // code_challenge, state, etc. — we only append the redirect destination.
+            window.location.href = google.authUrl + encodeURIComponent(redirectUri);
 
         } catch (err) {
             if (btn) {
                 btn.disabled = false;
                 btn.classList.remove('mly-auth-btn-google--loading');
             }
-
-            // User dismissed the flow — silent, not an error
-            if (err?.isAbort || /cancel|popup|close|user.*denied/i.test(err?.message ?? '')) return;
-
-            console.error('Manual Auth Error Detail:', err);
+            console.error('[auth] Google sign-in Phase 1 failed:', err);
             window.toast?.(_friendlyError(err), 'error');
         }
     }
@@ -443,9 +517,27 @@
     // ── Public API ───────────────────────────────────────────────────────────
     const MeasurelyAuth = {
         async init() {
-            _pb = _createClient();
+            // _pb is initialised at module load time — nothing to create here.
             if (!_pb) return;
 
+            // ── OAuth2 Phase 2 catch-all ──────────────────────────────────────
+            // If the URL contains ?code= and ?state= we have just returned from
+            // Google (via PocketBase's oauth2-redirect handler).  Complete the
+            // exchange NOW, before doing anything else, so the auth store is
+            // populated by the time the rest of the page initialises.
+            const params     = new URLSearchParams(window.location.search);
+            const oauthCode  = params.get('code');
+            const oauthState = params.get('state');
+
+            if (oauthCode && oauthState) {
+                // Strip the OAuth params from the address bar so a manual
+                // refresh doesn't replay the (now-expired) exchange attempt.
+                history.replaceState({}, '', window.location.pathname);
+                await _completeOAuthLogin(oauthCode, oauthState);
+                return; // _completeOAuthLogin handles nav + handshake
+            }
+
+            // ── Normal page load ──────────────────────────────────────────────
             if (_pb.authStore.isValid) {
                 _updateNav(_pb.authStore.model);
                 _notify(_pb.authStore.model);
