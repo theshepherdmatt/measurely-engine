@@ -1805,8 +1805,7 @@ class MeasurelyDashboard {
     ============================================================ */
     updateDashboard() {
         if (!this.currentData) {
-            console.warn('No data to update');
-            this.showEmptyState();
+            console.warn('No data to update — dashboard in explore mode');
             return;
         }
 

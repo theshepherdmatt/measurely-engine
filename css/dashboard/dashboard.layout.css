@@ -64,6 +64,68 @@
 
 
 /* =========================
+   REW GUIDE — collapsible info widget in the Control Center sidebar
+   ========================= */
+
+.rew-guide {
+  margin-top: 0.6rem;
+}
+
+.rew-guide-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.74rem;
+  font-weight: 500;
+  color: var(--c-text-muted, #94a3b8);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  padding: 0.2rem 0;
+  transition: color 0.15s;
+}
+.rew-guide-toggle::-webkit-details-marker { display: none; }
+.rew-guide-toggle:hover { color: #a5b4fc; }
+
+.rew-guide-body {
+  margin-top: 0.65rem;
+  padding: 0.85rem 0.9rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 0.65rem;
+}
+
+.rew-guide-steps {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.rew-guide-steps li {
+  font-size: 0.79rem;
+  color: #d1d5db;
+  line-height: 1.4;
+}
+.rew-guide-steps li span {
+  display: block;
+  color: #64748b;
+  font-size: 0.72rem;
+  margin-top: 0.1rem;
+}
+
+.rew-guide-link {
+  margin: 0.6rem 0 0;
+  font-size: 0.72rem;
+  color: #4b5563;
+}
+.rew-guide-link a {
+  color: #818cf8;
+  text-decoration: none;
+}
+.rew-guide-link a:hover { text-decoration: underline; }
+
+/* =========================
    GRID LAYOUTS
    ========================= */
 
