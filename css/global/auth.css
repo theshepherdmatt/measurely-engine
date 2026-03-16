@@ -44,9 +44,20 @@ body.mly-auth-open { overflow: hidden; }
     opacity: 1;
 }
 
-/* ── Mobile adjustments for scroll padding ────────────────── */
+/* ── Small viewport / landscape phone adjustments ─────────── */
 @media (max-height: 640px) {
-    .mly-auth-backdrop { padding: 16px; }
+    .mly-auth-backdrop { padding: 12px 16px; }
+}
+
+/* Compact form on very short screens (landscape phone) */
+@media (max-height: 500px) {
+    .mly-auth-backdrop  { padding: 8px 12px; }
+    .mly-auth-modal     { padding: 20px 18px 16px; }
+    .mly-auth-title     { font-size: 1.05rem; margin-bottom: 4px; }
+    .mly-auth-sub       { margin-bottom: 14px; }
+    .mly-auth-label     { margin-bottom: 10px; }
+    .mly-auth-input     { padding: 9px 12px; }
+    .mly-auth-btn-primary { padding: 10px; margin-bottom: 10px; }
 }
 
 /* ── Panel (sign-in / sign-up) ────────────────────────────── */

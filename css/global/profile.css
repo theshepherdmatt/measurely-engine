@@ -420,3 +420,13 @@
 @media (max-height: 640px) {
     .mly-profile-backdrop { padding: 12px; }
 }
+
+/* Very short screens (landscape phone) — tighten profile modal */
+@media (max-height: 500px) {
+    .mly-profile-backdrop   { padding: 8px; }
+    .mly-profile-head       { padding: 14px 18px 0; }
+    .mly-profile-body       { padding: 12px 18px; gap: 18px; }
+    .mly-profile-footer     { padding: 10px 18px 14px; }
+    .mly-profile-avatar-circle { width: 52px; height: 52px; font-size: 1.2rem; }
+    .mly-level-grid         { grid-template-columns: repeat(4, 1fr); }
+}

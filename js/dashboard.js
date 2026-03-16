@@ -9,6 +9,11 @@ function loadPlotly() {
   if (window.Plotly) return Promise.resolve();
   if (_plotlyPromise) return _plotlyPromise;
 
+  // Notify the user on the very first load only (3.5 MB — may take a moment)
+  if (typeof window.toast === 'function') {
+    window.toast('Loading high-precision charts\u2026', 'info');
+  }
+
   _plotlyPromise = new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.src = 'js/plotly.min.js';
@@ -2248,14 +2253,29 @@ class MeasurelyDashboard {
         const chartEl = document.getElementById("frequencyChart");
         if (!chartEl) return;
 
+        // Show "Calculating…" overlay immediately so the user sees feedback
+        // while Plotly loads (up to 3.5 MB on first call) and renders.
+        const AL = window.MeasurelyAssetLoader;
+        const chartWrap = chartEl.parentElement ?? chartEl;
+        AL?.showChartLoading(chartWrap);
+
         // Lazy-load Plotly on first chart render (3.5 MB deferred until needed)
-        await loadPlotly();
+        try {
+            await loadPlotly();
+        } catch (e) {
+            AL?.hideChartLoading(chartWrap);
+            if (typeof window.toast === 'function') {
+                window.toast('Chart engine failed to load. Please refresh.', 'error');
+            }
+            return;
+        }
 
         console.log("📊 Drawing chart with overlay:", this.activeMetricOverlay);
 
         // ── Impulse-response view (Reflections card) ──────────────────────
         if (this.activeMetricOverlay === "side_reflections") {
             this._renderImpulseResponseChart();
+            AL?.hideChartLoading(chartWrap);
             return;
         }
 
@@ -2320,7 +2340,7 @@ class MeasurelyDashboard {
             }
         }
 
-        if (!curvePairs.length) return;  // nothing to plot
+        if (!curvePairs.length) { AL?.hideChartLoading(chartWrap); return; }  // nothing to plot
 
         const LABELS  = ["Latest", "Previous", "Earlier", "Oldest"];
         const COLOURS = ["#3b82f6", "#a855f7", "#22c55e", "#f59e0b"];
@@ -2426,6 +2446,9 @@ class MeasurelyDashboard {
             displayModeBar: false,
             responsive: true
         });
+
+        // Hide overlay once the chart has rendered
+        AL?.hideChartLoading(chartWrap);
     }
 
     /** Returns the current room_type string (studio | home) from stored state. */
