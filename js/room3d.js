@@ -374,14 +374,8 @@ function rebuild() {
       environment: { ...FALLBACK.environment, ...(raw.environment || {}),
         furniture: { ...FALLBACK.environment.furniture,
                      ...((raw.environment || {}).furniture || {}) },
-        // Strip 'none' values from saved treatment so the Pro Studio FALLBACK
-        // shows through for guests and users who have never configured panels.
-        // Actual user choices (any non-'none' string) still override the FALLBACK.
         treatment: { ...FALLBACK.environment.treatment,
-                     ...Object.fromEntries(
-                       Object.entries((raw.environment || {}).treatment || {})
-                             .filter(([, v]) => v && v !== 'none')
-                     ) }
+                     ...((raw.environment || {}).treatment || {}) }
       }
     };
 
@@ -523,10 +517,10 @@ function rebuild() {
       // Using _fatEdgeGroup on ALL platforms (desktop + mobile) so the frame has
       // physical heft at every DPR. Live-resize falls back to rebuild() since
       // _roomShell stays null, which is acceptable.
-      const SHELL_BEAM_T  = 0.020; // metres — consistent across all screen sizes
-      const shellOpacity  = focusedOverlay ? 0.05 : 0.60;
+      const SHELL_BEAM_T  = 0.030; // metres — thicker for high-contrast "cage" look
+      const shellOpacity  = focusedOverlay ? 0.05 : 0.90;
       const shellMat = new THREE.MeshBasicMaterial({
-        color:       0x4a4e69, // Anodized Slate
+        color:       0x818cf8, // Indigo-400 — pops against dark background
         transparent: true,
         opacity:     shellOpacity,
         depthTest:   false,
@@ -898,12 +892,11 @@ function rebuild() {
       station.add(rug);
     }
 
-    // ── Sofa (home mode only) — fixed at ~75% of room length from front wall ──
-    // Placed in roomGroup (not station) so position is wall-relative, not listener-relative.
-    // When room length changes, sofaZ recalculates automatically on the next rebuild().
+    // ── Sofa (home mode only) — anchored to the listener station ──
+    // In station-local coords: +Z is toward the back wall, so the sofa sits
+    // just behind the listening position (listener is seated at the front edge).
     if (VISIBILITY.furniture.sofa && !isStudio && room.opt_sofa && !hasFocus) {
       const sofaGroup = new THREE.Group();
-      const sofaZ = -room.length_m / 2 + 0.75 * room.length_m; // 75 % from speaker wall
 
       const base = _ghostBox(2.1, 0.4, 0.9);
       base.position.y = 0.2;
@@ -917,15 +910,14 @@ function rebuild() {
       const rArm = _ghostBox(0.2, 0.35, 0.9); rArm.position.set( 0.95, 0.4, 0);
       sofaGroup.add(lArm, rArm);
 
-      sofaGroup.position.set(offsetX, -room.height_m / 2, sofaZ);
-      roomGroup.add(sofaGroup);
+      // +0.35 m behind the listener (toward back wall) — listener sits at front of sofa
+      sofaGroup.position.set(0, 0, 0.35);
+      station.add(sofaGroup);
     }
 
-    // ── Coffee table — in front of sofa, toward speakers ──
+    // ── Coffee table — anchored to listener station, in front of sofa ──
     if (VISIBILITY.furniture.coffeeTable && room.opt_coffee_table && !hasFocus) {
-      const ctGroup   = new THREE.Group();
-      const sofaZ     = -room.length_m / 2 + 0.75 * room.length_m;
-      const ctZ       = sofaZ - 1.3; // ~1.3 m in front of sofa (toward speakers)
+      const ctGroup = new THREE.Group();
 
       const tTop = _ghostBox(1.0, 0.05, 0.6);
       tTop.position.y = 0.4;
@@ -938,8 +930,9 @@ function rebuild() {
         ctGroup.add(leg);
       });
 
-      ctGroup.position.set(offsetX, -room.height_m / 2, ctZ);
-      roomGroup.add(ctGroup);
+      // -0.9 m in front of the listener (toward speakers)
+      ctGroup.position.set(0, 0, -0.9);
+      station.add(ctGroup);
     }
 
     // ── Studio: desk + chair — fixed at ~20% of room length from front wall ──
