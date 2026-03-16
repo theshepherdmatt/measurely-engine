@@ -840,6 +840,7 @@ function loadStep() {
     }).join('');
 
     fieldStack.innerHTML = fieldsHtml;
+    fieldStack.scrollTop = 0;
 
     // 5. Null-check dimension sliders before wiring (only present on the room step)
     // These are safe no-ops on the gate step where the sliders don't exist yet.
