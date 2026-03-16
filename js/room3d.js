@@ -504,7 +504,7 @@ function rebuild() {
     if (VISIBILITY.roomShell) {
       // Desktop: LineBasicMaterial + scalable unit box (fast live-resize path).
       // Mobile/tablet: mesh tube geometry per edge — reliable thickness at all DPR.
-      const shellOpacity = focusedOverlay ? 0.18 : 0.65;
+      const shellOpacity = focusedOverlay ? 0.05 : 0.65;
 
       const wireMat = useFatEdges
         ? new THREE.MeshBasicMaterial({
@@ -852,16 +852,51 @@ function rebuild() {
     ? Math.max(1.1, room.tweeter_height_m + 0.2)
     : room.tweeter_height_m;
 
-  const furnMat = new THREE.MeshStandardMaterial({
-    color:            colors.furniture,
-    emissive:         colors.furniture,
-    emissiveIntensity: 0.35,
-    wireframe: true,
+  // Ghost material: solid translucent fill + separate edge lines
+  const furnMat = new THREE.MeshBasicMaterial({
+    color:       colors.furniture,
     transparent: true,
-    opacity: OP_FURN,
-    depthTest: false,
-    depthWrite: false
+    opacity:     OP_FURN,
+    depthTest:   false,
+    depthWrite:  false
   });
+
+  const furnEdgeMat = useFatEdges
+    ? new THREE.MeshBasicMaterial({
+        color:       colors.furniture,
+        transparent: true,
+        opacity:     Math.min(OP_FURN * 3.5, 0.55),
+        depthTest:   false,
+        depthWrite:  false
+      })
+    : new THREE.LineBasicMaterial({
+        color:       colors.furniture,
+        transparent: true,
+        opacity:     Math.min(OP_FURN * 3.5, 0.55),
+        depthTest:   false,
+        depthWrite:  false
+      });
+
+  // Returns a Group containing a ghost-fill mesh + edge outline for a box.
+  function _ghostBox(w, h, d) {
+    const geo = new THREE.BoxGeometry(w, h, d);
+    const grp = new THREE.Group();
+    grp.add(new THREE.Mesh(geo, furnMat));
+    if (useFatEdges) {
+      const hw = w / 2, hh = h / 2, hd = d / 2;
+      const v = [
+        new THREE.Vector3(-hw, -hh, -hd), new THREE.Vector3( hw, -hh, -hd),
+        new THREE.Vector3( hw, -hh,  hd), new THREE.Vector3(-hw, -hh,  hd),
+        new THREE.Vector3(-hw,  hh, -hd), new THREE.Vector3( hw,  hh, -hd),
+        new THREE.Vector3( hw,  hh,  hd), new THREE.Vector3(-hw,  hh,  hd),
+      ];
+      const pairs = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+      grp.add(_fatEdgeGroup(v, pairs, EDGE_TUBE_T * 0.55, furnEdgeMat));
+    } else {
+      grp.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), furnEdgeMat));
+    }
+    return grp;
+  }
 
   {
     const station = new THREE.Group();
@@ -886,11 +921,10 @@ function rebuild() {
     if (VISIBILITY.furniture.rug && room.opt_area_rug && !hasFocus) {
       const rug = new THREE.Mesh(
         new THREE.PlaneGeometry(room.width_m * 0.45, room.length_m * 0.35),
-        new THREE.MeshStandardMaterial({
+        new THREE.MeshBasicMaterial({
           color: 0x64748b,
-          wireframe: true,
           transparent: true,
-          opacity: OP_FURN,
+          opacity: Math.min(OP_FURN, 0.10),
           depthWrite: false,
           depthTest: false,
           side: THREE.DoubleSide
@@ -908,17 +942,16 @@ function rebuild() {
       const sofaGroup = new THREE.Group();
       const sofaZ = -room.length_m / 2 + 0.75 * room.length_m; // 75 % from speaker wall
 
-      const base = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.4, 0.9), furnMat);
+      const base = _ghostBox(2.1, 0.4, 0.9);
       base.position.y = 0.2;
       sofaGroup.add(base);
 
-      const back = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.5, 0.2), furnMat);
-      back.position.set(0, 0.55, 0.35); // back piece toward +z (back wall)
+      const back = _ghostBox(2.1, 0.5, 0.2);
+      back.position.set(0, 0.55, 0.35);
       sofaGroup.add(back);
 
-      const armGeo = new THREE.BoxGeometry(0.2, 0.35, 0.9);
-      const lArm = new THREE.Mesh(armGeo, furnMat); lArm.position.set(-0.95, 0.4, 0);
-      const rArm = new THREE.Mesh(armGeo, furnMat); rArm.position.set( 0.95, 0.4, 0);
+      const lArm = _ghostBox(0.2, 0.35, 0.9); lArm.position.set(-0.95, 0.4, 0);
+      const rArm = _ghostBox(0.2, 0.35, 0.9); rArm.position.set( 0.95, 0.4, 0);
       sofaGroup.add(lArm, rArm);
 
       sofaGroup.position.set(offsetX, -room.height_m / 2, sofaZ);
@@ -931,14 +964,13 @@ function rebuild() {
       const sofaZ     = -room.length_m / 2 + 0.75 * room.length_m;
       const ctZ       = sofaZ - 1.3; // ~1.3 m in front of sofa (toward speakers)
 
-      const tTop = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.05, 0.6), furnMat);
+      const tTop = _ghostBox(1.0, 0.05, 0.6);
       tTop.position.y = 0.4;
       ctGroup.add(tTop);
 
-      const tLegGeo = new THREE.BoxGeometry(0.04, 0.4, 0.04);
       [[-0.45, 0.2, -0.3], [0.45, 0.2, -0.3],
        [-0.45, 0.2,  0.3], [0.45, 0.2,  0.3]].forEach(([lx, ly, lz]) => {
-        const leg = new THREE.Mesh(tLegGeo, furnMat);
+        const leg = _ghostBox(0.04, 0.4, 0.04);
         leg.position.set(lx, ly, lz);
         ctGroup.add(leg);
       });
@@ -954,30 +986,26 @@ function rebuild() {
       const deskZ = -room.length_m / 2 + 0.20 * room.length_m;
 
       const deskGroup = new THREE.Group();
-      const deskTop = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.05, 0.8), furnMat);
+      const deskTop = _ghostBox(1.6, 0.05, 0.8);
       deskTop.position.y = 0.75;
       deskGroup.add(deskTop);
-      const dLegGeo = new THREE.BoxGeometry(0.04, 0.75, 0.04);
       [[-0.75, 0.375, -0.35], [0.75, 0.375, -0.35],
        [-0.75, 0.375,  0.35], [0.75, 0.375,  0.35]]
-        .forEach(p => { const l = new THREE.Mesh(dLegGeo, furnMat); l.position.set(...p); deskGroup.add(l); });
+        .forEach(p => { const l = _ghostBox(0.04, 0.75, 0.04); l.position.set(...p); deskGroup.add(l); });
       deskGroup.position.set(offsetX, -room.height_m / 2, deskZ);
       roomGroup.add(deskGroup);
 
       // Office chair — just behind the desk (toward listener)
       const chairZ = deskZ + 0.55;
       const chairGroup = new THREE.Group();
-      const s1 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.04, 0.1), furnMat);
-      const s2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.04, 0.6), furnMat);
-      s1.position.y = s2.position.y = 0.02;
+      const s1 = _ghostBox(0.6, 0.04, 0.1); s1.position.y = 0.02;
+      const s2 = _ghostBox(0.1, 0.04, 0.6); s2.position.y = 0.02;
       chairGroup.add(s1, s2);
-      const stem = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.4, 0.08), furnMat);
-      stem.position.y = 0.2; chairGroup.add(stem);
-      const seat = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.08, 0.5), furnMat);
-      seat.position.y = 0.45; chairGroup.add(seat);
-      const sup = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.4, 0.04), furnMat);
+      const stem = _ghostBox(0.08, 0.4, 0.08); stem.position.y = 0.2; chairGroup.add(stem);
+      const seat = _ghostBox(0.5, 0.08, 0.5); seat.position.y = 0.45; chairGroup.add(seat);
+      const sup = _ghostBox(0.08, 0.4, 0.04);
       sup.position.set(0, 0.65, 0.22); sup.rotation.x = -0.15; chairGroup.add(sup);
-      const bk = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.05), furnMat);
+      const bk = _ghostBox(0.45, 0.45, 0.05);
       bk.position.set(0, 0.85, 0.28); chairGroup.add(bk);
       chairGroup.position.set(offsetX, -room.height_m / 2, chairZ);
       roomGroup.add(chairGroup);
@@ -1308,6 +1336,15 @@ function rebuild() {
       }
     });
 
+    // PULSE DOTS at reflection bounce points
+    const _pt = performance.now() * 0.003;
+    scene.traverse(obj => {
+      if (obj.userData?.isPulseDot) {
+        const s = 1 + 0.4 * Math.sin(_pt);
+        obj.scale.setScalar(s);
+      }
+    });
+
     // Smoothness field animation
     if (focusedOverlay === OVERLAYS.SMOOTHNESS) {
       const field = roomGroup.children.find(o => o.userData?.isSmoothnessField);
@@ -1340,23 +1377,44 @@ function rebuild() {
   }
 
 
-  function drawReflectionPath(start, bounce, end, color = 0x818cf8) {
-    const points = [start, bounce, end];
+  // Build a single tube segment between two points and add to roomGroup.
+  function _addReflectionTube(a, b, color) {
+    const TUBE_R = useFatEdges ? 0.022 : 0.010;
+    const mat = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.85,
+      depthTest:  false,
+      depthWrite: false,
+    });
+    const curve = new THREE.LineCurve3(a.clone(), b.clone());
+    const segments = Math.max(2, Math.ceil(a.distanceTo(b) * 6));
+    const geo  = new THREE.TubeGeometry(curve, segments, TUBE_R, 3, false);
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.renderOrder = 10;
+    roomGroup.add(mesh);
+  }
 
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    const line = new THREE.Line(
-      geometry,
-      new THREE.LineDashedMaterial({
+  // Draw a two-leg reflection path (speaker → bounce → listener) using mesh tubes.
+  // Adds a pulsing sphere at the bounce point.
+  function drawReflectionPath(start, bounce, end, color = 0x818cf8) {
+    _addReflectionTube(start, bounce, color);
+    _addReflectionTube(bounce, end, color);
+
+    const dot = new THREE.Mesh(
+      new THREE.SphereGeometry(useFatEdges ? 0.075 : 0.055, 8, 8),
+      new THREE.MeshBasicMaterial({
         color,
-        dashSize: 0.25,
-        gapSize: 0.15,
         transparent: true,
-        opacity: 0.7
+        opacity: 0.9,
+        depthTest:  false,
+        depthWrite: false,
       })
     );
-
-    line.computeLineDistances();
-    roomGroup.add(line);
+    dot.position.copy(bounce);
+    dot.renderOrder = 12;
+    dot.userData.isPulseDot = true;
+    roomGroup.add(dot);
   }
 
   /* ------------------------------------------
@@ -1726,7 +1784,7 @@ function rebuild() {
             speakerY,
             listenerZ
           ),
-          effectiveScore < 5 ? 0xff3b3b : 0x22d3ee
+          effectiveScore < 5 ? 0xff3e00 : 0x00f3ff
         );
 
         // RIGHT speaker → front wall → listener
@@ -1746,7 +1804,7 @@ function rebuild() {
             speakerY,
             listenerZ
           ),
-          effectiveScore < 5 ? 0xff3b3b : 0x22d3ee
+          effectiveScore < 5 ? 0xff3e00 : 0x00f3ff
         );
       }
     
@@ -1833,21 +1891,13 @@ function rebuild() {
             roomGroup.add(panel);
           }
 
-          // Draw reflection path
+          // Draw reflection path (pulse dot at bouncePoint added by drawReflectionPath)
           drawReflectionPath(
             speakerPos,
             bouncePoint,
             listenerPos,
-            effectiveScore < 5 ? 0xff3b3b : 0x22d3ee
+            effectiveScore < 5 ? 0xff3e00 : 0x00f3ff
           );
-
-          // Glow dot at reflection point (optional but nice)
-          const dot = new THREE.Mesh(
-            new THREE.SphereGeometry(0.06, 12, 12),
-            new THREE.MeshBasicMaterial({ color: 0x22d3ee })
-          );
-          dot.position.copy(bouncePoint);
-          roomGroup.add(dot);
         }
       }
     }

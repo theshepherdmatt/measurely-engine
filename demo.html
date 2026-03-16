@@ -16,6 +16,8 @@
 </script>
 <script src="js/vendor/three/three.min.js" defer></script>
 <script src="js/vendor/three/OrbitControls.js" defer></script>
+<script src="js/toast.js"></script>
+<script src="js/assetLoader.js"></script>
 
 <style>
 /* ── Base ────────────────────────────────────────────────── */
@@ -418,7 +420,7 @@ body {
             </button>
             <button class="overlay-btn active" data-overlay="sbir">SBIR</button>
             <button class="overlay-btn" data-overlay="bandwidth">Bass modes</button>
-            <button class="overlay-btn" data-overlay="reflections">Reflections</button>
+            <button class="overlay-btn" data-overlay="side_reflections">Reflections</button>
             <button class="sbox-btn sbox-reset" id="demoReset">
                 <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
                 Reset
@@ -502,7 +504,7 @@ const demo3D = initRoom3D({
 
 demo3D.setStage('furnishings');
 demo3D.startAutoSpin();
-demo3D.setOverlay('sbir', true);
+demo3D.focusIssue('sbir', 5);   // show reflection tubes + dim walls from the start
 
 let activeOverlay = 'sbir';
 
@@ -586,14 +588,29 @@ document.querySelectorAll('.sbox-btn[data-item]').forEach(btn => {
 });
 
 // ── Overlay selector ─────────────────────────────────────
+const _AL          = window.MeasurelyAssetLoader;
+const _demoCanvas  = document.getElementById('demoCanvas');
+
+const _overlayChips = {
+    'sbir':             'SBIR — speaker boundary interference highlighted',
+    'bandwidth':        'Bass Modes — room resonances visualised',
+    'side_reflections': 'Reflections — side-wall early echoes shown',
+};
+
 document.querySelectorAll('.overlay-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         document.querySelectorAll('.overlay-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        demo3D.setOverlay(activeOverlay, false);
         activeOverlay = btn.dataset.overlay;
-        demo3D.setOverlay(activeOverlay, true);
         demo3D.stopAutoSpin();
+
+        // Show "Calculating…" overlay for one frame so mobile feels responsive
+        _AL?.showChartLoading(_demoCanvas);
+        requestAnimationFrame(() => {
+            demo3D.focusIssue(activeOverlay, 5);
+            _AL?.hideChartLoading(_demoCanvas);
+            showChip(_overlayChips[activeOverlay] ?? activeOverlay);
+        });
     });
 });
 
@@ -621,7 +638,11 @@ document.getElementById('demoReset')?.addEventListener('click', () => {
     document.querySelectorAll('.sbox-btn[data-item]').forEach(b => b.classList.remove('active'));
     document.querySelector('.sbox-btn[data-item="rug"]')?.classList.add('active');
 
-    demo3D.update();
+    activeOverlay = 'sbir';
+    document.querySelectorAll('.overlay-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.overlay-btn[data-overlay="sbir"]')?.classList.add('active');
+
+    demo3D.focusIssue('sbir', 5);
     demo3D.startAutoSpin();
     showChip('Room reset');
 });
