@@ -21,7 +21,10 @@
     'use strict';
 
     // ── Config ──────────────────────────────────────────────────────────────
-    const PB_URL = 'https://api.measurely.uk';
+    const PB_URL       = 'https://api.measurely.uk';
+    // Must match exactly what is registered in Google Cloud Console AND
+    // PocketBase's OAuth2 provider settings — trailing slash is significant.
+    const REDIRECT_URI = 'https://measurely.uk/';
 
     // ── PocketBase client — initialised at module load time (Task 3) ────────
     // Initialising here (not inside init()) ensures _pb is never null when
