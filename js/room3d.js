@@ -374,8 +374,14 @@ function rebuild() {
       environment: { ...FALLBACK.environment, ...(raw.environment || {}),
         furniture: { ...FALLBACK.environment.furniture,
                      ...((raw.environment || {}).furniture || {}) },
+        // Strip 'none' values from saved treatment so the Pro Studio FALLBACK
+        // shows through for guests and users who have never configured panels.
+        // Actual user choices (any non-'none' string) still override the FALLBACK.
         treatment: { ...FALLBACK.environment.treatment,
-                     ...((raw.environment || {}).treatment || {}) }
+                     ...Object.fromEntries(
+                       Object.entries((raw.environment || {}).treatment || {})
+                             .filter(([, v]) => v && v !== 'none')
+                     ) }
       }
     };
 

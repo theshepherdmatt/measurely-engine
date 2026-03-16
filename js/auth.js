@@ -23,8 +23,8 @@
     // ── Config ──────────────────────────────────────────────────────────────
     const PB_URL       = 'https://api.measurely.uk';
     // Must match exactly what is registered in Google Cloud Console AND
-    // PocketBase's OAuth2 provider settings — trailing slash is significant.
-    const REDIRECT_URI = 'https://measurely.uk/';
+    // PocketBase's OAuth2 provider settings — no trailing slash.
+    const REDIRECT_URI = 'https://measurely.uk';
 
     // ── PocketBase client — initialised at module load time (Task 3) ────────
     // Initialising here (not inside init()) ensures _pb is never null when
@@ -346,7 +346,7 @@
                 localStorage.setItem('mly_oauth_verifier', google.codeVerifier);
             } catch (_) {}
 
-            window.location.href = google.authUrl + encodeURIComponent('https://measurely.uk/');
+            window.location.href = google.authUrl + encodeURIComponent(REDIRECT_URI);
 
         } catch (err) {
             if (btn) {
