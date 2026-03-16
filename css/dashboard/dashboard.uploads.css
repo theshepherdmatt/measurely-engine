@@ -1,9 +1,9 @@
 /* =========================================
-   SWEEP HISTORY (UPLOADS) — CLEAN CARDS
+   SWEEP HISTORY — COMPARISON CARDS
    ========================================= */
 
 /* Wrapper */
-.uploads-history-wrapper{
+.uploads-history-wrapper {
   margin-top: 0.75rem;
 }
 
@@ -18,112 +18,210 @@
 }
 
 /* Grid */
-#uploadsHistoryGrid{
+#uploadsHistoryGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 0.75rem;
 }
 
-/* Card — surface comes from .card.glass-panel; only layout overrides here */
-.uploads-card{
+/* ── Card shell ─────────────────────────────────────── */
+.uploads-card {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.55rem;
+  padding: 1.1rem 1.2rem 1rem;
 }
 
-/* Title / tag */
-.uploads-title{
-  margin: 0;
-  font-size: 0.85rem;
-  font-weight: 600;
-  margin-bottom: 0.25rem;
+/* Latest gets a stronger indigo accent border */
+.uploads-card[data-index="0"] {
+  border-color: rgba(99, 102, 241, 0.45);
+  box-shadow:
+    0 20px 40px rgba(0,0,0,0.5),
+    inset 0 1px 1px rgba(255,255,255,0.06),
+    0 0 0 1px rgba(99,102,241,0.18);
 }
 
-.uploads-tag{
-  opacity: 0.85;
+/* Older cards fade slightly */
+.uploads-card[data-index="2"],
+.uploads-card[data-index="3"] {
+  opacity: 0.82;
 }
 
-.uploads-filename{
-  font-size: 0.7rem;
-  opacity: 0.6;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-  margin-bottom: 0.15rem;
-}
-
-
-/* Time */
-.uploads-time{
-  font-size: 0.7rem;
-  opacity: 0.6;
-  margin-bottom: 0.25rem;
-}
-
-/* .uploads-score inherits .score-value sizing (2rem / 600 / c-text-main) */
-
-
-.uploads-metrics{
+/* ── Card header ────────────────────────────────────── */
+.uploads-card-header {
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  font-size: 0.7rem;
-}
-
-.uploads-metrics > div{
-  display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: baseline;
-}
-
-.uploads-metrics span{
-  color: rgba(148, 163, 184, 0.65);
-}
-
-.uploads-metrics > div span:last-child{
-  font-weight: 500;
-  color: rgba(226, 232, 240, 0.55);
-}
-
-/* Footer */
-.uploads-footer{
-  margin-top: auto;
-  display: flex;
-  flex-direction: column;
   gap: 0.5rem;
 }
 
-/* Notes button */
-.notes-btn{
-  align-self: flex-start;
-  padding: 0.35rem 0.75rem;
-  font-size: 0.75rem;
-
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 6px;
-
-  color: var(--c-text-muted);
-  cursor: pointer;
+/* ── Badge labels ───────────────────────────────────── */
+.uploads-tag {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
 }
 
-.notes-btn:hover{
+.uploads-card[data-index="0"] .uploads-tag {
+  background: rgba(99, 102, 241, 0.22);
+  border: 1px solid rgba(99, 102, 241, 0.5);
+  color: #a5b4fc;
+}
+
+.uploads-card[data-index="1"] .uploads-tag {
   background: rgba(255,255,255,0.06);
-  color: var(--c-text-main);
+  border: 1px solid rgba(255,255,255,0.14);
+  color: rgba(255,255,255,0.65);
 }
 
-/* Notes preview */
-.note-preview{
-  font-size: 0.65rem;
-  opacity: 0.5;
+.uploads-card[data-index="2"] .uploads-tag,
+.uploads-card[data-index="3"] .uploads-tag {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.38);
 }
 
-.note-preview.empty{
-  opacity: 0.45;
+/* Timestamp */
+.uploads-time {
+  font-size: 0.67rem;
+  color: rgba(148, 163, 184, 0.5);
+  white-space: nowrap;
 }
 
-/* Load / Delete action row — hidden until JS confirms a session is assigned */
+/* ── Note — prominent "what changed" caption ────────── */
+.sweep-note-row {
+  min-height: 2.2rem;
+  padding: 0.45rem 0.6rem;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-left: 2px solid rgba(99, 102, 241, 0.4);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  color: rgba(226, 232, 240, 0.82);
+  line-height: 1.4;
+  font-style: italic;
+  cursor: default;
+}
+
+.sweep-note-row .note-placeholder {
+  color: rgba(148, 163, 184, 0.38);
+  font-style: italic;
+}
+
+/* Latest card note is slightly more prominent */
+.uploads-card[data-index="0"] .sweep-note-row {
+  border-left-color: rgba(99, 102, 241, 0.7);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+/* ── Score row — score + trend delta ───────────────── */
+.uploads-score-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+/* Score value size override */
+.uploads-score.score-value {
+  font-size: 1.8rem;
+}
+
+/* Score coloring by performance */
+.uploads-score.metric-good { color: var(--c-excellent, #4ade80); }
+.uploads-score.metric-ok   { color: var(--c-okay,      #facc15); }
+.uploads-score.metric-poor { color: var(--c-poor,      #f87171); }
+
+/* ── Trend delta badge ──────────────────────────────── */
+.sweep-trend {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  line-height: 1;
+}
+
+.sweep-trend.trend-up {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.12);
+  border: 1px solid rgba(74, 222, 128, 0.25);
+}
+
+.sweep-trend.trend-down {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.12);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+}
+
+.sweep-trend.trend-flat {
+  color: rgba(148, 163, 184, 0.7);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* ── Metrics rows ───────────────────────────────────── */
+.uploads-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  font-size: 0.7rem;
+}
+
+.uploads-metrics > div {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Mini fill bar behind each row */
+.uploads-metrics > div::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: var(--metric-pct, 0%);
+  background: rgba(99, 102, 241, 0.09);
+  border-radius: 4px;
+  transition: width 0.7s ease;
+  pointer-events: none;
+}
+
+/* Label */
+.uploads-metrics > div span:first-child {
+  color: rgba(148, 163, 184, 0.6);
+  position: relative; /* above ::before */
+}
+
+/* Value */
+.uploads-metrics > div span:last-child {
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.55);
+  position: relative;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Metric value color coding */
+.metric-good { color: #4ade80 !important; }
+.metric-ok   { color: #facc15 !important; }
+.metric-poor { color: #f87171 !important; }
+
+/* ── Footer: actions + note button ─────────────────── */
+.uploads-footer {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Load / Delete action row */
 .uploads-actions {
   display: none;
   gap: 0.4rem;
@@ -134,9 +232,28 @@
 }
 
 .uploads-actions .btn {
-  height: 30px;
-  padding: 0 0.65rem;
-  font-size: 0.72rem;
+  height: 28px;
+  padding: 0 0.6rem;
+  font-size: 0.7rem;
+}
+
+/* Notes button */
+.notes-btn {
+  margin-left: auto;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.7rem;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: 6px;
+  color: #a5b4fc;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.notes-btn:hover {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: rgba(99, 102, 241, 0.5);
 }
 
 /* "View all older sweeps" link below grid */
@@ -152,10 +269,4 @@
 
 .view-all-link:hover {
   color: var(--c-accent-light);
-}
-
-/* Subtly highlight the latest sweep */
-.uploads-card[data-index="0"]{
-  border-color: rgba(99, 102, 241, 0.4);
-  box-shadow: 0 20px 40px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.05), 0 0 0 1px rgba(99,102,241,0.15);
 }

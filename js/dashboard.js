@@ -1254,10 +1254,20 @@ class MeasurelyDashboard {
                 }
 
                 // ---- metrics ----
+                const scoreClass = (v) =>
+                    typeof v !== "number" ? "" :
+                    v >= 7 ? "metric-good" : v >= 4.5 ? "metric-ok" : "metric-poor";
+
                 const setMetric = (cls, val) => {
                     const el = card.querySelector(cls);
                     if (!el) return;
                     el.textContent = (typeof val === "number") ? val.toFixed(1) : "--";
+                    el.classList.remove("metric-good", "metric-ok", "metric-poor");
+                    if (typeof val === "number") {
+                        el.classList.add(scoreClass(val));
+                        const row = el.parentElement;
+                        if (row) row.style.setProperty("--metric-pct", `${val * 10}%`);
+                    }
                 };
 
                 const m = meta.metrics || {};
@@ -1268,11 +1278,38 @@ class MeasurelyDashboard {
                 setMetric(".m-smoothness",  m.smoothness);
                 setMetric(".m-clarity",     m.clarity);
 
+                // ---- score colour ----
+                if (scoreEl && typeof meta.overall === "number") {
+                    scoreEl.classList.remove("metric-good", "metric-ok", "metric-poor");
+                    scoreEl.classList.add(scoreClass(meta.overall));
+                }
+
+                // ---- trend delta vs next older card ----
+                const trendEl = card.querySelector("[data-trend]");
+                if (trendEl) {
+                    const nextMeta = recent[i + 1];
+                    if (typeof meta.overall === "number" && nextMeta && typeof nextMeta.overall === "number") {
+                        const delta = meta.overall - nextMeta.overall;
+                        const sign = delta > 0 ? "+" : "";
+                        trendEl.textContent = `${sign}${delta.toFixed(1)}`;
+                        trendEl.classList.remove("trend-up", "trend-down", "trend-flat");
+                        trendEl.classList.add(delta > 0.05 ? "trend-up" : delta < -0.05 ? "trend-down" : "trend-flat");
+                    } else {
+                        trendEl.textContent = "";
+                    }
+                }
+
                 // ---- note preview ----
                 const previewEl = card.querySelector("[data-note-preview]");
                 if (previewEl) {
-                    previewEl.textContent = meta.note?.trim() || "—";
-                    previewEl.style.opacity = meta.note?.trim() ? "1" : "0.3";
+                    const noteText = meta.note?.trim();
+                    if (noteText) {
+                        previewEl.textContent = noteText;
+                        previewEl.classList.remove("has-placeholder");
+                    } else {
+                        previewEl.innerHTML = '<span class="note-placeholder">What changed? Add a note…</span>';
+                        previewEl.classList.add("has-placeholder");
+                    }
                 }
 
                 // ---- ensure actions row is visible ----
