@@ -101,6 +101,33 @@
     }
 }
 
+/* ── Landscape mobile: compact metric cards ─────────────────────────── */
+@media (max-width: 899px) and (orientation: landscape) {
+    /* Scale down the large score numbers so cards don't tower on short screens */
+    .analysis-card-trigger .score-value {
+        font-size: 1.85rem;
+    }
+
+    /* Smaller Dave quote so it doesn't dominate each card */
+    .dave-quote {
+        font-size: 1rem;
+        line-height: 1.5;
+    }
+
+    .dave-quote-mini {
+        font-size: 0.76rem;
+    }
+}
+
+/* ── Wider landscape phones (≥668px): 3-col metric grid ─────────────── */
+/*    At 2 cols the 6 metric cards require 3 rows of scrolling;            */
+/*    3 cols keeps them all visible in 2 rows on 844px phones.             */
+@media (min-width: 668px) and (max-width: 899px) and (orientation: landscape) {
+    .analysis-sidebar-menu {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
 /* =========================================================
    SCORE NUMBER — contextual sizing
    metric cards: 2.5rem  |  upload history cards: 1.8rem
