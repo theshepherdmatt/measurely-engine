@@ -354,10 +354,10 @@ function rebuild() {
                      tweeter_height_m: 0.95, toe_in_deg: 12, listener_front_m: 2.8,
                      listener_offset_m: 0, subwoofer: false },
       environment: { room_type: 'home', floor_material: 'hard',
-                     furniture: { opt_area_rug: false, opt_sofa: false,
+                     furniture: { opt_area_rug: true,  opt_sofa: true,
                                   opt_coffee_table: false, opt_desk: false, opt_chair: false },
-                     treatment: { wall_panel_mode: 'none', side_panel_mode: 'none',
-                                  bass_trap_mode: 'none', ceiling_panel_mode: 'none' } }
+                     treatment: { wall_panel_mode: 'front',   side_panel_mode: 'both',
+                                  bass_trap_mode: 'corners',  ceiling_panel_mode: 'none' } }
     };
 
     // Use cloud override if one was queued by the 'measurely:data-ready' listener,
