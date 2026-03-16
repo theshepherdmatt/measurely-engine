@@ -228,42 +228,11 @@
             btn.classList.add('mly-auth-btn-google--loading');
         }
 
-        // ── Diagnostic pre-flight ─────────────────────────────────────────────
-        // Logs the raw auth-methods response so we can see the exact shape the
-        // server returns.  This reveals SDK/server version mismatches immediately:
-        //   SDK ≤ 0.20  →  { providers: [...] }           (top-level)
-        //   SDK ≥ 0.21  →  { oauth2: { providers: [...] } }  (nested)
-        // If "providers" is undefined in the authWithOAuth2 call, this is why.
-        try {
-            const methods = await _pb.collection('users').listAuthMethods();
-            console.group('[auth] listAuthMethods() pre-flight');
-            console.log('raw response:', JSON.parse(JSON.stringify(methods)));
-            console.log('top-level providers (SDK ≤0.20):', methods?.providers);
-            console.log('oauth2.providers  (SDK ≥0.21):', methods?.oauth2?.providers);
-            console.groupEnd();
-        } catch (diagErr) {
-            console.warn('[auth] listAuthMethods pre-flight failed — server unreachable or CORS issue');
-            console.dir(diagErr);
-        }
-
         try {
             const authData = await _pb.collection('users').authWithOAuth2({
                 provider: 'google',
-
-                // Explicit popup handler so we control the window dimensions and
-                // can gracefully handle popup-blockers (common on mobile).
-                // The SDK still manages the redirect-polling and code exchange.
-                urlCallback(url) {
-                    const popup = window.open(
-                        url,
-                        'measurely_google_oauth2',
-                        'width=520,height=640,left=200,top=100,resizable=yes,scrollbars=yes'
-                    );
-                    if (!popup || popup.closed) {
-                        // Popup blocked — fall back to same-tab redirect.
-                        // The SDK will receive the code via the redirect URL.
-                        window.location.href = url;
-                    }
+                urlCallback: (url) => {
+                    window.location.href = url;
                 },
             });
 
@@ -271,13 +240,11 @@
             const meta   = authData.meta ?? {};
 
             // ── Explicit auth persistence ─────────────────────────────────────
-            // PocketBase's LocalAuthStore already auto-saves to localStorage on
-            // every successful auth.  We call save() explicitly here as a
-            // belt-and-suspenders guard against any timing edge-cases, ensuring
-            // the token survives a page refresh immediately after OAuth2 completes.
             try {
                 if (_pb.authStore.token) {
                     _pb.authStore.save(_pb.authStore.token, _pb.authStore.model);
+                    // Export to cookie so session persists across dashboard/treatment pages
+                    document.cookie = _pb.authStore.exportToCookie({ httpOnly: false });
                 }
             } catch (_) {}
 
@@ -311,18 +278,10 @@
                 btn.classList.remove('mly-auth-btn-google--loading');
             }
 
-            // User dismissed the popup — silent, not an error
+            // User dismissed the flow — silent, not an error
             if (err?.isAbort || /cancel|popup|close|user.*denied/i.test(err?.message ?? '')) return;
 
-            // ── Full error dump for debugging ─────────────────────────────────
-            console.group('[auth] Google OAuth2 error');
-            console.dir(err);                          // full object — check .data.providers
-            console.log('message:', err?.message);
-            console.log('status: ', err?.status);
-            console.log('data:   ', err?.data);
-            console.log('stack:  ', err?.stack);
-            console.groupEnd();
-
+            console.error('Manual Auth Error Detail:', err);
             window.toast?.(_friendlyError(err), 'error');
         }
     }
