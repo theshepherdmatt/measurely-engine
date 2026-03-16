@@ -163,6 +163,24 @@
     background: rgba(99, 102, 241, 0.4);
 }
 
+/* Dave "See what Dave recommends" nudge link */
+.dave-advice-link {
+    display: block;
+    margin-top: 0.45rem;
+    font-size: 0.8rem;
+    font-style: normal;
+    font-weight: 600;
+    color: var(--c-accent, #6366f1);
+    text-decoration: none;
+    opacity: 0.85;
+    transition: opacity 0.15s;
+}
+
+.dave-advice-link:hover {
+    opacity: 1;
+    text-decoration: underline;
+}
+
 /* Instrument Tracks */
 .perf-track {
     height: 5px;

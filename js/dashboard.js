@@ -2074,9 +2074,23 @@ class MeasurelyDashboard {
             if (!el) return;
 
             const score = Number(s.overall ?? data.overall_score ?? 5);
-            const phrase = this.dave.overall(score);
+            const phraseObj = this.dave.overall(score);
+            const text = phraseObj?.text ?? null;
+            const advice = phraseObj?.mateAdvice ?? null;
 
-            el.textContent = phrase || "Analysis complete. Review the measured metrics below.";
+            el.innerHTML = '';
+            const span = document.createElement('span');
+            span.textContent = text || "Analysis complete. Review the measured metrics below.";
+            el.appendChild(span);
+
+            if (advice) {
+                const link = document.createElement('a');
+                link.className = 'dave-advice-link';
+                link.href = 'simulate.html';
+                link.title = advice;
+                link.textContent = 'See what Dave recommends →';
+                el.appendChild(link);
+            }
         })();
 
         /* ---------------- 3. SIX SMALL CARD SCORES ---------------- */
@@ -2269,9 +2283,26 @@ class MeasurelyDashboard {
             if (!el) continue;
 
             const score = Number(data.scores?.[metric] ?? 5);
-            const phrase = this.dave.category(metric, score);
-            el.textContent = expandTags(phrase);
+            const phraseObj = this.dave.category(metric, score);
+            const text = phraseObj?.text ?? null;
+            const advice = phraseObj?.mateAdvice ?? null;
 
+            el.innerHTML = '';
+
+            if (text) {
+                const span = document.createElement('span');
+                span.textContent = expandTags(text);
+                el.appendChild(span);
+            }
+
+            if (advice) {
+                const link = document.createElement('a');
+                link.className = 'dave-advice-link';
+                link.href = 'simulate.html';
+                link.title = expandTags(advice);
+                link.textContent = 'See what Dave recommends →';
+                el.appendChild(link);
+            }
         }
     }
 

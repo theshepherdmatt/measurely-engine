@@ -35,20 +35,30 @@
     return arr[Math.floor(Math.random() * arr.length)];
   };
 
+  // Normalise a phrase entry: accepts both old plain strings and new
+  // { text, mateAdvice } objects. Always returns { text, mateAdvice }.
+  DavePhraseEngine.prototype._normalise = function (entry) {
+    if (!entry) return null;
+    if (typeof entry === "string") return { text: entry, mateAdvice: null };
+    return { text: entry.text ?? null, mateAdvice: entry.mateAdvice ?? null };
+  };
+
   // ---------- public API ----------
 
+  // Returns { text, mateAdvice } or null.
   DavePhraseEngine.prototype.overall = function (score) {
     if (!this.bank) return null;
     const band = this.getBand(score);
-    return this.pickFirst(this.bank.overall?.[band]);
+    return this._normalise(this.pickFirst(this.bank.overall?.[band]));
   };
 
+  // Returns { text, mateAdvice } or null.
   DavePhraseEngine.prototype.category = function (key, score) {
     if (!this.bank) return null;
     const cat = this.bank.categories?.[key];
     if (!cat) return null;
     const band = this.getBand(score);
-    return this.pickFirst(cat.phrases?.[band]);
+    return this._normalise(this.pickFirst(cat.phrases?.[band]));
   };
 
   // 🔥 expose globally
