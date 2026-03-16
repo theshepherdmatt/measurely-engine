@@ -116,8 +116,6 @@ body {
 .demo-close-btn:hover { background: rgba(255,255,255,.12); color: rgba(255,255,255,.9); }
 
 /* ── Bottom drawer — floats over canvas, never blocks it ── */
-/* Collapsed: only the handle is visible (40px).
-   Expanded:  handle + controls panel slides up.            */
 .demo-drawer {
     position: fixed;
     bottom: 0;
@@ -126,7 +124,6 @@ body {
     z-index: 50;
     display: flex;
     flex-direction: column;
-    /* Translate to hide body, reveal only handle */
     transform: translateY(calc(100% - 40px));
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -182,8 +179,9 @@ body {
 
 /* ── Drawer body (controls + CTA) ───────────────────────── */
 .demo-drawer-body {
-    background: rgba(11, 18, 32, 0.96);
-    backdrop-filter: blur(14px);
+    background: rgba(11, 18, 32, 0.72);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border-top: 1px solid rgba(255,255,255,.07);
     padding: 10px 14px 14px;
     display: flex;
@@ -199,6 +197,37 @@ body {
     gap: 6px;
     flex-wrap: wrap;
     justify-content: center;
+}
+
+/* ── Grouped sections (Overlays / Treatment) ─────────────── */
+.demo-sections-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.demo-section {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255,255,255,.03);
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: 8px;
+    padding: 4px 8px;
+}
+
+.demo-section-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.28);
+    white-space: nowrap;
+    padding-right: 4px;
+    border-right: 1px solid rgba(255,255,255,.1);
+    margin-right: 2px;
 }
 
 .sbox-btn {
@@ -386,27 +415,42 @@ body {
     <!-- Drawer body: controls + CTA -->
     <div class="demo-drawer-body" id="demoDrawerBody">
 
-        <!-- Row 1: furniture toggles + overlay selector + reset -->
+        <!-- Row 1: furniture toggle + grouped sections + reset -->
         <div class="demo-controls-row">
-            <button class="sbox-btn active" data-item="rug">
-                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="9" width="18" height="12" rx="2"/><path d="M3 9l9-6 9 6"/></svg>
-                Rug
+
+            <!-- Single furniture toggle -->
+            <button class="sbox-btn active" id="demoFurnitureToggle">
+                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2"/><path d="M2 11v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v0a2 2 0 0 1-4 0v0a2 2 0 0 1-4 0v0a2 2 0 0 0-4 0z"/></svg>
+                Furniture
             </button>
-            <button class="sbox-btn active" data-item="sofa">
-                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2"/><path d="M2 11v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0z"/></svg>
-                Sofa
-            </button>
-            <button class="sbox-btn" data-item="bass_traps">
-                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="3 20 12 4 21 20"/></svg>
-                Bass traps
-            </button>
-            <button class="overlay-btn active" data-overlay="sbir">SBIR</button>
-            <button class="overlay-btn" data-overlay="bandwidth">Bass modes</button>
-            <button class="overlay-btn" data-overlay="side_reflections">Reflections</button>
+
+            <!-- Overlays section -->
+            <div class="demo-section">
+                <span class="demo-section-label">Overlays</span>
+                <button class="overlay-btn active" data-overlay="sbir">SBIR</button>
+                <button class="overlay-btn" data-overlay="bandwidth">Bass modes</button>
+                <button class="overlay-btn" data-overlay="side_reflections">Reflections</button>
+            </div>
+
+            <!-- Treatment section -->
+            <div class="demo-section">
+                <span class="demo-section-label">Treatment</span>
+                <button class="sbox-btn" data-item="bass_traps">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="3 20 12 4 21 20"/></svg>
+                    Bass traps
+                </button>
+                <button class="sbox-btn active" data-item="side_panels">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="4" height="18" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>
+                    Side panels
+                </button>
+            </div>
+
+            <!-- Reset -->
             <button class="sbox-btn sbox-reset" id="demoReset">
                 <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
                 Reset
             </button>
+
         </div>
 
         <!-- Row 2: sliders -->
@@ -422,14 +466,9 @@ body {
                 <span class="sbox-slider-val" id="demoSpkWallVal">0.45 m</span>
             </label>
             <label class="sbox-slider-label">
-                <span class="sbox-slider-name">Width</span>
+                <span class="sbox-slider-name">Room Width</span>
                 <input type="range" id="demoWidth" min="2.0" max="8.0" step="0.1" value="4.2" class="sbox-range">
                 <span class="sbox-slider-val" id="demoWidthVal">4.2 m</span>
-            </label>
-            <label class="sbox-slider-label">
-                <span class="sbox-slider-name">Length</span>
-                <input type="range" id="demoLength" min="2.5" max="10.0" step="0.1" value="5.5" class="sbox-range">
-                <span class="sbox-slider-val" id="demoLengthVal">5.5 m</span>
             </label>
         </div>
 
@@ -515,8 +554,6 @@ const spkWallSlider    = document.getElementById('demoSpkWall');
 const spkWallVal       = document.getElementById('demoSpkWallVal');
 const widthSlider      = document.getElementById('demoWidth');
 const widthVal         = document.getElementById('demoWidthVal');
-const lengthSlider     = document.getElementById('demoLength');
-const lengthVal        = document.getElementById('demoLengthVal');
 
 // Listening position — moves sphere, sofa, coffee table, rug forward/back
 listenPosSlider?.addEventListener('input', () => {
@@ -546,24 +583,31 @@ widthSlider?.addEventListener('input', () => {
     demo3D.stopAutoSpin();
 });
 
-lengthSlider?.addEventListener('input', () => {
-    const l = Number(lengthSlider.value);
-    lengthVal.textContent = `${l.toFixed(1)} m`;
-    demoState.geometry.length_m = l;
-    demo3D.setRoomLength(l);
+// ── Furniture toggle (rug + sofa + coffee table as one) ───
+let furnitureOn = true;
+document.getElementById('demoFurnitureToggle')?.addEventListener('click', () => {
+    furnitureOn = !furnitureOn;
+    document.getElementById('demoFurnitureToggle').classList.toggle('active', furnitureOn);
+    demoState.environment.furniture.opt_area_rug    = furnitureOn;
+    demoState.environment.furniture.opt_sofa        = furnitureOn;
+    demoState.environment.furniture.opt_coffee_table = furnitureOn;
+    demo3D.update();
     demo3D.stopAutoSpin();
+    showChip(furnitureOn ? 'Furniture on — sofa, rug and table visible' : 'Furniture hidden');
 });
 
-// ── Furniture toggles ────────────────────────────────────
+// ── Treatment toggles (bass traps / side panels) ──────────
 document.querySelectorAll('.sbox-btn[data-item]').forEach(btn => {
     btn.addEventListener('click', () => {
         const item = btn.dataset.item;
         const isOn = btn.classList.toggle('active');
-        if (item === 'rug')        demoState.environment.furniture.opt_area_rug = isOn;
-        if (item === 'sofa')       demoState.environment.furniture.opt_sofa      = isOn;
         if (item === 'bass_traps') {
             demoState.environment.treatment.bass_trap_mode = isOn ? 'all' : 'none';
-            if (isOn) showChip('Bass traps absorb low frequencies in the corners');
+            showChip(isOn ? 'Bass traps on — corner absorption active' : 'Bass traps removed');
+        }
+        if (item === 'side_panels') {
+            demoState.environment.treatment.side_panel_mode = isOn ? 'both' : 'none';
+            showChip(isOn ? 'Side panels on — early reflections dampened' : 'Side panels removed');
         }
         demo3D.update();
         demo3D.stopAutoSpin();
@@ -610,14 +654,17 @@ document.getElementById('demoReset')?.addEventListener('click', () => {
     demoState.environment.furniture = { opt_area_rug: true, opt_sofa: true, opt_coffee_table: true };
     demoState.environment.treatment = { wall_panel_mode: 'front', side_panel_mode: 'both', bass_trap_mode: 'none', ceiling_panel_mode: 'none' };
 
-    if (widthSlider)      { widthSlider.value      = DEFAULTS.width_m;         widthVal.textContent       = `${DEFAULTS.width_m} m`; }
-    if (lengthSlider)     { lengthSlider.value     = DEFAULTS.length_m;        lengthVal.textContent      = `${DEFAULTS.length_m} m`; }
+    if (widthSlider)      { widthSlider.value      = DEFAULTS.width_m;          widthVal.textContent      = `${DEFAULTS.width_m} m`; }
     if (listenPosSlider)  { listenPosSlider.value  = DEFAULTS.listener_front_m; listenPosVal.textContent  = `${DEFAULTS.listener_front_m.toFixed(1)} m`; }
-    if (spkWallSlider)    { spkWallSlider.value    = DEFAULTS.spk_front_m;     spkWallVal.textContent     = `${DEFAULTS.spk_front_m.toFixed(2)} m`; }
+    if (spkWallSlider)    { spkWallSlider.value    = DEFAULTS.spk_front_m;      spkWallVal.textContent    = `${DEFAULTS.spk_front_m.toFixed(2)} m`; }
 
-    document.querySelectorAll('.sbox-btn[data-item]').forEach(b => b.classList.remove('active'));
-    document.querySelector('.sbox-btn[data-item="rug"]')?.classList.add('active');
-    document.querySelector('.sbox-btn[data-item="sofa"]')?.classList.add('active');
+    // Reset furniture toggle
+    furnitureOn = true;
+    document.getElementById('demoFurnitureToggle')?.classList.add('active');
+
+    // Reset treatment toggles
+    document.querySelector('.sbox-btn[data-item="bass_traps"]')?.classList.remove('active');
+    document.querySelector('.sbox-btn[data-item="side_panels"]')?.classList.add('active');
 
     activeOverlay = 'sbir';
     document.querySelectorAll('.overlay-btn').forEach(b => b.classList.remove('active'));
