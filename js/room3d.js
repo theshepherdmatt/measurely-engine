@@ -210,6 +210,7 @@ export function initRoom3D({
 
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setClearColor(0x050608, 1); // Pure-black base — makes slate beams pop
   renderer.domElement.style.touchAction = 'none'; // prevent iOS/iPad scroll hijack
   container.appendChild(renderer.domElement);
 
@@ -502,57 +503,34 @@ function rebuild() {
     _roomShell = null; _roomFloor = null; _roomGrid = null;
 
     if (VISIBILITY.roomShell) {
-      // Desktop: LineBasicMaterial + scalable unit box (fast live-resize path).
-      // Mobile/tablet: mesh tube geometry per edge — reliable thickness at all DPR.
-      const shellOpacity = focusedOverlay ? 0.05 : 0.65;
-
-      const wireMat = useFatEdges
-        ? new THREE.MeshBasicMaterial({
-            color: colors.room,
-            transparent: true,
-            opacity: shellOpacity,
-            depthTest: false,
-            depthWrite: false,
-          })
-        : new THREE.LineBasicMaterial({
-            color: colors.room,
-            transparent: true,
-            opacity: shellOpacity,
-            depthTest: false,
-            depthWrite: false,
-          });
+      // Solid "Architectural Cage" beams — BoxGeometry stretched into thin rods.
+      // Using _fatEdgeGroup on ALL platforms (desktop + mobile) so the frame has
+      // physical heft at every DPR. Live-resize falls back to rebuild() since
+      // _roomShell stays null, which is acceptable.
+      const SHELL_BEAM_T  = 0.020; // metres — consistent across all screen sizes
+      const shellOpacity  = focusedOverlay ? 0.05 : 0.60;
+      const shellMat = new THREE.MeshBasicMaterial({
+        color:       0x4a4e69, // Anodized Slate
+        transparent: true,
+        opacity:     shellOpacity,
+        depthTest:   false,
+        depthWrite:  false,
+      });
 
       if (!isSlanted && !isGable) {
-        if (useFatEdges) {
-          // Fat tubes using actual room dimensions.
-          // NOTE: _roomShell is intentionally left null so setRoomWidth/Length
-          // falls back to rebuild() — acceptable on mobile where drag-resize is rare.
-          const bverts = [
-            new THREE.Vector3(-hW, floorY, -hL),
-            new THREE.Vector3( hW, floorY, -hL),
-            new THREE.Vector3( hW, floorY,  hL),
-            new THREE.Vector3(-hW, floorY,  hL),
-            new THREE.Vector3(-hW, floorY + room.height_m, -hL),
-            new THREE.Vector3( hW, floorY + room.height_m, -hL),
-            new THREE.Vector3( hW, floorY + room.height_m,  hL),
-            new THREE.Vector3(-hW, floorY + room.height_m,  hL),
-          ];
-          const bpairs = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
-          roomGroup.add(_fatEdgeGroup(bverts, bpairs, EDGE_TUBE_T, wireMat));
-        } else {
-          // Desktop: unit box scaled to room dims — lets setRoomWidth/Length resize it
-          // without a full rebuild by just updating roomEdges.scale.
-          const roomEdges = new THREE.LineSegments(
-            new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1)),
-            wireMat
-          );
-          roomEdges.scale.set(room.width_m, room.height_m, room.length_m);
-          roomEdges.renderOrder = 1;
-          roomGroup.add(roomEdges);
-          _roomShell = roomEdges; // stored for live resize
-        }
+        const bverts = [
+          new THREE.Vector3(-hW, floorY, -hL),
+          new THREE.Vector3( hW, floorY, -hL),
+          new THREE.Vector3( hW, floorY,  hL),
+          new THREE.Vector3(-hW, floorY,  hL),
+          new THREE.Vector3(-hW, floorY + room.height_m, -hL),
+          new THREE.Vector3( hW, floorY + room.height_m, -hL),
+          new THREE.Vector3( hW, floorY + room.height_m,  hL),
+          new THREE.Vector3(-hW, floorY + room.height_m,  hL),
+        ];
+        const bpairs = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+        roomGroup.add(_fatEdgeGroup(bverts, bpairs, SHELL_BEAM_T, shellMat));
       } else if (isSlanted) {
-        // 8 vertices — each ceiling corner uses ceilingYAt
         const v = [
           new THREE.Vector3(-hW, floorY, -hL),
           new THREE.Vector3( hW, floorY, -hL),
@@ -563,30 +541,17 @@ function rebuild() {
           new THREE.Vector3( hW, ceilingYAt( hW,  hL),  hL),
           new THREE.Vector3(-hW, ceilingYAt(-hW,  hL),  hL),
         ];
-
         const edgePairs = [
           [0,1],[1,2],[2,3],[3,0],
           [4,5],[5,6],[6,7],[7,4],
           [0,4],[1,5],[2,6],[3,7]
         ];
-
-        if (useFatEdges) {
-          roomGroup.add(_fatEdgeGroup(v, edgePairs, EDGE_TUBE_T, wireMat));
-        } else {
-          const points = [];
-          edgePairs.forEach(([a, b]) => { points.push(v[a], v[b]); });
-          const geo = new THREE.BufferGeometry().setFromPoints(points);
-          const edges = new THREE.LineSegments(geo, wireMat);
-          edges.renderOrder = 1;
-          roomGroup.add(edges);
-        }
+        roomGroup.add(_fatEdgeGroup(v, edgePairs, SHELL_BEAM_T, shellMat));
       } else if (isGable) {
-        // 10 vertices: 4 floor + 4 eaves + 2 ridge
         const eavesY = lowY;
         const peakY  = highY;
 
         if (gableAxis === "depth") {
-          // Ridge runs front-to-back (Z), slopes on X
           const v = [
             new THREE.Vector3(-hW, floorY, -hL), // 0
             new THREE.Vector3( hW, floorY, -hL), // 1
@@ -606,18 +571,8 @@ function rebuild() {
             [8,9],
             [4,8],[8,5],[7,9],[9,6],
           ];
-          if (useFatEdges) {
-            roomGroup.add(_fatEdgeGroup(v, edgePairs, EDGE_TUBE_T, wireMat));
-          } else {
-            const points = [];
-            edgePairs.forEach(([a, b]) => { points.push(v[a], v[b]); });
-            const geo = new THREE.BufferGeometry().setFromPoints(points);
-            const edges = new THREE.LineSegments(geo, wireMat);
-            edges.renderOrder = 1;
-            roomGroup.add(edges);
-          }
+          roomGroup.add(_fatEdgeGroup(v, edgePairs, SHELL_BEAM_T, shellMat));
         } else {
-          // Ridge runs left-to-right (X), slopes on Z
           const v = [
             new THREE.Vector3(-hW, floorY, -hL), // 0
             new THREE.Vector3( hW, floorY, -hL), // 1
@@ -637,16 +592,7 @@ function rebuild() {
             [8,9],
             [4,8],[8,7],[5,9],[9,6],
           ];
-          if (useFatEdges) {
-            roomGroup.add(_fatEdgeGroup(v, edgePairs, EDGE_TUBE_T, wireMat));
-          } else {
-            const points = [];
-            edgePairs.forEach(([a, b]) => { points.push(v[a], v[b]); });
-            const geo = new THREE.BufferGeometry().setFromPoints(points);
-            const edges = new THREE.LineSegments(geo, wireMat);
-            edges.renderOrder = 1;
-            roomGroup.add(edges);
-          }
+          roomGroup.add(_fatEdgeGroup(v, edgePairs, SHELL_BEAM_T, shellMat));
         }
       }
     }
@@ -683,11 +629,12 @@ function rebuild() {
       const gridMats = Array.isArray(grid.material) ? grid.material : [grid.material];
       gridMats.forEach(m => {
         m.transparent = true;
-        m.opacity = focusedOverlay ? 0.1 : (isTablet ? 0.45 : 0.40);
+        m.opacity = focusedOverlay ? 0.12 : 0.30;
         m.depthTest = false;
         m.depthWrite = false;
       });
 
+      grid.renderOrder = 3; // render after floor heatmap planes so it's never buried
       roomGroup.add(grid);
       _roomGrid = grid; // stored for live resize
     }
