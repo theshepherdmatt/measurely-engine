@@ -294,3 +294,70 @@ body.mly-auth-open { overflow: hidden; }
     background: rgba(255, 255, 255, 0.06);
     color: #f87171;
 }
+
+/* ── Google OAuth button ──────────────────────────────────── */
+.mly-auth-btn-google {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    padding: 13px 16px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: #1e2133;
+    color: #f0f2f8;
+    font-size: 1rem;        /* larger than form fields — primary action */
+    font-weight: 600;
+    font-family: 'Inter', var(--font-main, system-ui, sans-serif);
+    letter-spacing: 0.005em;
+    cursor: pointer;
+    margin-bottom: 16px;
+    transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.12s;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    position: relative;
+    overflow: hidden;
+}
+
+.mly-auth-btn-google:hover:not(:disabled) {
+    background: #252840;
+    border-color: rgba(255, 255, 255, 0.24);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+    transform: translateY(-1px);
+}
+
+.mly-auth-btn-google:active:not(:disabled) {
+    transform: scale(0.98) translateY(0);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+.mly-auth-btn-google:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* Loading shimmer on the Google button */
+.mly-auth-btn-google--loading::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 50%, transparent 100%);
+    animation: mly-google-shimmer 1.2s ease-in-out infinite;
+}
+
+@keyframes mly-google-shimmer {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+.mly-google-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+/* Compact on very short screens */
+@media (max-height: 500px) {
+    .mly-auth-btn-google { padding: 10px 14px; font-size: 0.9rem; margin-bottom: 10px; }
+    .mly-google-icon     { width: 18px; height: 18px; }
+}
