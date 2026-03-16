@@ -456,19 +456,16 @@ body {
         <!-- Row 2: sliders -->
         <div class="sbox-slider-row">
             <label class="sbox-slider-label">
-                <span class="sbox-slider-name">Listen Pos</span>
+                <span class="sbox-slider-name">Listening position</span>
                 <input type="range" id="demoListenPos" min="1.0" max="5.0" step="0.1" value="2.8" class="sbox-range">
-                <span class="sbox-slider-val" id="demoListenPosVal">2.8 m</span>
             </label>
             <label class="sbox-slider-label">
-                <span class="sbox-slider-name">Spk Wall</span>
+                <span class="sbox-slider-name">Speakers from wall</span>
                 <input type="range" id="demoSpkWall" min="0.1" max="1.5" step="0.05" value="0.45" class="sbox-range">
-                <span class="sbox-slider-val" id="demoSpkWallVal">0.45 m</span>
             </label>
             <label class="sbox-slider-label">
-                <span class="sbox-slider-name">Room Width</span>
+                <span class="sbox-slider-name">Room width</span>
                 <input type="range" id="demoWidth" min="2.0" max="8.0" step="0.1" value="4.2" class="sbox-range">
-                <span class="sbox-slider-val" id="demoWidthVal">4.2 m</span>
             </label>
         </div>
 
@@ -548,18 +545,13 @@ handle.addEventListener('keydown', e => {
 });
 
 // ── Sliders ───────────────────────────────────────────────
-const listenPosSlider  = document.getElementById('demoListenPos');
-const listenPosVal     = document.getElementById('demoListenPosVal');
-const spkWallSlider    = document.getElementById('demoSpkWall');
-const spkWallVal       = document.getElementById('demoSpkWallVal');
-const widthSlider      = document.getElementById('demoWidth');
-const widthVal         = document.getElementById('demoWidthVal');
+const listenPosSlider = document.getElementById('demoListenPos');
+const spkWallSlider   = document.getElementById('demoSpkWall');
+const widthSlider     = document.getElementById('demoWidth');
 
 // Listening position — moves sphere, sofa, coffee table, rug forward/back
 listenPosSlider?.addEventListener('input', () => {
-    const v = Number(listenPosSlider.value);
-    listenPosVal.textContent = `${v.toFixed(1)} m`;
-    demoState.setup.listener_front_m = v;
+    demoState.setup.listener_front_m = Number(listenPosSlider.value);
     demo3D.update();
     demo3D.stopAutoSpin();
     showChip('Listening position adjusted — sofa and rug move with you');
@@ -567,19 +559,15 @@ listenPosSlider?.addEventListener('input', () => {
 
 // Speaker wall distance — pulls speakers away from the front wall
 spkWallSlider?.addEventListener('input', () => {
-    const v = Number(spkWallSlider.value);
-    spkWallVal.textContent = `${v.toFixed(2)} m`;
-    demoState.setup.spk_front_m = v;
+    demoState.setup.spk_front_m = Number(spkWallSlider.value);
     demo3D.update();
     demo3D.stopAutoSpin();
     showChip('Speaker distance from wall changed — watch the SBIR null shift');
 });
 
 widthSlider?.addEventListener('input', () => {
-    const w = Number(widthSlider.value);
-    widthVal.textContent = `${w.toFixed(1)} m`;
-    demoState.geometry.width_m = w;
-    demo3D.setRoomWidth(w);
+    demoState.geometry.width_m = Number(widthSlider.value);
+    demo3D.setRoomWidth(Number(widthSlider.value));
     demo3D.stopAutoSpin();
 });
 
@@ -654,9 +642,9 @@ document.getElementById('demoReset')?.addEventListener('click', () => {
     demoState.environment.furniture = { opt_area_rug: true, opt_sofa: true, opt_coffee_table: true };
     demoState.environment.treatment = { wall_panel_mode: 'front', side_panel_mode: 'both', bass_trap_mode: 'none', ceiling_panel_mode: 'none' };
 
-    if (widthSlider)      { widthSlider.value      = DEFAULTS.width_m;          widthVal.textContent      = `${DEFAULTS.width_m} m`; }
-    if (listenPosSlider)  { listenPosSlider.value  = DEFAULTS.listener_front_m; listenPosVal.textContent  = `${DEFAULTS.listener_front_m.toFixed(1)} m`; }
-    if (spkWallSlider)    { spkWallSlider.value    = DEFAULTS.spk_front_m;      spkWallVal.textContent    = `${DEFAULTS.spk_front_m.toFixed(2)} m`; }
+    if (widthSlider)     widthSlider.value     = DEFAULTS.width_m;
+    if (listenPosSlider) listenPosSlider.value = DEFAULTS.listener_front_m;
+    if (spkWallSlider)   spkWallSlider.value   = DEFAULTS.spk_front_m;
 
     // Reset furniture toggle
     furnitureOn = true;
