@@ -802,10 +802,14 @@ document.getElementById('sboxLaunchBtn')?.addEventListener('click', () => {
     }
 
     function drawWave(wave, t, W, H) {
-        var amp    = (H * 0.5) * wave.a;
+        // On portrait/mobile, cap amplitude so waves don't stretch taller than the screen is wide
+        var amp    = Math.min(W * 0.6, H * 0.5) * wave.a;
         var cy     = H * wave.cy;            // per-wave vertical centre
-        var lambda = W / wave.f;
-        var dx     = 3;
+        // On portrait screens boost frequency so waves show visible cycles (not a barely-tilted line)
+        var fScale = (W < H) ? Math.min(2.2, (H / W) * 0.75) : 1;
+        var lambda = W / (wave.f * fScale);
+        // Larger step on small screens for better performance
+        var dx     = (W < 600) ? 5 : 3;
 
         ctx.beginPath();
         for (var x = 0; x <= W; x += dx) {
@@ -814,7 +818,8 @@ document.getElementById('sboxLaunchBtn')?.addEventListener('click', () => {
             else         ctx.lineTo(x, y);
         }
         ctx.strokeStyle = 'rgba(' + wave.c + ',' + wave.o + ')';
-        ctx.lineWidth   = 1.5;
+        // Slightly thicker lines on mobile so the waves read clearly
+        ctx.lineWidth   = (W < 600) ? 2 : 1.5;
         ctx.stroke();
     }
 
@@ -836,6 +841,8 @@ document.getElementById('sboxLaunchBtn')?.addEventListener('click', () => {
         ctx.fillRect(0, 0, W, H);
 
         for (var i = 0; i < waves.length; i++) {
+            // On mobile, skip the two faintest high-frequency waves for perf
+            if (W < 600 && waves[i].o <= 0.09) continue;
             drawWave(waves[i], t, W, H);
         }
 
