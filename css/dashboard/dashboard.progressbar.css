@@ -3,31 +3,35 @@
   position: fixed;
   inset: 0;
   z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  box-sizing: border-box;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .sweep-modal.hidden {
   display: none;
 }
 
+/* backdrop div no longer needed for blurring — keep in DOM for compatibility */
 .sweep-modal-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(0,0,0,0.6);
-  backdrop-filter: blur(6px);
+  display: none;
 }
 
-/* Modal — always centred in viewport, independent of page scroll */
+/* Modal content — centred by parent flexbox */
 .sweep-modal-content {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  position: relative;
   width: min(420px, 90vw);
-  max-height: 90vh;
+  max-height: calc(100vh - 3rem);
   overflow-y: auto;
   padding: 2rem;
   border-radius: 16px;
   text-align: center;
+  flex-shrink: 0;
 }
 
 /* Text */
