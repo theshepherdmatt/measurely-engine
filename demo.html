@@ -139,7 +139,7 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 0 16px;
-    background: rgba(15, 23, 42, 0.82);
+    background: rgba(15, 23, 42, 0.50);
     backdrop-filter: blur(14px);
     border-top: 1px solid rgba(99,102,241,.25);
     border-radius: 14px 14px 0 0;
@@ -148,7 +148,7 @@ body {
     gap: 10px;
 }
 
-.demo-drawer-handle:hover { background: rgba(15, 23, 42, 0.92); }
+.demo-drawer-handle:hover { background: rgba(15, 23, 42, 0.65); }
 
 .handle-pill {
     width: 36px;
@@ -179,7 +179,7 @@ body {
 
 /* ── Drawer body (controls + CTA) ───────────────────────── */
 .demo-drawer-body {
-    background: rgba(11, 18, 32, 0.72);
+    background: rgba(11, 18, 32, 0.45);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-top: 1px solid rgba(255,255,255,.07);
@@ -269,33 +269,29 @@ body {
 
 /* Sliders */
 .sbox-slider-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px 24px;
+    padding: 2px 4px;
 }
 
 .sbox-slider-label {
     display: flex;
-    align-items: center;
-    gap: 6px;
-    flex: 1;
-    min-width: 130px;
-    max-width: 210px;
+    flex-direction: column;
+    gap: 5px;
 }
 
 .sbox-slider-name {
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: rgba(255,255,255,.4);
-    min-width: 38px;
-    text-align: right;
+    font-size: 0.67rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,.35);
     white-space: nowrap;
 }
 
 .sbox-range {
-    flex: 1;
+    width: 100%;
     -webkit-appearance: none;
     height: 3px;
     border-radius: 2px;
@@ -314,14 +310,6 @@ body {
 }
 .sbox-range::-webkit-slider-thumb:hover { background: #a5b4fc; transform: scale(1.2); }
 .sbox-range:disabled { opacity: 0.28; cursor: default; }
-
-.sbox-slider-val {
-    font-size: 0.72rem;
-    font-weight: 600;
-    color: #a5b4fc;
-    min-width: 32px;
-    text-align: left;
-}
 
 
 /* ── CTA bar ─────────────────────────────────────────────── */
@@ -439,7 +427,7 @@ body {
                     <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="3 20 12 4 21 20"/></svg>
                     Bass traps
                 </button>
-                <button class="sbox-btn active" data-item="side_panels">
+                <button class="sbox-btn" data-item="side_panels">
                     <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="4" height="18" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>
                     Side panels
                 </button>
@@ -453,7 +441,7 @@ body {
 
         </div>
 
-        <!-- Row 2: sliders -->
+        <!-- Row 2: sliders (2×2 grid) -->
         <div class="sbox-slider-row">
             <label class="sbox-slider-label">
                 <span class="sbox-slider-name">Listening position</span>
@@ -466,6 +454,10 @@ body {
             <label class="sbox-slider-label">
                 <span class="sbox-slider-name">Room width</span>
                 <input type="range" id="demoWidth" min="2.0" max="8.0" step="0.1" value="4.2" class="sbox-range">
+            </label>
+            <label class="sbox-slider-label">
+                <span class="sbox-slider-name">Room length</span>
+                <input type="range" id="demoLength" min="2.5" max="10.0" step="0.1" value="5.5" class="sbox-range">
             </label>
         </div>
 
@@ -498,7 +490,7 @@ const demoState = {
     environment: {
         floor_material: 'hard',
         furniture:  { opt_area_rug: true, opt_sofa: true, opt_coffee_table: true },
-        treatment:  { wall_panel_mode: 'front', side_panel_mode: 'both', bass_trap_mode: 'none', ceiling_panel_mode: 'none' }
+        treatment:  { wall_panel_mode: 'none', side_panel_mode: 'none', bass_trap_mode: 'none', ceiling_panel_mode: 'none' }
     }
 };
 
@@ -548,6 +540,7 @@ handle.addEventListener('keydown', e => {
 const listenPosSlider = document.getElementById('demoListenPos');
 const spkWallSlider   = document.getElementById('demoSpkWall');
 const widthSlider     = document.getElementById('demoWidth');
+const lengthSlider    = document.getElementById('demoLength');
 
 // Listening position — moves sphere, sofa, coffee table, rug forward/back
 listenPosSlider?.addEventListener('input', () => {
@@ -568,6 +561,12 @@ spkWallSlider?.addEventListener('input', () => {
 widthSlider?.addEventListener('input', () => {
     demoState.geometry.width_m = Number(widthSlider.value);
     demo3D.setRoomWidth(Number(widthSlider.value));
+    demo3D.stopAutoSpin();
+});
+
+lengthSlider?.addEventListener('input', () => {
+    demoState.geometry.length_m = Number(lengthSlider.value);
+    demo3D.setRoomLength(Number(lengthSlider.value));
     demo3D.stopAutoSpin();
 });
 
@@ -640,9 +639,10 @@ document.getElementById('demoReset')?.addEventListener('click', () => {
     demoState.geometry.length_m = DEFAULTS.length_m;
     // Pro Studio defaults: rug + sofa always on, bass traps off (user can toggle)
     demoState.environment.furniture = { opt_area_rug: true, opt_sofa: true, opt_coffee_table: true };
-    demoState.environment.treatment = { wall_panel_mode: 'front', side_panel_mode: 'both', bass_trap_mode: 'none', ceiling_panel_mode: 'none' };
+    demoState.environment.treatment = { wall_panel_mode: 'none', side_panel_mode: 'none', bass_trap_mode: 'none', ceiling_panel_mode: 'none' };
 
     if (widthSlider)     widthSlider.value     = DEFAULTS.width_m;
+    if (lengthSlider)    lengthSlider.value    = DEFAULTS.length_m;
     if (listenPosSlider) listenPosSlider.value = DEFAULTS.listener_front_m;
     if (spkWallSlider)   spkWallSlider.value   = DEFAULTS.spk_front_m;
 
