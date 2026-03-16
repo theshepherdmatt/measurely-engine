@@ -329,10 +329,8 @@
             // Handle both PocketBase response shapes:
             //   New (≥ v0.22):  { oauth2: { providers: [...] } }
             //   Old (≤ v0.21):  { authProviders: [...] }
-            const providers =
-                methods?.oauth2?.providers ??
-                methods?.authProviders ??
-                [];
+            // Use || (not ??) so any falsy value (undefined, null, empty) falls through.
+            const providers = methods.oauth2?.providers || methods.authProviders || [];
 
             const google = providers.find(p => p.name === 'google');
             if (!google) {
@@ -348,7 +346,7 @@
                 localStorage.setItem('mly_oauth_verifier', google.codeVerifier);
             } catch (_) {}
 
-            window.location.href = google.authUrl + encodeURIComponent(REDIRECT_URI);
+            window.location.href = google.authUrl + encodeURIComponent('https://measurely.uk/');
 
         } catch (err) {
             if (btn) {

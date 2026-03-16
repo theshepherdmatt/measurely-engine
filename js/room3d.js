@@ -356,8 +356,10 @@ function rebuild() {
       environment: { room_type: 'home', floor_material: 'hard',
                      furniture: { opt_area_rug: true,  opt_sofa: true,
                                   opt_coffee_table: false, opt_desk: false, opt_chair: false },
+                     // Pro Studio defaults: corner bass traps + bilateral side panels visible
+                     // for all guests/unauthenticated users — 'all' renders all four corners.
                      treatment: { wall_panel_mode: 'front',   side_panel_mode: 'both',
-                                  bass_trap_mode: 'corners',  ceiling_panel_mode: 'none' } }
+                                  bass_trap_mode: 'all',      ceiling_panel_mode: 'none' } }
     };
 
     // Use cloud override if one was queued by the 'measurely:data-ready' listener,
