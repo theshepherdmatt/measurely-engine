@@ -1283,6 +1283,11 @@ class MeasurelyDashboard {
                 const loadBtn = card.querySelector(".btn-load-sweep");
                 if (loadBtn) {
                     loadBtn.onclick = async () => {
+                        if (isStaticHosting()) {
+                            const meta = this.sessions?.find(s => s.id === sessionId);
+                            if (meta) this.loadLatestAnalysis(meta.analysis || {});
+                            return;
+                        }
                         await fetch(`/api/session/${encodeURIComponent(sessionId)}/load`, { method: "POST" });
                         window.location.reload();
                     };
@@ -1292,6 +1297,11 @@ class MeasurelyDashboard {
                 if (deleteBtn) {
                     deleteBtn.onclick = async () => {
                         if (!confirm(`Delete sweep ${sessionId}? This cannot be undone.`)) return;
+                        if (isStaticHosting()) {
+                            window.MeasurelySessions?.deleteSession(sessionId);
+                            await this.loadHistory();
+                            return;
+                        }
                         const res = await fetch(`/api/uploads/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
                         if (!res.ok) { alert("Delete failed"); return; }
                         await this.loadHistory();
@@ -1323,6 +1333,11 @@ class MeasurelyDashboard {
    ============================================================ */
     async saveNote(sessionId, note) {
         try {
+            if (isStaticHosting()) {
+                window.MeasurelySessions?.updateNote(sessionId, note);
+                this.showSuccess("Note saved");
+                return;
+            }
             await fetch(`/api/session/${encodeURIComponent(sessionId)}/note`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -1700,7 +1715,7 @@ class MeasurelyDashboard {
                 // 1️⃣ Get list of sessions from MeasurelySessions (localStorage + server merge)
                 const sessions = window.MeasurelySessions
                     ? await window.MeasurelySessions.loadSessions()
-                    : await fetch('/api/sessions/all').then(r => r.json()).catch(() => []);
+                    : (isStaticHosting() ? [] : await fetch('/api/sessions/all').then(r => r.json()).catch(() => []));
                 if (!Array.isArray(sessions) || sessions.length === 0) return;
 
                 // 2️⃣ Find newest session
@@ -1710,7 +1725,24 @@ class MeasurelyDashboard {
 
                 if (!latestMeta) return;
 
-                // 3️⃣ Fetch full analysis data for that session
+                // 3️⃣ Fetch full analysis data — on static hosting use embedded analysis object
+                if (isStaticHosting()) {
+                    const data = latestMeta.analysis
+                        ? { ...latestMeta.analysis, id: latestMeta.id, label: latestMeta.label }
+                        : null;
+                    if (!data) return;
+                    const score = Number(data.overall_score ?? data.scores?.overall);
+                    if (data.has_analysis && Number.isFinite(score) && score > 0) {
+                        clearInterval(checkLoop);
+                        addLog("Analysis ready — displaying results…");
+                        if (this._sweepUI) this._sweepUI.showAnalysis(data);
+                        this.currentData = data;
+                        this.updateDashboard();
+                        if (typeof window.showDashboard === "function") window.showDashboard();
+                        else window.location.hash = "#dashboard";
+                    }
+                    return;
+                }
                 const dataRes = await fetch(`/api/session/${encodeURIComponent(latestMeta.id)}`);
                 if (!dataRes.ok) return;
 
@@ -2865,7 +2897,7 @@ class MeasurelyDashboard {
             const all = CAPS.history
                 ? (window.MeasurelySessions
                     ? await window.MeasurelySessions.loadSessions()
-                    : await fetch('/api/sessions/all').then(r => r.json()).catch(() => []))
+                    : (isStaticHosting() ? [] : await fetch('/api/sessions/all').then(r => r.json()).catch(() => [])))
                 : [];
 
             const extractNum = (val) => {
@@ -2887,8 +2919,13 @@ class MeasurelyDashboard {
             const sessionId = sorted[n].id;
             console.log(`📂 Fetching upload → ${sessionId}`);
 
-            const data = await fetch(`/api/session/${encodeURIComponent(sessionId)}`)
-                .then(r => r.json());
+            let data;
+            if (isStaticHosting()) {
+                const meta = sorted[n];
+                data = meta?.analysis ? { ...meta.analysis, id: meta.id, label: meta.label } : null;
+            } else {
+                data = await fetch(`/api/session/${encodeURIComponent(sessionId)}`).then(r => r.json());
+            }
 
             if (!data || data.error) {
                 console.error("❌ Invalid upload:", data);

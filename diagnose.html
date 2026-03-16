@@ -254,7 +254,35 @@ async function initDashboardRoom() {
         }
     }
 
-    if (!roomState) return;
+    if (!roomState) {
+        // User is authenticated but has no room record — seed a sensible default
+        // so the 3D scene initialises rather than silently showing a blank loader.
+        const isAuth = window._pb?.()?.authStore?.isValid === true;
+        if (isAuth) {
+            roomState = {
+                room_type: 'home',
+                geometry: { width_m: 4.2, length_m: 5.5, height_m: 2.6,
+                            ceiling_type: 'flat', ceiling_height_secondary_m: 2.0,
+                            ceiling_slant_direction: 'left_to_right', ceiling_gable_axis: 'depth' },
+                setup: { speaker_type: 'standmount', spk_spacing_m: 2.0, spk_front_m: 0.5,
+                         tweeter_height_m: 0.95, toe_in_deg: 10, listener_front_m: 2.8,
+                         listener_offset_m: 0, subwoofer: false },
+                environment: {
+                    floor_material: 'hard',
+                    furniture:  { opt_area_rug: false, opt_sofa: false, opt_coffee_table: false },
+                    treatment:  { wall_panel_mode: 'none', side_panel_mode: 'none',
+                                  bass_trap_mode: 'none', ceiling_panel_mode: 'none' }
+                }
+            };
+            try { localStorage.setItem('measurely_room', JSON.stringify(roomState)); } catch (_) {}
+            window.MeasurelySync?.pushRoom?.(); // initialise cloud record silently
+        } else {
+            // Not logged in and no local room — hide the loader and bail
+            const loader = document.getElementById('room3dLoader');
+            if (loader) loader.style.display = 'none';
+            return;
+        }
+    }
 
     window.__liveRoomState = { ...roomState };
     window.__MEASURELY_ROOM__ = roomState;
