@@ -554,7 +554,7 @@ function runSimulation() {
 
     const wallMode    = document.getElementById('sim-wall-panels')?.value ?? "none";
     const bassMode    = document.getElementById('sim-bass-traps')?.value ?? "none";
-    const ceilingMode = document.getElementById('sim-ceiling-panels')?.value ?? "none";
+    const ceilMode    = document.getElementById('sim-ceiling-panels')?.value ?? "none";
     const sideMode    = document.getElementById('sim-side-panels')?.value ?? "none";
 
     // ── Baseline room values ───────────────────────────────────
@@ -705,7 +705,7 @@ async function saveSimulateToRoom() {
     // ── Read the dropdowns (current treatment plan)
     const wallMode    = document.getElementById('sim-wall-panels')?.value ?? "none";
     const bassMode    = document.getElementById('sim-bass-traps')?.value ?? "none";
-    const ceilingMode = document.getElementById('sim-ceiling-panels')?.value ?? "none";
+    const ceilMode    = document.getElementById('sim-ceiling-panels')?.value ?? "none";
     const sideMode    = document.getElementById('sim-side-panels')?.value ?? "none";
 
     // ── Build a clean payload (do NOT overwrite real room modes)
