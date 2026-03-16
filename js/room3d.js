@@ -518,13 +518,12 @@ function rebuild() {
       // physical heft at every DPR. Live-resize falls back to rebuild() since
       // _roomShell stays null, which is acceptable.
       const SHELL_BEAM_T  = 0.030; // metres — thicker for high-contrast "cage" look
-      // Solid when no overlay is active so the cage never fades during rotation.
-      // Dims to near-invisible when an acoustic overlay takes focus.
-      const shellOpacity  = focusedOverlay ? 0.06 : 1.0;
+      // Always solid — no transparency. depthTest:false means the cage renders
+      // on top of interior geometry so it's never occluded by walls.
       const shellMat = new THREE.MeshBasicMaterial({
         color:       0x818cf8, // Indigo-400 — pops against dark background
-        transparent: Boolean(focusedOverlay),
-        opacity:     shellOpacity,
+        transparent: false,
+        opacity:     1.0,
         depthTest:   false,
         depthWrite:  false,
       });
@@ -811,29 +810,28 @@ function rebuild() {
     ? Math.max(1.1, room.tweeter_height_m + 0.2)
     : room.tweeter_height_m;
 
-  // Ghost material: solid translucent fill + separate edge lines
+  // Solid furniture fill — slate-600, fully opaque with proper depth so pieces
+  // sit correctly in the scene and don't ghost against the dark background.
   const furnMat = new THREE.MeshBasicMaterial({
-    color:       colors.furniture,
-    transparent: true,
-    opacity:     OP_FURN,
-    depthTest:   false,
-    depthWrite:  false
+    color:       0x475569, // Slate-600 — visible dark grey-blue
+    transparent: false,
+    depthTest:   true,
+    depthWrite:  true
   });
 
+  // Bright indigo-300 outline so edges pop clearly against the fill and walls.
   const furnEdgeMat = useFatEdges
     ? new THREE.MeshBasicMaterial({
-        color:       colors.furniture,
-        transparent: true,
-        opacity:     Math.min(OP_FURN * 3.5, 0.55),
-        depthTest:   false,
-        depthWrite:  false
+        color:       0xa5b4fc, // Indigo-300
+        transparent: false,
+        depthTest:   true,
+        depthWrite:  true
       })
     : new THREE.LineBasicMaterial({
-        color:       colors.furniture,
-        transparent: true,
-        opacity:     Math.min(OP_FURN * 3.5, 0.55),
-        depthTest:   false,
-        depthWrite:  false
+        color:       0xa5b4fc, // Indigo-300
+        transparent: false,
+        depthTest:   true,
+        depthWrite:  true
       });
 
   // Returns a Group containing a ghost-fill mesh + edge outline for a box.
@@ -881,16 +879,15 @@ function rebuild() {
       const rug = new THREE.Mesh(
         new THREE.PlaneGeometry(room.width_m * 0.45, room.length_m * 0.35),
         new THREE.MeshBasicMaterial({
-          color: 0x64748b,
-          transparent: true,
-          opacity: Math.min(OP_FURN, 0.10),
-          depthWrite: false,
-          depthTest: false,
+          color:       0x334155, // Slate-800 — darker than furniture, reads as a rug
+          transparent: false,
+          depthWrite:  true,
+          depthTest:   true,
           side: THREE.DoubleSide
         })
       );
       rug.rotation.x = -Math.PI / 2;
-      rug.position.set(0, 0.01, -1.15);
+      rug.position.set(0, 0.01, -1.15); // 1 cm above floor so no z-fighting with grid
       station.add(rug);
     }
 
