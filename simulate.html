@@ -563,15 +563,27 @@ function runSimulation() {
     const ceilingMode = document.getElementById('sim-ceiling-panels')?.value ?? "none";
     const sideMode    = document.getElementById('sim-side-panels')?.value ?? "none";
 
-    // ── Real room treatment ────────────────────────────────────
-    const baseHasWallPanels    = room.wall_panel_mode !== "none";
-    const baseHasSidePanels    = room.side_panel_mode !== "none";
-    const baseHasBassTraps     = room.bass_trap_mode !== "none";
-    const baseHasCeilingPanels = room.ceiling_panel_mode !== "none";
-
+    // ── Baseline room values ───────────────────────────────────
     const baseSpkFront   = room.spk_front_m   ?? 0.45;
     const baseSpkSpacing = room.spk_spacing_m ?? 3.0;
+    const baseToeIn      = room.toe_in_deg    ?? 10;
     const roomWidth      = room.width_m ?? 5.75;
+
+    // Baseline treatment from the saved room
+    const baseWallMode = room.wall_panel_mode  ?? 'none';
+    const baseSideMode = room.side_panel_mode  ?? 'none';
+    const baseBassMode = room.bass_trap_mode   ?? 'none';
+    const baseCeilMode = room.ceiling_panel_mode ?? 'none';
+
+    // Score weight tables — delta(table, base, sim) = table[sim] - table[base]
+    // This means any change — up OR down — is properly reflected.
+    const W = {
+        wall:  { none: 0, front: 1, rear: 1, both: 2 },
+        bass:  { none: 0, front: 1, rear: 1.75, all: 2.75 },
+        side:  { none: 0, left: 1, right: 1, both: 2 },
+        ceil:  { none: 0, cloud: 1 }
+    };
+    function d(table, base, sim) { return (table[sim] ?? 0) - (table[base] ?? 0); }
 
     const predicted = { ...baseline };
 
@@ -579,69 +591,40 @@ function runSimulation() {
     {
         const f_base = sbirFirstNull(baseSpkFront);
         const f_new  = sbirFirstNull(spkFront);
-
         const headroom = 10 - baseline.peaks_dips;
-        const improvement = clamp((f_base - f_new) / f_base, -1, 1) * headroom * 0.65;
+        predicted.peaks_dips = clamp(baseline.peaks_dips + clamp((f_base - f_new) / f_base, -1, 1) * headroom * 0.65, 1, 10);
 
-        predicted.peaks_dips = clamp(baseline.peaks_dips + improvement, 1, 10);
-
-        // Wall panels
-        if (!baseHasWallPanels) {
-            if (wallMode === "front") predicted.peaks_dips += 0.6;
-            if (wallMode === "rear")  predicted.peaks_dips += 0.8;
-            if (wallMode === "both")  predicted.peaks_dips += 1.2;
-        }
-
-        // Bass traps
-        if (!baseHasBassTraps) {
-            if (bassMode === "front") predicted.peaks_dips += 0.8;
-            if (bassMode === "rear")  predicted.peaks_dips += 1.4;
-            if (bassMode === "all")   predicted.peaks_dips += 2.2;
-        }
-
-        predicted.peaks_dips = clamp(predicted.peaks_dips, 1, 10);
+        predicted.peaks_dips += d(W.wall, baseWallMode, wallMode) * 0.6;
+        predicted.peaks_dips += d(W.bass, baseBassMode, bassMode) * 0.8;
+        predicted.peaks_dips  = clamp(predicted.peaks_dips, 1, 10);
     }
 
     // ── Reflections ────────────────────────────────────────────
     {
-        if (!baseHasWallPanels) {
-            if (wallMode === "front") predicted.reflections += 0.7;
-            if (wallMode === "rear")  predicted.reflections += 0.8;
-            if (wallMode === "both")  predicted.reflections += 1.4;
-        }
+        predicted.reflections += d(W.wall, baseWallMode, wallMode) * 0.7;
+        predicted.reflections += d(W.ceil, baseCeilMode, ceilMode) * 1.2;
+        predicted.reflections += d(W.side, baseSideMode, sideMode) * 0.8;
 
-        if (!baseHasCeilingPanels && ceilingMode === "cloud")
-            predicted.reflections += 1.2;
-
-        if (!baseHasSidePanels) {
-            if (sideMode === "left" || sideMode === "right")
-                predicted.reflections += 0.9;
-
-            if (sideMode === "both")
-                predicted.reflections += 1.6;
-        }
+        // Toe-in: more toe-in reduces side-wall first-reflection energy
+        const toeInDelta = toeIn - baseToeIn;
+        predicted.reflections += clamp(toeInDelta * 0.04, -1.2, 1.2);
 
         predicted.reflections = clamp(predicted.reflections, 1, 10);
     }
 
     // ── Smoothness ─────────────────────────────────────────────
     {
-        if (!baseHasWallPanels) {
-            if (wallMode === "front") predicted.smoothness += 0.7;
-            if (wallMode === "rear")  predicted.smoothness += 0.9;
-            if (wallMode === "both")  predicted.smoothness += 1.6;
-        }
+        predicted.smoothness += d(W.wall, baseWallMode, wallMode) * 0.8;
+        predicted.smoothness += d(W.bass, baseBassMode, bassMode) * 0.6;
+        predicted.smoothness += d(W.ceil, baseCeilMode, ceilMode) * 0.3;
+        predicted.smoothness  = clamp(predicted.smoothness, 1, 10);
+    }
 
-        if (!baseHasBassTraps) {
-            if (bassMode === "front") predicted.smoothness += 0.5;
-            if (bassMode === "rear")  predicted.smoothness += 0.8;
-            if (bassMode === "all")   predicted.smoothness += 1.2;
-        }
-
-        if (!baseHasCeilingPanels && ceilingMode === "cloud")
-            predicted.smoothness += 0.3;
-
-        predicted.smoothness = clamp(predicted.smoothness, 1, 10);
+    // ── Bandwidth ──────────────────────────────────────────────
+    {
+        // Bass traps directly improve usable bandwidth by taming room modes
+        predicted.bandwidth += d(W.bass, baseBassMode, bassMode) * 0.9;
+        predicted.bandwidth  = clamp(predicted.bandwidth, 1, 10);
     }
 
     // ── Balance ────────────────────────────────────────────────
@@ -649,39 +632,21 @@ function runSimulation() {
         const ideal     = roomWidth * 0.6;
         const baseRatio = Math.abs(baseSpkSpacing - ideal) / ideal;
         const newRatio  = Math.abs(spkSpacing - ideal) / ideal;
+        predicted.balance = clamp(baseline.balance + clamp((baseRatio - newRatio) * 3, -3, 3), 1, 10);
 
-        const delta = clamp((baseRatio - newRatio) * 3, -3, 3);
-        predicted.balance = clamp(baseline.balance + delta, 1, 10);
-
-        if (!baseHasSidePanels) {
-            if (sideMode === "left" || sideMode === "right")
-                predicted.balance += 0.4;
-
-            if (sideMode === "both")
-                predicted.balance += 0.8;
-        }
-
-        predicted.balance = clamp(predicted.balance, 1, 10);
+        predicted.balance += d(W.side, baseSideMode, sideMode) * 0.4;
+        predicted.balance  = clamp(predicted.balance, 1, 10);
     }
 
     // ── Clarity ────────────────────────────────────────────────
     {
-        if (!baseHasWallPanels) {
-            if (wallMode === "front") predicted.clarity += 0.5;
-            if (wallMode === "rear")  predicted.clarity += 0.6;
-            if (wallMode === "both")  predicted.clarity += 0.8;
-        }
+        predicted.clarity += d(W.wall, baseWallMode, wallMode) * 0.5;
+        predicted.clarity += d(W.ceil, baseCeilMode, ceilMode) * 1.3;
+        predicted.clarity += d(W.side, baseSideMode, sideMode) * 0.8;
 
-        if (!baseHasCeilingPanels && ceilingMode === "cloud")
-            predicted.clarity += 1.3;
-
-        if (!baseHasSidePanels) {
-            if (sideMode === "left" || sideMode === "right")
-                predicted.clarity += 0.8;
-
-            if (sideMode === "both")
-                predicted.clarity += 1.2;
-        }
+        // Toe-in: more direct HF delivery improves clarity
+        const toeInDelta = toeIn - baseToeIn;
+        predicted.clarity += clamp(toeInDelta * 0.025, -0.8, 0.8);
 
         predicted.clarity = clamp(predicted.clarity, 1, 10);
     }
