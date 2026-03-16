@@ -77,6 +77,11 @@ export function initRoom3D({
   let simulatePanels = false;
   let flyAnim = null;
 
+  // When pullRoom() completes after auth, it dispatches 'measurely:data-ready'
+  // with the fresh cloud data.  We store it here so rebuild() can use it in
+  // place of the caller's (potentially stale) getRoomData() for one cycle.
+  let _freshRoomOverride = null;
+
   // Dynamic room-size overrides set via setRoomWidth() / setRoomLength().
   // Applied on top of whatever getRoomData() returns so the geometry
   // updates live when UI sliders change.
@@ -146,7 +151,7 @@ export function initRoom3D({
       new THREE.Vector3(0, 1, 0),
       dir.normalize()
     );
-    mesh.renderOrder = 1;
+    mesh.renderOrder = 1000;
     return mesh;
   }
 
@@ -159,7 +164,7 @@ export function initRoom3D({
    */
   function _fatEdgeGroup(verts, pairs, t, mat) {
     const g = new THREE.Group();
-    g.renderOrder = 1;
+    g.renderOrder = 1000;
     pairs.forEach(([a, b]) => {
       const tube = _edgeTube(verts[a], verts[b], t, mat);
       if (tube) g.add(tube);
@@ -355,7 +360,10 @@ function rebuild() {
                                   bass_trap_mode: 'none', ceiling_panel_mode: 'none' } }
     };
 
-    const raw  = getRoomData() || {};
+    // Use cloud override if one was queued by the 'measurely:data-ready' listener,
+    // then fall back to the normal caller-supplied getter.
+    const raw  = _freshRoomOverride || getRoomData() || {};
+    _freshRoomOverride = null;
     const data = {
       ...FALLBACK,
       ...raw,
@@ -2117,6 +2125,16 @@ function rebuild() {
   console.log("[Room3D] 🚀 Starting engine | mountId:", mountId, "| stage:", renderStage);
   rebuild();
   animate();
+
+  // ── Cloud data reactivity ────────────────────────────────────────────────
+  // pullRoom() in sync.js dispatches this event after writing to localStorage.
+  // auth.js also dispatches it when seeding a new user's default layout.
+  // Using { once: true } so a single login never fires duplicate rebuilds.
+  // _freshRoomOverride lets us bypass a stale local roomState in the caller.
+  window.addEventListener('measurely:data-ready', function _onCloudRoom(e) {
+    if (e.detail?.room) _freshRoomOverride = e.detail.room;
+    rebuild();
+  }, { once: true });
 
   /* ------------------------------------------
      PUBLIC API

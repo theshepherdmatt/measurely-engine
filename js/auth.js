@@ -35,7 +35,10 @@
         _listeners.forEach(cb => { try { cb(user); } catch (e) { console.error(e); } });
     }
 
-    // ── Default room seed (fires for new OAuth users with no room record) ───
+    // ── Default room seed — "Pro Studio" starter layout ─────────────────────
+    // Seeded for new OAuth users who have no cloud room record.
+    // Furniture + treatment give a visually rich first experience so the
+    // 3D room is never a blank void on first sign-in.
     const _DEFAULT_ROOM = {
         room_type: 'home',
         geometry: {
@@ -44,15 +47,15 @@
             ceiling_slant_direction: 'left_to_right', ceiling_gable_axis: 'depth'
         },
         setup: {
-            speaker_type: 'standmount', spk_spacing_m: 2.0, spk_front_m: 0.5,
+            speaker_type: 'standmount', spk_spacing_m: 2.2, spk_front_m: 0.6,
             tweeter_height_m: 0.95, toe_in_deg: 10, listener_front_m: 2.8,
             listener_offset_m: 0, subwoofer: false
         },
         environment: {
             floor_material: 'hard',
-            furniture: { opt_area_rug: false, opt_sofa: false, opt_coffee_table: false },
-            treatment: { wall_panel_mode: 'none', side_panel_mode: 'none',
-                         bass_trap_mode: 'none', ceiling_panel_mode: 'none' }
+            furniture: { opt_area_rug: true, opt_sofa: true, opt_coffee_table: false },
+            treatment: { wall_panel_mode: 'front', side_panel_mode: 'both',
+                         bass_trap_mode: 'corners', ceiling_panel_mode: 'none' }
         }
     };
 
@@ -64,8 +67,10 @@
         await window.MeasurelySync?.pullProfile();
 
         if (!roomData || isNewUser) {
-            // New user or empty room record — seed sensible defaults
+            // New user or empty room record — seed Pro Studio defaults
             try { localStorage.setItem('measurely_room', JSON.stringify(_DEFAULT_ROOM)); } catch (_) {}
+            // Signal Room3D so it rebuilds with the seeded layout immediately
+            window.dispatchEvent(new CustomEvent('measurely:data-ready', { detail: { room: _DEFAULT_ROOM } }));
             await window.MeasurelySync?.pushRoom();
         }
 

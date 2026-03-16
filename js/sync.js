@@ -85,6 +85,7 @@
             if (!record) return null;
             const normalised = { geometry: record.dimensions ?? {}, setup: record.speaker_pos ?? {}, environment: record.treatment ?? {}, room_type: record.dimensions?.room_type ?? 'home', saved_at: record.updated };
             localStorage.setItem(LS_ROOM, JSON.stringify(normalised));
+            window.dispatchEvent(new CustomEvent('measurely:data-ready', { detail: { room: normalised } }));
             return normalised;
         } catch (err) { _syncFail('pullRoom', err); return null; }
     }
