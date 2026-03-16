@@ -342,6 +342,13 @@
                 <!-- Recommendation list -->
                 <div id="fix-recommendations" class="fix-recs"></div>
 
+                <!-- Save plan CTA — shown only when affordable treatments exist -->
+                <div id="fix-plan-actions" style="display:none;padding-top:0.5rem;">
+                    <button class="btn btn-primary" id="fix-save-plan-btn" style="width:100%;justify-content:center;">
+                        Save this plan
+                    </button>
+                </div>
+
             </div><!-- /pane-fixroom -->
 
         </aside>
@@ -992,6 +999,9 @@ function avgScore(scores) {
     return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
 }
 
+// ── Tracks last affordable list for the Save Plan button ──────
+let lastAffordable = [];
+
 // ── Main Fix My Room renderer ─────────────────────────────────
 function runFixMyRoom() {
     const baseline = getBaselineScores();
@@ -1030,6 +1040,7 @@ function runFixMyRoom() {
     let spent = 0;
     const predictedScores = { ...baseline };
     const affordable = [];
+    lastAffordable = affordable;
     const outOfBudget = [];
 
     for (const t of ranked) {
@@ -1106,6 +1117,47 @@ function runFixMyRoom() {
     }
 
     recsEl.innerHTML = html;
+
+    // Show / hide Save Plan button
+    const planActionsEl = document.getElementById('fix-plan-actions');
+    if (planActionsEl) planActionsEl.style.display = affordable.length > 0 ? '' : 'none';
+}
+
+// ── Save Fix My Room plan to persistent room profile ──────────
+async function saveFixPlan() {
+    const ids = new Set(lastAffordable.map(t => t.id));
+
+    const hasFrontWall = ids.has('front-wall-panels');
+    const hasRearWall  = ids.has('rear-wall-panels');
+    const hasFrontBass = ids.has('front-bass-traps');
+    const hasRearBass  = ids.has('rear-bass-traps');
+
+    const wallPlan = (hasFrontWall && hasRearWall) ? 'both' : hasFrontWall ? 'front' : hasRearWall ? 'rear' : 'none';
+    const bassPlan = (hasFrontBass && hasRearBass) ? 'all'  : hasFrontBass ? 'front' : hasRearBass  ? 'rear' : 'none';
+    const sidePlan = ids.has('side-panels')   ? 'both'  : 'none';
+    const ceilPlan = ids.has('ceiling-cloud') ? 'cloud' : 'none';
+
+    const base = window.__liveRoomState ?? {};
+    const payload = {
+        ...base,
+        plan_wall_panels:    wallPlan,
+        plan_bass_traps:     bassPlan,
+        plan_side_panels:    sidePlan,
+        plan_ceiling_panels: ceilPlan
+    };
+
+    try { localStorage.setItem('measurely_room', JSON.stringify(payload)); } catch (_) {}
+
+    try {
+        const res = await fetch('/api/room/latest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) console.warn('[FixPlan] Server save returned', res.status);
+    } catch (_) {}
+
+    toast('Treatment plan saved', 'success');
 }
 
 function metricLabel(key) {
@@ -1113,16 +1165,18 @@ function metricLabel(key) {
              smoothness: 'Smoothness', balance: 'Balance', clarity: 'Clarity' }[key] ?? key;
 }
 
-// ── Wire up budget slider ──────────────────────────────────────
+// ── Wire up budget slider & save plan button ───────────────────
 document.addEventListener('DOMContentLoaded', () => {
     const slider  = document.getElementById('fix-budget-slider');
     const display = document.getElementById('fix-budget-display');
-    if (!slider) return;
-    slider.addEventListener('input', () => {
-        const v = parseInt(slider.value, 10);
-        if (display) display.textContent = v >= 1000 ? '1000+' : v;
-        runFixMyRoom();
-    });
+    if (slider) {
+        slider.addEventListener('input', () => {
+            const v = parseInt(slider.value, 10);
+            if (display) display.textContent = v >= 1000 ? '1000+' : v;
+            runFixMyRoom();
+        });
+    }
+    document.getElementById('fix-save-plan-btn')?.addEventListener('click', saveFixPlan);
 });
 
 // Re-run whenever simulation data updates

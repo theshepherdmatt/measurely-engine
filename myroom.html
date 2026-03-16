@@ -293,6 +293,32 @@
   </div>
 </div>
 
+<!-- Treatment plan install banner — shown when a plan is saved -->
+<div id="planInstallBadge" hidden style="
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    width: min(340px, calc(100vw - 48px));
+    z-index: 300;
+    background: linear-gradient(165deg, rgba(23,32,48,0.97), rgba(13,18,28,0.99));
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border-radius: 16px;
+    border: 1px solid rgba(99,102,241,0.3);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
+    padding: 1rem 1.1rem;
+    font-family: var(--font-main, 'Inter', sans-serif);
+">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.6rem;">
+        <span style="font-size:0.6rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:rgba(148,163,184,0.6);">Saved Treatment Plan</span>
+        <button id="planInstallDismiss" aria-label="Dismiss" style="background:none;border:none;color:rgba(148,163,184,0.5);cursor:pointer;font-size:1rem;line-height:1;padding:0.1rem 0.2rem;">&times;</button>
+    </div>
+    <div id="planInstallItems" style="margin-bottom:0.75rem;"></div>
+    <button id="planInstallBtn" class="btn btn-primary" style="width:100%;justify-content:center;font-size:0.8rem;">
+        Mark as installed
+    </button>
+</div>
+
 <!-- Simulated target scores — populated from localStorage when set in Room Analysis -->
 <div id="simTargetBadge" hidden>
     <span class="stb-label">Simulated Target</span>
@@ -1118,6 +1144,79 @@ backBtn.onclick = () => {
     }).join('');
 
     badge.hidden = false;
+})();
+</script>
+
+<script>
+// ── Treatment plan post-install flow ──────────────────────────
+(function () {
+    const PLAN_LABELS = {
+        plan_wall_panels:    { front: 'Front wall panels', rear: 'Rear wall panels', both: 'Front + rear panels' },
+        plan_bass_traps:     { front: 'Front bass traps',  rear: 'Rear bass traps',  all:  'All corner bass traps' },
+        plan_side_panels:    { left:  'Left side panel',   right:'Right side panel', both: 'Side wall panels' },
+        plan_ceiling_panels: { cloud: 'Ceiling cloud' }
+    };
+
+    // Map plan fields to actual treatment fields
+    const PLAN_TO_TREATMENT = {
+        plan_wall_panels:    'wall_panel_mode',
+        plan_bass_traps:     'bass_trap_mode',
+        plan_side_panels:    'side_panel_mode',
+        plan_ceiling_panels: 'ceiling_panel_mode'
+    };
+
+    let room;
+    try { room = JSON.parse(localStorage.getItem('measurely_room') || 'null'); } catch (_) {}
+    if (!room) return;
+
+    const items = [];
+    for (const [field, map] of Object.entries(PLAN_LABELS)) {
+        const val = room[field];
+        if (val && val !== 'none' && map[val]) items.push({ field, val, label: map[val] });
+    }
+    if (items.length === 0) return;
+
+    const badge    = document.getElementById('planInstallBadge');
+    const itemsEl  = document.getElementById('planInstallItems');
+    const installBtn = document.getElementById('planInstallBtn');
+    const dismissBtn = document.getElementById('planInstallDismiss');
+    if (!badge || !itemsEl) return;
+
+    itemsEl.innerHTML = items.map(({ label }) =>
+        `<div style="font-size:0.78rem;color:rgba(226,232,240,0.8);padding:0.12rem 0;display:flex;align-items:center;gap:0.4rem;">
+            <span style="color:#a5b4fc;font-size:0.65rem;">✦</span>${label}
+        </div>`
+    ).join('');
+
+    badge.hidden = false;
+
+    dismissBtn?.addEventListener('click', () => { badge.hidden = true; });
+
+    installBtn?.addEventListener('click', () => {
+        // Apply plan values to actual treatment fields and clear the plan
+        try {
+            const saved = JSON.parse(localStorage.getItem('measurely_room') || '{}');
+            const env = saved.environment ?? {};
+            const treatment = env.treatment ?? {};
+
+            for (const [planField, treatField] of Object.entries(PLAN_TO_TREATMENT)) {
+                const v = saved[planField];
+                if (v && v !== 'none') treatment[treatField] = v;
+                delete saved[planField];
+            }
+
+            saved.environment = { ...env, treatment };
+            localStorage.setItem('measurely_room', JSON.stringify(saved));
+        } catch (_) {}
+
+        badge.hidden = true;
+        // Navigate to dashboard
+        if (document.startViewTransition) {
+            document.startViewTransition(() => { window.location.href = 'app.html'; });
+        } else {
+            window.location.href = 'app.html';
+        }
+    });
 })();
 </script>
 

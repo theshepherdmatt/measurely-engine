@@ -245,6 +245,13 @@
                         </div>
                     </div>
 
+                    <!-- SECTION: TREATMENT PLAN — shown only when a plan is saved -->
+                    <div class="engine-divider" id="plan-divider" style="display:none;"></div>
+                    <div class="engine-section" id="plan-section" style="display:none;">
+                        <p class="engine-section-label">Treatment Plan</p>
+                        <div id="plan-badge-content"></div>
+                    </div>
+
 
                 </div>
 
@@ -579,6 +586,52 @@
         };
     </script>
 
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // ── Populate Treatment Plan section if a plan is saved ────────────
+            (function() {
+                try {
+                    const raw = localStorage.getItem('measurely_room');
+                    if (!raw) return;
+                    const room = JSON.parse(raw);
+
+                    const PLAN_LABELS = {
+                        plan_wall_panels:    { front: 'Front wall panels', rear: 'Rear wall panels', both: 'Front + rear panels' },
+                        plan_bass_traps:     { front: 'Front bass traps',  rear: 'Rear bass traps',  all:  'All corner bass traps' },
+                        plan_side_panels:    { left:  'Left side panel',   right:'Right side panel', both: 'Side wall panels (both)' },
+                        plan_ceiling_panels: { cloud: 'Ceiling cloud' }
+                    };
+
+                    const items = [];
+                    for (const [field, map] of Object.entries(PLAN_LABELS)) {
+                        const val = room[field];
+                        if (val && val !== 'none' && map[val]) items.push(map[val]);
+                    }
+                    if (items.length === 0) return;
+
+                    document.getElementById('plan-divider').style.display = '';
+                    document.getElementById('plan-section').style.display = '';
+
+                    const listHtml = items.map(i =>
+                        `<div style="font-size:0.78rem;color:rgba(226,232,240,0.75);padding:0.15rem 0;display:flex;align-items:center;gap:0.4rem;">
+                            <span style="color:#a5b4fc;font-size:0.65rem;">✦</span>${i}
+                        </div>`
+                    ).join('');
+
+                    document.getElementById('plan-badge-content').innerHTML = `
+                        <div style="margin-bottom:0.75rem;">${listHtml}</div>
+                        <a href="myroom.html" class="btn btn-secondary engine-action" style="width:100%;box-sizing:border-box;">
+                            <img src="icons/white/home.svg" alt="">
+                            <div class="engine-action-text">
+                                <strong>Mark as installed</strong>
+                                <span>Update My Room with this plan</span>
+                            </div>
+                        </a>`;
+                } catch (_) {}
+            })();
+        });
+    </script>
 
     <script>
         document.addEventListener("DOMContentLoaded", () => {
