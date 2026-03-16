@@ -31,7 +31,8 @@
   };
 
   DavePhraseEngine.prototype.pickFirst = function (arr) {
-    return arr && arr.length ? arr[0] : null;
+    if (!arr || !arr.length) return null;
+    return arr[Math.floor(Math.random() * arr.length)];
   };
 
   // ---------- public API ----------

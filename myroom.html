@@ -449,6 +449,7 @@ const room3D = initRoom3D({
   getRoomData: () => roomState,
   mode: "setup",
   onSpeakerDrag({ spk_spacing_m, spk_front_m }) {
+    if (typeof _markDirty === 'function') _markDirty();
     roomState.setup.spk_spacing_m = spk_spacing_m;
     roomState.setup.spk_front_m   = spk_front_m;
     roomState.spk_spacing_m       = spk_spacing_m;
@@ -464,6 +465,7 @@ const room3D = initRoom3D({
     syncSlider('spk_front_m',   spk_front_m);
   },
   onListenerDrag({ listener_front_m, listener_offset_m }) {
+    if (typeof _markDirty === 'function') _markDirty();
     roomState.setup.listener_front_m   = listener_front_m;
     roomState.setup.listener_offset_m  = listener_offset_m;
     roomState.listener_front_m         = listener_front_m;
@@ -1006,7 +1008,45 @@ if (!saveBtn || !backBtn) {
   console.error("Buttons not found");
 }
 
-saveBtn.onclick = finish;
+// ── Dirty-state tracking ─────────────────────────────────────────────────────
+// Marked true whenever the user changes anything; cleared after a successful save.
+let _roomDirty = false;
+
+function _markDirty() {
+  if (!_roomDirty) {
+    _roomDirty = true;
+    saveBtn.textContent = 'Save *';
+  }
+}
+
+function _markClean() {
+  _roomDirty = false;
+  saveBtn.textContent = 'Save';
+}
+
+// Patch UIController so any field change marks the room dirty.
+// The UIController fires 'mly:roomchange' events or we can wrap the update path.
+// Simplest reliable hook: observe any input/change event inside the panel.
+document.getElementById('questionPanel')?.addEventListener('input',  _markDirty, { passive: true });
+document.getElementById('questionPanel')?.addEventListener('change', _markDirty, { passive: true });
+
+// DragControls callbacks also mutate state — mark dirty after speaker/listener drags.
+// We patch the finish block to call _markClean; onSpeakerDrag / onListenerDrag call _markDirty.
+const _origFinish = finish;
+finish = async function () {
+  _markClean();
+  await _origFinish();
+};
+
+// beforeunload — standard browser dialog when closing/refreshing with unsaved work
+window.addEventListener('beforeunload', (e) => {
+  if (_roomDirty) {
+    e.preventDefault();
+    e.returnValue = ''; // Chrome requires returnValue to be set
+  }
+});
+
+saveBtn.onclick = () => finish();
 
 resetBtn.onclick = () => {
   if (!confirm("Reset all room settings to factory defaults? Your saved setup will be cleared.")) return;
@@ -1015,14 +1055,22 @@ resetBtn.onclick = () => {
   try { localStorage.removeItem('measurely_room'); } catch (_) {}
   if (room3D?.update) room3D.update();
   renderAllSections();
+  _markClean();
 };
 
-backBtn.onclick = () => {
+function _navigate(href) {
   if (document.startViewTransition) {
-    document.startViewTransition(() => { window.location.href = "app.html"; });
+    document.startViewTransition(() => { window.location.href = href; });
   } else {
-    window.location.href = "app.html";
+    window.location.href = href;
   }
+}
+
+backBtn.onclick = () => {
+  if (_roomDirty) {
+    if (!confirm('You have unsaved changes. Leave without saving?')) return;
+  }
+  _navigate('app.html');
 };
 
 

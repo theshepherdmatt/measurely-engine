@@ -8,58 +8,198 @@
     ]
   },
   "overall": {
-    "poor":      ["Your room is fighting the music harder than you'd like. Let's fix that."],
-    "okay":      ["Solid starting point — a few targeted changes will unlock a lot here."],
-    "good":      ["Good room. The foundations are there; it's about fine-tuning now."],
-    "excellent": ["Excellent result. Your room is working with the sound, not against it."]
+    "poor":      [
+      "Your room is fighting the music harder than you'd like. Let's fix that.",
+      "The room is doing more harm than good right now — but these things are fixable.",
+      "Acoustically, this is a tough environment. The data tells us exactly where to start.",
+      "This room needs work before it can deliver what your gear is capable of."
+    ],
+    "okay":      [
+      "Solid starting point — a few targeted changes will unlock a lot here.",
+      "Decent fundamentals. The low-hanging fruit is clear from the data.",
+      "Your room is in the ballpark. Some refinement and it'll really open up.",
+      "Not bad at all. You're closer to great than you might think."
+    ],
+    "good":      [
+      "Good room. The foundations are there; it's about fine-tuning now.",
+      "Strong result. Your setup is doing the right things — the details are the next frontier.",
+      "This is a room that rewards careful listening. Most of the work is already done.",
+      "Good performance. The remaining issues are small and well-targeted."
+    ],
+    "excellent": [
+      "Excellent result. Your room is working with the sound, not against it.",
+      "This is a well-optimised space. Serious work has gone into this setup.",
+      "Outstanding. You're in the top tier for domestic listening environments.",
+      "Exceptional. The room is nearly transparent — the music is what you're hearing."
+    ]
   },
   "categories": {
     "peaks_dips": {
       "phrases": {
-        "poor":      ["Significant peaks and dips — bass modes are dominating the response."],
-        "okay":      ["Some peaks and dips present. Treatment or placement can smooth these."],
-        "good":      ["Reasonably flat response. Minor modal issues remain."],
-        "excellent": ["Very flat response. Excellent modal control."]
+        "poor":      [
+          "Significant peaks and dips — bass modes are dominating the response.",
+          "The room is adding and removing frequencies before they reach your ears.",
+          "Strong modal activity below Schroeder — bass is uneven at the listening position.",
+          "You're hearing the room more than the recording in the low end."
+        ],
+        "okay":      [
+          "Some peaks and dips present. Treatment or placement can smooth these.",
+          "Modal behaviour is present but manageable. Speaker position is worth experimenting with.",
+          "The response isn't flat, but nothing here is catastrophic. Targeted treatment helps.",
+          "A few lumps in the bass region. Placement changes often resolve these before reaching for treatment."
+        ],
+        "good":      [
+          "Reasonably flat response. Minor modal issues remain.",
+          "Good frequency balance. The remaining irregularities are subtle.",
+          "The response is smooth for a real room. Any remaining peaks are well within tolerance.",
+          "Solid performance. Minor treatment at first-reflection points could tighten this further."
+        ],
+        "excellent": [
+          "Very flat response. Excellent modal control.",
+          "Impressively even through the bass and midrange. The room is behaving.",
+          "Near-reference flatness. Whatever you're doing with placement or treatment, it's working.",
+          "Textbook response. The modal region is tightly controlled."
+        ]
       }
     },
     "reflections": {
       "phrases": {
-        "poor":      ["Strong early reflections are blurring the image and muddying transients."],
-        "okay":      ["Reflections are present but manageable. Side and ceiling absorption helps."],
-        "good":      ["Reflections are well controlled. Imaging should be solid."],
-        "excellent": ["Excellent reflection control. The direct sound dominates cleanly."]
+        "poor":      [
+          "Strong early reflections are blurring the image and muddying transients.",
+          "Reflections are arriving too early and too loud — the stereo image will suffer.",
+          "The room is contributing a lot of reflected energy. Side and ceiling absorption is a priority.",
+          "First reflections are competing with the direct sound. Imaging and detail are taking a hit."
+        ],
+        "okay":      [
+          "Reflections are present but manageable. Side and ceiling absorption helps.",
+          "Moderate reflections. A panel at the first-reflection points would make a clear difference.",
+          "Some reflected energy arriving at the listening position. Not critical, but improvable.",
+          "Reflections are audible in the data. Diffusion or absorption at the key points will tighten things up."
+        ],
+        "good":      [
+          "Reflections are well controlled. Imaging should be solid.",
+          "Good reflection management. The direct sound is clearly dominant.",
+          "First reflections are at a reasonable level. Stereo imaging should be stable and precise.",
+          "Solid reflection control. The room isn't adding much confusion to the soundstage."
+        ],
+        "excellent": [
+          "Excellent reflection control. The direct sound dominates cleanly.",
+          "Reflections are minimal. The stereo image will be sharp and well-defined.",
+          "Impressive early-reflection management. The room gets out of the way.",
+          "Near-anechoic performance in the early window. Outstanding result."
+        ]
       }
     },
     "bandwidth": {
       "phrases": {
-        "poor":      ["Low-frequency support is weak. The room isn't reinforcing bass effectively."],
-        "okay":      ["Bandwidth is limited in places. Subwoofer or room treatment may help."],
-        "good":      ["Good bandwidth. The room delivers solid low-frequency support."],
-        "excellent": ["Full, extended bandwidth. Excellent low-end foundation."]
+        "poor":      [
+          "Low-frequency support is weak. The room isn't reinforcing bass effectively.",
+          "Sub-bass is missing or inconsistent — small room acoustics are limiting the low end.",
+          "The usable bandwidth is narrow. You may be missing significant low-frequency content.",
+          "Bass extension is limited. A subwoofer or larger room would give you the foundation you're missing."
+        ],
+        "okay":      [
+          "Bandwidth is limited in places. Subwoofer or room treatment may help.",
+          "Reasonable extension, but the low end rolls off earlier than ideal.",
+          "The room delivers acceptable bandwidth. Some low-end treatment could extend the usable range.",
+          "Mid-range bandwidth is solid; the extreme lows need attention."
+        ],
+        "good":      [
+          "Good bandwidth. The room delivers solid low-frequency support.",
+          "Strong extension into the low frequencies. The room is working in your favour.",
+          "Broad usable bandwidth. You're hearing most of what the recording contains.",
+          "Good low-end reach. The room is supporting the bass without artificially boosting it."
+        ],
+        "excellent": [
+          "Full, extended bandwidth. Excellent low-end foundation.",
+          "Exceptional bandwidth. You're accessing the full frequency range of the recording.",
+          "Deep extension with even distribution. The room isn't limiting you anywhere.",
+          "Outstanding low-frequency reach. Reference-level performance in terms of bandwidth."
+        ]
       }
     },
     "balance": {
       "phrases": {
-        "poor":      ["Left/right tonal balance is off. Check speaker symmetry and room layout."],
-        "okay":      ["Minor balance asymmetry. Offset listening position may be the cause."],
-        "good":      ["Good left/right balance. The stereo field should be centred and stable."],
-        "excellent": ["Near-perfect stereo balance. The room is symmetrical where it counts."]
+        "poor":      [
+          "Left/right tonal balance is off. Check speaker symmetry and room layout.",
+          "Significant asymmetry in the stereo image. The room or placement is pulling the centre.",
+          "The listening position is compromised by an asymmetric room response.",
+          "Tonal balance is uneven. Symmetric speaker placement relative to room boundaries is the first fix."
+        ],
+        "okay":      [
+          "Minor balance asymmetry. Offset listening position may be the cause.",
+          "Slight left/right imbalance in the tonal response. Usually addressable with position tweaks.",
+          "Some tonal asymmetry is present. Room symmetry, not just speaker placement, matters here.",
+          "Balance is close but not perfect. Try centering the listening seat relative to the room width."
+        ],
+        "good":      [
+          "Good left/right balance. The stereo field should be centred and stable.",
+          "Solid tonal symmetry. The stereo image should sit correctly in the room.",
+          "Good balance. The room is treating both channels consistently.",
+          "Tonal balance is well-maintained. Stereo imaging should feel natural and stable."
+        ],
+        "excellent": [
+          "Near-perfect stereo balance. The room is symmetrical where it counts.",
+          "Excellent tonal symmetry between channels. The image will be locked and precise.",
+          "Outstanding balance. This is a genuinely symmetrical acoustic environment.",
+          "Both channels are delivering the same tonal signature. The stereo image has a solid foundation."
+        ]
       }
     },
     "smoothness": {
       "phrases": {
-        "poor":      ["Highly uneven response — strong comb filtering or flutter echo present."],
-        "okay":      ["Some spectral roughness. Diffusion or additional absorption will help."],
-        "good":      ["Smooth response overall. No serious colouration issues detected."],
-        "excellent": ["Exceptionally smooth response. The room adds very little colouration."]
+        "poor":      [
+          "Highly uneven response — strong comb filtering or flutter echo present.",
+          "Spectral roughness is high. Parallel surfaces are creating serious reflective interference.",
+          "The response is jagged across multiple frequency bands. Flutter echo is likely a factor.",
+          "Severe colouration from room reflections. Diffusion and absorption are both needed."
+        ],
+        "okay":      [
+          "Some spectral roughness. Diffusion or additional absorption will help.",
+          "Moderate unevenness in the mid-range. Diffusive surfaces can break up the interference patterns.",
+          "Comb filtering is present but not dominant. Panel placement and diffusers can address this.",
+          "The response has some texture to it. Livening up the room with diffusion often helps more than adding more absorption."
+        ],
+        "good":      [
+          "Smooth response overall. No serious colouration issues detected.",
+          "Good spectral smoothness. The room isn't adding pronounced colouration.",
+          "Solid smoothness. The response texture is within normal bounds for a real listening environment.",
+          "The room response is relatively even. Fine-tuning placement can close the remaining gap."
+        ],
+        "excellent": [
+          "Exceptionally smooth response. The room adds very little colouration.",
+          "Outstanding spectral smoothness. This is reference-level room behaviour.",
+          "Near-anechoic smoothness in the mid/high range. Impressive.",
+          "The frequency response is exceptionally clean. Colouration from the room is minimal."
+        ]
       }
     },
     "clarity": {
       "phrases": {
-        "poor":      ["Clarity is poor — late reflections are masking transient detail."],
-        "okay":      ["Clarity is average. Tightening the reflection control will help definition."],
-        "good":      ["Good clarity. Transients come through cleanly."],
-        "excellent": ["Excellent clarity. The room preserves fine transient detail beautifully."]
+        "poor":      [
+          "Clarity is poor — late reflections are masking transient detail.",
+          "The room's decay is too long. Reverberant energy is smearing transients.",
+          "Instruments blur into each other. The room is holding on to sound for too long.",
+          "RT60 is high for a listening environment. Acoustic treatment will bring the decay under control."
+        ],
+        "okay":      [
+          "Clarity is average. Tightening the reflection control will help definition.",
+          "Transients are somewhat smeared. Reducing the reverb tail would improve musical clarity.",
+          "Decay time is longer than ideal. Bass traps and absorptive panels at reflection points will help.",
+          "Reasonable clarity, but the room adds a noticeable tail to transient events."
+        ],
+        "good":      [
+          "Good clarity. Transients come through cleanly.",
+          "Solid transient definition. The room's decay is well-controlled.",
+          "Good clarity performance. You're hearing most of the fine detail in the recordings.",
+          "The room resolves transients well. Timing cues in the music should feel accurate."
+        ],
+        "excellent": [
+          "Excellent clarity. The room preserves fine transient detail beautifully.",
+          "Outstanding transient resolution. The room is fast and transparent.",
+          "Exceptional clarity. The decay is controlled enough to reveal fine musical detail.",
+          "Near-studio-level clarity. Transient events are reproduced with precision."
+        ]
       }
     }
   }

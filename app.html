@@ -1009,6 +1009,11 @@
                     const balance   = (+(ai.balance        ?? 7.0)).toFixed(1);
 
                     // ── Stage 1: IR Extraction (0–2 s, 5→22%) ─────────────────
+                    if (session.calibrationCurve) {
+                        log(`▸ Calibration file applied: ${csvFile.name} (${session.calibrationCurve.freq.length} points)`, 'as-ok');
+                    } else if (csvFile) {
+                        log(`▸ Calibration file could not be parsed — proceeding without it`, 'as-warn');
+                    }
                     log(`▸ Decoding WAV: ${wavFile.name} (${fs.toLocaleString()} Hz)`);
                     await pause(400);
                     setProgress(10, 'Extracting impulse response…');

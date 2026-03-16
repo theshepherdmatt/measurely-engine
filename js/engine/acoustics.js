@@ -91,8 +91,11 @@ function computeRoomGeometry(room) {
         area  = 2.0 * (L * W + L * H + W * H);
     }
 
-    // Schroeder frequency (geometry-only placeholder)
-    const f_sch = 2000.0 / Math.max(Math.sqrt(vol), 1e-6);
+    // Schroeder frequency — Schroeder (1962): f_sch = 2000 * sqrt(T60 / V)
+    // For a geometry-only estimate we use the Sabine approximation T60 ≈ 0.161 s·m⁻³ × V / Sa,
+    // which for a typical untreated room simplifies to f_sch ≈ 2000 * sqrt(0.161 / V).
+    // This matches the industry-standard calculator and the value shown in the dashboard UI.
+    const f_sch = 2000.0 * Math.sqrt(0.161 / Math.max(vol, 1e-6));
 
     return { L, W, H, H_eff, volume: vol, surface_area: area, schroeder_hz: f_sch };
 }

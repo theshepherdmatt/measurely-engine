@@ -49,6 +49,16 @@ function lsWrite(sessions) {
         localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions.slice(0, SESSIONS_MAX)));
     } catch (e) {
         console.warn('[sessions] localStorage write error:', e);
+        // Surface quota errors to the user — silent failure means lost data with no explanation.
+        if (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+            if (typeof window !== 'undefined' && typeof window.toast === 'function') {
+                window.toast('Storage full — oldest sessions may not be saved. Sign in to sync to the cloud.', 'warning');
+            }
+            // Attempt an emergency write with a smaller slice (half the limit)
+            try {
+                localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions.slice(0, Math.floor(SESSIONS_MAX / 2))));
+            } catch (_) { /* storage truly full — nothing more we can do */ }
+        }
     }
 }
 
