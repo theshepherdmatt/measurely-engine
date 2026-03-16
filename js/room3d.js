@@ -518,10 +518,12 @@ function rebuild() {
       // physical heft at every DPR. Live-resize falls back to rebuild() since
       // _roomShell stays null, which is acceptable.
       const SHELL_BEAM_T  = 0.030; // metres — thicker for high-contrast "cage" look
-      const shellOpacity  = focusedOverlay ? 0.05 : 0.90;
+      // Solid when no overlay is active so the cage never fades during rotation.
+      // Dims to near-invisible when an acoustic overlay takes focus.
+      const shellOpacity  = focusedOverlay ? 0.06 : 1.0;
       const shellMat = new THREE.MeshBasicMaterial({
         color:       0x818cf8, // Indigo-400 — pops against dark background
-        transparent: true,
+        transparent: Boolean(focusedOverlay),
         opacity:     shellOpacity,
         depthTest:   false,
         depthWrite:  false,
@@ -875,7 +877,7 @@ function rebuild() {
     station.add(sphere);
 
     // ── Rug (local coords: centred in front of sphere) ──
-    if (VISIBILITY.furniture.rug && room.opt_area_rug && !hasFocus) {
+    if (VISIBILITY.furniture.rug && room.opt_area_rug) {
       const rug = new THREE.Mesh(
         new THREE.PlaneGeometry(room.width_m * 0.45, room.length_m * 0.35),
         new THREE.MeshBasicMaterial({
@@ -895,7 +897,7 @@ function rebuild() {
     // ── Sofa (home mode only) — anchored to the listener station ──
     // In station-local coords: +Z is toward the back wall, so the sofa sits
     // just behind the listening position (listener is seated at the front edge).
-    if (VISIBILITY.furniture.sofa && !isStudio && room.opt_sofa && !hasFocus) {
+    if (VISIBILITY.furniture.sofa && !isStudio && room.opt_sofa) {
       const sofaGroup = new THREE.Group();
 
       const base = _ghostBox(2.1, 0.4, 0.9);
@@ -916,7 +918,7 @@ function rebuild() {
     }
 
     // ── Coffee table — anchored to listener station, in front of sofa ──
-    if (VISIBILITY.furniture.coffeeTable && room.opt_coffee_table && !hasFocus) {
+    if (VISIBILITY.furniture.coffeeTable && room.opt_coffee_table) {
       const ctGroup = new THREE.Group();
 
       const tTop = _ghostBox(1.0, 0.05, 0.6);

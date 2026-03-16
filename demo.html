@@ -410,7 +410,7 @@ body {
                 <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="9" width="18" height="12" rx="2"/><path d="M3 9l9-6 9 6"/></svg>
                 Rug
             </button>
-            <button class="sbox-btn" data-item="sofa">
+            <button class="sbox-btn active" data-item="sofa">
                 <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2"/><path d="M2 11v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0z"/></svg>
                 Sofa
             </button>
@@ -475,14 +475,16 @@ const demoState = {
              listener_offset_m: 0, subwoofer: false },
     environment: {
         floor_material: 'hard',
-        furniture:  { opt_area_rug: true, opt_sofa: false, opt_coffee_table: false },
-        treatment:  { wall_panel_mode: 'front', side_panel_mode: 'both', bass_trap_mode: 'all', ceiling_panel_mode: 'none' }
+        furniture:  { opt_area_rug: true, opt_sofa: true, opt_coffee_table: true },
+        treatment:  { wall_panel_mode: 'front', side_panel_mode: 'both', bass_trap_mode: 'none', ceiling_panel_mode: 'none' }
     }
 };
 
 const DEFAULTS = {
-    spk_spacing_m: 2.0, spk_front_m: 0.45, toe_in_deg: 12,
-    listener_front_m: 2.8, listener_offset_m: 0, width_m: 4.2, length_m: 5.5
+    // Golden Triangle: 2.5 m speaker spacing
+    // 38 % rule: listener at 38 % of room depth from the front (speaker) wall
+    spk_spacing_m: 2.5, spk_front_m: 0.45, toe_in_deg: 12,
+    listener_front_m: 2.1, listener_offset_m: 0, width_m: 4.2, length_m: 5.5
 };
 
 // ── Chip ─────────────────────────────────────────────────
@@ -623,8 +625,9 @@ document.getElementById('demoReset')?.addEventListener('click', () => {
     });
     demoState.geometry.width_m  = DEFAULTS.width_m;
     demoState.geometry.length_m = DEFAULTS.length_m;
-    demoState.environment.furniture = { opt_area_rug: true, opt_sofa: false, opt_coffee_table: false };
-    demoState.environment.treatment = { wall_panel_mode: 'none', side_panel_mode: 'none', bass_trap_mode: 'none', ceiling_panel_mode: 'none' };
+    // Pro Studio defaults: rug + sofa always on, bass traps off (user can toggle)
+    demoState.environment.furniture = { opt_area_rug: true, opt_sofa: true, opt_coffee_table: true };
+    demoState.environment.treatment = { wall_panel_mode: 'front', side_panel_mode: 'both', bass_trap_mode: 'none', ceiling_panel_mode: 'none' };
 
     if (widthSlider)  { widthSlider.value  = DEFAULTS.width_m;  widthVal.textContent  = `${DEFAULTS.width_m} m`; }
     if (lengthSlider) { lengthSlider.value = DEFAULTS.length_m; lengthVal.textContent = `${DEFAULTS.length_m} m`; }
@@ -637,6 +640,7 @@ document.getElementById('demoReset')?.addEventListener('click', () => {
 
     document.querySelectorAll('.sbox-btn[data-item]').forEach(b => b.classList.remove('active'));
     document.querySelector('.sbox-btn[data-item="rug"]')?.classList.add('active');
+    document.querySelector('.sbox-btn[data-item="sofa"]')?.classList.add('active');
 
     activeOverlay = 'sbir';
     document.querySelectorAll('.overlay-btn').forEach(b => b.classList.remove('active'));
