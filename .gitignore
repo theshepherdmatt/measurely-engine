@@ -1,0 +1,9 @@
+# AI/Claude Skills
+.claude/
+
+# Local OS junk
+.DS_Store
+Thumbs.db
+
+# Node/Dependency bloat (just in case)
+node_modules/

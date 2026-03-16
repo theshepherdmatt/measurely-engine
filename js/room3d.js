@@ -447,8 +447,10 @@ function rebuild() {
     ------------------------------------------ */
     const colors = ROOM_COLOURS[colourState] || ROOM_COLOURS.idle;
 
-    const OP_WIRE = (isLocked ? 0.25 : (isFinal ? 0.85 : 0.5)) * DIM_FACTOR;
-    const OP_OBJ  = (isLocked ? 0.15 : (isFinal ? 0.6 : 0.25)) * DIM_FACTOR;
+    const OP_WIRE = (isLocked ? 0.25 : (isFinal ? 0.85 : 0.65)) * DIM_FACTOR;
+    const OP_OBJ  = (isLocked ? 0.15 : (isFinal ? 0.6  : 0.25)) * DIM_FACTOR;
+    // Furniture recedes: always lower than acoustic elements (R4)
+    const OP_FURN = (isLocked ? 0.10 : 0.18) * DIM_FACTOR;
 
     /* ------------------------------------------
        ROOM SHELL — flat box or slanted wireframe
@@ -502,7 +504,7 @@ function rebuild() {
     if (VISIBILITY.roomShell) {
       // Desktop: LineBasicMaterial + scalable unit box (fast live-resize path).
       // Mobile/tablet: mesh tube geometry per edge — reliable thickness at all DPR.
-      const shellOpacity = focusedOverlay ? 0.18 : 1.0;
+      const shellOpacity = focusedOverlay ? 0.18 : 0.65;
 
       const wireMat = useFatEdges
         ? new THREE.MeshBasicMaterial({
@@ -681,7 +683,7 @@ function rebuild() {
       const gridMats = Array.isArray(grid.material) ? grid.material : [grid.material];
       gridMats.forEach(m => {
         m.transparent = true;
-        m.opacity = focusedOverlay ? 0.1 : (isTablet ? 0.65 : 0.45);
+        m.opacity = focusedOverlay ? 0.1 : (isTablet ? 0.45 : 0.40);
         m.depthTest = false;
         m.depthWrite = false;
       });
@@ -785,7 +787,7 @@ function rebuild() {
         const isSpkHighlit = highlightTarget === 'speakers';
 
         const spkColor   = isSpkHighlit ? 0x22d3ee : profile.color;
-        const spkOpacity = isSpkHighlit ? 0.9 : Math.max(OP_OBJ, 0.5);
+        const spkOpacity = isSpkHighlit ? 0.9 : Math.max(OP_OBJ, 0.80);
 
         const speaker = new THREE.Mesh(
           new THREE.BoxGeometry(profile.w, profile.h, profile.d),
@@ -856,7 +858,7 @@ function rebuild() {
     emissiveIntensity: 0.35,
     wireframe: true,
     transparent: true,
-    opacity: OP_OBJ,
+    opacity: OP_FURN,
     depthTest: false,
     depthWrite: false
   });
@@ -874,7 +876,7 @@ function rebuild() {
         color:       sphereColor,
         wireframe:   true,
         transparent: true,
-        opacity:     isListHighlit ? 0.95 : 0.6
+        opacity:     isListHighlit ? 0.95 : 0.90
       })
     );
     sphere.position.set(0, effectiveHeadHeight, 0);
@@ -888,7 +890,7 @@ function rebuild() {
           color: 0x64748b,
           wireframe: true,
           transparent: true,
-          opacity: 0.25,
+          opacity: OP_FURN,
           depthWrite: false,
           depthTest: false,
           side: THREE.DoubleSide
@@ -994,7 +996,7 @@ function rebuild() {
     emissiveIntensity: 0.4,
     wireframe: true,
     transparent: true,
-    opacity: 0.35,
+    opacity: 0.55,
     depthTest: false,
     depthWrite: false
   });
@@ -1232,6 +1234,7 @@ function rebuild() {
 
   renderHighlightOverlays(room);
   renderAnalysisOverlays(room);
+  renderWallLabels(room);
 
   // Auto-toe: snap speakers to face the sphere after every full rebuild
   _applyAutoToe();
@@ -1486,6 +1489,65 @@ function rebuild() {
         roomGroup.add(ceiling);
       }
     }
+  }
+
+  /* ------------------------------------------
+    WALL LABELS (R1 — Clarity over Realism)
+    THREE.Sprite + CanvasTexture so labels always
+    billboard toward the camera with no DOM overlay.
+    Hidden when focusedOverlay is active (they clutter
+    the focused view and the room shell is dimmed anyway).
+  ------------------------------------------ */
+  function _makeLabelSprite(text) {
+    const W = 256, H = 56;
+    const canvas = document.createElement('canvas');
+    canvas.width  = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = 'bold 22px system-ui, sans-serif';
+    ctx.fillStyle = '#9ca3af';
+    ctx.textAlign    = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, W / 2, H / 2);
+    const tex = new THREE.CanvasTexture(canvas);
+    const mat = new THREE.SpriteMaterial({
+      map:         tex,
+      transparent: true,
+      opacity:     0.55,
+      depthTest:   false,
+      depthWrite:  false,
+    });
+    const sprite = new THREE.Sprite(mat);
+    // Scale in world units: ~0.9 m wide, aspect-correct height
+    sprite.scale.set(0.9, 0.9 * (H / W), 1);
+    return sprite;
+  }
+
+  function renderWallLabels(room) {
+    // Skip when any overlay is focused — labels clutter the focused view
+    if (focusedOverlay) return;
+
+    const floorY = -room.height_m / 2;
+    const hW     =  room.width_m  / 2;
+    const hL     =  room.length_m / 2;
+    // Raise labels slightly above floor so they sit on the bottom edge
+    const labelY = floorY + 0.35;
+    // Pull slightly inside each wall so they don't z-fight the wireframe edge
+    const inset  = 0.12;
+
+    const labels = [
+      { text: 'Front',  pos: [  0,      labelY, -hL + inset] },
+      { text: 'Rear',   pos: [  0,      labelY,  hL - inset] },
+      { text: 'L',      pos: [-hW + inset, labelY,  0        ] },
+      { text: 'R',      pos: [ hW - inset, labelY,  0        ] },
+    ];
+
+    labels.forEach(({ text, pos }) => {
+      const sprite = _makeLabelSprite(text);
+      sprite.position.set(...pos);
+      roomGroup.add(sprite);
+    });
   }
 
   /* ------------------------------------------
