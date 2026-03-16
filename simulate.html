@@ -130,43 +130,98 @@
                 </div>
 
 
-                <!-- Before / After score comparison -->
+                <!-- Before / After score comparison — rows are clickable to reveal Dave's Diagnostic -->
                 <div class="ra-score-table">
                     <div class="ra-score-table-head">
-                        <span></span>
+                        <span>Tap a row for Dave's take</span>
                         <span>Now</span>
                         <span>Predicted</span>
                     </div>
-                    <div class="ra-score-row">
-                        <span class="ra-score-metric-name">Peaks &amp; Dips</span>
+
+                    <div class="ra-score-row ra-diag-trigger" data-metric="peaks_dips" role="button" tabindex="0" aria-expanded="false">
+                        <span class="ra-score-metric-name">Peaks &amp; Dips <span class="ra-diag-chevron" aria-hidden="true">›</span></span>
                         <span class="ra-score-before" id="sim-before-peaks_dips">—</span>
                         <span class="ra-score-after" id="sim-after-peaks_dips">—</span>
                     </div>
-                    <div class="ra-score-row">
-                        <span class="ra-score-metric-name">Reflections</span>
+                    <div class="ra-diagnostic-panel" id="diag-peaks_dips" hidden>
+                        <div class="ra-diagnostic-inner">
+                            <span class="ra-gain-badge" id="gain-badge-peaks_dips"></span>
+                            <div class="ra-diag-section"><span class="ra-diag-label">The Problem</span><p class="ra-diag-text" id="diag-problem-peaks_dips"></p></div>
+                            <div class="ra-diag-section"><span class="ra-diag-label">What You're Hearing</span><p class="ra-diag-text" id="diag-sound-peaks_dips"></p></div>
+                            <div class="ra-diag-section"><span class="ra-diag-label">The Fix</span><p class="ra-diag-text" id="diag-fix-peaks_dips"></p></div>
+                        </div>
+                    </div>
+
+                    <div class="ra-score-row ra-diag-trigger" data-metric="reflections" role="button" tabindex="0" aria-expanded="false">
+                        <span class="ra-score-metric-name">Reflections <span class="ra-diag-chevron" aria-hidden="true">›</span></span>
                         <span class="ra-score-before" id="sim-before-reflections">—</span>
                         <span class="ra-score-after" id="sim-after-reflections">—</span>
                     </div>
-                    <div class="ra-score-row">
-                        <span class="ra-score-metric-name">Bandwidth</span>
+                    <div class="ra-diagnostic-panel" id="diag-reflections" hidden>
+                        <div class="ra-diagnostic-inner">
+                            <span class="ra-gain-badge" id="gain-badge-reflections"></span>
+                            <div class="ra-diag-section"><span class="ra-diag-label">The Problem</span><p class="ra-diag-text" id="diag-problem-reflections"></p></div>
+                            <div class="ra-diag-section"><span class="ra-diag-label">What You're Hearing</span><p class="ra-diag-text" id="diag-sound-reflections"></p></div>
+                            <div class="ra-diag-section"><span class="ra-diag-label">The Fix</span><p class="ra-diag-text" id="diag-fix-reflections"></p></div>
+                        </div>
+                    </div>
+
+                    <div class="ra-score-row ra-diag-trigger" data-metric="bandwidth" role="button" tabindex="0" aria-expanded="false">
+                        <span class="ra-score-metric-name">Bandwidth <span class="ra-diag-chevron" aria-hidden="true">›</span></span>
                         <span class="ra-score-before" id="sim-before-bandwidth">—</span>
                         <span class="ra-score-after" id="sim-after-bandwidth">—</span>
                     </div>
-                    <div class="ra-score-row">
-                        <span class="ra-score-metric-name">Smoothness</span>
+                    <div class="ra-diagnostic-panel" id="diag-bandwidth" hidden>
+                        <div class="ra-diagnostic-inner">
+                            <span class="ra-gain-badge" id="gain-badge-bandwidth"></span>
+                            <div class="ra-diag-section"><span class="ra-diag-label">The Problem</span><p class="ra-diag-text" id="diag-problem-bandwidth"></p></div>
+                            <div class="ra-diag-section"><span class="ra-diag-label">What You're Hearing</span><p class="ra-diag-text" id="diag-sound-bandwidth"></p></div>
+                            <div class="ra-diag-section"><span class="ra-diag-label">The Fix</span><p class="ra-diag-text" id="diag-fix-bandwidth"></p></div>
+                        </div>
+                    </div>
+
+                    <div class="ra-score-row ra-diag-trigger" data-metric="smoothness" role="button" tabindex="0" aria-expanded="false">
+                        <span class="ra-score-metric-name">Smoothness <span class="ra-diag-chevron" aria-hidden="true">›</span></span>
                         <span class="ra-score-before" id="sim-before-smoothness">—</span>
                         <span class="ra-score-after" id="sim-after-smoothness">—</span>
                     </div>
-                    <div class="ra-score-row">
-                        <span class="ra-score-metric-name">Balance</span>
+                    <div class="ra-diagnostic-panel" id="diag-smoothness" hidden>
+                        <div class="ra-diagnostic-inner">
+                            <span class="ra-gain-badge" id="gain-badge-smoothness"></span>
+                            <div class="ra-diag-section"><span class="ra-diag-label">The Problem</span><p class="ra-diag-text" id="diag-problem-smoothness"></p></div>
+                            <div class="ra-diag-section"><span class="ra-diag-label">What You're Hearing</span><p class="ra-diag-text" id="diag-sound-smoothness"></p></div>
+                            <div class="ra-diag-section"><span class="ra-diag-label">The Fix</span><p class="ra-diag-text" id="diag-fix-smoothness"></p></div>
+                        </div>
+                    </div>
+
+                    <div class="ra-score-row ra-diag-trigger" data-metric="balance" role="button" tabindex="0" aria-expanded="false">
+                        <span class="ra-score-metric-name">Balance <span class="ra-diag-chevron" aria-hidden="true">›</span></span>
                         <span class="ra-score-before" id="sim-before-balance">—</span>
                         <span class="ra-score-after" id="sim-after-balance">—</span>
                     </div>
-                    <div class="ra-score-row">
-                        <span class="ra-score-metric-name">Clarity</span>
+                    <div class="ra-diagnostic-panel" id="diag-balance" hidden>
+                        <div class="ra-diagnostic-inner">
+                            <span class="ra-gain-badge" id="gain-badge-balance"></span>
+                            <div class="ra-diag-section"><span class="ra-diag-label">The Problem</span><p class="ra-diag-text" id="diag-problem-balance"></p></div>
+                            <div class="ra-diag-section"><span class="ra-diag-label">What You're Hearing</span><p class="ra-diag-text" id="diag-sound-balance"></p></div>
+                            <div class="ra-diag-section"><span class="ra-diag-label">The Fix</span><p class="ra-diag-text" id="diag-fix-balance"></p></div>
+                        </div>
+                    </div>
+
+                    <div class="ra-score-row ra-diag-trigger" data-metric="clarity" role="button" tabindex="0" aria-expanded="false">
+                        <span class="ra-score-metric-name">Clarity <span class="ra-diag-chevron" aria-hidden="true">›</span></span>
                         <span class="ra-score-before" id="sim-before-clarity">—</span>
                         <span class="ra-score-after" id="sim-after-clarity">—</span>
                     </div>
+                    <div class="ra-diagnostic-panel" id="diag-clarity" hidden>
+                        <div class="ra-diagnostic-inner">
+                            <span class="ra-gain-badge" id="gain-badge-clarity"></span>
+                            <div class="ra-diag-section"><span class="ra-diag-label">The Problem</span><p class="ra-diag-text" id="diag-problem-clarity"></p></div>
+                            <div class="ra-diag-section"><span class="ra-diag-label">What You're Hearing</span><p class="ra-diag-text" id="diag-sound-clarity"></p></div>
+                            <div class="ra-diag-section"><span class="ra-diag-label">The Fix</span><p class="ra-diag-text" id="diag-fix-clarity"></p></div>
+                        </div>
+                    </div>
+
                 </div>
 
                 <!-- Room treatment -->
@@ -632,6 +687,7 @@ function runSimulation() {
     lastPredicted = { ...predicted };
 
     updateScoreTable(baseline, predicted);
+    window.dispatchEvent(new CustomEvent('measurely:simUpdated'));
 
 
     // ── Update 3D room live ───────────────────────────────────────────
@@ -826,6 +882,278 @@ const modesPoll = setInterval(() => {
 
 
 <!-- ═══════════════════════════════════════
+     DAVE'S DIAGNOSTIC ENGINE
+═══════════════════════════════════════ -->
+<script>
+// ── Per-metric, per-band diagnostic content ─────────────────────
+// language: warm, matey, focused on "how it sounds" not jargon
+const DAVE_DIAGNOSTICS = {
+    peaks_dips: {
+        overlay: 'sbir',
+        bands: {
+            poor: {
+                problem: "Standing waves are stacking up and knocking chunks out of your bass response. Your speakers and the front wall are in a fight — and neither is winning.",
+                sound:   "Certain bass notes sound massive and boomy, while others just disappear. Your bass player's groove sounds lumpy and uneven — nothing grooves the way it should.",
+                fix:     "Bass traps in the corners are your first move. They soak up that excess low-end energy before it builds into a problem. Even two tall traps in the front corners will make a noticeable difference immediately."
+            },
+            okay: {
+                problem: "A few bass modes are still active — the room and your speakers aren't quite in sync yet, but you're not far off.",
+                sound:   "You'll notice some bass notes punching a bit harder than others. Not a disaster, but it's colouring the music in ways the artist didn't intend.",
+                fix:     "Pull the speakers a touch further from the front wall — even 10–15cm can shift the cancellation notch below where you'll hear it. Front corner traps would clean up the rest."
+            },
+            good: {
+                problem: "Minor modal activity remains, but it's well-behaved and not running the show.",
+                sound:   "The bass is mostly honest. You might occasionally feel a note is slightly exaggerated, but nothing that spoils the music or throws you off.",
+                fix:     "A small amount of corner treatment would close the last bit of unevenness. You're already past the obvious problems."
+            },
+            excellent: {
+                problem: "Nothing to flag here — the modes are under control and the response is even.",
+                sound:   "The bass is even and trustworthy. What's on the recording is what you're hearing, no more, no less.",
+                fix:     "You've nailed it. Leave it as is and enjoy the music."
+            }
+        }
+    },
+    reflections: {
+        overlay: 'side_reflections',
+        bands: {
+            poor: {
+                problem: "Early reflections off the side walls are arriving at your ears just milliseconds after the direct sound — too close behind to be heard as a separate echo, but enough to smear everything.",
+                sound:   "The stereo image feels vague and wide in the wrong way. Vocals wander instead of sitting centrally. That phantom centre between the speakers is more of a phantom smear.",
+                fix:     "Absorptive panels at the first reflection points on both side walls. Find the spot: sit in your listening position and have a mate hold a mirror flat against the side wall — where you can see the tweeter is exactly where the panel goes."
+            },
+            okay: {
+                problem: "Some reflected energy is reaching you with enough level to slightly muddy the stereo image. Not catastrophic, but the room is adding its two pence to everything.",
+                sound:   "The soundstage is present but a bit vague. Wide stereo sources feel indistinct. You'd notice it most on piano and acoustic guitar.",
+                fix:     "Side panels at the first reflection points would tighten the image up noticeably. If you can only do one thing, do both side walls at once — they work as a pair."
+            },
+            good: {
+                problem: "Reflections are manageable — the direct sound is clearly in charge, which is where you want to be.",
+                sound:   "The stereo image is solid. Instruments sit where they should. There's just a touch of residual width you might notice on very precise recordings.",
+                fix:     "A ceiling cloud above the listening position is about all that's left here. It would add the last layer of precision to the image."
+            },
+            excellent: {
+                problem: "Reflections are well under control — nothing to raise an eyebrow at.",
+                sound:   "The phantom centre is locked in and the stereo image is sharp and stable. That's the whole game, and you've won it.",
+                fix:     "You're there. Nothing to fix."
+            }
+        }
+    },
+    bandwidth: {
+        overlay: 'bandwidth',
+        bands: {
+            poor: {
+                problem: "Your room isn't reinforcing the deep bass effectively. The low end rolls off before it properly reaches you.",
+                sound:   "The music sounds thin and lightweight. Kick drums lack physicality — they're a click rather than a thump. Bass guitar feels more like a suggestion than a foundation.",
+                fix:     "A subwoofer crossed at around 80Hz transforms this immediately and is the most reliable solution in a small room. If that's not on the cards, experiment with moving the speakers further from the side walls."
+            },
+            okay: {
+                problem: "The low end rolls off slightly earlier than ideal. You're not losing everything, but some depth is quietly missing.",
+                sound:   "You're getting most of the music, but the very bottom of the low end isn't quite there. Most noticeable on orchestral music, electronic bass, and pipe organ.",
+                fix:     "Experimenting with speaker placement — particularly front-wall distance — can sometimes recover a few Hz of extension. A small sub would fully resolve it."
+            },
+            good: {
+                problem: "Good bandwidth — the room is delivering solid low-frequency support with nothing obviously missing.",
+                sound:   "The bass feels full and present. You're hearing most of what's on the recording. It's doing its job.",
+                fix:     "Minor — a bit of corner treatment could even out the last bit of bass response, but you're past the obvious problems."
+            },
+            excellent: {
+                problem: "Full extended bandwidth — nothing to report here.",
+                sound:   "The full frequency range is present and correct. From the sub-bass up to the very top, you've got it all.",
+                fix:     "Nothing to do. Enjoy the bottom end."
+            }
+        }
+    },
+    balance: {
+        overlay: 'balance',
+        bands: {
+            poor: {
+                problem: "The room is treating the left and right channels differently — one side is getting more bass reinforcement, which tilts the whole soundstage.",
+                sound:   "The phantom centre pulls to one side. Lead vocals and solo instruments don't sit centrally — the sweet spot has drifted, and you feel slightly off-axis to your own stereo system.",
+                fix:     "Check that your speakers are genuinely equidistant from the side walls. Even 10–15cm of asymmetry tilts the soundstage noticeably. Treat both side walls equally if you treat one."
+            },
+            okay: {
+                problem: "Minor tonal asymmetry between left and right — close to centred but not quite there.",
+                sound:   "The image is mostly stable but might feel very slightly weighted to one side on careful listening. You might not notice on energetic music, but it shows up on solo voice or acoustic guitar.",
+                fix:     "Slide the listening seat slightly toward the room centreline. If the speakers are asymmetric relative to the walls, equalise the distances before anything else."
+            },
+            good: {
+                problem: "Good left/right balance — both channels are being treated consistently by the room.",
+                sound:   "The stereo image sits correctly. The centre is where it should be, and it stays there. Solid.",
+                fix:     "Very little left to do here. Matching treatment on both side walls would be the final touch."
+            },
+            excellent: {
+                problem: "Near-perfect balance — the room is genuinely symmetric where it counts.",
+                sound:   "The phantom centre is locked dead centre. The whole stereo image has a solid, reliable foundation.",
+                fix:     "Nothing to fix. You've got it."
+            }
+        }
+    },
+    smoothness: {
+        overlay: 'smoothness',
+        bands: {
+            poor: {
+                problem: "Parallel walls are bouncing sound back and forth between them, creating comb filtering and almost certainly some flutter echo.",
+                sound:   "Everything has a subtle metallic ringing or papery texture added to it. Try it: clap your hands sharply — if you hear a 'boing' or ringing decay, that's in your music too, all the time.",
+                fix:     "Break up the parallel surfaces. Diffusion on the back wall is usually the biggest single fix. A proper diffuser is ideal, but even a large bookshelf full of unevenly-sized LPs does a surprisingly good job."
+            },
+            okay: {
+                problem: "Some spectral roughness — the parallel surfaces are interfering with each other, but not catastrophically.",
+                sound:   "Dense mixes can feel slightly congested or 'textured'. It's subtle but adds a colouration to everything — like listening through a thin veil.",
+                fix:     "A diffuser panel on the rear wall addresses most of this. Pure absorption works too but can make the room feel uncomfortably dead — a mix of both is ideal."
+            },
+            good: {
+                problem: "Mostly smooth — no significant colouration issues. The room has good manners.",
+                sound:   "The room's character is minimal and natural. Music sounds mostly like music, which is exactly the point.",
+                fix:     "A bit of rear-wall diffusion could close the remaining gap, but this is fine-tuning rather than problem-solving."
+            },
+            excellent: {
+                problem: "Excellent smoothness — the room is practically transparent.",
+                sound:   "No colouration detectable. The room is completely getting out of the way of the music.",
+                fix:     "Nothing to do. The room is as smooth as it gets."
+            }
+        }
+    },
+    clarity: {
+        overlay: 'clarity',
+        bands: {
+            poor: {
+                problem: "The room's decay time is too long — sound is hanging around after each note has ended, piling up on the next one.",
+                sound:   "Notes blur together. Fast passages lose their definition completely. The snare sounds blurry, fast piano runs merge into mush, and the bass feels heavy and indistinct rather than tight.",
+                fix:     "Broadband absorption spread across multiple surfaces is the most effective route down. Bass traps help significantly in the low end where most of the decay energy lives. Don't focus it all in one spot — spread it around."
+            },
+            okay: {
+                problem: "RT60 is slightly longer than ideal — the room adds a small reverb tail to transient sounds.",
+                sound:   "Transients feel slightly soft rather than crisp. The bass is maybe a touch less defined than it could be, and the leading edges of notes aren't as snappy as they should be.",
+                fix:     "Bass traps and a ceiling panel at the listening position are the two most effective additions here. Even a thick rug and soft furnishings help more than people think."
+            },
+            good: {
+                problem: "Good clarity — the decay is well controlled and transients come through cleanly.",
+                sound:   "The music feels snappy and detailed. You can hear the pick noise, the breath before the note, the room on the recording — all the fine detail is there.",
+                fix:     "Minor — perhaps a bit more absorption at the rear wall. You're well past the obvious problems."
+            },
+            excellent: {
+                problem: "Outstanding clarity — nothing to flag.",
+                sound:   "Fast transients snap through cleanly. The decay is controlled and the room adds nothing unwanted. This is what all the treatment work is for.",
+                fix:     "You've done the work. Enjoy the detail."
+            }
+        }
+    }
+};
+
+// ── Band helper (mirrors DavePhraseEngine logic) ─────────────────
+function _diagBand(score) {
+    if (score <= 3.9) return 'poor';
+    if (score <= 5.9) return 'okay';
+    if (score <= 7.9) return 'good';
+    return 'excellent';
+}
+
+// Currently-open metric (so runSimulation can refresh its gain badge)
+let _openDiagMetric = null;
+
+// ── Open or toggle a diagnostic panel ───────────────────────────
+function openDiagnostic(metric) {
+    const panel  = document.getElementById(`diag-${metric}`);
+    const trigger = document.querySelector(`.ra-diag-trigger[data-metric="${metric}"]`);
+    if (!panel || !trigger) return;
+
+    const isOpen = !panel.hidden;
+
+    // Close any other open panel first
+    document.querySelectorAll('.ra-diagnostic-panel').forEach(p => {
+        if (!p.hidden) { p.hidden = true; }
+    });
+    document.querySelectorAll('.ra-diag-trigger').forEach(t => {
+        t.setAttribute('aria-expanded', 'false');
+        t.classList.remove('ra-diag-trigger--open');
+    });
+
+    if (isOpen) {
+        // Was open — toggled closed; clear 3D focus
+        _openDiagMetric = null;
+        if (window.room3D) window.room3D.update();
+        return;
+    }
+
+    // Populate content from current score
+    const baseline = getBaselineScores();
+    const score    = baseline[metric] ?? 5;
+    const band     = _diagBand(score);
+    const data     = DAVE_DIAGNOSTICS[metric]?.bands?.[band];
+
+    if (data) {
+        document.getElementById(`diag-problem-${metric}`).textContent = data.problem;
+        document.getElementById(`diag-sound-${metric}`).textContent   = data.sound;
+        document.getElementById(`diag-fix-${metric}`).textContent     = data.fix;
+    }
+
+    // Gain badge
+    _refreshGainBadge(metric);
+
+    // Reveal panel
+    panel.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+    trigger.classList.add('ra-diag-trigger--open');
+    _openDiagMetric = metric;
+
+    // Visual link to 3D room
+    const overlay = DAVE_DIAGNOSTICS[metric]?.overlay;
+    if (overlay && window.room3D?.focusIssue) {
+        window.room3D.focusIssue(overlay, score);
+    }
+
+    // Scroll panel into view smoothly
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ── Refresh the gain badge for a given metric ────────────────────
+function _refreshGainBadge(metric) {
+    const el = document.getElementById(`gain-badge-${metric}`);
+    if (!el) return;
+
+    const baseline  = getBaselineScores();
+    const predicted = lastPredicted;
+    if (!predicted) { el.textContent = ''; return; }
+
+    const before = baseline[metric] ?? 0;
+    const after  = predicted[metric] ?? before;
+    const delta  = after - before;
+
+    if (delta >= 0.1) {
+        el.textContent     = `Potential Gain: +${delta.toFixed(1)} pts`;
+        el.dataset.valence = 'positive';
+    } else if (delta <= -0.1) {
+        el.textContent     = `Predicted: ${delta.toFixed(1)} pts`;
+        el.dataset.valence = 'negative';
+    } else {
+        el.textContent     = 'Already optimised for this setup';
+        el.dataset.valence = 'neutral';
+    }
+}
+
+// ── Wire click + keyboard handlers on DOMContentLoaded ──────────
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.ra-diag-trigger').forEach(trigger => {
+        trigger.addEventListener('click', () => openDiagnostic(trigger.dataset.metric));
+        trigger.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                openDiagnostic(trigger.dataset.metric);
+            }
+        });
+    });
+});
+
+// Keep the open gain badge fresh whenever the simulation recalculates.
+// runSimulation() and updateScoreTable() live in an earlier <script> block —
+// we register a lightweight observer via a custom event fired after each run.
+window.addEventListener('measurely:simUpdated', () => {
+    if (_openDiagMetric) _refreshGainBadge(_openDiagMetric);
+});
+</script>
+
+
+<!-- ═══════════════════════════════════════
      INLINE STYLES FOR SHARED NAV + BUTTONS
 ═══════════════════════════════════════ -->
 <style>
@@ -837,6 +1165,131 @@ const modesPoll = setInterval(() => {
 
 .ra-goto-btn {
     text-decoration: none;
+}
+
+/* ── Score table header hint ─────────────────────────────── */
+.ra-score-table-head span:first-child {
+    font-style: italic;
+    font-weight: 400;
+    color: rgba(255,255,255,0.3);
+    font-size: 0.68rem;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+/* ── Clickable score rows ────────────────────────────────── */
+.ra-diag-trigger {
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.12s;
+    border-radius: 0;
+}
+.ra-diag-trigger:hover,
+.ra-diag-trigger:focus-visible {
+    background: rgba(99,102,241,0.08);
+    outline: none;
+}
+.ra-diag-trigger--open {
+    background: rgba(99,102,241,0.10);
+}
+.ra-diag-trigger--open .ra-score-metric-name {
+    color: #a5b4fc;
+}
+
+/* Chevron rotates open */
+.ra-diag-chevron {
+    display: inline-block;
+    font-size: 0.9em;
+    color: rgba(255,255,255,0.28);
+    transform: rotate(0deg);
+    transition: transform 0.2s ease, color 0.15s;
+    margin-left: 0.25em;
+    vertical-align: baseline;
+}
+.ra-diag-trigger--open .ra-diag-chevron {
+    transform: rotate(90deg);
+    color: #a5b4fc;
+}
+
+/* ── Diagnostic accordion panel ─────────────────────────── */
+.ra-diagnostic-panel {
+    grid-column: 1 / -1;
+    border-top: 1px solid rgba(99,102,241,0.18);
+    background: rgba(15, 18, 40, 0.75);
+    animation: diagSlideIn 0.18s ease forwards;
+}
+
+@keyframes diagSlideIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.ra-diagnostic-inner {
+    padding: 0.75rem 0.8rem 0.8rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+/* ── Potential Gain badge ────────────────────────────────── */
+.ra-gain-badge {
+    display: inline-block;
+    align-self: flex-start;
+    padding: 0.2em 0.65em;
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    background: rgba(99,102,241,0.15);
+    color: #a5b4fc;
+    border: 1px solid rgba(99,102,241,0.3);
+}
+.ra-gain-badge:empty { display: none; }
+.ra-gain-badge[data-valence="positive"] {
+    background: rgba(16,185,129,0.12);
+    color: #6ee7b7;
+    border-color: rgba(16,185,129,0.3);
+}
+.ra-gain-badge[data-valence="negative"] {
+    background: rgba(248,113,113,0.1);
+    color: #fca5a5;
+    border-color: rgba(248,113,113,0.25);
+}
+.ra-gain-badge[data-valence="neutral"] {
+    background: rgba(255,255,255,0.05);
+    color: rgba(255,255,255,0.4);
+    border-color: rgba(255,255,255,0.1);
+}
+
+/* ── Diagnostic sections (Problem / Sound / Fix) ─────────── */
+.ra-diag-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.ra-diag-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgba(255,255,255,0.3);
+}
+
+.ra-diag-text {
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: rgba(255,255,255,0.78);
+    margin: 0;
+}
+
+/* "The Fix" section gets a subtle left accent */
+.ra-diag-section:last-child .ra-diag-label {
+    color: #6ee7b7;
+}
+.ra-diag-section:last-child .ra-diag-text {
+    padding-left: 0.65rem;
+    border-left: 2px solid rgba(99,102,241,0.4);
 }
 </style>
 
