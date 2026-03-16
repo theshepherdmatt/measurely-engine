@@ -445,14 +445,32 @@ header, section, footer { position: relative; z-index: 1; }
             scores, commentary, and specific next steps. Not graphs. Not jargon. Useful advice.
         </p>
         <div class="hero-actions">
-            <a href="demo.html" class="btn btn-primary">
+            <a id="heroCta" href="onboarding.html" class="btn btn-primary">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
                      stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
-                     aria-hidden="true" style="flex-shrink:0"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                Try the interactive demo
+                     aria-hidden="true" style="flex-shrink:0"><path d="M3 9l9-6 9 6v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                Design Your Room
             </a>
-            <a href="/app.html" class="btn btn-outline">Analyse my room →</a>
         </div>
+        <script>
+        // Task 3 — if user already has a valid session, swap CTA to dashboard
+        (function() {
+            try {
+                var raw = localStorage.getItem('pocketbase_auth');
+                if (!raw) return;
+                var auth = JSON.parse(raw);
+                if (!auth.token) return;
+                var parts = auth.token.split('.');
+                if (parts.length !== 3) return;
+                var payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
+                if (payload.exp && payload.exp * 1000 < Date.now()) return;
+                var cta = document.getElementById('heroCta');
+                if (!cta) return;
+                cta.href = 'app.html';
+                cta.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg> Go to my Dashboard';
+            } catch(_) {}
+        })();
+        </script>
         <div class="needs-strip">
             <span><span class="material-icons">check_circle</span> REW impulse response WAV</span>
             <span><span class="material-icons">check_circle</span> Any stereo setup</span>
@@ -494,22 +512,11 @@ header, section, footer { position: relative; z-index: 1; }
     </div>
 
     <div style="margin-top:2.5rem">
-        <a id="setupRoomCta" href="onboarding.html" class="btn btn-primary">
-            Set up your real room →
+        <a href="onboarding.html" class="btn btn-primary">
+            Design Your Room →
         </a>
     </div>
 </section>
-<script>
-// If the user has already onboarded, the CTA becomes "Edit My Room" → myroom.html
-(function() {
-    const hasRoom = !!localStorage.getItem('measurely_room');
-    const cta = document.getElementById('setupRoomCta');
-    if (cta && hasRoom) {
-        cta.href = 'myroom.html';
-        cta.textContent = 'Edit My Room →';
-    }
-})();
-</script>
 
 <style>
 /* ── Sandbox Section ──────────────────────────────────────── */

@@ -294,24 +294,6 @@ body {
     text-align: left;
 }
 
-.sbox-autotoe {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 9px;
-    border-radius: 6px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    font-family: inherit;
-    cursor: pointer;
-    border: 1px solid rgba(16,185,129,.3);
-    background: rgba(16,185,129,.07);
-    color: rgba(16,185,129,.55);
-    white-space: nowrap;
-    transition: background .15s, border-color .15s, color .15s;
-}
-.sbox-autotoe.active { border-color: rgba(16,185,129,.6); background: rgba(16,185,129,.14); color: #34d399; }
-.sbox-autotoe::before { content: "●"; font-size: 0.5rem; }
 
 /* ── CTA bar ─────────────────────────────────────────────── */
 .demo-cta-bar {
@@ -429,11 +411,15 @@ body {
 
         <!-- Row 2: sliders -->
         <div class="sbox-slider-row">
-            <button class="sbox-autotoe active" id="demoAutoToe">Auto-Toe</button>
             <label class="sbox-slider-label">
-                <span class="sbox-slider-name">Toe-In</span>
-                <input type="range" id="demoToe" min="0" max="40" step="1" value="12" class="sbox-range">
-                <span class="sbox-slider-val" id="demoToeVal">12°</span>
+                <span class="sbox-slider-name">Listen Pos</span>
+                <input type="range" id="demoListenPos" min="1.0" max="5.0" step="0.1" value="2.8" class="sbox-range">
+                <span class="sbox-slider-val" id="demoListenPosVal">2.8 m</span>
+            </label>
+            <label class="sbox-slider-label">
+                <span class="sbox-slider-name">Spk Wall</span>
+                <input type="range" id="demoSpkWall" min="0.1" max="1.5" step="0.05" value="0.45" class="sbox-range">
+                <span class="sbox-slider-val" id="demoSpkWallVal">0.45 m</span>
             </label>
             <label class="sbox-slider-label">
                 <span class="sbox-slider-name">Width</span>
@@ -523,38 +509,33 @@ handle.addEventListener('keydown', e => {
 });
 
 // ── Sliders ───────────────────────────────────────────────
-let autoToeOn = true;
-const toeSlider    = document.getElementById('demoToe');
-const toeVal       = document.getElementById('demoToeVal');
-const autoToeBtn   = document.getElementById('demoAutoToe');
-const widthSlider  = document.getElementById('demoWidth');
-const widthVal     = document.getElementById('demoWidthVal');
-const lengthSlider = document.getElementById('demoLength');
-const lengthVal    = document.getElementById('demoLengthVal');
+const listenPosSlider  = document.getElementById('demoListenPos');
+const listenPosVal     = document.getElementById('demoListenPosVal');
+const spkWallSlider    = document.getElementById('demoSpkWall');
+const spkWallVal       = document.getElementById('demoSpkWallVal');
+const widthSlider      = document.getElementById('demoWidth');
+const widthVal         = document.getElementById('demoWidthVal');
+const lengthSlider     = document.getElementById('demoLength');
+const lengthVal        = document.getElementById('demoLengthVal');
 
-if (toeSlider) toeSlider.disabled = true;
-
-function syncToe(deg) {
-    if (toeVal)    toeVal.textContent = `${Math.round(deg)}°`;
-    if (toeSlider) toeSlider.value    = deg;
-}
-
-toeSlider?.addEventListener('input', () => {
-    if (autoToeOn) return;
-    const deg = Number(toeSlider.value);
-    syncToe(deg);
-    demoState.setup.toe_in_deg = deg;
+// Listening position — moves sphere, sofa, coffee table, rug forward/back
+listenPosSlider?.addEventListener('input', () => {
+    const v = Number(listenPosSlider.value);
+    listenPosVal.textContent = `${v.toFixed(1)} m`;
+    demoState.setup.listener_front_m = v;
     demo3D.update();
+    demo3D.stopAutoSpin();
+    showChip('Listening position adjusted — sofa and rug move with you');
 });
 
-autoToeBtn?.addEventListener('click', () => {
-    autoToeOn = !autoToeOn;
-    autoToeBtn.classList.toggle('active', autoToeOn);
-    demo3D.setAutoToe(autoToeOn);
-    if (toeSlider) toeSlider.disabled = autoToeOn;
-    if (autoToeOn) syncToe(demo3D.getToeAngleDeg?.() ?? 12);
+// Speaker wall distance — pulls speakers away from the front wall
+spkWallSlider?.addEventListener('input', () => {
+    const v = Number(spkWallSlider.value);
+    spkWallVal.textContent = `${v.toFixed(2)} m`;
+    demoState.setup.spk_front_m = v;
+    demo3D.update();
     demo3D.stopAutoSpin();
-    showChip(autoToeOn ? 'Auto-Toe on — speakers track the listen position' : 'Auto-Toe off — set toe-in manually');
+    showChip('Speaker distance from wall changed — watch the SBIR null shift');
 });
 
 widthSlider?.addEventListener('input', () => {
@@ -629,14 +610,10 @@ document.getElementById('demoReset')?.addEventListener('click', () => {
     demoState.environment.furniture = { opt_area_rug: true, opt_sofa: true, opt_coffee_table: true };
     demoState.environment.treatment = { wall_panel_mode: 'front', side_panel_mode: 'both', bass_trap_mode: 'none', ceiling_panel_mode: 'none' };
 
-    if (widthSlider)  { widthSlider.value  = DEFAULTS.width_m;  widthVal.textContent  = `${DEFAULTS.width_m} m`; }
-    if (lengthSlider) { lengthSlider.value = DEFAULTS.length_m; lengthVal.textContent = `${DEFAULTS.length_m} m`; }
-    syncToe(DEFAULTS.toe_in_deg);
-
-    autoToeOn = true;
-    autoToeBtn?.classList.add('active');
-    if (toeSlider) toeSlider.disabled = true;
-    demo3D.setAutoToe(true);
+    if (widthSlider)      { widthSlider.value      = DEFAULTS.width_m;         widthVal.textContent       = `${DEFAULTS.width_m} m`; }
+    if (lengthSlider)     { lengthSlider.value     = DEFAULTS.length_m;        lengthVal.textContent      = `${DEFAULTS.length_m} m`; }
+    if (listenPosSlider)  { listenPosSlider.value  = DEFAULTS.listener_front_m; listenPosVal.textContent  = `${DEFAULTS.listener_front_m.toFixed(1)} m`; }
+    if (spkWallSlider)    { spkWallSlider.value    = DEFAULTS.spk_front_m;     spkWallVal.textContent     = `${DEFAULTS.spk_front_m.toFixed(2)} m`; }
 
     document.querySelectorAll('.sbox-btn[data-item]').forEach(b => b.classList.remove('active'));
     document.querySelector('.sbox-btn[data-item="rug"]')?.classList.add('active');

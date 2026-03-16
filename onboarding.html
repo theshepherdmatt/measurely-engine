@@ -89,7 +89,14 @@
     </p>
     <div class="flyby-room-stats" id="flybyRoomStats"></div>
     <div class="flyby-completion-actions">
-      <button id="completionGoBtn" class="btn btn-primary">Explore My Dashboard</button>
+      <button id="completionSaveBtn" class="btn btn-primary">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.47a2 2 0 0 1 1.99-2.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.1a16 16 0 0 0 6 6l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+        Save to Cloud
+      </button>
+      <button id="completionPreviewBtn" class="btn btn-outline" style="background:none;border:1px solid rgba(255,255,255,.2);color:#d1d5db;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Skip &amp; Preview
+      </button>
     </div>
     <button id="completionBackBtn" type="button" class="flyby-back-link">Stay &amp; explore room</button>
   </div>
@@ -1000,7 +1007,30 @@ function finish() {
         // Wire up completion modal buttons (safe to add multiple times — guarded by flag)
         if (!window._completionWired) {
             window._completionWired = true;
-            document.getElementById('completionGoBtn')?.addEventListener('click', navigateToApp);
+
+            // "Save to Cloud" — trigger Google login, then go to dashboard
+            document.getElementById('completionSaveBtn')?.addEventListener('click', () => {
+                // Room already in localStorage. Trigger Google OAuth.
+                // If MeasurelyAuth is not loaded, fall back to navigating directly.
+                if (window.MeasurelyAuth?.signInWithGoogle) {
+                    window.MeasurelyAuth.signInWithGoogle();
+                } else {
+                    navigateToApp();
+                }
+            });
+
+            // "Skip & Preview" — go straight to the interactive demo
+            document.getElementById('completionPreviewBtn')?.addEventListener('click', () => {
+                document.body.classList.remove('flyby-active');
+                if (document.startViewTransition) {
+                    document.startViewTransition(() => { window.location.href = 'demo.html'; });
+                } else {
+                    document.body.style.transition = 'opacity 0.3s ease';
+                    document.body.style.opacity = '0';
+                    setTimeout(() => { window.location.href = 'demo.html'; }, 300);
+                }
+            });
+
             document.getElementById('completionBackBtn')?.addEventListener('click', () => {
                 document.getElementById('completionModal')?.classList.remove('open');
                 setTimeout(() => {
