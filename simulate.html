@@ -662,7 +662,7 @@ function runSimulation() {
             window.setNestedRoomValue(state, 'wall_panel_mode', wallMode);
             window.setNestedRoomValue(state, 'bass_trap_mode', bassMode);
             window.setNestedRoomValue(state, 'side_panel_mode', sideMode);
-            window.setNestedRoomValue(state, 'ceiling_panel_mode', ceilingMode);
+            window.setNestedRoomValue(state, 'ceiling_panel_mode', ceilMode);
         } else {
             // Fallback: flat merge (original behaviour)
             Object.assign(state, {
@@ -672,7 +672,7 @@ function runSimulation() {
                 wall_panel_mode: wallMode,
                 bass_trap_mode: bassMode,
                 side_panel_mode: sideMode,
-                ceiling_panel_mode: ceilingMode
+                ceiling_panel_mode: ceilMode
             });
         }
 
@@ -715,7 +715,7 @@ async function saveSimulateToRoom() {
         plan_wall_panels: wallMode,
         plan_bass_traps: bassMode,
         plan_side_panels: sideMode,
-        plan_ceiling_panels: ceilingMode
+        plan_ceiling_panels: ceilMode
     };
 
     // Ensure treatment plan never overwrites real room settings
