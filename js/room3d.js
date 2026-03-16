@@ -778,10 +778,34 @@ function rebuild() {
           z = -room.length_m / 2 + room.spk_front_m;
         }
 
-        speaker.position.set(x, y, z);
+        // Wrap cabinet (+ optional stand) in a group so toe rotation is shared
+        const spkGroup = new THREE.Group();
+        spkGroup.position.set(x, y, z);
+        spkGroup.add(speaker); // cabinet sits at group origin (= cabinet centre)
+
+        // Stand for standmounts: thin post + base plate
+        if (!profile.onDesk && !profile.floorStand) {
+          const standHeight = (y - profile.h / 2) - baseY; // floor → cabinet bottom
+          const standMat = new THREE.MeshBasicMaterial({
+            color: spkColor, wireframe: true, transparent: true,
+            opacity: spkOpacity * 0.65
+          });
+          // Post (thin column)
+          const post = new THREE.Mesh(
+            new THREE.BoxGeometry(0.05, standHeight, 0.05), standMat
+          );
+          post.position.y = -(profile.h / 2) - standHeight / 2;
+          spkGroup.add(post);
+          // Base plate
+          const base = new THREE.Mesh(
+            new THREE.BoxGeometry(0.32, 0.03, 0.28), standMat
+          );
+          base.position.y = -(profile.h / 2) - standHeight + 0.015;
+          spkGroup.add(base);
+        }
 
         // Initial toe-in (may be overridden by _applyAutoToe after rebuild)
-        speaker.rotation.y = (side === "L" ? 1 : -1) * toeRad;
+        spkGroup.rotation.y = (side === "L" ? 1 : -1) * toeRad;
 
         // --- BEAMS — extracted so _applyAutoToe can update the endpoint live ---
         const beamGeo = new THREE.BufferGeometry().setFromPoints([
@@ -801,11 +825,11 @@ function rebuild() {
         beam.computeLineDistances();
 
         speaker.add(beam);
-        roomGroup.add(speaker);
+        roomGroup.add(spkGroup);
 
-        // Store refs for live auto-toe updates
-        if (side === 'L') { _spkMeshL = speaker; _beamGeoL = beamGeo; }
-        else              { _spkMeshR = speaker; _beamGeoR = beamGeo; }
+        // Store refs for live auto-toe updates (Group supports .rotation.y same as Mesh)
+        if (side === 'L') { _spkMeshL = spkGroup; _beamGeoL = beamGeo; }
+        else              { _spkMeshR = spkGroup; _beamGeoR = beamGeo; }
       });
     }
 
