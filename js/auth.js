@@ -439,7 +439,7 @@
         document.querySelectorAll('#auth-user-slot').forEach(slot => {
             if (!user) {
                 slot.innerHTML = `
-                    <button class="mly-auth-nav-btn" id="mlyNavSignIn" type="button">Sign in</button>`;
+                    <button class="mly-auth-nav-btn" id="mlyNavSignIn" type="button">Sign in &amp; sync</button>`;
                 slot.querySelector('#mlyNavSignIn')?.addEventListener('click', () => _openModal('signin'));
             } else {
                 // Prefer Google avatar URL (OAuth2) then fall back to PB file, then initial
@@ -449,7 +449,8 @@
 
                 // Display name: prefer Google name, fall back to email prefix
                 const displayName = user.name || user.email || user.username || '?';
-                const initial     = displayName[0].toUpperCase();
+                const firstName   = displayName.split(' ')[0];
+                const initial     = firstName[0].toUpperCase();
 
                 const avatarInner = avatarUrl
                     ? `<img src="${avatarUrl}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" referrerpolicy="no-referrer">`
@@ -457,6 +458,7 @@
 
                 slot.innerHTML = `
                     <div class="mly-auth-avatar-wrap">
+                        <span class="mly-auth-user-name">${firstName}</span>
                         <button class="mly-auth-avatar" id="mlyNavAvatar" type="button"
                                 aria-label="Account menu" aria-expanded="false" aria-haspopup="true"
                                 style="${avatarUrl ? 'padding:0;overflow:hidden;' : ''}">
@@ -465,7 +467,7 @@
                         <div class="mly-auth-dropdown" id="mlyNavDropdown" hidden>
                             <p class="mly-auth-dropdown-email">${user.email || user.username}</p>
                             <button class="mly-auth-dropdown-item-profile" id="mlyNavProfile" type="button">Hi-Fi Profile</button>
-                            <button class="mly-auth-dropdown-item" id="mlyNavSignOut" type="button">Sign out</button>
+                            <button class="mly-auth-dropdown-item" id="mlyNavSignOut" type="button">Not ${firstName}? Sign out</button>
                         </div>
                     </div>`;
 
