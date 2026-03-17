@@ -241,6 +241,9 @@
                                 </div>
                             </button>
                         </div>
+                        <button id="loadSampleBtn" class="sample-wav-link" type="button">
+                            No file yet? Try with a sample measurement →
+                        </button>
 
                         <!-- Collapsible REW guide — replaces the blocking modal -->
                         <details class="rew-guide">
@@ -711,6 +714,26 @@
             btn.addEventListener("click", () => {
                 window.openUploadModal && window.openUploadModal();
             });
+
+            const sampleBtn = document.getElementById("loadSampleBtn");
+            if (sampleBtn) {
+                sampleBtn.addEventListener("click", async () => {
+                    sampleBtn.disabled = true;
+                    sampleBtn.textContent = 'Downloading sample…';
+                    try {
+                        const res = await fetch('https://assets.measurely.uk/test-48k.wav');
+                        if (!res.ok) throw new Error('Download failed');
+                        const blob = await res.blob();
+                        const file = new File([blob], 'sample-measurement.wav', { type: 'audio/wav' });
+                        window.openUploadModal && window.openUploadModal(file);
+                    } catch (e) {
+                        window.toast?.('Could not load sample file — check your connection.', 'error');
+                    } finally {
+                        sampleBtn.disabled = false;
+                        sampleBtn.textContent = 'No file yet? Try with a sample measurement →';
+                    }
+                });
+            }
         });
     </script>
 
