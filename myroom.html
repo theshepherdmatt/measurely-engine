@@ -54,6 +54,42 @@
 
 
 <style>
+/* ── Treatment view toggle ───────────────────────────────────── */
+.treatment-toggle {
+    position: absolute;
+    bottom: 1.25rem;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    background: rgba(10, 14, 26, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 999px;
+    padding: 3px;
+    gap: 2px;
+    z-index: 50;
+}
+.tt-btn {
+    padding: 0.4rem 1rem;
+    border-radius: 999px;
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.5);
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    white-space: nowrap;
+}
+.tt-btn.tt-active {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(99,102,241,0.4);
+}
+.tt-btn:not(.tt-active):hover { color: rgba(255,255,255,0.8); }
+
 /* ── Auth avatar — mobile: near top-right corner of canvas ───── */
 @media (max-width: 899px) {
     #auth-user-slot {
@@ -291,6 +327,12 @@
         <div class="room3d-spinner"></div>
         <p class="room3d-loader-text">Initialising 3D Room…</p>
     </div>
+
+    <!-- Treatment view toggle -->
+    <div id="treatmentToggle" class="treatment-toggle" aria-label="Toggle treatment view">
+        <button class="tt-btn tt-active" id="ttCurrent" data-view="current">Current room</button>
+        <button class="tt-btn" id="ttTreated" data-view="treated">Treated room</button>
+    </div>
 </div>
 
 <!-- SLIDING QUESTION PANEL -->
@@ -485,9 +527,33 @@ let roomState = structuredClone(DEFAULT_ROOM_STATE);
    roomState reference, so calling room3D.update() after load refreshes
    the scene with the persisted data.
 ------------------------------------------ */
+// ── Treatment view toggle ─────────────────────────────────────────────────────
+let _treatmentViewMode = 'current'; // 'current' | 'treated'
+const _NO_TREATMENT = { wall_panel_mode: 'none', side_panel_mode: 'none', bass_trap_mode: 'none', ceiling_panel_mode: 'none' };
+
+function _getRoomDataForView() {
+  if (_treatmentViewMode === 'current') {
+    return {
+      ...roomState,
+      environment: { ...roomState.environment, treatment: { ..._NO_TREATMENT } }
+    };
+  }
+  return roomState;
+}
+
+document.getElementById('treatmentToggle')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.tt-btn');
+  if (!btn) return;
+  const view = btn.dataset.view;
+  if (view === _treatmentViewMode) return;
+  _treatmentViewMode = view;
+  document.querySelectorAll('.tt-btn').forEach(b => b.classList.toggle('tt-active', b.dataset.view === view));
+  if (room3D?.update) room3D.update();
+});
+
 const room3D = initRoom3D({
   mountId: "roomCanvas",
-  getRoomData: () => roomState,
+  getRoomData: () => _getRoomDataForView(),
   mode: "setup",
   onSpeakerDrag({ spk_spacing_m, spk_front_m }) {
     if (typeof _markDirty === 'function') _markDirty();
