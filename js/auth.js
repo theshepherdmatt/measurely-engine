@@ -574,6 +574,9 @@
                 _updateNav(_pb.authStore.isValid ? _pb.authStore.model : null);
                 _notify(_pb.authStore.isValid ? _pb.authStore.model : null);
             });
+
+            // Signal that auth state is now known — listeners can safely check isAuth()
+            window.dispatchEvent(new CustomEvent('mly:authReady'));
         },
 
         async signInWithGoogle() {
