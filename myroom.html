@@ -529,7 +529,40 @@ let roomState = structuredClone(DEFAULT_ROOM_STATE);
 ------------------------------------------ */
 // ── Treatment view toggle ─────────────────────────────────────────────────────
 let _treatmentViewMode = 'current'; // 'current' | 'treated'
+let _treatmentPlan = null;          // saved Fix My Room plan (from PocketBase)
+
 const _NO_TREATMENT = { wall_panel_mode: 'none', side_panel_mode: 'none', bass_trap_mode: 'none', ceiling_panel_mode: 'none' };
+
+// Build the "treated" room state from the saved plan, or fall back to roomState's own treatment
+function _buildTreatedState() {
+  if (!_treatmentPlan) return roomState; // no plan — show current configured treatment
+
+  const layout   = _treatmentPlan.layout_config   || {};
+  const shopping = _treatmentPlan.shopping_list    || [];
+  const ids      = new Set(shopping.map(t => t.id));
+
+  return {
+    ...roomState,
+    setup: {
+      ...roomState.setup,
+      subwoofer: ids.has('subwoofer') ? true : roomState.setup?.subwoofer
+    },
+    environment: {
+      ...roomState.environment,
+      furniture: {
+        ...roomState.environment.furniture,
+        opt_area_rug: ids.has('rug')   ? true : roomState.environment.furniture?.opt_area_rug,
+        opt_sofa:     ids.has('sofa')  ? true : roomState.environment.furniture?.opt_sofa,
+      },
+      treatment: {
+        wall_panel_mode:    layout.wall_panel_mode    ?? 'none',
+        side_panel_mode:    layout.side_panel_mode    ?? 'none',
+        bass_trap_mode:     layout.bass_trap_mode     ?? 'none',
+        ceiling_panel_mode: layout.ceiling_panel_mode ?? 'none',
+      }
+    }
+  };
+}
 
 function _getRoomDataForView() {
   if (_treatmentViewMode === 'current') {
@@ -538,7 +571,21 @@ function _getRoomDataForView() {
       environment: { ...roomState.environment, treatment: { ..._NO_TREATMENT } }
     };
   }
-  return roomState;
+  return _buildTreatedState();
+}
+
+// Load the saved Fix My Room plan and refresh the 3D view if in treated mode
+async function _loadTreatmentPlan() {
+  try {
+    const plan = await window.MeasurelySync?.pullTreatment();
+    if (plan) {
+      _treatmentPlan = plan;
+      // Show a label on the treated button if a plan exists
+      const btn = document.getElementById('ttTreated');
+      if (btn) btn.textContent = 'Treated room ✦';
+      if (_treatmentViewMode === 'treated' && room3D?.update) room3D.update();
+    }
+  } catch (_) {}
 }
 
 document.getElementById('treatmentToggle')?.addEventListener('click', (e) => {
@@ -944,6 +991,7 @@ window.addEventListener('DOMContentLoaded', () => {
         renderAllSections();
         console.log('[Room] Cloud room applied');
       }
+      await _loadTreatmentPlan();
     }
   });
   // init() checks auth state and fires onAuthChange for already-logged-in users,
