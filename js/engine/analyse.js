@@ -61,8 +61,14 @@ function _smoothCurve(y, window = 9) {
 function assessValidity(ir, fs) {
     if (!ir || ir.length === 0) return { valid: false, reason: 'empty_impulse_response' };
 
-    const absIr = Array.from(ir, Math.abs);
-    const peak  = Math.max(...absIr);
+    // Use a loop instead of Math.max(...absIr) — spreading large typed arrays
+    // blows the call stack on 48kHz/96kHz files (>65k elements).
+    let peak = 0;
+    const absIr = new Float32Array(ir.length);
+    for (let i = 0; i < ir.length; i++) {
+        absIr[i] = Math.abs(ir[i]);
+        if (absIr[i] > peak) peak = absIr[i];
+    }
 
     if (peak < 1e-4) return { valid: false, reason: 'no_signal_detected' };
 
