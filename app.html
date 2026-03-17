@@ -1404,6 +1404,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 </script>
 
+<script>
+// Remove page-entering after animation completes so body no longer acts as a
+// containing block for position:fixed elements (fixes modal scroll offset bug).
+document.body.addEventListener('animationend', function onPageIn(e) {
+    if (e.animationName === 'page-slide-in') {
+        document.body.classList.remove('page-entering');
+        document.body.removeEventListener('animationend', onPageIn);
+    }
+});
+</script>
+
 </body>
 
 </html>
