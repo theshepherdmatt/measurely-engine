@@ -4,7 +4,7 @@
  */
 (function () {
     'use strict';
-    const LS_ROOM = 'measurely_room', LS_SESSIONS = 'measurely_sessions', LS_SPEAKER = 'mly.speaker.key', LS_ONBOARD = 'measurely_onboarded', LS_PENDING_PROFILE = 'mly_pending_profile';
+    const LS_ROOM = 'measurely_room', LS_SESSIONS = 'measurely_sessions', LS_TREATMENT = 'measurely_treatment', LS_SPEAKER = 'mly.speaker.key', LS_ONBOARD = 'measurely_onboarded', LS_PENDING_PROFILE = 'mly_pending_profile';
     const NO_CANCEL = { requestKey: null };
 
     function _pb() { const g = window._pb; return (typeof g === 'function') ? g() : null; }
@@ -196,17 +196,19 @@
     // -------------------------------------------------------------------------
 
     async function pushTreatment(data) {
-        if (!_authenticated()) return;
-        const pb = _pb(), userId = _userId();
-        const roomRecord = await pb.collection('rooms').getFirstListItem(_f('user', userId), NO_CANCEL).catch(() => null);
-        const payload = {
-            user: userId,
-            room: roomRecord?.id ?? null,
+        // Always persist to localStorage first so it survives page navigation without auth.
+        const localPlan = {
             budget: data.budget ?? 0,
             shopping_list: data.shopping_list ?? [],
             layout_config: data.layout_config ?? {},
             status: data.status ?? 'saved'
         };
+        try { localStorage.setItem(LS_TREATMENT, JSON.stringify(localPlan)); } catch (_) {}
+
+        if (!_authenticated()) return;
+        const pb = _pb(), userId = _userId();
+        const roomRecord = await pb.collection('rooms').getFirstListItem(_f('user', userId), NO_CANCEL).catch(() => null);
+        const payload = { user: userId, room: roomRecord?.id ?? null, ...localPlan };
         _setState('syncing', { op: 'pushTreatment' });
         try {
             const existing = await pb.collection('treatments').getFirstListItem(_f('user', userId), NO_CANCEL).catch(() => null);
@@ -217,18 +219,29 @@
     }
 
     async function pullTreatment() {
-        if (!_authenticated()) return null;
+        // localStorage first — instant, works offline and for unauthenticated users.
+        let localPlan = null;
+        try {
+            const raw = localStorage.getItem(LS_TREATMENT);
+            if (raw) localPlan = JSON.parse(raw);
+        } catch (_) {}
+
+        if (!_authenticated()) return localPlan;
+
+        // Try PocketBase; on success cache result locally and return it.
         const pb = _pb(), userId = _userId();
         try {
             const record = await pb.collection('treatments').getFirstListItem(_f('user', userId), NO_CANCEL).catch(() => null);
-            if (!record) return null;
-            return {
+            if (!record) return localPlan;
+            const plan = {
                 budget: record.budget ?? 0,
                 shopping_list: _parseJson(record.shopping_list, []),
                 layout_config: _parseJson(record.layout_config, {}),
                 status: record.status ?? 'saved'
             };
-        } catch (err) { _syncFail('pullTreatment', err); return null; }
+            try { localStorage.setItem(LS_TREATMENT, JSON.stringify(plan)); } catch (_) {}
+            return plan;
+        } catch (err) { _syncFail('pullTreatment', err); return localPlan; }
     }
 
     window.MeasurelySync = { pushRoom, pullRoom, pushSession, pullAll, pushLocalData, pushProfile, pullProfile, pushTreatment, pullTreatment, hasPendingData: () => false, getSyncState: () => _syncState };

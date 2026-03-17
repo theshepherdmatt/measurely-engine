@@ -982,6 +982,8 @@ window.addEventListener('DOMContentLoaded', () => {
   // init() checks auth state and fires onAuthChange for already-logged-in users,
   // ensuring the 3D scene is always in sync with PocketBase on page load.
   window.MeasurelyAuth?.init();
+  // Also load treatment from localStorage immediately (no auth needed with fallback).
+  _loadTreatmentPlan();
 });
 
 // Dismiss the loading overlay after the first rendered frame

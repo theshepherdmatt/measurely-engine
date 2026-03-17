@@ -589,7 +589,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
     window.MeasurelyAuth?.init();
-    initDashboardRoom();
+    initDashboardRoom().then(() => {
+        // Load treatment plan after room is ready.
+        // onAuthChange fires during init() before room3D exists, so we do it here too.
+        _simLoadTreatmentPlan();
+    });
 });
 </script>
 
