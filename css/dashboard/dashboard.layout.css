@@ -75,8 +75,10 @@
    ========================= */
 
 .sample-wav-link {
-  display: block;
-  margin-top: 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
   background: none;
   border: none;
   padding: 0;
@@ -86,9 +88,10 @@
   cursor: pointer;
   text-align: left;
   transition: color 0.15s;
+  line-height: 1;
 }
-.sample-wav-link:hover { color: #818cf8; text-decoration: underline; }
-.sample-wav-link:disabled { color: #4b5563; cursor: wait; text-decoration: none; }
+.sample-wav-link:hover { color: #818cf8; }
+.sample-wav-link:disabled { color: #4b5563; cursor: wait; }
 
 .rew-guide {
   margin-top: 0.6rem;
