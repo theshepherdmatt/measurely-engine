@@ -193,9 +193,9 @@
             </div>
 
             <!-- SAVE TO CLOUD NUDGE — shown only when user is not signed in -->
-            <div id="cloudSyncBanner" hidden
+            <div id="cloudSyncBanner"
                  class="card glass-panel animate-enter"
-                 style="margin-bottom:1rem;padding:0.85rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;border-left:3px solid #f59e0b;">
+                 style="display:none;margin-bottom:1rem;padding:0.85rem 1.25rem;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;border-left:3px solid #f59e0b;">
                 <div>
                     <strong style="font-size:0.875rem;">Your data is saved locally</strong>
                     <p style="font-size:0.78rem;color:var(--c-text-muted,#94a3b8);margin:0.2rem 0 0;">
@@ -1386,6 +1386,36 @@
             else if (s === 'ok')   _setOk();
             else if (s === 'error') _setError();
         });
+
+        // ── Cloud sync banner visibility ──────────────────────────────────────
+        (function () {
+            var banner   = document.getElementById('cloudSyncBanner');
+            var DISMISS_KEY = 'mly_banner_dismissed';
+
+            function showBanner() {
+                if (!banner || localStorage.getItem(DISMISS_KEY)) return;
+                banner.style.display = 'flex';
+            }
+            function hideBanner() {
+                if (banner) banner.style.display = 'none';
+            }
+
+            document.getElementById('cloudSyncDismiss')?.addEventListener('click', function () {
+                hideBanner();
+                localStorage.setItem(DISMISS_KEY, '1');
+            });
+            document.getElementById('cloudSyncSignIn')?.addEventListener('click', function () {
+                window.MeasurelyAuth?.openModal('signin');
+            });
+
+            window.addEventListener('mly:authReady', function () {
+                if (window.MeasurelyAuth?.getUser()) hideBanner(); else showBanner();
+            }, { once: true });
+
+            window.MeasurelyAuth?.onAuthChange(function (user) {
+                if (user) hideBanner(); else showBanner();
+            });
+        }());
 
         // Set initial state once auth is known
         window.addEventListener('mly:authReady', function () {
