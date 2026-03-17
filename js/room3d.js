@@ -900,13 +900,14 @@ function rebuild() {
 
     // ── Rug (local coords: centred in front of sphere) ──
     if (VISIBILITY.furniture.rug && room.opt_area_rug) {
+      const rugIsNew = !!room._highlight_rug;
       const rug = new THREE.Mesh(
         new THREE.PlaneGeometry(room.width_m * 0.45, room.length_m * 0.35),
         new THREE.MeshBasicMaterial({
-          color:       0x818cf8, // Indigo-400 — slightly lighter to read as rug
+          color:       rugIsNew ? 0x10b981 : 0x818cf8, // green if recommended by treatment plan, indigo if existing
           wireframe:   true,
           transparent: true,
-          opacity:     0.22,
+          opacity:     rugIsNew ? 0.45 : 0.22,
           depthWrite:  false,
           depthTest:   true,
           side: THREE.DoubleSide

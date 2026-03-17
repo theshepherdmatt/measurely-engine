@@ -447,6 +447,7 @@ function _simBuildTreatedState() {
     const ids      = new Set(shopping.map(t => t.id));
     return {
         ...base,
+        _highlight_rug: ids.has('rug'), // flag for room3d to colour rug green
         setup: { ...base.setup, subwoofer: ids.has('subwoofer') ? true : base.setup?.subwoofer },
         environment: {
             ...base.environment,
