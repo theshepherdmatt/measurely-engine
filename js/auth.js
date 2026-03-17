@@ -72,27 +72,45 @@
     async function _postLoginHandshake(isNewUser = false) {
         window.toast?.('Syncing your room…', 'info');
 
+        // Snapshot local room BEFORE pullRoom() can overwrite localStorage.
+        let localRoom = null, localSavedAt = null;
+        try {
+            const raw = localStorage.getItem('measurely_room');
+            if (raw) {
+                localRoom = JSON.parse(raw);
+                localSavedAt = localRoom.saved_at ? new Date(localRoom.saved_at) : null;
+            }
+        } catch (_) {}
+
         const roomData = await window.MeasurelySync?.pullRoom();
         await window.MeasurelySync?.pullProfile();
 
         if (!roomData) {
-            // No PocketBase room record yet.
-            // PRESERVE any onboarding data already in localStorage — don't overwrite it.
-            // Only seed defaults if localStorage is also empty.
-            const hasLocal = !!localStorage.getItem('measurely_room');
-            if (!hasLocal) {
+            // No PocketBase room record yet — push whatever we have locally (or seed defaults).
+            if (!localRoom) {
                 try { localStorage.setItem('measurely_room', JSON.stringify(_DEFAULT_ROOM)); } catch (_) {}
+            } else {
+                // Restore local snapshot in case pullRoom cleared/changed it.
+                try { localStorage.setItem('measurely_room', JSON.stringify(localRoom)); } catch (_) {}
             }
-            // Push whatever is now in localStorage (onboarding data or seeded defaults) to PB.
             await window.MeasurelySync?.pushRoom();
-            // Signal room3D to rebuild with the current localStorage room.
             try {
                 const seeded = JSON.parse(localStorage.getItem('measurely_room'));
                 if (seeded) window.dispatchEvent(new CustomEvent('measurely:data-ready', { detail: { room: seeded } }));
             } catch (_) {}
+        } else {
+            // PocketBase has a room — but local onboarding data may be newer.
+            // Compare timestamps: if local saved_at is more recent than PB updated, local wins.
+            const pbSavedAt = roomData.saved_at ? new Date(roomData.saved_at) : null;
+            const localIsNewer = localRoom && localSavedAt && pbSavedAt && localSavedAt > pbSavedAt;
+            if (localIsNewer) {
+                // Fresh onboarding data — push it up and signal room3D.
+                try { localStorage.setItem('measurely_room', JSON.stringify(localRoom)); } catch (_) {}
+                await window.MeasurelySync?.pushRoom();
+                window.dispatchEvent(new CustomEvent('measurely:data-ready', { detail: { room: localRoom } }));
+            }
+            // Otherwise PB data is current — pullRoom() already wrote it to localStorage.
         }
-        // If roomData exists, pullRoom() already wrote it to localStorage and
-        // dispatched measurely:data-ready — nothing extra needed here.
 
         await window.MeasurelySync?.pushLocalData();
     }

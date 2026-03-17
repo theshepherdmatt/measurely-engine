@@ -673,6 +673,104 @@ document.getElementById('sboxLaunchBtn')?.addEventListener('click', () => {
     </div>
 </section>
 
+<!-- HIRE THE KIT -->
+<section id="hire-kit" class="section section--centered" data-animate>
+    <div class="hero-eyebrow" style="margin-bottom:1.25rem">Coming Soon</div>
+    <h2>Don't have a measurement mic?<br><span class="grad-text">Hire the Measurely Kit.</span></h2>
+    <div class="divider"></div>
+    <p style="max-width:46rem;margin:0 auto 3rem;color:var(--text-secondary);">
+        The Measurely Box is a plug-and-play sweep device. Borrow it for a weekend, connect it to your account,
+        and run a calibrated measurement straight from the website — no REW, no microphone, no faff.
+        Your results sync to your dashboard the moment the sweep finishes.
+    </p>
+
+    <div class="kit-steps">
+        <div class="kit-step" data-animate data-delay="1">
+            <div class="kit-step-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+            </div>
+            <h3>Hire the box</h3>
+            <p>Reserve a Measurely Kit online. We post it the next working day, you return it in the prepaid envelope.</p>
+        </div>
+        <div class="kit-step" data-animate data-delay="2">
+            <div class="kit-step-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12" cy="20" r="1" fill="currentColor"/></svg>
+            </div>
+            <h3>Connect to WiFi</h3>
+            <p>Plug in, scan the QR code, and the box links to your Measurely account in under a minute.</p>
+        </div>
+        <div class="kit-step" data-animate data-delay="3">
+            <div class="kit-step-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            </div>
+            <h3>Run a sweep</h3>
+            <p>Hit the button from any page on the website. The kit plays a calibrated sweep and records the room response.</p>
+        </div>
+        <div class="kit-step" data-animate data-delay="4">
+            <div class="kit-step-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            <h3>Results appear instantly</h3>
+            <p>Scores, commentary, and treatment recommendations sync to your dashboard the moment the sweep finishes.</p>
+        </div>
+    </div>
+
+    <div class="kit-cta-wrap" id="kitCtaWrap">
+        <button class="btn btn-primary" id="kitInterestBtn" style="min-width:220px">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.6 3.4 2 2 0 0 1 3.57 1h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.54a16 16 0 0 0 6.07 6.07l.92-.92a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+            Register Your Interest
+        </button>
+        <p class="kit-cta-note">No commitment. We'll let you know when it's available.</p>
+    </div>
+</section>
+
+<style>
+.grad-text {
+    background: var(--gradient-purple);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+.kit-steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2rem;
+    margin: 0 auto 3.5rem;
+    max-width: 1000px;
+}
+@media (max-width: 900px) { .kit-steps { grid-template-columns: repeat(2,1fr); gap: 2.5rem; } }
+@media (max-width: 520px)  { .kit-steps { grid-template-columns: 1fr; } }
+
+.kit-step { text-align: center; }
+
+.kit-step-icon {
+    width: 4rem; height: 4rem;
+    border-radius: 1rem;
+    background: var(--glass);
+    border: 1px solid var(--border-soft);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1rem;
+    color: var(--purple-400);
+    box-shadow: 0 4px 16px rgba(0,0,0,.3);
+}
+.kit-step h3 { font-size: 1rem; font-weight: 700; margin-bottom: 0.4rem; }
+.kit-step p  { font-size: 0.9rem; color: var(--text-secondary); margin: 0; }
+
+.kit-cta-wrap { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
+.kit-cta-note { font-size: 0.85rem; color: var(--text-muted); margin: 0; }
+
+.kit-interest-confirm {
+    display: flex; align-items: center; gap: 0.6rem;
+    background: rgba(168,85,247,0.12);
+    border: 1px solid rgba(168,85,247,0.3);
+    border-radius: 0.75rem;
+    padding: 0.85rem 1.5rem;
+    color: var(--purple-400);
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+</style>
+
 <!-- WHAT YOU GET -->
 <section class="section section--centered">
     <h2>What Measurely tells you</h2>
@@ -871,6 +969,17 @@ var obs = new IntersectionObserver(function(entries) {
     entries.forEach(function(e) { if (e.isIntersecting) { e.target.classList.add('is-visible'); obs.unobserve(e.target); } });
 }, { threshold: 0.12 });
 document.querySelectorAll('[data-animate]').forEach(function(el) { obs.observe(el); });
+
+// ── Hire the Kit — register interest ─────────────────────────
+document.getElementById('kitInterestBtn')?.addEventListener('click', function() {
+    var wrap = document.getElementById('kitCtaWrap');
+    if (!wrap) return;
+    wrap.innerHTML =
+        '<div class="kit-interest-confirm">' +
+        '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>' +
+        'Thanks — we\'ll be in touch when the kit is ready.' +
+        '</div>';
+});
 
 // ── FAQ accordion ────────────────────────────────────────────
 document.querySelectorAll('.faq-q').forEach(function(btn) {

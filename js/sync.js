@@ -144,14 +144,13 @@
     // Profile
     // -------------------------------------------------------------------------
 
-    async function pushProfile(data, avatarFile) {
+    async function pushProfile(data) {
         if (!_authenticated()) return;
         const pb = _pb(), userId = _userId();
         const form = new FormData();
         form.append('gear_list', JSON.stringify(data.gear_list ?? []));
         form.append('genres', JSON.stringify(data.genres ?? []));
         form.append('public_profile', data.public_profile ? 'true' : 'false');
-        if (avatarFile instanceof File) form.append('avatar', avatarFile);
         _setState('syncing', { op: 'pushProfile' });
         try {
             await pb.collection('users').update(userId, form, NO_CANCEL);

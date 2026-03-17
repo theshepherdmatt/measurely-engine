@@ -482,16 +482,16 @@ const steps = [
         min: 0.5, max: 2.0, step: 0.01
       },
       {
-        key: "setup.toe_in_deg",
-        label: "Toe-in angle",
-        sub: "Degrees each speaker is rotated inward",
-        min: 0, max: 45, step: 1
-      },
-      {
         key: "setup.listener_front_m",
         label: "Listening distance",
         sub: "From speaker plane to your ears",
         min: 0.5, max: 6.0, step: 0.05
+      },
+      {
+        key: "setup.toe_in_deg",
+        label: "Toe-in angle",
+        sub: "Degrees each speaker is rotated inward",
+        min: 0, max: 45, step: 1
       },
       {
         key: "setup.listener_offset_m",
@@ -959,6 +959,11 @@ function finish() {
     try {
         localStorage.setItem('measurely_room', JSON.stringify(payload));
         console.log("[Wizard] Room saved to localStorage:", payload);
+
+        // If already signed in, push straight to PocketBase — don't wait for OAuth handshake.
+        if (window.MeasurelySync && window.MeasurelyAuth?.getUser()) {
+            window.MeasurelySync.pushRoom().catch(() => {});
+        }
 
         btn.textContent = "Room saved — let's measure →";
         btn.style.background = "linear-gradient(135deg, #10b981, #059669)";

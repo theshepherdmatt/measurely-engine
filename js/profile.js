@@ -31,7 +31,7 @@
     let _backdrop   = null;
     let _profile    = {};
     let _gearItems  = [];   // working copy while the editor is open
-    let _avatarFile = null; // pending file upload
+    let _avatarFile = null; // unused — avatar upload disabled
 
     // ── DOM injection ────────────────────────────────────────────────────────
     function _inject() {
@@ -62,10 +62,6 @@
                 <img id="mlyProfileAvatarImg" src="" alt="" style="display:none">
                 <span id="mlyProfileAvatarInitial">?</span>
             </div>
-            <label class="mly-profile-avatar-label" tabindex="0">
-                Change photo
-                <input type="file" id="mlyProfileAvatarFile" accept="image/*" style="display:none">
-            </label>
         </div>
 
         <!-- Favourite Genres -->
@@ -184,17 +180,6 @@
         _renderGearChips();
     }
 
-    // ── Avatar picker ─────────────────────────────────────────────────────────
-    function _onAvatarPick(e) {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        _avatarFile = file;
-        const url = URL.createObjectURL(file);
-        const img = document.getElementById('mlyProfileAvatarImg');
-        const ini = document.getElementById('mlyProfileAvatarInitial');
-        if (img) { img.src = url; img.style.display = 'block'; }
-        if (ini) ini.style.display = 'none';
-    }
 
     // ── Event wiring ─────────────────────────────────────────────────────────
     function _bindEvents() {
@@ -207,8 +192,7 @@
         document.getElementById('mlyGearInput')?.addEventListener('keydown', e => {
             if (e.key === 'Enter') { e.preventDefault(); _addGearItem(); }
         });
-        document.getElementById('mlyProfileAvatarFile')?.addEventListener('change', _onAvatarPick);
-        document.getElementById('mlyProfileSave')?.addEventListener('click', _save);
+document.getElementById('mlyProfileSave')?.addEventListener('click', _save);
     }
 
     // ── Populate form from a profile object ──────────────────────────────────
@@ -277,7 +261,7 @@
         try {
             // pushProfile caches locally first; if not authenticated it returns
             // without throwing (data is in localStorage).
-            await window.MeasurelySync?.pushProfile(formData, _avatarFile);
+            await window.MeasurelySync?.pushProfile(formData);
         } catch (err) {
             console.error('[profile] save failed:', err);
             if (status) { status.textContent = 'Save failed — please try again'; status.classList.add('err'); }
@@ -301,19 +285,7 @@
             return;
         }
 
-        // Authenticated path — refresh avatar in nav then close
-        if (_avatarFile) {
-            try {
-                const user = window.MeasurelyAuth?.getUser();
-                if (user && window._pb) {
-                    const fresh = await window._pb().collection('users').getOne(user.id);
-                    window._pb().authStore.save(window._pb().authStore.token, fresh);
-                }
-            } catch (_) {}
-        }
-
-        _avatarFile = null;
-        if (status) { status.textContent = 'Saved ✓'; status.classList.add('ok'); }
+if (status) { status.textContent = 'Saved ✓'; status.classList.add('ok'); }
         btn.disabled    = false;
         btn.textContent = 'Save Profile';
         setTimeout(() => {
@@ -349,9 +321,6 @@
     function closeModal() {
         _backdrop?.classList.remove('open');
         document.body.classList.remove('mly-auth-open');
-        _avatarFile = null;
-    }
-
     /** Returns the cached profile (populated after sign-in or openModal). */
     function getProfile() { return _profile; }
 
