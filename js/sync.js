@@ -126,7 +126,7 @@
         _setState('syncing', { op: 'pullAll' });
         try {
             await pullRoom();
-            const sessionRecords = await pb.collection('sessions').getList(1, 50, { filter: _f('user', userId), sort: '-timestamp', ...NO_CANCEL }).catch(() => null);
+            const sessionRecords = await pb.collection('sessions').getList(1, 50, { filter: _f('user', userId), sort: '-created', ...NO_CANCEL }).catch(() => null);
             if (sessionRecords?.items?.length) {
                 const cloudSessions = sessionRecords.items.map(r => ({
                     id: r.session_id, label: r.label, timestamp: r.timestamp, overall_score: r.overall_score,

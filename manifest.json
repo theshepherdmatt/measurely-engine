@@ -1,0 +1,16 @@
+{
+  "name": "Measurely",
+  "short_name": "Measurely",
+  "description": "Room acoustics analysis — upload a sweep and hear what your space is doing to the sound.",
+  "start_url": "/app.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "/icons/dave.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
