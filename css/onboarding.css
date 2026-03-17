@@ -1375,10 +1375,14 @@ body.flyby-active #cinemaVignette {
 
 /* ── CTA button ────────────────────────────────────── */
 .flyby-completion-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
   margin-bottom: 0.8rem;
 }
 
-.flyby-completion-actions .btn-primary {
+.flyby-completion-actions .btn-primary,
+.flyby-completion-actions .btn-outline {
   width: 100%;
   justify-content: center;
   height: 44px;
