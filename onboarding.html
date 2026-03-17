@@ -101,6 +101,34 @@
   </div>
 </div>
 
+<!-- Desktop flyby companion — fills right column during cinematic sequence -->
+<aside id="flybyNextPanel" aria-hidden="true">
+  <div class="fnp-inner">
+    <div class="fnp-progress">
+      <div class="fnp-step fnp-step--done">
+        <span class="fnp-step-num">
+          <svg width="11" height="11" viewBox="0 0 14 14" fill="none" aria-hidden="true"><polyline points="2,7 5.5,10.5 12,3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <span class="fnp-step-lbl">Room setup</span>
+      </div>
+      <div class="fnp-progress-line"></div>
+      <div class="fnp-step fnp-step--next">
+        <span class="fnp-step-num">2</span>
+        <span class="fnp-step-lbl">Measure</span>
+      </div>
+    </div>
+
+    <h2 class="fnp-title">Room mapped.</h2>
+    <p class="fnp-desc">Your listening room is saved. Now we need to measure what it actually sounds like.</p>
+
+    <div class="fnp-next-block">
+      <p class="fnp-next-eyebrow">Up next</p>
+      <p class="fnp-next-title">Upload your WAV file</p>
+      <p class="fnp-next-sub">A short sine sweep recorded at your listening position — then Measurely does the rest.</p>
+    </div>
+  </div>
+</aside>
+
 <!-- WELCOME SCREEN (first-visit only) -->
 <div id="welcomeScreen">
   <canvas id="welcomeWaves" aria-hidden="true"></canvas>
@@ -1040,12 +1068,14 @@ function finish() {
                     document.getElementById('completionModal')?.setAttribute('aria-hidden', 'true');
                 }, 350);
                 document.body.classList.remove('flyby-active');
+                document.getElementById('flybyNextPanel')?.setAttribute('aria-hidden', 'true');
                 window.room3D?.resetCamera?.();
             });
         }
 
         // ── Enter cinematic mode — expand canvas, fade out UI ─────
         document.body.classList.add('flyby-active');
+        document.getElementById('flybyNextPanel')?.removeAttribute('aria-hidden');
 
         if (window.room3D?.flyby) {
             window.room3D.flyby(showCompletionModal);

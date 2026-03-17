@@ -1203,16 +1203,15 @@ body.flyby-active .header-onboarding {
   transition: opacity 0.4s ease;
 }
 
-/* ── Desktop: expand canvas to fill the gap left by the hidden panel ── */
+/* ── Desktop: canvas stays in left column; right panel shows next-steps ── */
 @media (min-width: 900px) {
   body.flyby-active #roomCanvas {
-    position: fixed;
-    inset: 0;
-    width: 100vw !important;
-    height: 100vh !important;
-    transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
-                height 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
     z-index: 20;
+  }
+
+  /* vignette only covers the canvas column, not the right panel */
+  body.flyby-active #cinemaVignette {
+    right: 460px;
   }
 
   body.flyby-active #questionPanel {
@@ -1224,6 +1223,14 @@ body.flyby-active .header-onboarding {
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.35s ease;
+  }
+
+  /* Show the next-steps companion panel */
+  body.flyby-active #flybyNextPanel {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0);
+    transition: opacity 0.55s ease 0.35s, transform 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) 0.35s;
   }
 }
 
@@ -1429,4 +1436,143 @@ body.flyby-active #cinemaVignette {
 
 .flyby-back-link:hover {
   opacity: 1;
+}
+
+
+/* ======================================================
+   FLYBY NEXT-STEPS PANEL (desktop companion)
+   ====================================================== */
+
+#flybyNextPanel {
+  /* Hidden on mobile — the landscape flyby handles it differently */
+  display: none;
+}
+
+@media (min-width: 900px) {
+  #flybyNextPanel {
+    display: flex;
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 460px;
+    flex-direction: column;
+    justify-content: center;
+    padding: 2.5rem 2rem;
+    z-index: 30;
+
+    /* Hidden until flyby-active */
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(18px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+}
+
+.fnp-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+}
+
+/* ── Step progress row ─────────────────────────────── */
+
+.fnp-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.fnp-step {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.fnp-step-num {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border: 1.5px solid currentColor;
+  flex-shrink: 0;
+}
+
+.fnp-step--done {
+  color: #10b981;
+}
+
+.fnp-step--done .fnp-step-num {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.6);
+}
+
+.fnp-step--next {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.fnp-progress-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ── Title & description ───────────────────────────── */
+
+.fnp-title {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: #f0f4f8;
+  margin: 0;
+  line-height: 1.15;
+}
+
+.fnp-desc {
+  font-size: 0.875rem;
+  color: var(--c-text-muted);
+  line-height: 1.65;
+  margin: 0;
+}
+
+/* ── Next-step block ───────────────────────────────── */
+
+.fnp-next-block {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding-top: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.fnp-next-eyebrow {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--c-accent);
+  margin: 0 0 0.35rem;
+  opacity: 0.85;
+}
+
+.fnp-next-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #e5e7eb;
+  margin: 0;
+}
+
+.fnp-next-sub {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.35);
+  margin: 0.3rem 0 0;
+  line-height: 1.55;
 }
