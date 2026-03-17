@@ -88,6 +88,12 @@
             <!-- Mode badge overlay on canvas -->
             <div class="ra-canvas-badge" id="raModesBadge"></div>
 
+            <!-- Current / Treated toggle -->
+            <div id="simTreatmentToggle" class="treatment-toggle" style="display:none;">
+                <button class="tt-btn tt-active" data-view="current">Current room</button>
+                <button class="tt-btn" id="simTtTreated" data-view="treated">Treated room</button>
+            </div>
+
         </div>
 
 
@@ -418,6 +424,69 @@ window.attachHighlightListeners = attachHighlightListeners;
 
 window.__liveRoomState = null;
 
+// ── Treatment toggle state ────────────────────────────────────
+let _simViewMode = 'current'; // 'current' | 'treated'
+let _simTreatmentPlan = null;
+const _SIM_NO_TREATMENT = { wall_panel_mode: 'none', side_panel_mode: 'none', bass_trap_mode: 'none', ceiling_panel_mode: 'none' };
+
+function _simBuildTreatedState() {
+    const base = window.__liveRoomState;
+    if (!base || !_simTreatmentPlan) return base;
+    const layout   = _simTreatmentPlan.layout_config  || {};
+    const shopping = _simTreatmentPlan.shopping_list   || [];
+    const ids      = new Set(shopping.map(t => t.id));
+    return {
+        ...base,
+        setup: { ...base.setup, subwoofer: ids.has('subwoofer') ? true : base.setup?.subwoofer },
+        environment: {
+            ...base.environment,
+            furniture: {
+                ...base.environment?.furniture,
+                opt_area_rug: ids.has('rug')  ? true : base.environment?.furniture?.opt_area_rug,
+                opt_sofa:     ids.has('sofa') ? true : base.environment?.furniture?.opt_sofa,
+            },
+            treatment: {
+                wall_panel_mode:    layout.wall_panel_mode    ?? 'none',
+                side_panel_mode:    layout.side_panel_mode    ?? 'none',
+                bass_trap_mode:     layout.bass_trap_mode     ?? 'none',
+                ceiling_panel_mode: layout.ceiling_panel_mode ?? 'none',
+            }
+        }
+    };
+}
+
+function _simGetRoomForView() {
+    const base = window.__liveRoomState;
+    if (!base) return base;
+    if (_simViewMode === 'current') {
+        return { ...base, environment: { ...base.environment, treatment: { ..._SIM_NO_TREATMENT } } };
+    }
+    return _simBuildTreatedState();
+}
+
+async function _simLoadTreatmentPlan() {
+    try {
+        const plan = await window.MeasurelySync?.pullTreatment();
+        if (plan) {
+            _simTreatmentPlan = plan;
+            const toggle = document.getElementById('simTreatmentToggle');
+            if (toggle) toggle.style.display = '';
+            const btn = document.getElementById('simTtTreated');
+            if (btn) btn.textContent = 'Treated room ✦';
+        }
+    } catch (_) {}
+}
+
+document.getElementById('simTreatmentToggle')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.tt-btn');
+    if (!btn) return;
+    const view = btn.dataset.view;
+    if (view === _simViewMode) return;
+    _simViewMode = view;
+    document.querySelectorAll('#simTreatmentToggle .tt-btn').forEach(b => b.classList.toggle('tt-active', b.dataset.view === view));
+    if (window.room3D?.update) window.room3D.update();
+});
+
 function isStaticHosting() {
     const h = window.location.hostname;
     if (h === 'localhost' || h === '127.0.0.1') return false;
@@ -465,7 +534,7 @@ async function initDashboardRoom() {
 
     window.room3D = initRoom3D({
         mountId: "dashboardRoomCanvas",
-        getRoomData: () => window.__liveRoomState,
+        getRoomData: () => _simGetRoomForView(),
         mode: "locked"
     });
 
@@ -502,6 +571,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     runSimulation();
                 }
             } catch (_) {}
+            await _simLoadTreatmentPlan();
         }
     });
     window.MeasurelyAuth?.init();
@@ -949,7 +1019,7 @@ const TREATMENTS = [
         deltas: { peaks_dips: 1.4, bandwidth: 1.6, smoothness: 0.6 },
         fixes: ['peaks_dips', 'bandwidth'],
         why: 'Bass piles up in corners. Floor-to-ceiling traps in the rear corners are the single best thing you can do for low-frequency accuracy.',
-        alreadyHas: (r) => ['rear', 'all'].includes(r.bass_trap_mode ?? 'none')
+        alreadyHas: (r) => { const v = window.getNestedRoomValue ? window.getNestedRoomValue(r, 'bass_trap_mode') : r.bass_trap_mode; return ['rear', 'all'].includes(v ?? 'none'); }
     },
     {
         id: 'ceiling-cloud',
@@ -958,7 +1028,7 @@ const TREATMENTS = [
         deltas: { reflections: 1.2, clarity: 1.3, smoothness: 0.3 },
         fixes: ['reflections', 'clarity'],
         why: 'The ceiling reflection arrives about 5ms after the direct sound — just long enough to smear transients and collapse the soundstage. A cloud fixes this.',
-        alreadyHas: (r) => (r.ceiling_panel_mode ?? 'none') === 'cloud'
+        alreadyHas: (r) => { const v = window.getNestedRoomValue ? window.getNestedRoomValue(r, 'ceiling_panel_mode') : r.ceiling_panel_mode; return (v ?? 'none') === 'cloud'; }
     },
     {
         id: 'rear-wall-panels',
@@ -967,7 +1037,7 @@ const TREATMENTS = [
         deltas: { reflections: 0.9, smoothness: 0.7, clarity: 0.4 },
         fixes: ['reflections', 'smoothness'],
         why: 'The rear wall sends a delayed copy of every transient straight back at your head. A couple of broadband panels there buys you more perceived clarity than almost anything else.',
-        alreadyHas: (r) => ['rear', 'both'].includes(r.wall_panel_mode ?? 'none')
+        alreadyHas: (r) => { const v = window.getNestedRoomValue ? window.getNestedRoomValue(r, 'wall_panel_mode') : r.wall_panel_mode; return ['rear', 'both'].includes(v ?? 'none'); }
     },
     {
         id: 'side-panels',
@@ -976,7 +1046,7 @@ const TREATMENTS = [
         deltas: { reflections: 0.8, clarity: 0.8, balance: 0.5 },
         fixes: ['reflections', 'clarity', 'balance'],
         why: 'First-reflection points on both side walls are the primary cause of stereo smear. Get these right and the imaging snaps into focus.',
-        alreadyHas: (r) => (r.side_panel_mode ?? 'none') === 'both'
+        alreadyHas: (r) => { const v = window.getNestedRoomValue ? window.getNestedRoomValue(r, 'side_panel_mode') : r.side_panel_mode; return (v ?? 'none') === 'both'; }
     },
     {
         id: 'front-wall-panels',
@@ -985,7 +1055,7 @@ const TREATMENTS = [
         deltas: { peaks_dips: 0.7, reflections: 0.6, clarity: 0.5 },
         fixes: ['peaks_dips', 'clarity'],
         why: 'Absorption directly behind the speakers reduces comb filtering caused by wall-to-cone reflections — particularly useful for monitors placed close to the front wall.',
-        alreadyHas: (r) => ['front', 'both'].includes(r.wall_panel_mode ?? 'none')
+        alreadyHas: (r) => { const v = window.getNestedRoomValue ? window.getNestedRoomValue(r, 'wall_panel_mode') : r.wall_panel_mode; return ['front', 'both'].includes(v ?? 'none'); }
     },
     {
         id: 'front-bass-traps',
@@ -994,7 +1064,7 @@ const TREATMENTS = [
         deltas: { peaks_dips: 0.9, bandwidth: 1.0, smoothness: 0.4 },
         fixes: ['peaks_dips', 'bandwidth'],
         why: 'Once the rear corners are treated, the front corners are the next biggest modal build-up point. Adding traps here gives you fuller, more even bass across the room.',
-        alreadyHas: (r) => ['front', 'all'].includes(r.bass_trap_mode ?? 'none')
+        alreadyHas: (r) => { const v = window.getNestedRoomValue ? window.getNestedRoomValue(r, 'bass_trap_mode') : r.bass_trap_mode; return ['front', 'all'].includes(v ?? 'none'); }
     },
     {
         id: 'subwoofer',
@@ -1188,6 +1258,12 @@ async function saveFixPlan() {
     // Push to PocketBase treatments collection
     try {
         await window.MeasurelySync?.pushTreatment({ budget, shopping_list, layout_config, status: 'saved' });
+        // Update local plan so toggle works immediately without a page reload
+        _simTreatmentPlan = { budget, shopping_list, layout_config, status: 'saved' };
+        const toggle = document.getElementById('simTreatmentToggle');
+        if (toggle) toggle.style.display = '';
+        const treatedBtn = document.getElementById('simTtTreated');
+        if (treatedBtn) treatedBtn.textContent = 'Treated room ✦';
     } catch (_) {}
 
     toast('Treatment plan saved', 'success');
