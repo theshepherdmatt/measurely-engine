@@ -383,6 +383,11 @@
 ═══════════════════════════════════════ -->
 <script src="js/toast.js"></script>
 
+<!-- Cloud sync — must load before the module script -->
+<script src="https://cdn.jsdelivr.net/npm/pocketbase/dist/pocketbase.umd.js"></script>
+<script src="js/sync.js?v=3"></script>
+<script src="js/auth.js?v=3"></script>
+
 
 <!-- ═══════════════════════════════════════
      DASHBOARD.JS (score loading)
@@ -430,7 +435,13 @@ async function initDashboardRoom() {
         if (ls) roomState = JSON.parse(ls);
     } catch (_) {}
 
-    // 2. Try server only when running against a Pi backend
+    // 2. Try PocketBase when user is authenticated (overrides localStorage with fresh cloud data)
+    try {
+        const cloud = await window.MeasurelySync?.pullRoom();
+        if (cloud) roomState = cloud;
+    } catch (_) {}
+
+    // 3. Try server only when running against a Pi backend
     if (!isStaticHosting()) {
         try {
             const res = await fetch("/api/room/latest");
@@ -475,7 +486,27 @@ async function initDashboardRoom() {
     runSimulation();
 }
 
-document.addEventListener("DOMContentLoaded", initDashboardRoom);
+document.addEventListener("DOMContentLoaded", () => {
+    window.MeasurelyAuth?.onAuthChange(async (user) => {
+        if (user && window.room3D) {
+            // User signed in after page load — refresh room from cloud
+            try {
+                const cloud = await window.MeasurelySync?.pullRoom();
+                if (cloud) {
+                    window.__liveRoomState = { ...cloud };
+                    window.__MEASURELY_ROOM__ = cloud;
+                    window.__baselineRoom = cloud;
+                    window.room3D.update?.();
+                    initSimulate(cloud);
+                    populateSimulateBaseline();
+                    runSimulation();
+                }
+            } catch (_) {}
+        }
+    });
+    window.MeasurelyAuth?.init();
+    initDashboardRoom();
+});
 </script>
 
 

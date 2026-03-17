@@ -63,8 +63,8 @@
         environment: {
             floor_material: 'hard',
             furniture: { opt_area_rug: true, opt_sofa: true, opt_coffee_table: false },
-            treatment: { wall_panel_mode: 'front', side_panel_mode: 'both',
-                         bass_trap_mode: 'corners', ceiling_panel_mode: 'none' }
+            treatment: { wall_panel_mode: 'none', side_panel_mode: 'none',
+                         bass_trap_mode: 'none', ceiling_panel_mode: 'none' }
         }
     };
 
@@ -75,13 +75,24 @@
         const roomData = await window.MeasurelySync?.pullRoom();
         await window.MeasurelySync?.pullProfile();
 
-        if (!roomData || isNewUser) {
-            // New user or empty room record — seed Pro Studio defaults
-            try { localStorage.setItem('measurely_room', JSON.stringify(_DEFAULT_ROOM)); } catch (_) {}
-            // Signal Room3D so it rebuilds with the seeded layout immediately
-            window.dispatchEvent(new CustomEvent('measurely:data-ready', { detail: { room: _DEFAULT_ROOM } }));
+        if (!roomData) {
+            // No PocketBase room record yet.
+            // PRESERVE any onboarding data already in localStorage — don't overwrite it.
+            // Only seed defaults if localStorage is also empty.
+            const hasLocal = !!localStorage.getItem('measurely_room');
+            if (!hasLocal) {
+                try { localStorage.setItem('measurely_room', JSON.stringify(_DEFAULT_ROOM)); } catch (_) {}
+            }
+            // Push whatever is now in localStorage (onboarding data or seeded defaults) to PB.
             await window.MeasurelySync?.pushRoom();
+            // Signal room3D to rebuild with the current localStorage room.
+            try {
+                const seeded = JSON.parse(localStorage.getItem('measurely_room'));
+                if (seeded) window.dispatchEvent(new CustomEvent('measurely:data-ready', { detail: { room: seeded } }));
+            } catch (_) {}
         }
+        // If roomData exists, pullRoom() already wrote it to localStorage and
+        // dispatched measurely:data-ready — nothing extra needed here.
 
         await window.MeasurelySync?.pushLocalData();
     }

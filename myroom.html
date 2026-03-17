@@ -829,8 +829,9 @@ async function finish() {
 }
 
 await loadSavedRoom();
-// Refresh 3D scene with the loaded data before rendering UI fields
+// Refresh 3D scene and UI sliders with the loaded data
 if (room3D?.update) room3D.update();
+renderAllSections();
 
 // ── Cloud sync on login ──────────────────────────────────────────────────────
 // When the user signs in while the page is open, pull their latest room from
@@ -867,18 +868,21 @@ function _applyRoomData(saved) {
   if (room3D?.update) room3D.update();
 }
 
-// Register auth-change listener — fires if the user signs in mid-session
+// Register auth-change listener + initialise auth (pulls fresh cloud data on load)
 window.addEventListener('DOMContentLoaded', () => {
-  window.MeasurelyAuth?.onAuthChange(async (user, prev) => {
-    // Only act on sign-in (prev was null/undefined, now have user)
-    if (user && !prev) {
+  window.MeasurelyAuth?.onAuthChange(async (user) => {
+    if (user) {
       const cloud = await window.MeasurelySync?.pullRoom();
       if (cloud) {
         _applyRoomData(cloud);
-        console.log('[Room] Cloud room applied after sign-in');
+        renderAllSections();
+        console.log('[Room] Cloud room applied');
       }
     }
   });
+  // init() checks auth state and fires onAuthChange for already-logged-in users,
+  // ensuring the 3D scene is always in sync with PocketBase on page load.
+  window.MeasurelyAuth?.init();
 });
 
 // Dismiss the loading overlay after the first rendered frame
