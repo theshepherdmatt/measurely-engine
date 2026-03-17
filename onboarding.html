@@ -1049,10 +1049,17 @@ function finish() {
                 }
             });
 
-            // "Skip & Preview" — go to dashboard without signing in
+            // "Skip & Preview" — go to dashboard without signing in (suppress auth modal)
             document.getElementById('completionPreviewBtn')?.addEventListener('click', () => {
                 document.body.classList.remove('flyby-active');
-                navigateToApp();
+                document.getElementById('completionModal')?.classList.remove('open');
+                if (document.startViewTransition) {
+                    document.startViewTransition(() => { window.location.href = 'app.html?guest=1'; });
+                } else {
+                    document.body.style.transition = 'opacity 0.3s ease';
+                    document.body.style.opacity = '0';
+                    setTimeout(() => { window.location.href = 'app.html?guest=1'; }, 300);
+                }
             });
 
             document.getElementById('completionBackBtn')?.addEventListener('click', () => {

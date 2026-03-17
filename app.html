@@ -1419,11 +1419,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         guard?.remove();
     } else {
         // Not authenticated — remove guard then prompt sign-in.
-        // We open the modal rather than redirecting so guest browsing still works
-        // (user can dismiss/skip the modal and explore the empty dashboard).
+        // Skip the modal if arriving from onboarding via "Skip & Preview".
         guard?.remove();
-        // Small delay so the dashboard paints before the modal opens
-        setTimeout(() => window.MeasurelyAuth?.openModal('signin'), 120);
+        const isGuestEntry = new URLSearchParams(window.location.search).get('guest') === '1';
+        if (!isGuestEntry) {
+            setTimeout(() => window.MeasurelyAuth?.openModal('signin'), 120);
+        }
     }
 });
 </script>
