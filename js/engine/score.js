@@ -243,8 +243,14 @@ function computeSignalIntegrity(ir) {
         return { score: 0.0, snr_db: null, peak: 0.0, noise_floor: null };
     }
 
-    const absIr = Array.from(ir, Math.abs);
-    const peak  = Math.max(...absIr);
+    // Use a loop instead of Math.max(...absIr) — spreading large typed arrays
+    // blows the call stack on 48kHz/96kHz files (>65k elements).
+    let peak = 0;
+    const absIr = new Float32Array(ir.length);
+    for (let i = 0; i < ir.length; i++) {
+        absIr[i] = Math.abs(ir[i]);
+        if (absIr[i] > peak) peak = absIr[i];
+    }
 
     if (peak < SWEEP_PEAK_MIN) {
         return { score: 0.0, snr_db: null, peak, noise_floor: null };
