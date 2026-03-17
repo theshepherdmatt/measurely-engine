@@ -321,6 +321,8 @@ if (status) { status.textContent = 'Saved ✓'; status.classList.add('ok'); }
     function closeModal() {
         _backdrop?.classList.remove('open');
         document.body.classList.remove('mly-auth-open');
+    }
+
     /** Returns the cached profile (populated after sign-in or openModal). */
     function getProfile() { return _profile; }
 
