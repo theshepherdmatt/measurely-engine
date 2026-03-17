@@ -1203,6 +1203,30 @@ body.flyby-active .header-onboarding {
   transition: opacity 0.4s ease;
 }
 
+/* ── Desktop: expand canvas to fill the gap left by the hidden panel ── */
+@media (min-width: 900px) {
+  body.flyby-active #roomCanvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw !important;
+    height: 100vh !important;
+    transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
+                height 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+    z-index: 20;
+  }
+
+  body.flyby-active #questionPanel {
+    transform: translateX(30px);
+    transition: opacity 0.35s ease, transform 0.45s ease;
+  }
+
+  body.flyby-active header {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+  }
+}
+
 body.flyby-active #daveChip {
   opacity: 0 !important;
   pointer-events: none;
