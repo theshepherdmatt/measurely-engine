@@ -471,6 +471,13 @@ async function _simLoadTreatmentPlan() {
             _simTreatmentPlan = plan;
             const btn = document.getElementById('simTtTreated');
             if (btn) btn.textContent = 'Treated room ✦';
+            // Populate the sim dropdowns from the saved layout_config
+            const layout = plan.layout_config || {};
+            const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+            setEl('sim-wall-panels',    layout.wall_panel_mode    || 'none');
+            setEl('sim-bass-traps',     layout.bass_trap_mode     || 'none');
+            setEl('sim-side-panels',    layout.side_panel_mode    || 'none');
+            setEl('sim-ceiling-panels', layout.ceiling_panel_mode || 'none');
         }
     } catch (_) {}
 }
@@ -611,10 +618,12 @@ function initSimulate(room) {
     set('sim-spk-spacing', room.spk_spacing_m  ?? 3.0);
     set('sim-toe-in',      room.toe_in_deg     ?? 21);
 
-    set('sim-wall-panels', room.plan_wall_panels ?? room.wall_panel_mode ?? 'none');
-    set('sim-side-panels', room.plan_side_panels ?? room.side_panel_mode ?? 'none');
-    set('sim-bass-traps', room.plan_bass_traps ?? room.bass_trap_mode ?? 'none');
-    set('sim-ceiling-panels', room.plan_ceiling_panels ?? room.ceiling_panel_mode ?? 'none');
+    // Prefer layout_config (PB treatment plan) → old flat fields → default none
+    const _lc = _simTreatmentPlan?.layout_config || {};
+    set('sim-wall-panels',    _lc.wall_panel_mode    ?? room.plan_wall_panels ?? room.wall_panel_mode    ?? 'none');
+    set('sim-side-panels',    _lc.side_panel_mode    ?? room.plan_side_panels ?? room.side_panel_mode    ?? 'none');
+    set('sim-bass-traps',     _lc.bass_trap_mode     ?? room.plan_bass_traps  ?? room.bass_trap_mode     ?? 'none');
+    set('sim-ceiling-panels', _lc.ceiling_panel_mode ?? room.plan_ceiling_panels ?? room.ceiling_panel_mode ?? 'none');
 
     // Debounce helper to reduce console spam during rapid slider drags
     let _simDebounce = null;
@@ -863,55 +872,48 @@ async function saveSimulateToRoom() {
     if (btn) btn.disabled = true;
 
     // ── Read the dropdowns (current treatment plan)
-    const wallMode    = document.getElementById('sim-wall-panels')?.value ?? "none";
-    const bassMode    = document.getElementById('sim-bass-traps')?.value ?? "none";
-    const ceilMode    = document.getElementById('sim-ceiling-panels')?.value ?? "none";
-    const sideMode    = document.getElementById('sim-side-panels')?.value ?? "none";
+    const wallMode = document.getElementById('sim-wall-panels')?.value  ?? "none";
+    const bassMode = document.getElementById('sim-bass-traps')?.value   ?? "none";
+    const ceilMode = document.getElementById('sim-ceiling-panels')?.value ?? "none";
+    const sideMode = document.getElementById('sim-side-panels')?.value  ?? "none";
 
-    // ── Build a clean payload (do NOT overwrite real room modes)
-    const payload = {
-        ...window.__liveRoomState,
-
-        plan_wall_panels: wallMode,
-        plan_bass_traps: bassMode,
-        plan_side_panels: sideMode,
-        plan_ceiling_panels: ceilMode
+    // ── Build layout_config using the same field names _buildTreatedState() expects
+    const layout_config = {
+        wall_panel_mode:    wallMode,
+        bass_trap_mode:     bassMode,
+        side_panel_mode:    sideMode,
+        ceiling_panel_mode: ceilMode
     };
 
-    // Ensure treatment plan never overwrites real room settings
-    delete payload.wall_panel_mode;
-    delete payload.side_panel_mode;
-    delete payload.bass_trap_mode;
-    delete payload.ceiling_panel_mode;
+    // ── Push to PocketBase treatments collection (same path as saveFixPlan)
+    await window.MeasurelySync?.pushTreatment({
+        budget: 0,
+        shopping_list: [],
+        layout_config,
+        status: 'saved'
+    });
 
-    console.log("[Simulate] Payload being saved:", payload);
-
-    // 1. Always save to localStorage
-    try {
-        localStorage.setItem('measurely_room', JSON.stringify(payload));
-    } catch (_) {}
-
-    // 2. Try server — silent on failure
-    try {
-        const res = await fetch('/api/room/latest', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-        if (!res.ok) console.warn('[Simulate] Server save returned', res.status);
-    } catch (_) {
-        console.log('[Simulate] Server not reachable — saved to localStorage only');
-    }
+    // ── Update local plan and switch 3D to treated view immediately
+    _simTreatmentPlan = { budget: 0, shopping_list: [], layout_config, status: 'saved' };
+    _simViewMode = 'treated';
+    document.querySelectorAll('#simTreatmentToggle .tt-btn').forEach(b =>
+        b.classList.toggle('tt-active', b.dataset.view === 'treated')
+    );
+    const treatedBtn = document.getElementById('simTtTreated');
+    if (treatedBtn) treatedBtn.textContent = 'Treated room ✦';
+    if (window.room3D?.update) window.room3D.update();
 
     toast('Treatment plan saved', 'success');
+
+    if (btn) btn.disabled = false;
 
     // Save baseline + predicted scores so myroom.html can show both views
     if (lastPredicted) {
         try {
             const baseline = getBaselineScores();
-            localStorage.setItem('measurely_sim_targets',   JSON.stringify(lastPredicted));
-            localStorage.setItem('measurely_base_scores',   JSON.stringify(baseline));
-            localStorage.setItem('measurely_treated_scores', JSON.stringify(lastPredicted));
+            localStorage.setItem('measurely_sim_targets',    JSON.stringify(lastPredicted));
+            localStorage.setItem('measurely_base_scores',    JSON.stringify(baseline));
+            localStorage.setItem('measurely_treated_scored', JSON.stringify(lastPredicted));
         } catch (_) {}
     }
 }
