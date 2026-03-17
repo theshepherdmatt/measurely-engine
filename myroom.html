@@ -90,10 +90,10 @@
 }
 .tt-btn:not(.tt-active):hover { color: rgba(255,255,255,0.8); }
 
-/* ── Auth avatar — mobile: near top-right corner of canvas ───── */
+/* ── Header: full-width on mobile ──────────────────────────── */
 @media (max-width: 899px) {
-    #auth-user-slot {
-        right: 1rem !important;
+    header.header-onboarding {
+        width: 100% !important;
     }
 }
 
@@ -296,7 +296,7 @@
 </div>
 
 <!-- HEADER -->
-<header class="header header-onboarding">
+<header class="header header-onboarding" style="display:flex;align-items:center;justify-content:space-between;width:calc(100% - 460px);box-sizing:border-box;">
     <div class="header-title">
         <h1>
             <img
@@ -309,16 +309,8 @@
         </h1>
         <p>Define the physical space you listen in.</p>
     </div>
+    <div id="auth-user-slot" class="mly-auth-slot--mini" style="flex-shrink:0;pointer-events:auto;"></div>
 </header>
-
-<!-- AVATAR — fixed to top-right of the canvas area (left of the side panel) -->
-<div id="auth-user-slot" class="mly-auth-slot--mini" style="
-    position: fixed;
-    top: 1rem;
-    right: calc(460px + 1rem);
-    z-index: 25;
-    pointer-events: auto;
-"></div>
 
 
 <!-- FULLSCREEN ROOM -->
@@ -1206,6 +1198,21 @@ window.addEventListener('beforeunload', (e) => {
 });
 
 saveBtn.onclick = () => finish();
+
+const flybyBtn = document.getElementById('flybyBtn');
+if (flybyBtn) {
+  flybyBtn.onclick = () => {
+    if (!room3D?.flyby) return;
+    document.body.classList.add('flyby-active');
+    flybyBtn.disabled = true;
+    room3D.flyby(() => {
+      // Flyby done — re-enable controls and restore UI
+      room3D.resetCamera?.();
+      document.body.classList.remove('flyby-active');
+      flybyBtn.disabled = false;
+    });
+  };
+}
 
 resetBtn.onclick = () => {
   if (!confirm("Reset all room settings to factory defaults? Your saved setup will be cleared.")) return;
