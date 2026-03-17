@@ -281,7 +281,8 @@ function loadSavedRoom() {
             };
         }
 
-        if (saved.room_type) state.room_type = saved.room_type;
+        // room_type is intentionally not restored here — onboarding always starts
+        // on "Please select…" so the change event fires and furniture defaults apply.
 
         console.log("[Wizard] Loaded room from localStorage");
         return state;
@@ -296,7 +297,7 @@ function loadSavedRoom() {
     LOCAL ROOM STATE (single source of truth)
 ------------------------------------------ */
 const DEFAULT_ROOM_STATE = {
-  room_type: "home",
+  room_type: "",
   geometry: {
     length_m: 4,
     width_m: 4,
@@ -382,6 +383,7 @@ const steps = [
         label: "Room Use",
         sub: "Sets 3D furniture and speaker defaults",
         options: [
+          { value: "",       label: "Please select…" },
           { value: "home",   label: "Home / Hi-Fi listening room" },
           { value: "studio", label: "Studio / Workspace / Desktop" }
         ]
