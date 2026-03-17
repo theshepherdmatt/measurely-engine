@@ -843,18 +843,7 @@ function rebuild() {
     ? 1.22  // seated ear height at a desk (~desk surface 0.75m + ~0.47m seated posture)
     : room.tweeter_height_m; // ear roughly at tweeter axis when seated on sofa
 
-  // Wireframe fill — matches the room-shell aesthetic. Low opacity so furniture
-  // reads as context (hierarchy rule: acoustic data > furniture).
-  const furnMat = new THREE.MeshBasicMaterial({
-    color:       0x6366f1, // Indigo — same family as room shell
-    wireframe:   true,
-    transparent: true,
-    opacity:     0.12,
-    depthTest:   true,
-    depthWrite:  false
-  });
-
-  // Bright indigo-300 outline so edges pop clearly against the fill and walls.
+  // Bright indigo-300 outline so edges pop clearly against the dark background.
   const furnEdgeMat = useFatEdges
     ? new THREE.MeshBasicMaterial({
         color:       0xa5b4fc, // Indigo-300
@@ -869,11 +858,11 @@ function rebuild() {
         depthWrite:  true
       });
 
-  // Returns a Group containing a ghost-fill mesh + edge outline for a box.
+  // Returns a Group containing edge outlines only — no fill mesh so there are
+  // no triangle diagonals bleeding through on top of the edge lines.
   function _ghostBox(w, h, d) {
     const geo = new THREE.BoxGeometry(w, h, d);
     const grp = new THREE.Group();
-    grp.add(new THREE.Mesh(geo, furnMat));
     if (useFatEdges) {
       const hw = w / 2, hh = h / 2, hd = d / 2;
       const v = [
