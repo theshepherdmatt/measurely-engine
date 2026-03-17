@@ -266,8 +266,16 @@
         </h1>
         <p>Define the physical space you listen in.</p>
     </div>
-    <div id="auth-user-slot" class="mly-auth-slot--mini" style="margin-left:auto;flex-shrink:0;"></div>
 </header>
+
+<!-- AVATAR — fixed to top-right of the canvas area (left of the side panel) -->
+<div id="auth-user-slot" class="mly-auth-slot--mini" style="
+    position: fixed;
+    top: 1rem;
+    right: calc(460px + 1rem);
+    z-index: 25;
+    pointer-events: auto;
+"></div>
 
 
 <!-- FULLSCREEN ROOM -->
