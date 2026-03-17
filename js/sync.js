@@ -99,16 +99,16 @@
         await _delay(500);
         const pb = _pb(), userId = _userId();
         const ai = (session.ai && typeof session.ai === 'object') ? session.ai : {};
+        const aiScores = ai.scores || {};
+        const sc = session.scores || {};
         const payload = {
             user: userId, session_id: session.id, label: session.label ?? '', timestamp: session.timestamp ?? new Date().toISOString(),
-            overall_score: _num(ai.overall_score ?? session.overall_score), peaks_dips: _num(ai.peaks_dips ?? session.peaks_dips),
-            reflections: _num(ai.reflections ?? session.reflections), bandwidth: _num(ai.bandwidth ?? session.bandwidth),
-            balance: _num(ai.balance ?? session.balance), smoothness: _num(ai.smoothness ?? session.smoothness),
-            clarity: _num(ai.clarity ?? session.clarity), has_analysis: session.has_analysis ?? true,
+            overall_score: _num(sc.overall ?? aiScores.overall ?? session.overall_score),
+            has_analysis: session.has_analysis ?? true,
             analysis: session.analysis ?? null, report_curve: session.reportCurve ?? null,
             room_modes: session.room_modes ? JSON.stringify(session.room_modes) : null,
             schroeder_freq: _num(session.schroeder_freq), sbir_null: _num(session.sbir_null),
-            scores: session.scores ? JSON.stringify(session.scores) : null
+            scores: Object.keys(sc).length ? sc : (Object.keys(aiScores).length ? aiScores : null)
         };
         _setState('syncing', { op: 'pushSession', id: session.id });
         try {

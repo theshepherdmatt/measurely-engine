@@ -1147,9 +1147,10 @@
                     const sbir      = Math.round(340 / (4 * Math.max(spkFront, 0.1)));
                     const sideBounce = Math.round((W / 2 / 340) * 1000);
                     const ai        = result.ai || {};
-                    const overall   = (+(ai.overall_score ?? 6.5)).toFixed(1);
-                    const bass      = (+(ai.bandwidth      ?? 6.0)).toFixed(1);
-                    const balance   = (+(ai.balance        ?? 7.0)).toFixed(1);
+                    const aiScores  = ai.scores || {};
+                    const overall   = (+(aiScores.overall   ?? 6.5)).toFixed(1);
+                    const bass      = (+(aiScores.bandwidth ?? 6.0)).toFixed(1);
+                    const balance   = (+(aiScores.balance   ?? 7.0)).toFixed(1);
 
                     // ── Stage 1: IR Extraction (0–2 s, 5→22%) ─────────────────
                     if (session.calibrationCurve) {
@@ -1225,13 +1226,13 @@
                         schroeder_freq: schroeder,
                         sbir_null:      sbir,
                         scores: {
-                            overall:     +(ai.overall_score ?? 0),
-                            peaks_dips:  +(ai.peaks_dips    ?? 0),
-                            reflections: +(ai.reflections   ?? 0),
-                            bandwidth:   +(ai.bandwidth     ?? 0),
-                            balance:     +(ai.balance       ?? 0),
-                            smoothness:  +(ai.smoothness    ?? 0),
-                            clarity:     +(ai.clarity       ?? 0),
+                            overall:     +(aiScores.overall     ?? 0),
+                            peaks_dips:  +(aiScores.peaks_dips  ?? 0),
+                            reflections: +(aiScores.reflections ?? 0),
+                            bandwidth:   +(aiScores.bandwidth   ?? 0),
+                            balance:     +(aiScores.balance     ?? 0),
+                            smoothness:  +(aiScores.smoothness  ?? 0),
+                            clarity:     +(aiScores.clarity     ?? 0),
                         },
                     };
                     if (window.MeasurelySessions) {
