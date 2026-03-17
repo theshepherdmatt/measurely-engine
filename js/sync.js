@@ -130,11 +130,24 @@
             if (sessionRecords?.items?.length) {
                 const cloudSessions = sessionRecords.items.map(r => ({
                     id: r.session_id, label: r.label, timestamp: r.timestamp, overall_score: r.overall_score,
+                    has_analysis: r.has_analysis ?? true,
                     analysis: r.analysis ?? null, reportCurve: r.report_curve ?? null,
                     room_modes: r.room_modes ? _parseJson(r.room_modes, null) : null,
                     _cloud_updated: r.updated
                 }));
-                localStorage.setItem(LS_SESSIONS, JSON.stringify(cloudSessions.slice(0, 20)));
+                // Merge: local sessions take priority (they have the full analysis payload).
+                // Cloud-only sessions (new device / cleared local) are added at the end.
+                const localRaw = localStorage.getItem(LS_SESSIONS);
+                const localSessions = localRaw ? JSON.parse(localRaw) : [];
+                const localIds = new Set(localSessions.map(s => s.id));
+                const newFromCloud = cloudSessions.filter(s => !localIds.has(s.id));
+                const merged = [...localSessions, ...newFromCloud];
+                merged.sort((a, b) => {
+                    const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+                    const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+                    return tb - ta;
+                });
+                localStorage.setItem(LS_SESSIONS, JSON.stringify(merged.slice(0, 20)));
             }
             await pullProfile();
             _setState('ok', { op: 'pullAll' });
