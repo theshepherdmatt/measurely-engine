@@ -2430,67 +2430,36 @@ function rebuild() {
       // it looks TO (look).  camEase / lookEase are independent so the look
       // target can lead or lag the body — creating the "head turns first" feel.
       const keyframes = [
-        // STATE: EXTERIOR — camera starts outside the room, looking in
-        // through the ghosted front wall directly at the speaker pair.
+        // STATE: EXTERIOR — slow drift in from outside, looking at speaker pair.
         {
           cam:      P(lx,         H * 0.7,   -L * 2.1),
           look:     spkMid,
-          ms:       2400,
+          ms:       3000,
           camEase:  EASE.power4InOut,
           lookEase: EASE.linear,
         },
-        // STATE: FLANK LEFT — slide wide-left and very low.
-        // Body moves on power4; look stays glued to the speakers.
-        {
-          cam:      P(-W * 1.4,   H * 0.05,  -L * 1.1),
-          look:     P(-W * 0.3,   spkY,       spkZ + 0.4),
-          ms:       2600,
-          camEase:  EASE.expoInOut,
-          lookEase: EASE.cubicInOut,
-        },
-        // STATE: OVERHEAD — rise to god's-eye establishing shot.
-        // Look transitions from speaker wall to the full room centre.
+        // STATE: OVERHEAD — long slow rise to god's-eye establishing shot.
         {
           cam:      P(W * 0.1,    H * 5.2,    L * 0.25),
           look:     P(0,           0,           0),
-          ms:       3000,
+          ms:       4000,
           camEase:  EASE.power4InOut,
           lookEase: EASE.cubicInOut,
         },
-        // STATE: SWOOP RIGHT — arc around the right side wall at mid height.
-        // Look leads: it snaps to the listener position before the body arrives,
-        // creating the "director's cut" reveal of the sweet spot.
+        // STATE: SWOOP RIGHT — slow arc to the sweet-spot reveal.
+        // Look leads the body to create the "director's cut" moment.
         {
           cam:      P(W * 2.3,    H * 0.85,   L * 0.95),
           look:     P(lx,          ly,          lz),
-          ms:       2800,
+          ms:       4000,
           camEase:  EASE.expoInOut,
           lookEase: EASE.power4InOut,
         },
-        // STATE: SPEAKER PUSH — drive in close to the speaker wall, very low.
-        // Dramatic angle — the listener position is visible in the distance.
-        {
-          cam:      P(W * 0.15,   H * 0.08,  -L * 1.55),
-          look:     P(lx,          ly,          lz),
-          ms:       2600,
-          camEase:  EASE.power4InOut,
-          lookEase: EASE.cubicInOut,
-        },
-        // STATE: ARC UP — rise to ceiling midpoint on the listening side.
-        // Camera arcs; look stays locked on the sweet spot throughout.
-        {
-          cam:      P(-W * 0.2,   H * 2.5,    L * 0.75),
-          look:     P(lx,          ly,          lz),
-          ms:       2600,
-          camEase:  EASE.expoInOut,
-          lookEase: EASE.linear,
-        },
-        // STATE: LANDING — slow expo descent to the listener's ear level.
-        // Camera settles fractionally behind the sweet spot, looking at speakers.
+        // STATE: LANDING — long expo descent to the listener's ear level.
         {
           cam:      P(lx,          ly + 0.08,  lz + 0.55),
           look:     P(0,            ly - 0.05, -L + 0.7),
-          ms:       5000,
+          ms:       5500,
           camEase:  EASE.expoInOut,
           lookEase: EASE.expoInOut,
         },
