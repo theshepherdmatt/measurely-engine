@@ -365,7 +365,7 @@
 
 <!-- Simulated target scores — populated from localStorage when set in Room Analysis -->
 <div id="simTargetBadge" hidden>
-    <span class="stb-label">Simulated Target</span>
+    <span class="stb-label" id="stbLabel">Simulated Target</span>
     <span class="stb-rule"></span>
     <div class="stb-overall">
         <span class="stb-overall-num" id="stbOverall">—</span>
@@ -567,10 +567,10 @@ async function _loadTreatmentPlan() {
     const plan = await window.MeasurelySync?.pullTreatment();
     if (plan) {
       _treatmentPlan = plan;
-      // Show a label on the treated button if a plan exists
       const btn = document.getElementById('ttTreated');
       if (btn) btn.textContent = 'Treated room ✦';
-      if (_treatmentViewMode === 'treated' && room3D?.update) room3D.update();
+      // Rebuild regardless of current view so the plan is ready when toggled
+      if (room3D?.update) room3D.update();
     }
   } catch (_) {}
 }
@@ -581,8 +581,9 @@ document.getElementById('treatmentToggle')?.addEventListener('click', (e) => {
   const view = btn.dataset.view;
   if (view === _treatmentViewMode) return;
   _treatmentViewMode = view;
-  document.querySelectorAll('.tt-btn').forEach(b => b.classList.toggle('tt-active', b.dataset.view === view));
+  document.querySelectorAll('#treatmentToggle .tt-btn').forEach(b => b.classList.toggle('tt-active', b.dataset.view === view));
   if (room3D?.update) room3D.update();
+  if (typeof updateTargetBar === 'function') updateTargetBar(view);
 });
 
 const room3D = initRoom3D({
@@ -1238,48 +1239,59 @@ backBtn.onclick = () => {
 </script>
 
 <script>
-// Show simulated target scores if the user previously saved from Room Analysis
-(function () {
-    let scores;
-    try { scores = JSON.parse(localStorage.getItem('measurely_sim_targets') || 'null'); } catch (_) {}
-    if (!scores) return;
+// ── Simulated target bar — reactive to Current/Treated toggle ──
+const SCORE_METRICS = [
+    { key: 'peaks_dips',  label: 'Peaks'  },
+    { key: 'reflections', label: 'Refl'   },
+    { key: 'bandwidth',   label: 'BW'     },
+    { key: 'balance',     label: 'Bal'    },
+    { key: 'smoothness',  label: 'Smooth' },
+    { key: 'clarity',     label: 'Clarity'},
+];
 
+function _scoreQuality(val) {
+    if (val == null) return '';
+    return val < 5 ? 'poor' : val < 7.5 ? 'ok' : 'good';
+}
+
+function _readScores(key) {
+    try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (_) { return null; }
+}
+
+function updateTargetBar(view) {
     const badge     = document.getElementById('simTargetBadge');
     const chips     = document.getElementById('stbChips');
     const overallEl = document.getElementById('stbOverall');
+    const label     = document.getElementById('stbLabel');
     if (!badge || !chips || !overallEl) return;
 
-    const metrics = [
-        { key: 'peaks_dips',  label: 'Peaks'  },
-        { key: 'reflections', label: 'Refl'   },
-        { key: 'bandwidth',   label: 'BW'     },
-        { key: 'balance',     label: 'Bal'    },
-        { key: 'smoothness',  label: 'Smooth' },
-        { key: 'clarity',     label: 'Clarity'},
-    ];
+    // Current view: baseline scores. Treated view: predicted scores after treatment.
+    const scores = view === 'treated'
+        ? (_readScores('measurely_treated_scores') || _readScores('measurely_sim_targets'))
+        : (_readScores('measurely_base_scores')    || _readScores('measurely_sim_targets'));
 
-    function qualityClass(val) {
-        if (val == null) return '';
-        return val < 5 ? 'poor' : val < 7.5 ? 'ok' : 'good';
-    }
+    if (!scores) return;
 
-    // Overall = mean of the six metric scores
-    const vals = metrics.map(m => scores[m.key]).filter(v => typeof v === 'number');
+    const vals = SCORE_METRICS.map(m => scores[m.key]).filter(v => typeof v === 'number');
     const overall = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
 
     if (overall != null) {
         overallEl.textContent = overall.toFixed(1);
-        overallEl.className   = 'stb-overall-num ' + qualityClass(overall);
+        overallEl.className   = 'stb-overall-num ' + _scoreQuality(overall);
     }
 
-    chips.innerHTML = metrics.map(({ key, label }) => {
+    chips.innerHTML = SCORE_METRICS.map(({ key, label }) => {
         const val = scores[key] ?? null;
         const num = val != null ? Number(val).toFixed(1) : '—';
-        return `<span class="stb-chip ${qualityClass(val)}">${label} <strong>${num}</strong></span>`;
+        return `<span class="stb-chip ${_scoreQuality(val)}">${label} <strong>${num}</strong></span>`;
     }).join('');
 
+    if (label) label.textContent = view === 'treated' ? 'TREATED TARGET' : 'SIMULATED TARGET';
     badge.hidden = false;
-})();
+}
+
+// Initial render on page load
+updateTargetBar('current');
 </script>
 
 <script>

@@ -897,13 +897,13 @@ async function saveSimulateToRoom() {
 
     toast('Treatment plan saved', 'success');
 
-    // Save predicted scores for the simulated target bar
+    // Save baseline + predicted scores so myroom.html can show both views
     if (lastPredicted) {
         try {
-            localStorage.setItem(
-                'measurely_sim_targets',
-                JSON.stringify(lastPredicted)
-            );
+            const baseline = getBaselineScores();
+            localStorage.setItem('measurely_sim_targets',   JSON.stringify(lastPredicted));
+            localStorage.setItem('measurely_base_scores',   JSON.stringify(baseline));
+            localStorage.setItem('measurely_treated_scores', JSON.stringify(lastPredicted));
         } catch (_) {}
     }
 }
