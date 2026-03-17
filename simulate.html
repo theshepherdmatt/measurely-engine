@@ -1255,10 +1255,16 @@ async function saveFixPlan() {
     // Push to PocketBase treatments collection
     try {
         await window.MeasurelySync?.pushTreatment({ budget, shopping_list, layout_config, status: 'saved' });
-        // Update local plan so toggle works immediately without a page reload
+        // Update local plan and switch the 3D view to show the treated room immediately
         _simTreatmentPlan = { budget, shopping_list, layout_config, status: 'saved' };
         const treatedBtn = document.getElementById('simTtTreated');
         if (treatedBtn) treatedBtn.textContent = 'Treated room ✦';
+        // Switch toggle to treated view
+        _simViewMode = 'treated';
+        document.querySelectorAll('#simTreatmentToggle .tt-btn').forEach(b =>
+            b.classList.toggle('tt-active', b.dataset.view === 'treated')
+        );
+        if (window.room3D?.update) window.room3D.update();
     } catch (_) {}
 
     toast('Treatment plan saved', 'success');
