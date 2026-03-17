@@ -89,7 +89,7 @@
             <div class="ra-canvas-badge" id="raModesBadge"></div>
 
             <!-- Current / Treated toggle -->
-            <div id="simTreatmentToggle" class="treatment-toggle" style="display:none;">
+            <div id="simTreatmentToggle" class="treatment-toggle">
                 <button class="tt-btn tt-active" data-view="current">Current room</button>
                 <button class="tt-btn" id="simTtTreated" data-view="treated">Treated room</button>
             </div>
@@ -458,9 +458,9 @@ function _simBuildTreatedState() {
 function _simGetRoomForView() {
     const base = window.__liveRoomState;
     if (!base) return base;
-    if (_simViewMode === 'current') {
-        return { ...base, environment: { ...base.environment, treatment: { ..._SIM_NO_TREATMENT } } };
-    }
+    // 'current' = live simulation state as-is (panels updated by sim controls)
+    // 'treated' = saved Fix My Room plan overlaid on top of the base room
+    if (_simViewMode === 'current') return base;
     return _simBuildTreatedState();
 }
 
@@ -469,8 +469,6 @@ async function _simLoadTreatmentPlan() {
         const plan = await window.MeasurelySync?.pullTreatment();
         if (plan) {
             _simTreatmentPlan = plan;
-            const toggle = document.getElementById('simTreatmentToggle');
-            if (toggle) toggle.style.display = '';
             const btn = document.getElementById('simTtTreated');
             if (btn) btn.textContent = 'Treated room ✦';
         }
@@ -1260,8 +1258,6 @@ async function saveFixPlan() {
         await window.MeasurelySync?.pushTreatment({ budget, shopping_list, layout_config, status: 'saved' });
         // Update local plan so toggle works immediately without a page reload
         _simTreatmentPlan = { budget, shopping_list, layout_config, status: 'saved' };
-        const toggle = document.getElementById('simTreatmentToggle');
-        if (toggle) toggle.style.display = '';
         const treatedBtn = document.getElementById('simTtTreated');
         if (treatedBtn) treatedBtn.textContent = 'Treated room ✦';
     } catch (_) {}
@@ -1602,6 +1598,47 @@ window.addEventListener('measurely:simUpdated', () => {
      INLINE STYLES FOR SHARED NAV + BUTTONS
 ═══════════════════════════════════════ -->
 <style>
+/* ── Treatment view toggle ───────────────────────────────────── */
+.treatment-toggle {
+    display: flex;
+    background: rgba(10, 14, 26, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 999px;
+    padding: 3px;
+    gap: 2px;
+    z-index: 50;
+}
+.tt-btn {
+    padding: 0.4rem 1rem;
+    border-radius: 999px;
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.5);
+    font-size: 0.78rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    white-space: nowrap;
+}
+.tt-btn.tt-active {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(99,102,241,0.4);
+}
+.tt-btn:not(.tt-active):hover { color: rgba(255,255,255,0.8); }
+
+/* Position inside the canvas wrap */
+.ra-canvas-wrap { position: relative; }
+#simTreatmentToggle {
+    position: absolute;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
 .ra-header-nav {
     display: flex;
     align-items: center;
