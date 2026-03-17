@@ -961,14 +961,14 @@ body.ra-body-root {
 .sim-worse  { color: var(--c-poor-text); }
 .sim-same   { color: rgba(255,255,255,0.5); }
 
-/* ── Mobile: stack vertically ─────────────────────────── */
+/* ── Portrait / small screens: stack canvas above panel ── */
 @media (max-width: 900px) {
     .ra-body {
         flex-direction: column;
     }
 
     .ra-canvas-wrap {
-        flex: 0 0 45%;
+        flex: 0 0 40%;   /* was 45% — gives the panel more visible height */
     }
 
     .ra-panel {
@@ -981,9 +981,53 @@ body.ra-body-root {
     }
 }
 
+/* ── Landscape mobile: restore side-by-side with a compact panel ── */
+/*    Without this, a 667×375 phone gets a ~146px canvas — far too short. */
+@media (max-width: 900px) and (orientation: landscape) {
+    .ra-body {
+        flex-direction: row;   /* override the column above */
+    }
+
+    .ra-canvas-wrap {
+        flex: 1;               /* canvas takes all remaining width */
+    }
+
+    .ra-panel {
+        flex: 0 0 270px;
+        width: 270px;
+        max-width: 270px;
+    }
+
+    .ra-pane {
+        padding: 0.85rem 1rem 0.75rem;
+    }
+
+    .ra-header {
+        padding: 0.3rem 0.85rem;
+    }
+
+    .ra-header-title {
+        font-size: 0.9rem;
+    }
+
+    /* The h1 already says "Room Analysis" — no need to repeat it in the nav */
+    .engine-nav-tab[aria-current="page"] {
+        display: none;
+    }
+}
+
 @media (max-width: 600px) {
     .ra-metric-grid {
         grid-template-columns: repeat(3, 1fr);
+    }
+
+    /* Small portrait: tighten pane padding and hide redundant nav tab */
+    .ra-pane {
+        padding: 1rem 1.1rem;
+    }
+
+    .engine-nav-tab[aria-current="page"] {
+        display: none;
     }
 }
 

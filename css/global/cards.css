@@ -132,6 +132,35 @@
     gap: 0.65rem;
 }
 
+/* ── Landscape mobile: compact overall-score-card ─────────────────────── */
+/*    On a 2-col grid, span 2 forces it to a full-width row below the       */
+/*    engine card. Combined with a 6.5rem score on a 375px-tall screen,     */
+/*    the card dominates the entire viewport. Fix: sit beside engine card,  */
+/*    smaller score number, tighter padding.                                 */
+@media (max-width: 899px) and (orientation: landscape) {
+    .overall-score-card {
+        grid-column: span 1;     /* sit beside the engine card, not a full-width row */
+        padding: 1.1rem 1.25rem;
+    }
+
+    .overall-score-number {
+        font-size: 4rem;
+    }
+
+    .overall-score-header {
+        margin-bottom: 0.5rem;
+    }
+
+    .overall-score-body {
+        gap: 0.85rem;
+        margin-bottom: 0.6rem;
+    }
+
+    .overall-score-footer {
+        padding-top: 0.65rem;
+    }
+}
+
 
 /* =========================================================
    3. FREQUENCY BAND PILLS — horizontal row, colour-coded

@@ -203,4 +203,29 @@
   .grid-3 {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  /* ── Engine bay: compact on landscape ────────────────────────────── */
+  /*    At full padding the 3 action buttons make the card taller than  */
+  /*    the entire viewport on 375–390px landscape phones.              */
+  .engine-bay {
+    padding: 0.75rem;
+    gap: 0.4rem;
+  }
+
+  .engine-header {
+    padding-bottom: 0.4rem;
+  }
+
+  .engine-actions {
+    gap: 0.4rem;
+  }
+
+  .btn.engine-action {
+    padding: 0.45rem 0.75rem;
+  }
+
+  /* Compact analysis metric card padding so 6 cards occupy less vertical space */
+  .analysis-card-trigger {
+    padding: 1rem 1.1rem;
+  }
 }
