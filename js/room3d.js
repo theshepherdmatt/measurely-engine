@@ -840,7 +840,7 @@ function rebuild() {
   const listenerZ = -room.length_m / 2 + room.listener_front_m;
   const effectiveHeadHeight = isStudio
     ? 1.22  // seated ear height at a desk (~desk surface 0.75m + ~0.47m seated posture)
-    : room.tweeter_height_m; // ear roughly at tweeter axis when seated on sofa
+    : 0.82; // seated ear height on a sofa — sofa back tops out at ~0.80m
 
   // Bright indigo-300 outline so edges pop clearly against the dark background.
   const furnEdgeMat = useFatEdges
