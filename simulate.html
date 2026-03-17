@@ -806,28 +806,27 @@ function runSimulation() {
 
     // ── Update 3D room live ───────────────────────────────────────────
     if (window.__liveRoomState && window.room3D) {
-        // Use setNestedRoomValue to correctly target nested sub-objects
         const state = window.__liveRoomState;
+
+        // Speaker/listener placement — setNestedRoomValue handles nested setup sub-object
         if (window.setNestedRoomValue) {
             window.setNestedRoomValue(state, 'spk_front_m', spkFront);
             window.setNestedRoomValue(state, 'spk_spacing_m', spkSpacing);
             window.setNestedRoomValue(state, 'toe_in_deg', toeIn);
-            window.setNestedRoomValue(state, 'wall_panel_mode', wallMode);
-            window.setNestedRoomValue(state, 'bass_trap_mode', bassMode);
-            window.setNestedRoomValue(state, 'side_panel_mode', sideMode);
-            window.setNestedRoomValue(state, 'ceiling_panel_mode', ceilMode);
         } else {
-            // Fallback: flat merge (original behaviour)
-            Object.assign(state, {
-                spk_front_m: spkFront,
-                spk_spacing_m: spkSpacing,
-                toe_in_deg: toeIn,
-                wall_panel_mode: wallMode,
-                bass_trap_mode: bassMode,
-                side_panel_mode: sideMode,
-                ceiling_panel_mode: ceilMode
-            });
+            state.spk_front_m   = spkFront;
+            state.spk_spacing_m = spkSpacing;
+            state.toe_in_deg    = toeIn;
         }
+
+        // Treatment — write directly to environment.treatment so rebuild() always
+        // finds the values regardless of whether the keys pre-existed in the object
+        if (!state.environment)           state.environment = {};
+        if (!state.environment.treatment) state.environment.treatment = {};
+        state.environment.treatment.wall_panel_mode    = wallMode;
+        state.environment.treatment.bass_trap_mode     = bassMode;
+        state.environment.treatment.side_panel_mode    = sideMode;
+        state.environment.treatment.ceiling_panel_mode = ceilMode;
 
         if (savedDiagnoseIssue?.id) {
             const OVERLAY_KEY = {
