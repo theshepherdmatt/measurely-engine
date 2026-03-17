@@ -1,3 +1,4 @@
+// Copyright (c) 2024–2026 Measurely. All Rights Reserved. Proprietary and confidential.
 /**
  * sync.js — Measurely cloud sync (FINAL STABLE VERSION)
  */
