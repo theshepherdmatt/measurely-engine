@@ -290,6 +290,15 @@
                     </div>
                 </div>
 
+                <!-- Shopping list preview — shown after Fix My Room plan is applied -->
+                <div id="sim-plan-preview" style="display:none;margin-top:0.75rem;padding:0.65rem 0.75rem;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:8px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;">
+                        <span style="font-size:0.7rem;font-weight:600;color:#a5b4fc;letter-spacing:0.06em;text-transform:uppercase;">From Fix My Room</span>
+                        <span id="sim-plan-budget-label" style="font-size:0.75rem;color:#94a3b8;"></span>
+                    </div>
+                    <ul id="sim-plan-items" style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:0.2rem;"></ul>
+                </div>
+
                 <!-- SBIR callout — updates with slider -->
                 <div class="ra-sbir-callout ra-sbir-callout--bad" id="sim-sbir-callout">
                     <span class="ra-sbir-label">Bass cancellation</span>
@@ -348,10 +357,10 @@
                 <!-- Recommendation list -->
                 <div id="fix-recommendations" class="fix-recs"></div>
 
-                <!-- Save plan CTA — shown only when affordable treatments exist -->
+                <!-- Apply plan CTA — shown only when affordable treatments exist -->
                 <div id="fix-plan-actions" style="display:none;padding-top:0.5rem;">
                     <button class="btn btn-primary" id="fix-save-plan-btn" style="width:100%;justify-content:center;">
-                        Save this plan
+                        Apply to Simulate →
                     </button>
                 </div>
 
@@ -890,16 +899,16 @@ async function saveSimulateToRoom() {
         ceiling_panel_mode: ceilMode
     };
 
-    // ── Push to PocketBase treatments collection (same path as saveFixPlan)
-    await window.MeasurelySync?.pushTreatment({
-        budget: 0,
-        shopping_list: [],
-        layout_config,
-        status: 'saved'
-    });
+    // ── Carry shopping list + budget from Fix My Room if plan was applied there
+    const shopping_list = window._pendingShoppingList ?? [];
+    const budget        = window._pendingBudget ?? 0;
+
+    // ── Push to PocketBase treatments collection
+    await window.MeasurelySync?.pushTreatment({ budget, shopping_list, layout_config, status: 'saved' });
 
     // ── Update local plan and switch 3D to treated view immediately
-    window._simTreatmentPlan = { budget: 0, shopping_list: [], layout_config, status: 'saved' };
+    window._simTreatmentPlan = { budget, shopping_list, layout_config, status: 'saved' };
+    window._pendingShoppingList = null; // consumed — clear pending
     window._simViewMode = 'treated';
     document.querySelectorAll('#simTreatmentToggle .tt-btn').forEach(b =>
         b.classList.toggle('tt-active', b.dataset.view === 'treated')
@@ -1248,8 +1257,12 @@ function runFixMyRoom() {
     if (planActionsEl) planActionsEl.style.display = affordable.length > 0 ? '' : 'none';
 }
 
-// ── Save Fix My Room plan to persistent room profile ──────────
-async function saveFixPlan() {
+// ── Pending shopping list — carried from Fix My Room into Save Plan ────────
+window._pendingShoppingList = null;
+window._pendingBudget = 0;
+
+// ── Apply Fix My Room recommendations → Simulate tab ─────────────────────
+function applyFixPlanToSimulate() {
     const ids = new Set(lastAffordable.map(t => t.id));
 
     const hasFrontWall = ids.has('front-wall-panels');
@@ -1257,32 +1270,51 @@ async function saveFixPlan() {
     const hasFrontBass = ids.has('front-bass-traps');
     const hasRearBass  = ids.has('rear-bass-traps');
 
-    const layout_config = {
+    const layout = {
         wall_panel_mode:    (hasFrontWall && hasRearWall) ? 'both' : hasFrontWall ? 'front' : hasRearWall ? 'rear' : 'none',
         bass_trap_mode:     (hasFrontBass && hasRearBass) ? 'all'  : hasFrontBass ? 'front' : hasRearBass  ? 'rear' : 'none',
         side_panel_mode:    ids.has('side-panels')   ? 'both'  : 'none',
         ceiling_panel_mode: ids.has('ceiling-cloud') ? 'cloud' : 'none'
     };
 
-    const budget = parseInt(document.getElementById('fix-budget-slider')?.value ?? 500, 10);
-    const shopping_list = lastAffordable.map(t => ({ id: t.id, name: t.name, costMid: t.costMid }));
+    // Fill the Simulate dropdowns
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+    setEl('sim-wall-panels',    layout.wall_panel_mode);
+    setEl('sim-bass-traps',     layout.bass_trap_mode);
+    setEl('sim-side-panels',    layout.side_panel_mode);
+    setEl('sim-ceiling-panels', layout.ceiling_panel_mode);
 
-    // Push to PocketBase treatments collection
-    try {
-        await window.MeasurelySync?.pushTreatment({ budget, shopping_list, layout_config, status: 'saved' });
-        // Update local plan and switch the 3D view to show the treated room immediately
-        window._simTreatmentPlan = { budget, shopping_list, layout_config, status: 'saved' };
-        const treatedBtn = document.getElementById('simTtTreated');
-        if (treatedBtn) treatedBtn.textContent = 'Treated room ✦';
-        // Switch toggle to treated view
-        window._simViewMode = 'treated';
-        document.querySelectorAll('#simTreatmentToggle .tt-btn').forEach(b =>
-            b.classList.toggle('tt-active', b.dataset.view === 'treated')
-        );
-        if (window.room3D?.update) window.room3D.update();
-    } catch (_) {}
+    // Store shopping list + budget so Save Plan can carry them through
+    window._pendingBudget = parseInt(document.getElementById('fix-budget-slider')?.value ?? 0, 10);
+    window._pendingShoppingList = lastAffordable.map(t => ({ id: t.id, name: t.name, costMid: t.costMid }));
 
-    toast('Treatment plan saved', 'success');
+    // Show shopping list preview in Simulate pane
+    _renderSimPlanPreview();
+
+    // Switch to Simulate tab
+    document.querySelectorAll('.ra-tab').forEach(t => t.classList.remove('ra-tab--active'));
+    document.querySelectorAll('.ra-pane').forEach(p => p.classList.add('ra-pane--hidden'));
+    const simTab = document.querySelector('.ra-tab[data-pane="pane-simulate"]');
+    if (simTab) simTab.classList.add('ra-tab--active');
+    document.getElementById('pane-simulate')?.classList.remove('ra-pane--hidden');
+
+    // Trigger simulation update so scores reflect the new treatment
+    runSimulation?.();
+
+    toast('Treatments applied — review and save when ready', 'success');
+}
+
+function _renderSimPlanPreview() {
+    const preview = document.getElementById('sim-plan-preview');
+    const itemsEl = document.getElementById('sim-plan-items');
+    const budgetEl = document.getElementById('sim-plan-budget-label');
+    if (!preview || !itemsEl) return;
+    if (!window._pendingShoppingList?.length) { preview.style.display = 'none'; return; }
+    budgetEl.textContent = `Budget: £${window._pendingBudget}`;
+    itemsEl.innerHTML = window._pendingShoppingList
+        .map(t => `<li style="font-size:0.78rem;color:#cbd5e1;">· ${t.name} <span style="color:#64748b;">~£${t.costMid}</span></li>`)
+        .join('');
+    preview.style.display = '';
 }
 
 function metricLabel(key) {
@@ -1301,7 +1333,7 @@ document.addEventListener('DOMContentLoaded', () => {
             runFixMyRoom();
         });
     }
-    document.getElementById('fix-save-plan-btn')?.addEventListener('click', saveFixPlan);
+    document.getElementById('fix-save-plan-btn')?.addEventListener('click', applyFixPlanToSimulate);
 });
 
 // Re-run whenever simulation data updates

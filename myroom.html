@@ -313,6 +313,16 @@
     <div id="auth-user-slot" class="mly-auth-slot--mini" style="flex-shrink:0;pointer-events:auto;"></div>
 </header>
 
+<!-- Treatment shopping list — shown when Treated room is active -->
+<div id="myroom-shopping-panel" style="display:none;position:fixed;bottom:1rem;left:50%;transform:translateX(-50%);z-index:50;background:rgba(10,14,26,0.9);backdrop-filter:blur(12px);border:1px solid rgba(99,102,241,0.3);border-radius:12px;padding:0.75rem 1.1rem;min-width:240px;max-width:420px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;">
+        <span style="font-size:0.7rem;font-weight:600;color:#a5b4fc;letter-spacing:0.06em;text-transform:uppercase;">Your Treatment Plan</span>
+        <span id="myroom-plan-budget" style="font-size:0.75rem;color:#94a3b8;"></span>
+    </div>
+    <ul id="myroom-plan-items" style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:0.2rem;"></ul>
+    <p id="myroom-plan-empty" style="display:none;font-size:0.78rem;color:#64748b;margin:0;">No shopping list — configure in Room Analysis.</p>
+    <a href="simulate.html" style="display:block;margin-top:0.6rem;font-size:0.75rem;color:#818cf8;text-decoration:none;">Edit in Room Analysis →</a>
+</div>
 
 <!-- FULLSCREEN ROOM -->
 <div id="roomCanvas">
@@ -566,10 +576,36 @@ async function _loadTreatmentPlan() {
       _treatmentPlan = plan;
       const btn = document.getElementById('ttTreated');
       if (btn) btn.textContent = 'Treated room ✦';
+      _renderShoppingPanel();
       // Rebuild regardless of current view so the plan is ready when toggled
       if (room3D?.update) room3D.update();
     }
   } catch (_) {}
+}
+
+function _renderShoppingPanel() {
+  const panel   = document.getElementById('myroom-shopping-panel');
+  const itemsEl = document.getElementById('myroom-plan-items');
+  const budgetEl = document.getElementById('myroom-plan-budget');
+  const emptyEl = document.getElementById('myroom-plan-empty');
+  if (!panel) return;
+
+  const list = _treatmentPlan?.shopping_list ?? [];
+  const budget = _treatmentPlan?.budget ?? 0;
+
+  if (list.length > 0) {
+    if (budgetEl) budgetEl.textContent = `Budget: £${budget}`;
+    if (itemsEl) itemsEl.innerHTML = list
+      .map(t => `<li style="font-size:0.78rem;color:#cbd5e1;">· ${t.name} <span style="color:#64748b;">~£${t.costMid}</span></li>`)
+      .join('');
+    if (emptyEl) emptyEl.style.display = 'none';
+  } else {
+    if (itemsEl) itemsEl.innerHTML = '';
+    if (emptyEl) emptyEl.style.display = '';
+  }
+
+  // Only show panel when in treated view
+  panel.style.display = _treatmentViewMode === 'treated' ? '' : 'none';
 }
 
 document.getElementById('treatmentToggle')?.addEventListener('click', (e) => {
@@ -578,6 +614,7 @@ document.getElementById('treatmentToggle')?.addEventListener('click', (e) => {
   const view = btn.dataset.view;
   if (view === _treatmentViewMode) return;
   _treatmentViewMode = view;
+  _renderShoppingPanel();
   document.querySelectorAll('#treatmentToggle .tt-btn').forEach(b => b.classList.toggle('tt-active', b.dataset.view === view));
   if (room3D?.update) room3D.update();
   if (typeof updateTargetBar === 'function') updateTargetBar(view);
