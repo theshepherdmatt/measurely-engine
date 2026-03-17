@@ -2435,7 +2435,7 @@ function rebuild() {
         {
           cam:      P(lx,         H * 0.7,   -L * 2.1),
           look:     spkMid,
-          ms:       1500,
+          ms:       2400,
           camEase:  EASE.power4InOut,
           lookEase: EASE.linear,
         },
@@ -2444,7 +2444,7 @@ function rebuild() {
         {
           cam:      P(-W * 1.4,   H * 0.05,  -L * 1.1),
           look:     P(-W * 0.3,   spkY,       spkZ + 0.4),
-          ms:       1600,
+          ms:       2600,
           camEase:  EASE.expoInOut,
           lookEase: EASE.cubicInOut,
         },
@@ -2453,7 +2453,7 @@ function rebuild() {
         {
           cam:      P(W * 0.1,    H * 5.2,    L * 0.25),
           look:     P(0,           0,           0),
-          ms:       2000,
+          ms:       3000,
           camEase:  EASE.power4InOut,
           lookEase: EASE.cubicInOut,
         },
@@ -2463,7 +2463,7 @@ function rebuild() {
         {
           cam:      P(W * 2.3,    H * 0.85,   L * 0.95),
           look:     P(lx,          ly,          lz),
-          ms:       1800,
+          ms:       2800,
           camEase:  EASE.expoInOut,
           lookEase: EASE.power4InOut,
         },
@@ -2472,7 +2472,7 @@ function rebuild() {
         {
           cam:      P(W * 0.15,   H * 0.08,  -L * 1.55),
           look:     P(lx,          ly,          lz),
-          ms:       1700,
+          ms:       2600,
           camEase:  EASE.power4InOut,
           lookEase: EASE.cubicInOut,
         },
@@ -2481,7 +2481,7 @@ function rebuild() {
         {
           cam:      P(-W * 0.2,   H * 2.5,    L * 0.75),
           look:     P(lx,          ly,          lz),
-          ms:       1700,
+          ms:       2600,
           camEase:  EASE.expoInOut,
           lookEase: EASE.linear,
         },
@@ -2490,7 +2490,7 @@ function rebuild() {
         {
           cam:      P(lx,          ly + 0.08,  lz + 0.55),
           look:     P(0,            ly - 0.05, -L + 0.7),
-          ms:       3400,
+          ms:       5000,
           camEase:  EASE.expoInOut,
           lookEase: EASE.expoInOut,
         },
