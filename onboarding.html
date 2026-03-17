@@ -90,7 +90,7 @@
     <div class="flyby-completion-actions">
       <button id="completionSaveBtn" class="btn btn-primary">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-        Sign in to save your progress
+        Create account / Sign in
       </button>
       <button id="completionPreviewBtn" class="btn btn-outline" style="background:none;border:1px solid rgba(255,255,255,.2);color:#d1d5db;">
         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -1040,12 +1040,10 @@ function finish() {
         if (!window._completionWired) {
             window._completionWired = true;
 
-            // "Save to Cloud" — trigger Google login, then go to dashboard
+            // "Create account / Sign in" — open auth modal on the sign-up panel
             document.getElementById('completionSaveBtn')?.addEventListener('click', () => {
-                // Room already in localStorage. Trigger Google OAuth.
-                // If MeasurelyAuth is not loaded, fall back to navigating directly.
-                if (window.MeasurelyAuth?.signInWithGoogle) {
-                    window.MeasurelyAuth.signInWithGoogle();
+                if (window.MeasurelyAuth?.openModal) {
+                    window.MeasurelyAuth.openModal('signup');
                 } else {
                     navigateToApp();
                 }
