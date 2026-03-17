@@ -542,10 +542,10 @@ function _buildTreatedState() {
         opt_sofa:     ids.has('sofa')  ? true : roomState.environment.furniture?.opt_sofa,
       },
       treatment: {
-        wall_panel_mode:    layout.wall_panel_mode    ?? 'none',
-        side_panel_mode:    layout.side_panel_mode    ?? 'none',
-        bass_trap_mode:     layout.bass_trap_mode     ?? 'none',
-        ceiling_panel_mode: layout.ceiling_panel_mode ?? 'none',
+        wall_panel_mode:    layout.wall_panel_mode    ?? roomState.environment?.treatment?.wall_panel_mode    ?? 'none',
+        side_panel_mode:    layout.side_panel_mode    ?? roomState.environment?.treatment?.side_panel_mode    ?? 'none',
+        bass_trap_mode:     layout.bass_trap_mode     ?? roomState.environment?.treatment?.bass_trap_mode     ?? 'none',
+        ceiling_panel_mode: layout.ceiling_panel_mode ?? roomState.environment?.treatment?.ceiling_panel_mode ?? 'none',
       }
     }
   };
@@ -553,10 +553,7 @@ function _buildTreatedState() {
 
 function _getRoomDataForView() {
   if (_treatmentViewMode === 'current') {
-    return {
-      ...roomState,
-      environment: { ...roomState.environment, treatment: { ..._NO_TREATMENT } }
-    };
+    return roomState; // show actual treatment state so toggles are visible
   }
   return _buildTreatedState();
 }
