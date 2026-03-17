@@ -996,6 +996,13 @@ window.addEventListener('DOMContentLoaded', () => {
         loader.classList.add('hidden');
         setTimeout(() => { loader.style.display = 'none'; }, 500);
     }));
+    // Fallback: if loader is still visible after 8s, show a "taking longer" message
+    setTimeout(() => {
+        const txt = loader.querySelector('.room3d-loader-text');
+        if (txt && loader.style.display !== 'none' && !loader.classList.contains('hidden')) {
+            txt.textContent = 'Taking longer than expected…';
+        }
+    }, 8000);
 }());
 
 /* ------------------------------------------

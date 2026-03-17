@@ -346,7 +346,7 @@ body {
                         <span class="demo-field-value" id="valWidth">4.2 m</span>
                     </div>
                     <input type="range" id="demoWidth" min="2.0" max="8.0" step="0.1" value="4.2"
-                           class="measurely-slider" style="--fill:36%">
+                           class="measurely-slider" style="--fill:36%" aria-label="Room width in metres">
                 </div>
 
                 <div class="demo-field">
@@ -355,7 +355,7 @@ body {
                         <span class="demo-field-value" id="valLength">5.5 m</span>
                     </div>
                     <input type="range" id="demoLength" min="2.5" max="10.0" step="0.1" value="5.5"
-                           class="measurely-slider" style="--fill:40%">
+                           class="measurely-slider" style="--fill:40%" aria-label="Room length in metres">
                 </div>
 
             </div>
@@ -374,7 +374,7 @@ body {
                         <span class="demo-field-value" id="valListenPos">2.8 m</span>
                     </div>
                     <input type="range" id="demoListenPos" min="1.0" max="5.0" step="0.1" value="2.8"
-                           class="measurely-slider" style="--fill:45%">
+                           class="measurely-slider" style="--fill:45%" aria-label="Listening position distance from front wall in metres">
                 </div>
 
                 <div class="demo-field">
@@ -383,7 +383,7 @@ body {
                         <span class="demo-field-value" id="valSpkWall">0.45 m</span>
                     </div>
                     <input type="range" id="demoSpkWall" min="0.1" max="1.5" step="0.05" value="0.45"
-                           class="measurely-slider" style="--fill:24%">
+                           class="measurely-slider" style="--fill:24%" aria-label="Speaker distance from front wall in metres">
                 </div>
 
             </div>
@@ -419,7 +419,8 @@ body {
 
         <!-- Reset -->
         <div>
-            <button class="sbox-btn sbox-reset" id="demoReset" style="width:100%;justify-content:center;">
+            <button class="sbox-btn sbox-reset" id="demoReset" style="width:100%;justify-content:center;"
+                    title="Restores: 4.2 × 5.5 m room, listener at 2.1 m, speakers 0.45 m from wall, furniture on, no treatment">
                 <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
                 Reset to defaults
             </button>

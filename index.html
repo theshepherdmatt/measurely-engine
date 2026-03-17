@@ -471,11 +471,11 @@ header, section, footer { position: relative; z-index: 1; }
             } catch(_) {}
         })();
         </script>
-        <div class="needs-strip">
-            <span><span class="material-icons">check_circle</span> REW impulse response WAV</span>
-            <span><span class="material-icons">check_circle</span> Any stereo setup</span>
-            <span><span class="material-icons">check_circle</span> Results in under 5 seconds</span>
-        </div>
+        <ul class="needs-strip" role="list" aria-label="What you need">
+            <li><span class="material-icons" aria-hidden="true">check_circle</span> REW impulse response WAV</li>
+            <li><span class="material-icons" aria-hidden="true">check_circle</span> Any stereo setup</li>
+            <li><span class="material-icons" aria-hidden="true">check_circle</span> Results in under 5 seconds</li>
+        </ul>
     </div>
 </section>
 
@@ -983,11 +983,15 @@ document.getElementById('kitInterestBtn')?.addEventListener('click', function() 
 
 // ── FAQ accordion ────────────────────────────────────────────
 document.querySelectorAll('.faq-q').forEach(function(btn) {
-    btn.addEventListener('click', function() {
+    function toggle() {
         var item = btn.closest('.faq-item');
         var open = item.classList.contains('is-open');
         document.querySelectorAll('.faq-item').forEach(function(el) { el.classList.remove('is-open'); });
         if (!open) item.classList.add('is-open');
+    }
+    btn.addEventListener('click', toggle);
+    btn.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
     });
 });
 </script>

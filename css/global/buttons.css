@@ -1,3 +1,10 @@
+/* Global focus indicator — covers all interactive elements */
+:focus-visible {
+    outline: 2px solid var(--c-accent);
+    outline-offset: 3px;
+    border-radius: 6px;
+}
+
 .btn {
     display: inline-flex;
     align-items: center;

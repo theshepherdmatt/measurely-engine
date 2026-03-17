@@ -152,7 +152,14 @@
 <script>
 document.addEventListener("DOMContentLoaded", async () => {
 
-    const s = await window.getSweepData();
+    let s;
+    try {
+        s = await window.getSweepData();
+        if (!s || !s.score || !s.metrics) throw new Error('Missing sweep data');
+    } catch (err) {
+        document.body.innerHTML = '<p style="color:#f87171;font-family:sans-serif;padding:2rem;">Report data could not be loaded. Please return to the app and try again.</p>';
+        return;
+    }
 
     // Numbers
     document.getElementById("score-value").textContent = s.score.toFixed(1);

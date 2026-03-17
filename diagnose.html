@@ -87,7 +87,7 @@
             </div>
 
             <!-- Mode badge overlay on canvas -->
-            <div class="ra-canvas-badge" id="raModesBadge"></div>
+            <div class="ra-canvas-badge" id="raModesBadge" aria-label="Dominant room modes" aria-live="polite"></div>
         </div>
 
 
@@ -303,6 +303,14 @@ async function initDashboardRoom() {
             setTimeout(() => { loader.style.display = 'none'; }, 500);
         }
     }));
+    // Fallback: if loader is still visible after 8s, show a "taking longer" message
+    setTimeout(() => {
+        const loader = document.getElementById('room3dLoader');
+        const txt = loader?.querySelector('.room3d-loader-text');
+        if (txt && loader && loader.style.display !== 'none' && !loader.classList.contains('hidden')) {
+            txt.textContent = 'Taking longer than expected…';
+        }
+    }, 8000);
 
     wireAnalysisCards();
 }
@@ -397,7 +405,7 @@ const modesPoll = setInterval(() => {
     const parts = Object.entries(grouped).map(([axis, freqs]) => {
         const label = axis === 'width' ? 'Side walls' : axis === 'length' ? 'Front/back' : 'Floor/ceiling';
         const lowest = Math.round(Math.min(...freqs));
-        return `<span class="ra-mode-chip ra-mode-${axis}">${label} <strong>${lowest} Hz</strong></span>`;
+        return `<span class="ra-mode-chip ra-mode-${axis}" aria-label="${label} dominant mode at ${lowest} Hz">${label} <strong aria-hidden="true">${lowest} Hz</strong></span>`;
     });
 
     badge.innerHTML = parts.join('');
