@@ -1049,16 +1049,10 @@ function finish() {
                 }
             });
 
-            // "Skip & Preview" — go straight to the interactive demo
+            // "Skip & Preview" — go to dashboard without signing in
             document.getElementById('completionPreviewBtn')?.addEventListener('click', () => {
                 document.body.classList.remove('flyby-active');
-                if (document.startViewTransition) {
-                    document.startViewTransition(() => { window.location.href = 'demo.html'; });
-                } else {
-                    document.body.style.transition = 'opacity 0.3s ease';
-                    document.body.style.opacity = '0';
-                    setTimeout(() => { window.location.href = 'demo.html'; }, 300);
-                }
+                navigateToApp();
             });
 
             document.getElementById('completionBackBtn')?.addEventListener('click', () => {
