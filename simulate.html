@@ -425,15 +425,16 @@ window.attachHighlightListeners = attachHighlightListeners;
 window.__liveRoomState = null;
 
 // ── Treatment toggle state ────────────────────────────────────
-let _simViewMode = 'current'; // 'current' | 'treated'
-let _simTreatmentPlan = null;
+// Declared on window so regular <script> blocks (initSimulate, saveSimulateToRoom etc.) can access them.
+window._simViewMode = 'current'; // 'current' | 'treated'
+window._simTreatmentPlan = null;
 const _SIM_NO_TREATMENT = { wall_panel_mode: 'none', side_panel_mode: 'none', bass_trap_mode: 'none', ceiling_panel_mode: 'none' };
 
 function _simBuildTreatedState() {
     const base = window.__liveRoomState;
-    if (!base || !_simTreatmentPlan) return base;
-    const layout   = _simTreatmentPlan.layout_config  || {};
-    const shopping = _simTreatmentPlan.shopping_list   || [];
+    if (!base || !window._simTreatmentPlan) return base;
+    const layout   = window._simTreatmentPlan.layout_config  || {};
+    const shopping = window._simTreatmentPlan.shopping_list   || [];
     const ids      = new Set(shopping.map(t => t.id));
     return {
         ...base,
@@ -460,7 +461,7 @@ function _simGetRoomForView() {
     if (!base) return base;
     // 'current' = live simulation state as-is (panels updated by sim controls)
     // 'treated' = saved Fix My Room plan overlaid on top of the base room
-    if (_simViewMode === 'current') return base;
+    if (window._simViewMode === 'current') return base;
     return _simBuildTreatedState();
 }
 
@@ -468,7 +469,7 @@ async function _simLoadTreatmentPlan() {
     try {
         const plan = await window.MeasurelySync?.pullTreatment();
         if (plan) {
-            _simTreatmentPlan = plan;
+            window._simTreatmentPlan = plan;
             const btn = document.getElementById('simTtTreated');
             if (btn) btn.textContent = 'Treated room ✦';
             // Populate the sim dropdowns from the saved layout_config
@@ -486,8 +487,8 @@ document.getElementById('simTreatmentToggle')?.addEventListener('click', (e) => 
     const btn = e.target.closest('.tt-btn');
     if (!btn) return;
     const view = btn.dataset.view;
-    if (view === _simViewMode) return;
-    _simViewMode = view;
+    if (view === window._simViewMode) return;
+    window._simViewMode = view;
     document.querySelectorAll('#simTreatmentToggle .tt-btn').forEach(b => b.classList.toggle('tt-active', b.dataset.view === view));
     if (window.room3D?.update) window.room3D.update();
 });
@@ -619,7 +620,7 @@ function initSimulate(room) {
     set('sim-toe-in',      room.toe_in_deg     ?? 21);
 
     // Prefer layout_config (PB treatment plan) → old flat fields → default none
-    const _lc = _simTreatmentPlan?.layout_config || {};
+    const _lc = window._simTreatmentPlan?.layout_config || {};
     set('sim-wall-panels',    _lc.wall_panel_mode    ?? room.plan_wall_panels ?? room.wall_panel_mode    ?? 'none');
     set('sim-side-panels',    _lc.side_panel_mode    ?? room.plan_side_panels ?? room.side_panel_mode    ?? 'none');
     set('sim-bass-traps',     _lc.bass_trap_mode     ?? room.plan_bass_traps  ?? room.bass_trap_mode     ?? 'none');
@@ -894,8 +895,8 @@ async function saveSimulateToRoom() {
     });
 
     // ── Update local plan and switch 3D to treated view immediately
-    _simTreatmentPlan = { budget: 0, shopping_list: [], layout_config, status: 'saved' };
-    _simViewMode = 'treated';
+    window._simTreatmentPlan = { budget: 0, shopping_list: [], layout_config, status: 'saved' };
+    window._simViewMode = 'treated';
     document.querySelectorAll('#simTreatmentToggle .tt-btn').forEach(b =>
         b.classList.toggle('tt-active', b.dataset.view === 'treated')
     );
@@ -1266,11 +1267,11 @@ async function saveFixPlan() {
     try {
         await window.MeasurelySync?.pushTreatment({ budget, shopping_list, layout_config, status: 'saved' });
         // Update local plan and switch the 3D view to show the treated room immediately
-        _simTreatmentPlan = { budget, shopping_list, layout_config, status: 'saved' };
+        window._simTreatmentPlan = { budget, shopping_list, layout_config, status: 'saved' };
         const treatedBtn = document.getElementById('simTtTreated');
         if (treatedBtn) treatedBtn.textContent = 'Treated room ✦';
         // Switch toggle to treated view
-        _simViewMode = 'treated';
+        window._simViewMode = 'treated';
         document.querySelectorAll('#simTreatmentToggle .tt-btn').forEach(b =>
             b.classList.toggle('tt-active', b.dataset.view === 'treated')
         );
