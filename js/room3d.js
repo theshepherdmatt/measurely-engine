@@ -843,13 +843,15 @@ function rebuild() {
     ? 1.22  // seated ear height at a desk (~desk surface 0.75m + ~0.47m seated posture)
     : room.tweeter_height_m; // ear roughly at tweeter axis when seated on sofa
 
-  // Solid furniture fill — slate-600, fully opaque with proper depth so pieces
-  // sit correctly in the scene and don't ghost against the dark background.
+  // Wireframe fill — matches the room-shell aesthetic. Low opacity so furniture
+  // reads as context (hierarchy rule: acoustic data > furniture).
   const furnMat = new THREE.MeshBasicMaterial({
-    color:       0x475569, // Slate-600 — visible dark grey-blue
-    transparent: false,
+    color:       0x6366f1, // Indigo — same family as room shell
+    wireframe:   true,
+    transparent: true,
+    opacity:     0.12,
     depthTest:   true,
-    depthWrite:  true
+    depthWrite:  false
   });
 
   // Bright indigo-300 outline so edges pop clearly against the fill and walls.
@@ -913,9 +915,11 @@ function rebuild() {
       const rug = new THREE.Mesh(
         new THREE.PlaneGeometry(room.width_m * 0.45, room.length_m * 0.35),
         new THREE.MeshBasicMaterial({
-          color:       0x334155, // Slate-800 — darker than furniture, reads as a rug
-          transparent: false,
-          depthWrite:  true,
+          color:       0x818cf8, // Indigo-400 — slightly lighter to read as rug
+          wireframe:   true,
+          transparent: true,
+          opacity:     0.22,
+          depthWrite:  false,
           depthTest:   true,
           side: THREE.DoubleSide
         })

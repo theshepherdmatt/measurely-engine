@@ -299,6 +299,12 @@
     border-radius: 16px;
   }
 
+  /* Nested cards on mobile — tighter to avoid double-padding */
+  .card .card {
+    padding: 0.6rem 0.7rem;
+    border-radius: 10px;
+  }
+
   .overall-score-card {
     padding: 1.25rem;
   }

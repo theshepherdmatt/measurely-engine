@@ -25,319 +25,241 @@
 
 body {
     margin: 0;
-    background: #0b1220;
-    color: #e2e8f0;
+    background: var(--c-bg);
+    color: var(--c-text-main);
     font-family: var(--font-main, system-ui, sans-serif);
     overflow: hidden;
     height: 100dvh;
 }
 
-/* ── 3D canvas — fills the whole viewport ────────────────── */
+/* ── 3D canvas — fills viewport minus the right panel ───── */
 #demoCanvas {
     position: fixed;
     inset: 0;
-    width: 100%;
+    right: 280px;
+    width: auto;
     height: 100%;
 }
 
-/* ── Chip — floats above canvas, non-blocking ───────────── */
+/* ── Chip — floats above canvas ─────────────────────────── */
 .demo-chip {
     position: fixed;
-    top: 56px;
-    left: 50%;
+    top: 14px;
+    left: calc(50% - 140px); /* centred in canvas area */
     transform: translateX(-50%);
-    background: rgba(15,23,42,.88);
-    border: 1px solid rgba(99,102,241,.35);
+    background: rgba(15,23,42,.9);
+    border: 1px solid rgba(99,102,241,.4);
     border-radius: 999px;
     padding: 5px 16px;
-    font-size: 0.8rem;
-    color: #c7d2fe;
+    font-size: 0.78rem;
+    color: var(--c-accent-tint);
     pointer-events: none;
     white-space: nowrap;
     opacity: 0;
     transition: opacity 0.3s ease;
-    backdrop-filter: blur(8px);
-    z-index: 30;
+    backdrop-filter: blur(10px);
+    z-index: 60;
 }
 .demo-chip.visible { opacity: 1; }
 
-/* ── Top bar — slim, floating over canvas ───────────────── */
-.demo-topbar {
+/* ── Right-side control panel ───────────────────────────── */
+.demo-panel {
     position: fixed;
     top: 0;
-    left: 0;
     right: 0;
-    z-index: 50;
+    width: 280px;
+    height: 100%;
+    z-index: 40;
+
+    background: linear-gradient(165deg, rgba(23,32,48,0.97), rgba(13,18,28,0.99));
+    backdrop-filter: blur(20px) saturate(200%);
+    -webkit-backdrop-filter: blur(20px) saturate(200%);
+
+    border-left: 1px solid rgba(255,255,255,0.08);
+    box-shadow: -6px 0 32px rgba(0,0,0,0.45);
+
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* ── Panel header ────────────────────────────────────────── */
+.demo-panel-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 8px 14px;
-    background: rgba(11, 18, 32, 0.75);
-    backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgba(255,255,255,.06);
-    height: 44px;
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    flex-shrink: 0;
 }
 
-.demo-topbar-title {
+.demo-panel-title {
     display: flex;
     align-items: center;
-    gap: 7px;
-    font-size: 0.82rem;
-    font-weight: 700;
-    color: #f8fafc;
+    gap: 8px;
 }
 
-.demo-topbar-title img { width: 20px; height: 20px; opacity: 0.9; }
+.demo-panel-title img {
+    width: 20px;
+    height: 20px;
+    opacity: 0.85;
+}
 
 .demo-eyebrow {
     font-size: 0.68rem;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: #6366f1;
+    color: var(--c-accent);
 }
 
 .demo-close-btn {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 5px 11px;
+    padding: 5px 10px;
     border-radius: 7px;
-    border: 1px solid rgba(255,255,255,.12);
-    background: rgba(255,255,255,.06);
-    color: rgba(255,255,255,.55);
-    font-size: 0.78rem;
+    border: 1px solid rgba(255,255,255,.1);
+    background: rgba(255,255,255,.05);
+    color: var(--c-text-muted);
+    font-size: 0.75rem;
     font-weight: 600;
     cursor: pointer;
     font-family: inherit;
-    transition: background .15s, color .15s;
+    transition: background .15s, color .15s, border-color .15s;
     text-decoration: none;
 }
-.demo-close-btn:hover { background: rgba(255,255,255,.12); color: rgba(255,255,255,.9); }
-
-/* ── Bottom drawer — floats over canvas, never blocks it ── */
-.demo-drawer {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    z-index: 50;
-    display: flex;
-    flex-direction: column;
-    transform: translateY(calc(100% - 40px));
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+.demo-close-btn:hover {
+    background: rgba(255,255,255,.1);
+    color: var(--c-text-main);
+    border-color: rgba(255,255,255,.2);
 }
 
-.demo-drawer.open {
-    transform: translateY(0);
-}
-
-/* ── Drawer handle ───────────────────────────────────────── */
-.demo-drawer-handle {
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 16px;
-    background: rgba(15, 23, 42, 0.50);
-    backdrop-filter: blur(14px);
-    border-top: 1px solid rgba(99,102,241,.25);
-    border-radius: 14px 14px 0 0;
-    cursor: pointer;
-    user-select: none;
-    gap: 10px;
-}
-
-.demo-drawer-handle:hover { background: rgba(15, 23, 42, 0.65); }
-
-.handle-pill {
-    width: 36px;
-    height: 4px;
-    border-radius: 2px;
-    background: rgba(255,255,255,.25);
-    flex-shrink: 0;
-}
-
-.handle-label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: rgba(255,255,255,.55);
+/* ── Panel body (scrollable) ─────────────────────────────── */
+.demo-panel-body {
     flex: 1;
-    text-align: center;
-}
-.demo-drawer.open .handle-label { color: rgba(255,255,255,.8); }
-
-.handle-arrow {
-    color: rgba(255,255,255,.3);
-    transition: transform 0.25s ease, color 0.15s;
-    flex-shrink: 0;
-}
-.demo-drawer.open .handle-arrow {
-    transform: rotate(180deg);
-    color: rgba(255,255,255,.6);
-}
-
-/* ── Drawer body (controls + CTA) ───────────────────────── */
-.demo-drawer-body {
-    background: rgba(11, 18, 32, 0.45);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-top: 1px solid rgba(255,255,255,.07);
-    padding: 10px 14px 14px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 14px 14px 0;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    overflow: hidden;
+    gap: 14px;
+    /* custom scrollbar */
+    scrollbar-width: thin;
+    scrollbar-color: rgba(99,102,241,.3) transparent;
 }
+.demo-panel-body::-webkit-scrollbar { width: 4px; }
+.demo-panel-body::-webkit-scrollbar-track { background: transparent; }
+.demo-panel-body::-webkit-scrollbar-thumb { background: rgba(99,102,241,.3); border-radius: 2px; }
 
-/* ── Control rows ────────────────────────────────────────── */
-.demo-controls-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-    justify-content: center;
-}
-
-/* ── Grouped sections (Overlays / Treatment) ─────────────── */
-.demo-sections-row {
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-    flex-wrap: wrap;
-    justify-content: center;
-}
-
-.demo-section {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    background: rgba(255,255,255,.03);
-    border: 1px solid rgba(255,255,255,.07);
-    border-radius: 8px;
-    padding: 4px 8px;
-}
-
-.demo-section-label {
-    font-size: 0.65rem;
+/* ── Section header (label above a group of controls) ────── */
+.demo-group-label {
+    font-size: 0.62rem;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: rgba(255,255,255,.28);
-    white-space: nowrap;
-    padding-right: 4px;
-    border-right: 1px solid rgba(255,255,255,.1);
-    margin-right: 2px;
+    color: rgba(255,255,255,.3);
+    margin-bottom: 6px;
+}
+
+/* ── Button row ──────────────────────────────────────────── */
+.demo-btn-row {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
 }
 
 .sbox-btn {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 5px 11px;
+    padding: 6px 11px;
     border-radius: 7px;
-    font-size: 0.78rem;
-    font-weight: 600;
-    font-family: inherit;
-    cursor: pointer;
-    border: 1px solid rgba(255,255,255,.12);
-    background: rgba(255,255,255,.04);
-    color: rgba(255,255,255,.5);
-    transition: background .15s, border-color .15s, color .15s;
-    white-space: nowrap;
-}
-.sbox-btn:hover  { background: rgba(99,102,241,.14); border-color: rgba(99,102,241,.35); color: #c7d2fe; }
-.sbox-btn.active { background: rgba(99,102,241,.2);  border-color: rgba(99,102,241,.5);  color: #e0e7ff; }
-.sbox-btn.sbox-reset { border-color: rgba(255,255,255,.08); color: rgba(255,255,255,.28); }
-.sbox-btn.sbox-reset:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.6); }
-
-.overlay-btn {
-    padding: 4px 9px;
-    border-radius: 6px;
-    font-size: 0.72rem;
+    font-size: 0.76rem;
     font-weight: 600;
     font-family: inherit;
     cursor: pointer;
     border: 1px solid rgba(255,255,255,.1);
+    background: rgba(255,255,255,.04);
+    color: rgba(255,255,255,.45);
+    transition: background .15s, border-color .15s, color .15s;
+    white-space: nowrap;
+}
+.sbox-btn:hover  { background: rgba(99,102,241,.14); border-color: rgba(99,102,241,.35); color: var(--c-accent-tint); }
+.sbox-btn.active { background: rgba(99,102,241,.2);  border-color: rgba(99,102,241,.5);  color: var(--c-accent-light); }
+.sbox-btn.sbox-reset { border-color: rgba(255,255,255,.07); color: rgba(255,255,255,.25); }
+.sbox-btn.sbox-reset:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.6); }
+
+.overlay-btn {
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 0.73rem;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    border: 1px solid rgba(255,255,255,.09);
     background: transparent;
-    color: rgba(255,255,255,.38);
+    color: rgba(255,255,255,.35);
     transition: background .15s, border-color .15s, color .15s;
     white-space: nowrap;
 }
 .overlay-btn:hover  { background: rgba(99,102,241,.1); color: rgba(255,255,255,.7); }
-.overlay-btn.active { background: rgba(99,102,241,.22); border-color: #6366f1; color: #a5b4fc; }
+.overlay-btn.active { background: rgba(99,102,241,.22); border-color: var(--c-accent); color: var(--c-accent-light); }
 
-/* Sliders */
-.sbox-slider-row {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 6px 24px;
-    padding: 2px 4px;
-}
-
-.sbox-slider-label {
+/* ── Slider field (matches onboarding field style) ───────── */
+.demo-field {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 7px;
 }
 
-.sbox-slider-name {
-    font-size: 0.67rem;
+.demo-field-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+}
+
+.demo-field-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--c-text-muted);
+    letter-spacing: 0.02em;
+}
+
+.demo-field-value {
+    font-size: 0.7rem;
     font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: rgba(255,255,255,.35);
-    white-space: nowrap;
+    color: var(--c-accent-light);
+    font-variant-numeric: tabular-nums;
 }
-
-.sbox-range {
-    width: 100%;
-    -webkit-appearance: none;
-    height: 3px;
-    border-radius: 2px;
-    background: rgba(99,102,241,.28);
-    outline: none;
-    cursor: pointer;
-}
-.sbox-range::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 14px; height: 14px;
-    border-radius: 50%;
-    background: #818cf8;
-    border: 2px solid #1e1b4b;
-    cursor: pointer;
-    transition: background .15s, transform .1s;
-}
-.sbox-range::-webkit-slider-thumb:hover { background: #a5b4fc; transform: scale(1.2); }
-.sbox-range:disabled { opacity: 0.28; cursor: default; }
-
 
 /* ── CTA bar ─────────────────────────────────────────────── */
 .demo-cta-bar {
+    margin: 0 -14px;
+    padding: 12px 16px 16px;
+    background: linear-gradient(135deg, rgba(99,102,241,.12), rgba(139,92,246,.12));
+    border-top: 1px solid rgba(99,102,241,.2);
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
     gap: 10px;
-    padding: 9px 12px;
-    background: linear-gradient(90deg, rgba(99,102,241,.1), rgba(139,92,246,.1));
-    border-radius: 10px;
-    border: 1px solid rgba(99,102,241,.18);
+    flex-shrink: 0;
 }
 
 .demo-cta-text {
-    font-size: 0.76rem;
+    font-size: 0.74rem;
     color: rgba(255,255,255,.55);
     margin: 0;
-    line-height: 1.3;
+    line-height: 1.4;
 }
 
 .demo-cta-btn {
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
-    padding: 7px 14px;
+    padding: 9px 16px;
     border-radius: 50px;
-    background: #6366f1;
+    background: var(--c-accent);
     color: #fff;
     font-size: 0.8rem;
     font-weight: 700;
@@ -345,9 +267,17 @@ body {
     white-space: nowrap;
     transition: background .2s, transform .15s;
     font-family: inherit;
-    flex-shrink: 0;
 }
-.demo-cta-btn:hover { background: #4f46e5; transform: scale(1.03); }
+.demo-cta-btn:hover { background: var(--c-accent-dark); transform: scale(1.02); }
+
+/* ── Divider ─────────────────────────────────────────────── */
+.demo-divider {
+    height: 1px;
+    background: rgba(255,255,255,.06);
+    margin: 0 -14px;
+}
+
+/* ── Landscape-only on mobile (handled by portrait lock) ─── */
 </style>
 </head>
 <body>
@@ -363,66 +293,116 @@ body {
     <p class="pl-sub">Measurely is designed for landscape view. Rotate your phone or tablet sideways to launch the demo.</p>
 </div>
 
-<!-- FULL-SCREEN 3D CANVAS -->
+<!-- FULL-SCREEN 3D CANVAS (leaves 280px on right for panel) -->
 <div id="demoCanvas"></div>
 
 <!-- CHIP (floats above canvas) -->
 <div class="demo-chip" id="demoChip" aria-live="polite"></div>
 
-<!-- TOP BAR (floats above canvas) -->
-<div class="demo-topbar">
-    <div class="demo-topbar-title">
-        <img src="icons/largedave.svg" alt="" aria-hidden="true">
-        <span class="demo-eyebrow">Interactive Demo</span>
-    </div>
-    <a href="index.html" class="demo-close-btn" aria-label="Back to home">
-        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>
-        </svg>
-        Back
-    </a>
-</div>
+<!-- RIGHT CONTROL PANEL -->
+<aside class="demo-panel" aria-label="Demo controls">
 
-<!-- BOTTOM DRAWER (floats above canvas, never covers it when collapsed) -->
-<div class="demo-drawer" id="demoDrawer">
-
-    <!-- Handle / toggle strip -->
-    <div class="demo-drawer-handle" id="demoDrawerHandle" role="button"
-         aria-expanded="false" aria-controls="demoDrawerBody" tabindex="0"
-         aria-label="Toggle controls">
-        <div class="handle-pill" aria-hidden="true"></div>
-        <span class="handle-label">Controls</span>
-        <svg class="handle-arrow" xmlns="http://www.w3.org/2000/svg" width="14" height="14"
-             viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="m18 15-6-6-6 6"/>
-        </svg>
+    <!-- Header -->
+    <div class="demo-panel-header">
+        <div class="demo-panel-title">
+            <img src="icons/largedave.svg" alt="" aria-hidden="true">
+            <span class="demo-eyebrow">Interactive Demo</span>
+        </div>
+        <a href="index.html" class="demo-close-btn" aria-label="Back to home">
+            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M19 12H5"/><path d="m12 19-7-7 7-7"/>
+            </svg>
+            Back
+        </a>
     </div>
 
-    <!-- Drawer body: controls + CTA -->
-    <div class="demo-drawer-body" id="demoDrawerBody">
+    <!-- Scrollable body -->
+    <div class="demo-panel-body">
 
-        <!-- Row 1: furniture toggle + grouped sections + reset -->
-        <div class="demo-controls-row">
-
-            <!-- Single furniture toggle -->
-            <button class="sbox-btn active" id="demoFurnitureToggle">
-                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2"/><path d="M2 11v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v0a2 2 0 0 1-4 0v0a2 2 0 0 1-4 0v0a2 2 0 0 0-4 0z"/></svg>
-                Furniture
-            </button>
-
-            <!-- Overlays section -->
-            <div class="demo-section">
-                <span class="demo-section-label">Overlays</span>
+        <!-- Overlays -->
+        <div>
+            <div class="demo-group-label">Overlays</div>
+            <div class="demo-btn-row">
                 <button class="overlay-btn active" data-overlay="sbir">SBIR</button>
                 <button class="overlay-btn" data-overlay="bandwidth">Bass modes</button>
                 <button class="overlay-btn" data-overlay="side_reflections">Reflections</button>
             </div>
+        </div>
 
-            <!-- Treatment section -->
-            <div class="demo-section">
-                <span class="demo-section-label">Treatment</span>
+        <div class="demo-divider"></div>
+
+        <!-- Room sliders -->
+        <div>
+            <div class="demo-group-label">Room dimensions</div>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+
+                <div class="demo-field">
+                    <div class="demo-field-header">
+                        <span class="demo-field-label">Room width</span>
+                        <span class="demo-field-value" id="valWidth">4.2 m</span>
+                    </div>
+                    <input type="range" id="demoWidth" min="2.0" max="8.0" step="0.1" value="4.2"
+                           class="measurely-slider" style="--fill:36%">
+                </div>
+
+                <div class="demo-field">
+                    <div class="demo-field-header">
+                        <span class="demo-field-label">Room length</span>
+                        <span class="demo-field-value" id="valLength">5.5 m</span>
+                    </div>
+                    <input type="range" id="demoLength" min="2.5" max="10.0" step="0.1" value="5.5"
+                           class="measurely-slider" style="--fill:40%">
+                </div>
+
+            </div>
+        </div>
+
+        <div class="demo-divider"></div>
+
+        <!-- Setup sliders -->
+        <div>
+            <div class="demo-group-label">Setup</div>
+            <div style="display:flex;flex-direction:column;gap:12px;">
+
+                <div class="demo-field">
+                    <div class="demo-field-header">
+                        <span class="demo-field-label">Listening position</span>
+                        <span class="demo-field-value" id="valListenPos">2.8 m</span>
+                    </div>
+                    <input type="range" id="demoListenPos" min="1.0" max="5.0" step="0.1" value="2.8"
+                           class="measurely-slider" style="--fill:45%">
+                </div>
+
+                <div class="demo-field">
+                    <div class="demo-field-header">
+                        <span class="demo-field-label">Speakers from wall</span>
+                        <span class="demo-field-value" id="valSpkWall">0.45 m</span>
+                    </div>
+                    <input type="range" id="demoSpkWall" min="0.1" max="1.5" step="0.05" value="0.45"
+                           class="measurely-slider" style="--fill:24%">
+                </div>
+
+            </div>
+        </div>
+
+        <div class="demo-divider"></div>
+
+        <!-- Furniture -->
+        <div>
+            <div class="demo-group-label">Furniture</div>
+            <div class="demo-btn-row">
+                <button class="sbox-btn active" id="demoFurnitureToggle">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2"/><path d="M2 11v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v0a2 2 0 0 1-4 0v0a2 2 0 0 1-4 0v0a2 2 0 0 0-4 0z"/></svg>
+                    Furniture
+                </button>
+            </div>
+        </div>
+
+        <!-- Treatment -->
+        <div>
+            <div class="demo-group-label">Treatment</div>
+            <div class="demo-btn-row">
                 <button class="sbox-btn" data-item="bass_traps">
                     <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="3 20 12 4 21 20"/></svg>
                     Bass traps
@@ -432,49 +412,31 @@ body {
                     Side panels
                 </button>
             </div>
+        </div>
 
-            <!-- Reset -->
-            <button class="sbox-btn sbox-reset" id="demoReset">
+        <!-- Reset -->
+        <div>
+            <button class="sbox-btn sbox-reset" id="demoReset" style="width:100%;justify-content:center;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-                Reset
+                Reset to defaults
             </button>
-
         </div>
 
-        <!-- Row 2: sliders (2×2 grid) -->
-        <div class="sbox-slider-row">
-            <label class="sbox-slider-label">
-                <span class="sbox-slider-name">Listening position</span>
-                <input type="range" id="demoListenPos" min="1.0" max="5.0" step="0.1" value="2.8" class="sbox-range">
-            </label>
-            <label class="sbox-slider-label">
-                <span class="sbox-slider-name">Speakers from wall</span>
-                <input type="range" id="demoSpkWall" min="0.1" max="1.5" step="0.05" value="0.45" class="sbox-range">
-            </label>
-            <label class="sbox-slider-label">
-                <span class="sbox-slider-name">Room width</span>
-                <input type="range" id="demoWidth" min="2.0" max="8.0" step="0.1" value="4.2" class="sbox-range">
-            </label>
-            <label class="sbox-slider-label">
-                <span class="sbox-slider-name">Room length</span>
-                <input type="range" id="demoLength" min="2.5" max="10.0" step="0.1" value="5.5" class="sbox-range">
-            </label>
-        </div>
+    </div><!-- /panel-body -->
 
-        <!-- CTA -->
-        <div class="demo-cta-bar">
-            <p class="demo-cta-text">Ready to measure your actual room?</p>
-            <a href="onboarding.html" class="demo-cta-btn">
-                Set up my room
-                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
-                </svg>
-            </a>
-        </div>
+    <!-- CTA — pinned to bottom -->
+    <div class="demo-cta-bar">
+        <p class="demo-cta-text">Ready to measure your actual room?</p>
+        <a href="onboarding.html" class="demo-cta-btn">
+            Set up my room
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+                 stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+            </svg>
+        </a>
+    </div>
 
-    </div><!-- /drawer-body -->
-</div><!-- /drawer -->
+</aside>
 
 <script type="module">
 import { initRoom3D } from './js/room3d.js';
@@ -495,13 +457,11 @@ const demoState = {
 };
 
 const DEFAULTS = {
-    // Golden Triangle: 2.5 m speaker spacing
-    // 38 % rule: listener at 38 % of room depth from the front (speaker) wall
     spk_spacing_m: 2.5, spk_front_m: 0.45, toe_in_deg: 12,
     listener_front_m: 2.1, listener_offset_m: 0, width_m: 4.2, length_m: 5.5
 };
 
-// ── Chip ─────────────────────────────────────────────────
+// ── Chip ──────────────────────────────────────────────────
 const chip = document.getElementById('demoChip');
 let chipTimer;
 function showChip(text, ms = 3500) {
@@ -511,7 +471,14 @@ function showChip(text, ms = 3500) {
     chipTimer = setTimeout(() => chip.classList.remove('visible'), ms);
 }
 
-// ── Init 3D ──────────────────────────────────────────────
+// ── Slider fill helper (keeps measurely-slider gradient in sync) ──
+function updateSliderFill(el) {
+    const min = parseFloat(el.min), max = parseFloat(el.max), val = parseFloat(el.value);
+    const pct = ((val - min) / (max - min) * 100).toFixed(1);
+    el.style.setProperty('--fill', pct + '%');
+}
+
+// ── Init 3D ───────────────────────────────────────────────
 const demo3D = initRoom3D({
     mountId:     'demoCanvas',
     getRoomData: () => demoState,
@@ -520,39 +487,29 @@ const demo3D = initRoom3D({
 
 demo3D.setStage('furnishings');
 demo3D.startAutoSpin();
-demo3D.focusIssue('sbir', 5);   // show reflection tubes + dim walls from the start
+demo3D.focusIssue('sbir', 5);
 
 let activeOverlay = 'sbir';
 
-// ── Drawer toggle ─────────────────────────────────────────
-const drawer = document.getElementById('demoDrawer');
-const handle = document.getElementById('demoDrawerHandle');
-
-handle.addEventListener('click', () => {
-    const isOpen = drawer.classList.toggle('open');
-    handle.setAttribute('aria-expanded', String(isOpen));
-});
-handle.addEventListener('keydown', e => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handle.click(); }
-});
-
-// ── Sliders ───────────────────────────────────────────────
+// ── Sliders ────────────────────────────────────────────────
 const listenPosSlider = document.getElementById('demoListenPos');
 const spkWallSlider   = document.getElementById('demoSpkWall');
 const widthSlider     = document.getElementById('demoWidth');
 const lengthSlider    = document.getElementById('demoLength');
 
-// Listening position — moves sphere, sofa, coffee table, rug forward/back
 listenPosSlider?.addEventListener('input', () => {
     demoState.setup.listener_front_m = Number(listenPosSlider.value);
+    updateSliderFill(listenPosSlider);
+    document.getElementById('valListenPos').textContent = Number(listenPosSlider.value).toFixed(1) + ' m';
     demo3D.update();
     demo3D.stopAutoSpin();
     showChip('Listening position adjusted — sofa and rug move with you');
 });
 
-// Speaker wall distance — pulls speakers away from the front wall
 spkWallSlider?.addEventListener('input', () => {
     demoState.setup.spk_front_m = Number(spkWallSlider.value);
+    updateSliderFill(spkWallSlider);
+    document.getElementById('valSpkWall').textContent = Number(spkWallSlider.value).toFixed(2) + ' m';
     demo3D.update();
     demo3D.stopAutoSpin();
     showChip('Speaker distance from wall changed — watch the SBIR null shift');
@@ -560,17 +517,21 @@ spkWallSlider?.addEventListener('input', () => {
 
 widthSlider?.addEventListener('input', () => {
     demoState.geometry.width_m = Number(widthSlider.value);
+    updateSliderFill(widthSlider);
+    document.getElementById('valWidth').textContent = Number(widthSlider.value).toFixed(1) + ' m';
     demo3D.setRoomWidth(Number(widthSlider.value));
     demo3D.stopAutoSpin();
 });
 
 lengthSlider?.addEventListener('input', () => {
     demoState.geometry.length_m = Number(lengthSlider.value);
+    updateSliderFill(lengthSlider);
+    document.getElementById('valLength').textContent = Number(lengthSlider.value).toFixed(1) + ' m';
     demo3D.setRoomLength(Number(lengthSlider.value));
     demo3D.stopAutoSpin();
 });
 
-// ── Furniture toggle (rug + sofa + coffee table as one) ───
+// ── Furniture toggle ──────────────────────────────────────
 let furnitureOn = true;
 document.getElementById('demoFurnitureToggle')?.addEventListener('click', () => {
     furnitureOn = !furnitureOn;
@@ -583,7 +544,7 @@ document.getElementById('demoFurnitureToggle')?.addEventListener('click', () => 
     showChip(furnitureOn ? 'Furniture on — sofa, rug and table visible' : 'Furniture hidden');
 });
 
-// ── Treatment toggles (bass traps / side panels) ──────────
+// ── Treatment toggles ─────────────────────────────────────
 document.querySelectorAll('.sbox-btn[data-item]').forEach(btn => {
     btn.addEventListener('click', () => {
         const item = btn.dataset.item;
@@ -601,9 +562,9 @@ document.querySelectorAll('.sbox-btn[data-item]').forEach(btn => {
     });
 });
 
-// ── Overlay selector ─────────────────────────────────────
-const _AL          = window.MeasurelyAssetLoader;
-const _demoCanvas  = document.getElementById('demoCanvas');
+// ── Overlay selector ──────────────────────────────────────
+const _AL         = window.MeasurelyAssetLoader;
+const _demoCanvas = document.getElementById('demoCanvas');
 
 const _overlayChips = {
     'sbir':             'SBIR — speaker boundary interference highlighted',
@@ -617,8 +578,6 @@ document.querySelectorAll('.overlay-btn').forEach(btn => {
         btn.classList.add('active');
         activeOverlay = btn.dataset.overlay;
         demo3D.stopAutoSpin();
-
-        // Show "Calculating…" overlay for one frame so mobile feels responsive
         _AL?.showChartLoading(_demoCanvas);
         requestAnimationFrame(() => {
             demo3D.focusIssue(activeOverlay, 5);
@@ -628,7 +587,7 @@ document.querySelectorAll('.overlay-btn').forEach(btn => {
     });
 });
 
-// ── Reset ─────────────────────────────────────────────────
+// ── Reset ──────────────────────────────────────────────────
 document.getElementById('demoReset')?.addEventListener('click', () => {
     Object.assign(demoState.setup, {
         spk_spacing_m: DEFAULTS.spk_spacing_m, spk_front_m: DEFAULTS.spk_front_m,
@@ -637,20 +596,16 @@ document.getElementById('demoReset')?.addEventListener('click', () => {
     });
     demoState.geometry.width_m  = DEFAULTS.width_m;
     demoState.geometry.length_m = DEFAULTS.length_m;
-    // Pro Studio defaults: rug + sofa always on, bass traps off (user can toggle)
     demoState.environment.furniture = { opt_area_rug: true, opt_sofa: true, opt_coffee_table: true };
     demoState.environment.treatment = { wall_panel_mode: 'none', side_panel_mode: 'none', bass_trap_mode: 'none', ceiling_panel_mode: 'none' };
 
-    if (widthSlider)     widthSlider.value     = DEFAULTS.width_m;
-    if (lengthSlider)    lengthSlider.value    = DEFAULTS.length_m;
-    if (listenPosSlider) listenPosSlider.value = DEFAULTS.listener_front_m;
-    if (spkWallSlider)   spkWallSlider.value   = DEFAULTS.spk_front_m;
+    if (widthSlider)     { widthSlider.value     = DEFAULTS.width_m;          updateSliderFill(widthSlider);     document.getElementById('valWidth').textContent     = DEFAULTS.width_m + ' m'; }
+    if (lengthSlider)    { lengthSlider.value    = DEFAULTS.length_m;         updateSliderFill(lengthSlider);    document.getElementById('valLength').textContent    = DEFAULTS.length_m + ' m'; }
+    if (listenPosSlider) { listenPosSlider.value = DEFAULTS.listener_front_m; updateSliderFill(listenPosSlider); document.getElementById('valListenPos').textContent = DEFAULTS.listener_front_m.toFixed(1) + ' m'; }
+    if (spkWallSlider)   { spkWallSlider.value   = DEFAULTS.spk_front_m;      updateSliderFill(spkWallSlider);   document.getElementById('valSpkWall').textContent   = DEFAULTS.spk_front_m.toFixed(2) + ' m'; }
 
-    // Reset furniture toggle
     furnitureOn = true;
     document.getElementById('demoFurnitureToggle')?.classList.add('active');
-
-    // Reset treatment toggles
     document.querySelector('.sbox-btn[data-item="bass_traps"]')?.classList.remove('active');
     document.querySelector('.sbox-btn[data-item="side_panels"]')?.classList.add('active');
 
