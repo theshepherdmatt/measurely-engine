@@ -236,7 +236,7 @@ body {
 /* ── CTA bar ─────────────────────────────────────────────── */
 .demo-cta-bar {
     margin: 0 -18px;
-    padding: 12px 18px 18px;
+    padding: 14px 18px max(20px, env(safe-area-inset-bottom, 20px));
     background: linear-gradient(135deg, rgba(99,102,241,.12), rgba(139,92,246,.12));
     border-top: 1px solid rgba(99,102,241,.2);
     display: flex;
@@ -257,16 +257,18 @@ body {
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 9px 16px;
+    padding: 11px 18px;
     border-radius: 50px;
     background: var(--c-accent);
     color: #fff;
-    font-size: 0.8rem;
+    font-size: 0.82rem;
     font-weight: 700;
     text-decoration: none;
     white-space: nowrap;
     transition: background .2s, transform .15s;
     font-family: inherit;
+    width: 100%;
+    box-sizing: border-box;
 }
 .demo-cta-btn:hover { background: var(--c-accent-dark); transform: scale(1.02); }
 
