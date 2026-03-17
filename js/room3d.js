@@ -2384,91 +2384,168 @@ function rebuild() {
     },
 
     flyby(onDone) {
-      const room = getRoomData();
-      if (!room) { onDone?.(); return; }
+      const raw_room = getRoomData();
+      if (!raw_room) { onDone?.(); return; }
 
-      const W = room.width_m  / 2;
-      const L = room.length_m / 2;
-      const H = room.height_m / 2;
+      // Support both nested (geometry/setup) and flat room layouts
+      const geo   = raw_room.geometry || raw_room;
+      const setup = raw_room.setup    || raw_room;
 
-      // Listening sweet-spot in Three.js room-space coordinates
-      // (room centred at origin; front wall = z:-L, back = z:+L, floor = y:-H)
-      const lx = room.listener_offset_m  || 0;
-      const lz = -L + (room.listener_front_m || 2.8);
-      const ly = -H + 1.1;   // seated ear height above floor
+      // ── Room half-extents (all positions derived from these) ────────────
+      const W = (geo.width_m   || 4)   / 2;
+      const L = (geo.length_m  || 5)   / 2;
+      const H = (geo.height_m  || 2.6) / 2;
 
-      const waypoints = [
-        // 0 – start: capture current state (filled in below)
-        null,
-        // 1 – rise to god's-eye establishing shot
-        { pos: { x:  W * 0.2,  y: H * 5.2, z:  L * 0.4  }, look: { x: 0,   y: 0,        z: 0        }, ms: 2000 },
-        // 2 – swoop around the right side at mid height
-        { pos: { x:  W * 2.0,  y: H * 1.2, z:  L * 1.5  }, look: { x: 0,   y: 0,        z: -L * 0.2 }, ms: 1700 },
-        // 3 – push in close to the speaker wall, low
-        { pos: { x:  W * 0.3,  y: H * 0.3, z: -L * 1.6  }, look: { x: 0,   y: -H * 0.2, z: lz      }, ms: 1700 },
-        // 4 – arc up to ceiling midpoint looking toward the sweet spot
-        { pos: { x: -W * 0.3,  y: H * 2.5, z:  L * 0.8  }, look: { x: lx,  y: ly,       z: lz      }, ms: 1700 },
-        // 5 – slow, weighted descent to the listening sweet spot
-        { pos: { x: lx,        y: ly,       z: lz + 0.5  }, look: { x: 0,   y: ly - 0.05, z: -L + 0.6 }, ms: 3200 },
-      ];
+      // Named acoustic positions in scene-space
+      // (room centred at origin; front wall = z:-L, back wall = z:+L, floor = y:-H)
+      const spkZ  = -L + (setup.spk_front_m     || 0.45);
+      const spkY  = -H + (setup.tweeter_height_m || 0.95);
+      const lx    =       setup.listener_offset_m  || 0;
+      const lz    = -L + (setup.listener_front_m   || 2.8);
+      const ly    = -H + 1.1;  // seated ear height above floor
 
-      // Snapshot current camera state as waypoint 0
-      waypoints[0] = {
-        pos:  { x: camera.position.x, y: camera.position.y, z: camera.position.z },
-        look: { x: controls.target.x, y: controls.target.y, z: controls.target.z },
-        ms: 0,
+      // Shorthand vector constructor
+      const P = (x, y, z) => ({ x, y, z });
+
+      // Speaker-pair midpoint — the camera locks here during the approach
+      const spkMid = P(0, spkY, spkZ);
+
+      // ── Easing library (power4 + expo S-curves, no dependency) ─────────
+      // Identical mathematics to GSAP's power4.inOut / expo.inOut.
+      const EASE = {
+        power4InOut: t => t < 0.5
+          ? 8 * t * t * t * t
+          : 1 - Math.pow(-2 * t + 2, 4) / 2,
+        expoInOut: t => t === 0 ? 0 : t === 1 ? 1 : t < 0.5
+          ? Math.pow(2,  20 * t - 10) / 2
+          : (2 - Math.pow(2, -20 * t + 10)) / 2,
+        cubicInOut: t => t < 0.5
+          ? 4 * t * t * t
+          : 1 - Math.pow(-2 * t + 2, 3) / 2,
+        linear: t => t,
       };
 
-      // Build cumulative timestamps
-      let cum = 0;
-      const tStamps = waypoints.map(wp => { const s = cum; cum += wp.ms; return s; });
-      const totalMs = cum;
+      // ── Narrative keyframes ─────────────────────────────────────────────
+      // Each frame describes where the camera body travels TO (cam) and where
+      // it looks TO (look).  camEase / lookEase are independent so the look
+      // target can lead or lag the body — creating the "head turns first" feel.
+      const keyframes = [
+        // STATE: EXTERIOR — camera starts outside the room, looking in
+        // through the ghosted front wall directly at the speaker pair.
+        {
+          cam:      P(lx,         H * 0.7,   -L * 2.1),
+          look:     spkMid,
+          ms:       1500,
+          camEase:  EASE.power4InOut,
+          lookEase: EASE.linear,
+        },
+        // STATE: FLANK LEFT — slide wide-left and very low.
+        // Body moves on power4; look stays glued to the speakers.
+        {
+          cam:      P(-W * 1.4,   H * 0.05,  -L * 1.1),
+          look:     P(-W * 0.3,   spkY,       spkZ + 0.4),
+          ms:       1600,
+          camEase:  EASE.expoInOut,
+          lookEase: EASE.cubicInOut,
+        },
+        // STATE: OVERHEAD — rise to god's-eye establishing shot.
+        // Look transitions from speaker wall to the full room centre.
+        {
+          cam:      P(W * 0.1,    H * 5.2,    L * 0.25),
+          look:     P(0,           0,           0),
+          ms:       2000,
+          camEase:  EASE.power4InOut,
+          lookEase: EASE.cubicInOut,
+        },
+        // STATE: SWOOP RIGHT — arc around the right side wall at mid height.
+        // Look leads: it snaps to the listener position before the body arrives,
+        // creating the "director's cut" reveal of the sweet spot.
+        {
+          cam:      P(W * 2.3,    H * 0.85,   L * 0.95),
+          look:     P(lx,          ly,          lz),
+          ms:       1800,
+          camEase:  EASE.expoInOut,
+          lookEase: EASE.power4InOut,
+        },
+        // STATE: SPEAKER PUSH — drive in close to the speaker wall, very low.
+        // Dramatic angle — the listener position is visible in the distance.
+        {
+          cam:      P(W * 0.15,   H * 0.08,  -L * 1.55),
+          look:     P(lx,          ly,          lz),
+          ms:       1700,
+          camEase:  EASE.power4InOut,
+          lookEase: EASE.cubicInOut,
+        },
+        // STATE: ARC UP — rise to ceiling midpoint on the listening side.
+        // Camera arcs; look stays locked on the sweet spot throughout.
+        {
+          cam:      P(-W * 0.2,   H * 2.5,    L * 0.75),
+          look:     P(lx,          ly,          lz),
+          ms:       1700,
+          camEase:  EASE.expoInOut,
+          lookEase: EASE.linear,
+        },
+        // STATE: LANDING — slow expo descent to the listener's ear level.
+        // Camera settles fractionally behind the sweet spot, looking at speakers.
+        {
+          cam:      P(lx,          ly + 0.08,  lz + 0.55),
+          look:     P(0,            ly - 0.05, -L + 0.7),
+          ms:       3400,
+          camEase:  EASE.expoInOut,
+          lookEase: EASE.expoInOut,
+        },
+      ];
+
+      // ── State machine ───────────────────────────────────────────────────
+      // prevCam / prevLook track the exact endpoint of the previous frame so
+      // each frame's lerp always starts precisely where the last one ended.
+      let prevCam  = P(camera.position.x, camera.position.y, camera.position.z);
+      let prevLook = P(controls.target.x,  controls.target.y,  controls.target.z);
+      let frameIdx   = 0;
+      let frameStart = performance.now();
 
       controls.enabled = false;
-      const t0 = performance.now();
 
       flyAnim = {
         tick(now) {
-          const elapsed = now - t0;
+          const frame = keyframes[frameIdx];
+          if (!frame) return;
 
-          if (elapsed >= totalMs) {
-            // Land precisely at the listening position — leave controls disabled
-            // so the caller (completion modal) decides what to do next.
-            const fin = waypoints[waypoints.length - 1];
-            camera.position.set(fin.pos.x, fin.pos.y, fin.pos.z);
-            controls.target.set(fin.look.x, fin.look.y, fin.look.z);
-            controls.update();
-            flyAnim = null;
-            onDone?.();
-            return;
-          }
+          const elapsed = now - frameStart;
+          const rawT    = Math.min(elapsed / frame.ms, 1);
+          const tc      = frame.camEase(rawT);
+          const tl      = frame.lookEase(rawT);
 
-          // Find active segment
-          let si = waypoints.length - 2;
-          for (let i = 0; i < waypoints.length - 1; i++) {
-            if (elapsed >= tStamps[i] && elapsed < tStamps[i + 1]) { si = i; break; }
-          }
-
-          const segDur = waypoints[si + 1].ms;
-          const raw    = (elapsed - tStamps[si]) / segDur;
-          // Ease-in-out cubic (smoother than quadratic — gentler deceleration on landing)
-          const t = raw < 0.5
-            ? 4 * raw * raw * raw
-            : 1 - Math.pow(-2 * raw + 2, 3) / 2;
-
-          const a = waypoints[si];
-          const b = waypoints[si + 1];
-
+          // Interpolate camera body position
           camera.position.set(
-            a.pos.x  + (b.pos.x  - a.pos.x)  * t,
-            a.pos.y  + (b.pos.y  - a.pos.y)  * t,
-            a.pos.z  + (b.pos.z  - a.pos.z)  * t,
+            prevCam.x  + (frame.cam.x  - prevCam.x)  * tc,
+            prevCam.y  + (frame.cam.y  - prevCam.y)  * tc,
+            prevCam.z  + (frame.cam.z  - prevCam.z)  * tc,
           );
+
+          // Interpolate look-at target (independent easing from body)
           controls.target.set(
-            a.look.x + (b.look.x - a.look.x) * t,
-            a.look.y + (b.look.y - a.look.y) * t,
-            a.look.z + (b.look.z - a.look.z) * t,
+            prevLook.x + (frame.look.x - prevLook.x) * tl,
+            prevLook.y + (frame.look.y - prevLook.y) * tl,
+            prevLook.z + (frame.look.z - prevLook.z) * tl,
           );
+
+          if (rawT >= 1) {
+            // Snap to exact endpoint to eliminate float accumulation drift
+            prevCam  = { ...frame.cam };
+            prevLook = { ...frame.look };
+            frameIdx++;
+            frameStart = now;
+
+            if (frameIdx >= keyframes.length) {
+              // Landed — leave controls disabled; caller decides what comes next
+              camera.position.set(frame.cam.x,  frame.cam.y,  frame.cam.z);
+              controls.target.set(frame.look.x, frame.look.y, frame.look.z);
+              controls.update();
+              flyAnim = null;
+              onDone?.();
+            }
+          }
         },
       };
     },
