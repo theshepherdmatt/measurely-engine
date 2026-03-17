@@ -1271,7 +1271,7 @@
                         localStorage.setItem('measurely_sessions', JSON.stringify(history.slice(0, 20)));
                     }
 
-                    // PocketBase sync — silent no-op when offline / not authenticated
+                    // Single PocketBase push with full sessionObj (scores, room_modes, schroeder_freq etc.)
                     window.MeasurelySync?.pushSession?.(sessionObj);
 
                     setProgress(100, 'Done!');

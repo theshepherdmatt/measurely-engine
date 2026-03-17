@@ -100,7 +100,8 @@ function saveSession({ id, label, timestamp, ai, analysis, reportCurve }) {
     // Deduplicate by id, then prepend newest
     const filtered = existing.filter(s => s.id !== id);
     lsWrite([record, ...filtered]);
-    window.MeasurelySync?.pushSession(record);
+    // PB sync is handled by the caller (app.html) with the full sessionObj
+    // so that scores/room_modes/schroeder_freq etc. are included.
 
     console.log('[sessions] saved:', id);
     return record;
