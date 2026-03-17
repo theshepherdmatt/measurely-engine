@@ -56,10 +56,6 @@
 <style>
 /* ── Treatment view toggle ───────────────────────────────────── */
 .treatment-toggle {
-    position: absolute;
-    top: 1rem;
-    left: 50%;
-    transform: translateX(-50%);
     display: flex;
     background: rgba(10, 14, 26, 0.75);
     backdrop-filter: blur(12px);
@@ -309,6 +305,11 @@
         </h1>
         <p>Define the physical space you listen in.</p>
     </div>
+    <!-- Treatment view toggle — centred in header -->
+    <div id="treatmentToggle" class="treatment-toggle" aria-label="Toggle treatment view">
+        <button class="tt-btn tt-active" id="ttCurrent" data-view="current">Current room</button>
+        <button class="tt-btn" id="ttTreated" data-view="treated">Treated room</button>
+    </div>
     <div id="auth-user-slot" class="mly-auth-slot--mini" style="flex-shrink:0;pointer-events:auto;"></div>
 </header>
 
@@ -318,12 +319,6 @@
     <div class="room3d-loader" id="room3dLoader">
         <div class="room3d-spinner"></div>
         <p class="room3d-loader-text">Initialising 3D Room…</p>
-    </div>
-
-    <!-- Treatment view toggle -->
-    <div id="treatmentToggle" class="treatment-toggle" aria-label="Toggle treatment view">
-        <button class="tt-btn tt-active" id="ttCurrent" data-view="current">Current room</button>
-        <button class="tt-btn" id="ttTreated" data-view="treated">Treated room</button>
     </div>
 </div>
 
