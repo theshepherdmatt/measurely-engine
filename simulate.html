@@ -997,6 +997,18 @@ const TREATMENTS = [
         alreadyHas: (r) => ['front', 'all'].includes(r.bass_trap_mode ?? 'none')
     },
     {
+        id: 'subwoofer',
+        name: 'Subwoofer',
+        costMin: 150, costMid: 350, costMax: 800,
+        deltas: { bandwidth: 2.0, balance: 1.4, peaks_dips: 0.6 },
+        fixes: ['bandwidth', 'balance'],
+        why: 'Stereo monitors roll off where the problems are worst. A sub fills the octave below 80 Hz, giving you audible low-end to actually judge your mix against — and exposing modal peaks that were previously inaudible.',
+        alreadyHas: (r) => {
+            const v = window.getNestedRoomValue ? window.getNestedRoomValue(r, 'opt_sub') : r.opt_sub;
+            return v === true;
+        }
+    },
+    {
         id: 'sofa',
         name: 'Sofa or Soft Seating',
         costMin: 100, costMid: 300, costMax: 700,
@@ -1163,29 +1175,19 @@ async function saveFixPlan() {
     const hasFrontBass = ids.has('front-bass-traps');
     const hasRearBass  = ids.has('rear-bass-traps');
 
-    const wallPlan = (hasFrontWall && hasRearWall) ? 'both' : hasFrontWall ? 'front' : hasRearWall ? 'rear' : 'none';
-    const bassPlan = (hasFrontBass && hasRearBass) ? 'all'  : hasFrontBass ? 'front' : hasRearBass  ? 'rear' : 'none';
-    const sidePlan = ids.has('side-panels')   ? 'both'  : 'none';
-    const ceilPlan = ids.has('ceiling-cloud') ? 'cloud' : 'none';
-
-    const base = window.__liveRoomState ?? {};
-    const payload = {
-        ...base,
-        plan_wall_panels:    wallPlan,
-        plan_bass_traps:     bassPlan,
-        plan_side_panels:    sidePlan,
-        plan_ceiling_panels: ceilPlan
+    const layout_config = {
+        wall_panel_mode:    (hasFrontWall && hasRearWall) ? 'both' : hasFrontWall ? 'front' : hasRearWall ? 'rear' : 'none',
+        bass_trap_mode:     (hasFrontBass && hasRearBass) ? 'all'  : hasFrontBass ? 'front' : hasRearBass  ? 'rear' : 'none',
+        side_panel_mode:    ids.has('side-panels')   ? 'both'  : 'none',
+        ceiling_panel_mode: ids.has('ceiling-cloud') ? 'cloud' : 'none'
     };
 
-    try { localStorage.setItem('measurely_room', JSON.stringify(payload)); } catch (_) {}
+    const budget = parseInt(document.getElementById('fix-budget-slider')?.value ?? 500, 10);
+    const shopping_list = lastAffordable.map(t => ({ id: t.id, name: t.name, costMid: t.costMid }));
 
+    // Push to PocketBase treatments collection
     try {
-        const res = await fetch('/api/room/latest', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        if (!res.ok) console.warn('[FixPlan] Server save returned', res.status);
+        await window.MeasurelySync?.pushTreatment({ budget, shopping_list, layout_config, status: 'saved' });
     } catch (_) {}
 
     toast('Treatment plan saved', 'success');

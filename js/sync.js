@@ -178,5 +178,45 @@
         for (const s of sessions) await pushSession(s);
     }
 
-    window.MeasurelySync = { pushRoom, pullRoom, pushSession, pullAll, pushLocalData, pushProfile, pullProfile, hasPendingData: () => false, getSyncState: () => _syncState };
+    // -------------------------------------------------------------------------
+    // Treatments (Fix My Room plans)
+    // -------------------------------------------------------------------------
+
+    async function pushTreatment(data) {
+        if (!_authenticated()) return;
+        const pb = _pb(), userId = _userId();
+        const roomRecord = await pb.collection('rooms').getFirstListItem(_f('user', userId), NO_CANCEL).catch(() => null);
+        const payload = {
+            user: userId,
+            room: roomRecord?.id ?? null,
+            budget: data.budget ?? 0,
+            shopping_list: data.shopping_list ?? [],
+            layout_config: data.layout_config ?? {},
+            status: data.status ?? 'saved'
+        };
+        _setState('syncing', { op: 'pushTreatment' });
+        try {
+            const existing = await pb.collection('treatments').getFirstListItem(_f('user', userId), NO_CANCEL).catch(() => null);
+            if (existing) { await pb.collection('treatments').update(existing.id, payload, NO_CANCEL); }
+            else { await pb.collection('treatments').create(payload, NO_CANCEL); }
+            _setState('ok', { op: 'pushTreatment' });
+        } catch (err) { _syncFail('pushTreatment', err); }
+    }
+
+    async function pullTreatment() {
+        if (!_authenticated()) return null;
+        const pb = _pb(), userId = _userId();
+        try {
+            const record = await pb.collection('treatments').getFirstListItem(_f('user', userId), NO_CANCEL).catch(() => null);
+            if (!record) return null;
+            return {
+                budget: record.budget ?? 0,
+                shopping_list: _parseJson(record.shopping_list, []),
+                layout_config: _parseJson(record.layout_config, {}),
+                status: record.status ?? 'saved'
+            };
+        } catch (err) { _syncFail('pullTreatment', err); return null; }
+    }
+
+    window.MeasurelySync = { pushRoom, pullRoom, pushSession, pullAll, pushLocalData, pushProfile, pullProfile, pushTreatment, pullTreatment, hasPendingData: () => false, getSyncState: () => _syncState };
 })();
