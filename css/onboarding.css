@@ -218,14 +218,17 @@ html, body {
   left: 50%;
   transform: translateX(-50%) translateY(12px);
   z-index: 15;
-  pointer-events: none;
+  /* Allow interaction so the dismiss button is tappable */
+  pointer-events: auto;
 
   display: flex;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: 0.55rem;
 
   max-width: min(380px, 90vw);
-  padding: 0.6rem 0.9rem;
+  /* Extra right padding to make room for the dismiss button */
+  padding: 0.6rem 2.2rem 0.6rem 0.9rem;
 
   background: linear-gradient(135deg, rgba(23, 32, 52, 0.95), rgba(15, 20, 38, 0.98));
   border: 1px solid rgba(99, 102, 241, 0.3);
@@ -238,6 +241,7 @@ html, body {
   line-height: 1.5;
   color: #d1d5db;
 
+  overflow: hidden; /* contain the progress bar + anchor dismiss button */
   opacity: 0;
   transition: opacity 0.3s ease, transform 0.3s ease;
 }
@@ -262,6 +266,44 @@ html, body {
 
 .dave-chip-text {
   flex: 1;
+}
+
+/* ── Dismiss button ─────────────────────────────────────── */
+.dave-chip-dismiss {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.4rem;
+  background: transparent;
+  border: none;
+  color: rgba(255,255,255,0.35);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.15rem 0.3rem;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+  font-family: inherit;
+}
+.dave-chip-dismiss:hover {
+  color: rgba(255,255,255,0.75);
+  background: rgba(255,255,255,0.08);
+}
+
+/* ── Progress bar ────────────────────────────────────────── */
+.dave-chip-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  width: 100%;
+  background: rgba(99,102,241,0.5);
+  transform-origin: left;
+  animation: dave-chip-drain linear forwards;
+  /* animation-duration is set inline to match the chip duration */
+}
+@keyframes dave-chip-drain {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
 }
 
 /* Desktop: chip sits in the canvas area to the left of the panel */

@@ -663,6 +663,16 @@ function renderProgressDots() {
    DAVE COMMENTARY CHIP
 ------------------------------------------ */
 let _chipTimer = null;
+// Tracks which step indices have already shown their Dave chip.
+// Prevents the chip re-firing when onMacroChange refreshes the same step.
+const _chipShownForStep = new Set();
+
+function _dismissDaveChip() {
+    clearTimeout(_chipTimer);
+    daveChipEl.classList.remove('chip-visible');
+    daveChipEl.classList.add('chip-out');
+    setTimeout(() => daveChipEl.classList.remove('chip-out'), 350);
+}
 
 function showDaveChip(text, duration = 5500) {
     if (!daveChipEl || !text) return;
@@ -672,17 +682,18 @@ function showDaveChip(text, duration = 5500) {
 
     daveChipEl.innerHTML = `
         <img src="icons/largedave.svg" class="dave-chip-avatar" alt="" aria-hidden="true">
-        <span class="dave-chip-text">${text}</span>`;
+        <span class="dave-chip-text">${text}</span>
+        <button class="dave-chip-dismiss" aria-label="Dismiss">×</button>
+        <div class="dave-chip-progress" style="animation-duration:${duration}ms" aria-hidden="true"></div>`;
+
+    // Wire dismiss button
+    daveChipEl.querySelector('.dave-chip-dismiss')?.addEventListener('click', _dismissDaveChip);
 
     // Force reflow so the transition fires cleanly
     void daveChipEl.offsetWidth;
     daveChipEl.classList.add('chip-visible');
 
-    _chipTimer = setTimeout(() => {
-        daveChipEl.classList.remove('chip-visible');
-        daveChipEl.classList.add('chip-out');
-        setTimeout(() => daveChipEl.classList.remove('chip-out'), 350);
-    }, duration);
+    _chipTimer = setTimeout(_dismissDaveChip, duration);
 }
 
 // Expose so finish() can use it for error messaging
@@ -828,9 +839,11 @@ function loadStep() {
     qText.textContent = step.title;
     qSub.textContent = step.desc || "";
 
-    // 3a. Show Dave's commentary for this step (after a short delay
-    //     so the 3D scene has a moment to update first)
-    if (step.dave) {
+    // 3a. Show Dave's commentary — only the first time this step is entered.
+    //     onMacroChange can call loadStep() multiple times per step (to refresh
+    //     conditional fields), but the chip should not fire on those re-renders.
+    if (step.dave && !_chipShownForStep.has(stepIndex)) {
+        _chipShownForStep.add(stepIndex);
         setTimeout(() => showDaveChip(step.dave, 6000), 400);
     }
 
@@ -1175,6 +1188,11 @@ startApp();
 (function () {
   const canvas = document.getElementById('welcomeWaves');
   if (!canvas) return;
+  // Respect user preference — hide canvas entirely if motion is unwanted
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    canvas.style.display = 'none';
+    return;
+  }
   const ctx = canvas.getContext('2d');
 
   function resize() {
@@ -1225,6 +1243,14 @@ startApp();
   }
 
   draw();
+
+  // Pause when tab is hidden (saves battery on mobile)
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { cancelAnimationFrame(animId); }
+    else if (!document.getElementById('welcomeScreen')?.classList.contains('hidden')) {
+      animId = requestAnimationFrame(draw);
+    }
+  });
 
   // Stop the loop once the screen is fully dismissed
   const screen = document.getElementById('welcomeScreen');
