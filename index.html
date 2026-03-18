@@ -220,6 +220,17 @@ header, section, footer { position: relative; z-index: 1; }
     padding: 5rem 1.5rem;
 }
 .section--centered { text-align: center; }
+.section--alt::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    left: -9999px;
+    right: -9999px;
+    background: #1e2338;
+    border-top: 1px solid rgba(99, 102, 241, 0.13);
+    border-bottom: 1px solid rgba(99, 102, 241, 0.13);
+    z-index: -1;
+}
 .section h2 { font-size: clamp(1.8rem,4vw,2.4rem); font-weight: 800; }
 .section p { max-width: 48rem; margin: 1rem auto 0; color: var(--text-secondary); }
 .divider {
@@ -531,7 +542,7 @@ header, section, footer { position: relative; z-index: 1; }
 <!-- ══════════════════════════════════════════════════════════
      SANDBOX DEMO — animated preview + launch button
      ══════════════════════════════════════════════════════════ -->
-<section id="sandbox" class="section section--centered" data-animate>
+<section id="sandbox" class="section section--centered section--alt" data-animate>
     <div class="hero-eyebrow" style="margin-bottom:1.25rem">Interactive Demo</div>
     <h2>See your room in 3D.<br>Watch acoustics respond live.</h2>
     <div class="divider"></div>
@@ -744,7 +755,7 @@ document.getElementById('sboxLaunchBtn')?.addEventListener('click', () => {
 </section>
 
 <!-- HIRE THE KIT -->
-<section id="hire-kit" class="section section--centered" data-animate>
+<section id="hire-kit" class="section section--centered section--alt" data-animate>
     <div class="hero-eyebrow" style="margin-bottom:1.25rem">Coming Soon</div>
     <h2>Don't have a measurement mic?<br><span class="grad-text">Hire the Measurely Kit.</span></h2>
     <div class="divider"></div>
@@ -880,7 +891,7 @@ document.getElementById('sboxLaunchBtn')?.addEventListener('click', () => {
 </section>
 
 <!-- REVIEWS -->
-<section class="section section--centered">
+<section class="section section--centered section--alt">
     <h2>Absolutely Not Verified Reviews</h2>
     <div class="divider"></div>
     <p style="max-width:42rem;margin:0 auto 2.5rem;color:var(--text-secondary);">
