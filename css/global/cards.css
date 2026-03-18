@@ -338,3 +338,15 @@
     padding: 1.25rem;
   }
 }
+
+/* Mobile: band pills wrap to 2×2 grid so "Treble" doesn't cramp */
+@media (max-width: 480px) {
+  .band-levels {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .band-pill {
+    padding: 0.55rem 0.65rem;
+  }
+}
