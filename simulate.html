@@ -301,18 +301,23 @@
 
                 <!-- SBIR callout — updates with slider -->
                 <div class="ra-sbir-callout ra-sbir-callout--bad" id="sim-sbir-callout">
-                    <span class="ra-sbir-label">Bass cancellation</span>
-                    <strong id="sim-null-freq">—</strong>
+                    <div class="ra-sbir-top">
+                        <span class="ra-sbir-label">Wall–speaker bass cancellation</span>
+                        <strong id="sim-null-freq">—</strong>
+                    </div>
                     <span id="sim-null-verdict" class="ra-sbir-verdict">—</span>
+                    <span class="ra-sbir-hint" id="sim-sbir-hint"></span>
                 </div>
 
                 <!-- Action buttons -->
-                <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:0.75rem;">
+                <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:0.75rem;align-items:center;">
+                    <button class="btn btn-ghost ra-reset-btn" id="simResetBtn">Reset</button>
                     <button class="btn btn-secondary" id="flybyBtn">
-                        Simulation
+                        <span class="flyby-spinner" id="flybySpinner" hidden></span>
+                        <span id="flybyBtnText">Simulation</span>
                     </button>
                     <button class="btn btn-primary ra-save-sim-btn" id="simSaveBtn">
-                        Save Plan
+                        Save Setup
                     </button>
                 </div>
 
@@ -345,10 +350,17 @@
                 <div class="fix-summary" id="fix-summary">
                     <div class="fix-summary-inner">
                         <div class="fix-summary-score">
-                            <span class="fix-summary-now" id="fix-summary-now">—</span>
+                            <div class="fix-summary-score-col">
+                                <span class="fix-summary-col-label">Now</span>
+                                <span class="fix-summary-now" id="fix-summary-now">—</span>
+                                <span class="fix-summary-unit">/10</span>
+                            </div>
                             <span class="fix-summary-arrow">→</span>
-                            <span class="fix-summary-predicted" id="fix-summary-predicted">—</span>
-                            <span class="fix-summary-unit">/10</span>
+                            <div class="fix-summary-score-col">
+                                <span class="fix-summary-col-label">With treatments</span>
+                                <span class="fix-summary-predicted" id="fix-summary-predicted">—</span>
+                                <span class="fix-summary-unit">/10</span>
+                            </div>
                         </div>
                         <p class="fix-summary-label" id="fix-summary-label">Loading room data…</p>
                     </div>
@@ -615,6 +627,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
 let savedDiagnoseIssue = null;
 let lastPredicted = null;
+let _simDirty = false;
+
+function _markSimDirty() {
+    if (_simDirty) return;
+    _simDirty = true;
+    const btn = document.getElementById('simSaveBtn');
+    if (btn) btn.classList.add('ra-save-btn--dirty');
+}
+function _markSimClean() {
+    _simDirty = false;
+    const btn = document.getElementById('simSaveBtn');
+    if (btn) btn.classList.remove('ra-save-btn--dirty');
+}
 
 const C = 343;
 
@@ -666,10 +691,14 @@ function initSimulate(room) {
         el.addEventListener('input', () => {
             updateSliderDisplays();
             debouncedRunSimulation();
+            _markSimDirty();
         });
     });
     ['sim-wall-panels', 'sim-bass-traps', 'sim-ceiling-panels', 'sim-side-panels'].forEach(id => {
-        document.getElementById(id)?.addEventListener('change', runSimulation);
+        document.getElementById(id)?.addEventListener('change', () => {
+            runSimulation();
+            _markSimDirty();
+        });
     });
 
     updateSliderDisplays();
@@ -693,16 +722,20 @@ function updateSliderDisplays() {
 
     if (nullEl) nullEl.textContent = Math.round(f_null) + ' Hz';
 
+    const hint = document.getElementById('sim-sbir-hint');
     if (verdict && callout) {
         if (f_null < 60) {
-            verdict.textContent   = 'sub-bass — minimal impact';
-            callout.className     = 'ra-sbir-callout ra-sbir-callout--good';
+            verdict.textContent = 'sub-bass — minimal impact';
+            callout.className   = 'ra-sbir-callout ra-sbir-callout--good';
+            if (hint) hint.textContent = 'Good. Pull speakers further from the wall to keep the null in the sub-bass where it\'s inaudible.';
         } else if (f_null < 130) {
-            verdict.textContent   = 'upper bass — some impact';
-            callout.className     = 'ra-sbir-callout ra-sbir-callout--okay';
+            verdict.textContent = 'upper bass — some impact';
+            callout.className   = 'ra-sbir-callout ra-sbir-callout--okay';
+            if (hint) hint.textContent = 'Move speakers a few cm further from the front wall to push this null below 80 Hz.';
         } else {
-            verdict.textContent   = 'audible bass — noticeable dip';
-            callout.className     = 'ra-sbir-callout ra-sbir-callout--bad';
+            verdict.textContent = 'audible bass — noticeable dip';
+            callout.className   = 'ra-sbir-callout ra-sbir-callout--bad';
+            if (hint) hint.textContent = 'Speakers are too close to the front wall. Pull them forward — aim for a null below 80 Hz.';
         }
     }
 }
@@ -918,7 +951,8 @@ async function saveSimulateToRoom() {
     if (treatedBtn) treatedBtn.textContent = 'Treated room ✦';
     if (window.room3D?.update) window.room3D.update();
 
-    toast('Treatment plan saved', 'success');
+    toast('Setup saved', 'success');
+    _markSimClean();
 
     if (btn) btn.disabled = false;
 
@@ -933,17 +967,32 @@ async function saveSimulateToRoom() {
     }
 }
 
+function resetSimulate() {
+    const room = window.__baselineRoom;
+    if (!room) return;
+    initSimulate(room);
+    runSimulation();
+    _markSimClean();
+    document.getElementById('sim-plan-preview').style.display = 'none';
+    window._pendingShoppingList = null;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('simSaveBtn')?.addEventListener('click', saveSimulateToRoom);
+    document.getElementById('simResetBtn')?.addEventListener('click', resetSimulate);
 
     document.getElementById('flybyBtn')?.addEventListener('click', () => {
-        const btn = document.getElementById('flybyBtn');
+        const btn     = document.getElementById('flybyBtn');
+        const spinner = document.getElementById('flybySpinner');
+        const label   = document.getElementById('flybyBtnText');
         if (!window.room3D?.flyby) return;
-        btn.disabled = true;
-        btn.textContent = 'Playing…';
+        btn.disabled       = true;
+        if (label)   label.textContent   = 'Playing…';
+        if (spinner) spinner.hidden       = false;
         window.room3D.flyby(() => {
-            btn.disabled = false;
-            btn.textContent = 'Flyby Animation';
+            btn.disabled       = false;
+            if (label)   label.textContent   = 'Simulation';
+            if (spinner) spinner.hidden       = true;
         });
     });
 });
@@ -1238,12 +1287,18 @@ function runFixMyRoom() {
                 .join('');
             html += `
             <div class="fix-rec-card fix-rec-overbudget">
-                <div class="fix-rec-rank fix-rec-rank--dim">${affordable.length + i + 1}</div>
+                <div class="fix-rec-rank fix-rec-rank--dim">
+                    <svg class="fix-rec-lock-icon" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <rect x="3" y="7" width="10" height="8" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+                        <path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
                 <div class="fix-rec-body">
                     <div class="fix-rec-head">
-                        <span class="fix-rec-name">${t.name}</span>
+                        <span class="fix-rec-name fix-rec-name--dim">${t.name}</span>
                         <span class="fix-rec-cost fix-rec-cost--dim">£${t.costMin}–£${t.costMax}</span>
                     </div>
+                    <span class="fix-rec-budget-needed">Needs at least £${t.costMin} — increase your budget to unlock</span>
                     <p class="fix-rec-why fix-rec-why--dim">${t.why}</p>
                     <div class="fix-rec-chips">${gains}</div>
                 </div>
@@ -1364,10 +1419,17 @@ const modesPoll = setInterval(() => {
         grouped[m.axis].push(m.freq_hz);
     });
 
+    function _modeSeverity(hz) {
+        if (hz < 50)  return { cls: 'good',  tag: 'low' };
+        if (hz < 80)  return { cls: 'okay',  tag: 'moderate' };
+        return              { cls: 'bad',   tag: 'problematic' };
+    }
+
     const parts = Object.entries(grouped).map(([axis, freqs]) => {
-        const label = axis === 'width' ? 'Side walls' : axis === 'length' ? 'Front/back' : 'Floor/ceiling';
+        const label  = axis === 'width' ? 'Side walls' : axis === 'length' ? 'Front/back' : 'Floor/ceiling';
         const lowest = Math.round(Math.min(...freqs));
-        return `<span class="ra-mode-chip ra-mode-${axis}">${label} <strong>${lowest} Hz</strong></span>`;
+        const sev    = _modeSeverity(lowest);
+        return `<span class="ra-mode-chip ra-mode-${axis} ra-mode-sev-${sev.cls}" title="${label} resonance at ${lowest} Hz">${label} <strong>${lowest} Hz</strong> <em class="ra-mode-sev-tag">${sev.tag}</em></span>`;
     });
 
     badge.innerHTML = parts.join('');
@@ -1627,6 +1689,21 @@ function _refreshGainBadge(metric) {
 
 // ── Wire click + keyboard handlers on DOMContentLoaded ──────────
 document.addEventListener('DOMContentLoaded', () => {
+    // Inject a close button into every diagnostic panel
+    document.querySelectorAll('.ra-diagnostic-panel').forEach(panel => {
+        const inner = panel.querySelector('.ra-diagnostic-inner');
+        if (!inner) return;
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'ra-diag-close-btn';
+        closeBtn.setAttribute('aria-label', 'Close');
+        closeBtn.innerHTML = '&times;';
+        closeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openDiagnostic(panel.id.replace('diag-', ''));
+        });
+        inner.insertBefore(closeBtn, inner.firstChild);
+    });
+
     document.querySelectorAll('.ra-diag-trigger').forEach(trigger => {
         trigger.addEventListener('click', () => openDiagnostic(trigger.dataset.metric));
         trigger.addEventListener('keydown', e => {
@@ -1766,30 +1843,8 @@ window.addEventListener('measurely:simUpdated', () => {
     gap: 0.6rem;
 }
 
-/* ── Potential Gain badge ────────────────────────────────── */
-.ra-gain-badge {
-    display: inline-block;
-    align-self: flex-start;
-    padding: 0.2em 0.65em;
-    border-radius: 20px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    background: rgba(99,102,241,0.15);
-    color: #a5b4fc;
-    border: 1px solid rgba(99,102,241,0.3);
-}
+/* ── Potential Gain badge — moved to new CSS block below ─── */
 .ra-gain-badge:empty { display: none; }
-.ra-gain-badge[data-valence="positive"] {
-    background: rgba(16,185,129,0.12);
-    color: #6ee7b7;
-    border-color: rgba(16,185,129,0.3);
-}
-.ra-gain-badge[data-valence="negative"] {
-    background: rgba(248,113,113,0.1);
-    color: #fca5a5;
-    border-color: rgba(248,113,113,0.25);
-}
 .ra-gain-badge[data-valence="neutral"] {
     background: rgba(255,255,255,0.05);
     color: rgba(255,255,255,0.4);
@@ -1825,6 +1880,161 @@ window.addEventListener('measurely:simUpdated', () => {
 .ra-diag-section:last-child .ra-diag-text {
     padding-left: 0.65rem;
     border-left: 2px solid rgba(99,102,241,0.4);
+}
+
+/* ── Diagnostic close button ─────────────────────────────── */
+.ra-diag-close-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.35);
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+}
+.ra-diag-close-btn:hover { color: rgba(255,255,255,0.8); background: rgba(255,255,255,0.07); }
+.ra-diagnostic-inner { position: relative; }
+
+/* ── Gain badge — more prominent ────────────────────────── */
+.ra-gain-badge {
+    display: inline-block;
+    align-self: flex-start;
+    padding: 0.28em 0.8em;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    background: rgba(99,102,241,0.15);
+    color: #a5b4fc;
+    border: 1px solid rgba(99,102,241,0.3);
+}
+.ra-gain-badge[data-valence="positive"] {
+    background: rgba(16,185,129,0.15);
+    color: #34d399;
+    border-color: rgba(16,185,129,0.4);
+    box-shadow: 0 0 8px rgba(16,185,129,0.15);
+}
+.ra-gain-badge[data-valence="negative"] {
+    background: rgba(248,113,113,0.12);
+    color: #fca5a5;
+    border-color: rgba(248,113,113,0.3);
+}
+
+/* ── Dirty-state Save Setup button ──────────────────────── */
+.ra-save-sim-btn.ra-save-btn--dirty::after {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #fbbf24;
+    margin-left: 0.45em;
+    vertical-align: middle;
+    position: relative;
+    top: -1px;
+}
+
+/* ── Reset button ────────────────────────────────────────── */
+.ra-reset-btn {
+    font-size: 0.78rem;
+    color: rgba(255,255,255,0.4);
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 0.35rem 0.7rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    font-family: inherit;
+}
+.ra-reset-btn:hover { color: rgba(255,255,255,0.75); border-color: rgba(255,255,255,0.25); }
+
+/* ── Flyby spinner ────────────────────────────────────────── */
+.flyby-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(255,255,255,0.25);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: flyby-spin 0.7s linear infinite;
+    margin-right: 0.4em;
+    vertical-align: middle;
+    position: relative;
+    top: -1px;
+}
+@keyframes flyby-spin { to { transform: rotate(360deg); } }
+
+/* ── Slider grab cursor ──────────────────────────────────── */
+.measurely-slider { cursor: grab; }
+.measurely-slider:active { cursor: grabbing; }
+.measurely-slider::-webkit-slider-thumb { cursor: grab; }
+.measurely-slider:active::-webkit-slider-thumb { cursor: grabbing; }
+
+/* ── SBIR callout — updated layout ──────────────────────── */
+.ra-sbir-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+}
+.ra-sbir-hint {
+    display: block;
+    font-size: 0.73rem;
+    line-height: 1.4;
+    color: rgba(255,255,255,0.45);
+    margin-top: 0.2rem;
+}
+
+/* ── Room modes severity tags ────────────────────────────── */
+.ra-mode-sev-tag {
+    font-style: normal;
+    font-size: 0.65em;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.75;
+    margin-left: 0.2em;
+}
+.ra-mode-sev-good  { --chip-accent: rgba(16,185,129,0.25); }
+.ra-mode-sev-okay  { --chip-accent: rgba(251,191,36,0.25); }
+.ra-mode-sev-bad   { --chip-accent: rgba(248,113,113,0.25); }
+.ra-mode-sev-good .ra-mode-sev-tag  { color: #34d399; }
+.ra-mode-sev-okay .ra-mode-sev-tag  { color: #fbbf24; }
+.ra-mode-sev-bad  .ra-mode-sev-tag  { color: #f87171; }
+
+/* ── Fix My Room score columns ───────────────────────────── */
+.fix-summary-score-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+}
+.fix-summary-col-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgba(255,255,255,0.3);
+}
+
+/* ── Over-budget card lock icon ──────────────────────────── */
+.fix-rec-lock-icon {
+    width: 16px;
+    height: 16px;
+    color: rgba(255,255,255,0.25);
+}
+.fix-rec-name--dim { color: rgba(255,255,255,0.4); }
+.fix-rec-budget-needed {
+    display: block;
+    font-size: 0.7rem;
+    color: rgba(251,191,36,0.7);
+    font-weight: 500;
+    margin-bottom: 0.2rem;
 }
 </style>
 
