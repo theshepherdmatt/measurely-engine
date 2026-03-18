@@ -139,13 +139,24 @@
                     room_modes: r.room_modes ? _parseJson(r.room_modes, null) : null,
                     _cloud_updated: r.updated
                 }));
-                // Merge: local sessions take priority (they have the full analysis payload).
-                // Cloud-only sessions (new device / cleared local) are added at the end.
+                // Merge: local sessions take priority for full analysis payloads.
+                // However, backfill any fields the local copy is missing (e.g. scores
+                // added after the original pull) so stale cache never hides cloud data.
                 const localRaw = localStorage.getItem(LS_SESSIONS);
                 const localSessions = localRaw ? JSON.parse(localRaw) : [];
+                const cloudById = Object.fromEntries(cloudSessions.map(c => [c.id, c]));
                 const localIds = new Set(localSessions.map(s => s.id));
+                const updatedLocal = localSessions.map(local => {
+                    const cloud = cloudById[local.id];
+                    if (!cloud) return local;
+                    return {
+                        ...local,
+                        scores:   local.scores   ?? cloud.scores,   // backfill if missing
+                        analysis: local.analysis ?? cloud.analysis, // keep local if richer
+                    };
+                });
                 const newFromCloud = cloudSessions.filter(s => !localIds.has(s.id));
-                const merged = [...localSessions, ...newFromCloud];
+                const merged = [...updatedLocal, ...newFromCloud];
                 merged.sort((a, b) => {
                     const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
                     const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
