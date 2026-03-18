@@ -130,7 +130,11 @@
             if (sessionRecords?.items?.length) {
                 const cloudSessions = sessionRecords.items.map(r => ({
                     id: r.session_id, label: r.label, timestamp: r.timestamp, overall_score: r.overall_score,
-                    has_analysis: r.has_analysis ?? true,
+                    // Default to false — only mark as having analysis if PocketBase explicitly says so.
+                    // Prevents cloud sessions with null/missing analysis from falsely populating cards.
+                    has_analysis: r.has_analysis ?? false,
+                    // Map scores back (was pushed but never pulled — caused "--" metrics on cloud sessions).
+                    scores: r.scores ?? null,
                     analysis: r.analysis ?? null, reportCurve: r.report_curve ?? null,
                     room_modes: r.room_modes ? _parseJson(r.room_modes, null) : null,
                     _cloud_updated: r.updated

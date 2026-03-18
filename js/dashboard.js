@@ -1114,20 +1114,23 @@ class MeasurelyDashboard {
             };
 
             this.sessions = all
-                
+
+                // Require meaningful data — overall_score alone isn't enough.
+                // Cloud sessions without analysis or scores would produce cards
+                // showing a score number but "--" for every metric breakdown.
                 .filter(s =>
                     s.has_analysis === true ||
-                    Number.isFinite(s.overall_score) ||
-                    s.scores ||
-                    s.analysis
+                    s.analysis ||
+                    (s.scores && Number.isFinite(s.overall_score))
                 )
-
 
                 .map(s => ({
                     id: s.id,
                     timestamp: s.timestamp,
                     overall: s.overall_score,
-                    metrics: s.metrics || {
+                    // Prefer a rich metrics object; fall back to s.scores (cloud sessions
+                    // now carry this after the pullAll fix), then flat properties.
+                    metrics: s.metrics || s.scores || {
                         peaks_dips: s.peaks_dips,
                         reflections: s.reflections,
                         bandwidth: s.bandwidth,
