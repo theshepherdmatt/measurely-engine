@@ -560,24 +560,41 @@
             // _pb is initialised at module load time — nothing to create here.
             if (!_pb) return;
 
-            // ── OAuth2 Phase 2 catch-all ──────────────────────────────────────
-            // If the URL contains ?code= and ?state= we have just returned from
-            // Google (via PocketBase's oauth2-redirect handler).  Complete the
-            // exchange NOW, before doing anything else, so the auth store is
-            // populated by the time the rest of the page initialises.
+            // ── Phase 1: OAuth2 Google Callback ──────────────────────────────
             const params     = new URLSearchParams(window.location.search);
             const oauthCode  = params.get('code');
             const oauthState = params.get('state');
 
             if (oauthCode && oauthState) {
-                // Strip the OAuth params from the address bar so a manual
-                // refresh doesn't replay the (now-expired) exchange attempt.
                 history.replaceState({}, '', window.location.pathname);
                 await _completeOAuthLogin(oauthCode, oauthState);
-                return; // _completeOAuthLogin handles nav + handshake
+                return; 
             }
 
-            // ── Normal page load ──────────────────────────────────────────────
+            // ── Phase 2: Email Verification Catch-all ────────────────────────
+            // Handles URLs like: measurely.uk/#auth/confirm-verification/TOKEN
+            const hash = window.location.hash;
+            if (hash.includes('auth/confirm-verification/')) {
+                const token = hash.split('/').pop();
+                
+                // Clear the hash immediately to prevent re-runs
+                history.replaceState({}, '', window.location.pathname);
+
+                try {
+                    window.toast?.('Verifying your email...', 'info');
+                    await _pb.collection('users').confirmVerification(token);
+                    window.toast?.('Email verified! You can now sign in.', 'success');
+                    
+                    // Show the sign-in modal so they can actually use the account
+                    _openModal('signin');
+                } catch (err) {
+                    console.error('[auth] Verification failed:', err);
+                    window.toast?.('Verification link expired or invalid.', 'error');
+                }
+                return;
+            }
+
+            // ── Phase 3: Normal session restoration ──────────────────────────
             if (_pb.authStore.isValid) {
                 _updateNav(_pb.authStore.model);
                 _notify(_pb.authStore.model);
@@ -591,7 +608,7 @@
                 _notify(_pb.authStore.isValid ? _pb.authStore.model : null);
             });
 
-            // Signal that auth state is now known — listeners can safely check isAuth()
+            // Signal that auth state is now known
             window.dispatchEvent(new CustomEvent('mly:authReady'));
         },
 
