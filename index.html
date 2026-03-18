@@ -385,6 +385,17 @@ header, section, footer { position: relative; z-index: 1; }
 [data-animate][data-delay="2"] { transition-delay: 0.2s; }
 [data-animate][data-delay="3"] { transition-delay: 0.3s; }
 [data-animate][data-delay="4"] { transition-delay: 0.4s; }
+
+/* Respect reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+    [data-animate] { opacity: 1; transform: none; transition: none; }
+    body::before { animation: none; }
+}
+
+/* ── Mobile button sizing ── */
+@media (max-width: 480px) {
+    .btn { padding: 0.65rem 1.2rem; font-size: 0.9rem; }
+}
 </style>
 <link rel="stylesheet" href="css/global/auth.css">
 <link rel="stylesheet" href="css/global/profile.css">
@@ -392,6 +403,27 @@ header, section, footer { position: relative; z-index: 1; }
 </head>
 
 <body>
+
+<!-- Skip link for keyboard / screen-reader users -->
+<a href="#how" class="idx-skip-link">Skip to content</a>
+
+<style>
+.idx-skip-link {
+    position: absolute;
+    top: -100%;
+    left: 1rem;
+    background: #6366f1;
+    color: #fff;
+    padding: 0.4rem 1rem;
+    border-radius: 0 0 0.5rem 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-decoration: none;
+    z-index: 9999;
+    transition: top 0.15s;
+}
+.idx-skip-link:focus { top: 0; outline: 2px solid #a855f7; outline-offset: 2px; }
+</style>
 
 <!-- AUTH AUTO-FORWARD OVERLAY
      Injected immediately if a valid auth token is found in localStorage,
@@ -428,6 +460,20 @@ header, section, footer { position: relative; z-index: 1; }
         // body may not exist yet if script is in <head>, but we placed it in <body>
         document.body.appendChild(el);
         window._mlyHasValidToken = true;
+
+        // Safety net — if redirect hasn't fired after 10s, let the user out
+        window._mlyOverlayTimeout = setTimeout(function() {
+            var overlay = document.getElementById('mlyAutoFwdOverlay');
+            if (!overlay) return;
+            var p = overlay.querySelector('p');
+            if (p) { p.textContent = 'Taking longer than expected…'; p.style.color = '#fbbf24'; }
+            var link = document.createElement('a');
+            link.href = '#';
+            link.textContent = 'Stay on this page →';
+            link.style.cssText = 'font-family:system-ui,sans-serif;font-size:0.8rem;color:#94a3b8;text-decoration:underline;cursor:pointer;margin-top:0.5rem;';
+            link.addEventListener('click', function(e) { e.preventDefault(); overlay.remove(); });
+            overlay.appendChild(link);
+        }, 10000);
     } catch (_) {}
 }());
 </script>
@@ -444,8 +490,8 @@ header, section, footer { position: relative; z-index: 1; }
         <div class="hero-eyebrow">Free · No account · Works in your browser</div>
         <h1>Your room is shaping<br><span>your sound.</span></h1>
         <p class="hero-sub">
-            Map your listening room in 3D, then upload a sweep from REW to hear exactly what your space is doing to the sound —
-            scores, commentary, and specific next steps. Not graphs. Not jargon. Useful advice.
+            Design your room layout, upload a measurement from REW (it's free), and get a plain-English acoustic score
+            with specific next steps. No account required — no graphs, no jargon, just useful advice.
         </p>
         <div class="hero-actions">
             <a id="heroCta" href="onboarding.html" class="btn btn-primary">
@@ -607,6 +653,27 @@ header, section, footer { position: relative; z-index: 1; }
 
 <script type="module">
 import { initRoom3D } from './js/room3d.js';
+
+/* ── WebGL availability check ───────────────────────────── */
+function _hasWebGL() {
+    try {
+        var c = document.createElement('canvas');
+        return !!(c.getContext('webgl') || c.getContext('experimental-webgl'));
+    } catch (_) { return false; }
+}
+
+if (!_hasWebGL()) {
+    var _vp = document.querySelector('.sandbox-viewport');
+    if (_vp) {
+        _vp.innerHTML =
+            '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:0.75rem;padding:2rem;text-align:center;">' +
+            '<span style="font-size:2rem">⚠️</span>' +
+            '<p style="font-size:0.95rem;color:#94a3b8;max-width:320px;margin:0;">Your browser doesn\'t support WebGL. Try Chrome or Firefox to see the interactive demo.</p>' +
+            '<a href="onboarding.html" class="btn btn-primary" style="margin-top:0.5rem;">Design Your Room →</a>' +
+            '</div>';
+    }
+    throw new Error('WebGL not available');
+}
 
 /* ── Minimal preview state ──────────────────────────────── */
 const previewState = {
@@ -845,28 +912,28 @@ document.getElementById('sboxLaunchBtn')?.addEventListener('click', () => {
     <div class="divider"></div>
     <div class="faq-list">
         <div class="faq-item">
-            <button class="faq-q">What file do I need?</button>
-            <div class="faq-a">An impulse response WAV file exported from REW (Room EQ Wizard). After running a sweep in REW, go to File → Export → Export Impulse Response as WAV. That's the file Measurely needs.</div>
+            <button class="faq-q" aria-expanded="false" aria-controls="faq-a-1">What file do I need?</button>
+            <div class="faq-a" id="faq-a-1">An impulse response WAV file exported from REW (Room EQ Wizard). After running a sweep in REW, go to File → Export → Export Impulse Response as WAV. That's the file Measurely needs.</div>
         </div>
         <div class="faq-item">
-            <button class="faq-q">Do I need REW specifically?</button>
-            <div class="faq-a">REW is free and produces the most accurate results, so it's what we recommend. Any standard impulse response WAV at 44.1 kHz or 48 kHz will work — from other measurement software or a calibrated measurement microphone setup.</div>
+            <button class="faq-q" aria-expanded="false" aria-controls="faq-a-2">Do I need REW specifically?</button>
+            <div class="faq-a" id="faq-a-2">REW is free and produces the most accurate results, so it's what we recommend. Any standard impulse response WAV at 44.1 kHz or 48 kHz will work — from other measurement software or a calibrated measurement microphone setup.</div>
         </div>
         <div class="faq-item">
-            <button class="faq-q">Is it really free?</button>
-            <div class="faq-a">Yes. No account, no credit card, no upload limit. Your WAV file is processed entirely in your browser — nothing is sent to a server.</div>
+            <button class="faq-q" aria-expanded="false" aria-controls="faq-a-3">Is it really free?</button>
+            <div class="faq-a" id="faq-a-3">Yes. No account, no credit card, no upload limit. Your WAV file is processed entirely in your browser — nothing is sent to a server.</div>
         </div>
         <div class="faq-item">
-            <button class="faq-q">Does it work on iPhone / iPad?</button>
-            <div class="faq-a">Yes, Measurely is tested on iOS Safari. Tap the upload button and select your file from Files or from any connected drive.</div>
+            <button class="faq-q" aria-expanded="false" aria-controls="faq-a-4">Does it work on iPhone / iPad?</button>
+            <div class="faq-a" id="faq-a-4">Yes, Measurely is tested on iOS Safari. Tap the upload button and select your file from Files or from any connected drive.</div>
         </div>
         <div class="faq-item">
-            <button class="faq-q">How is this different from REW?</button>
-            <div class="faq-a">REW is powerful but built for acoustic engineers. It gives you graphs you have to know how to read. Measurely takes REW's measurement and translates it into plain English — specific scores and specific next steps for your room.</div>
+            <button class="faq-q" aria-expanded="false" aria-controls="faq-a-5">How is this different from REW?</button>
+            <div class="faq-a" id="faq-a-5">REW is powerful but built for acoustic engineers. It gives you graphs you have to know how to read. Measurely takes REW's measurement and translates it into plain English — specific scores and specific next steps for your room.</div>
         </div>
         <div class="faq-item">
-            <button class="faq-q">Are my measurements saved?</button>
-            <div class="faq-a">Yes — in your browser's local storage. Nothing leaves your device. You can upload multiple measurements over time and track how changes to your room affect each score.</div>
+            <button class="faq-q" aria-expanded="false" aria-controls="faq-a-6">Are my measurements saved?</button>
+            <div class="faq-a" id="faq-a-6">Yes — in your browser's local storage. Nothing leaves your device. You can upload multiple measurements over time and track how changes to your room affect each score.</div>
         </div>
     </div>
 </section>
@@ -881,6 +948,11 @@ document.getElementById('sboxLaunchBtn')?.addEventListener('click', () => {
 // ── Hero waveform animation ────────────────────────────────────────────
 (function() {
     var canvas = document.getElementById('hero-canvas');
+    // Respect prefers-reduced-motion — skip animation entirely
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        canvas.style.display = 'none';
+        return;
+    }
     var ctx    = canvas.getContext('2d');
     var raf;
 
@@ -975,13 +1047,19 @@ document.querySelectorAll('[data-animate]').forEach(function(el) { obs.observe(e
 
 // ── Hire the Kit — register interest ─────────────────────────
 document.getElementById('kitInterestBtn')?.addEventListener('click', function() {
+    var btn  = document.getElementById('kitInterestBtn');
     var wrap = document.getElementById('kitCtaWrap');
     if (!wrap) return;
-    wrap.innerHTML =
-        '<div class="kit-interest-confirm">' +
-        '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>' +
-        'Thanks — we\'ll be in touch when the kit is ready.' +
-        '</div>';
+    // Briefly disable button to prevent double-clicks
+    if (btn) { btn.disabled = true; btn.textContent = 'Registering…'; }
+    setTimeout(function() {
+        wrap.innerHTML =
+            '<div class="kit-interest-confirm">' +
+            '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>' +
+            'Interest registered — we\'ll let you know when it\'s available to hire.' +
+            '</div>' +
+            '<p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem;">No commitment. No spam.</p>';
+    }, 600);
 });
 
 // ── FAQ accordion ────────────────────────────────────────────
@@ -989,8 +1067,16 @@ document.querySelectorAll('.faq-q').forEach(function(btn) {
     function toggle() {
         var item = btn.closest('.faq-item');
         var open = item.classList.contains('is-open');
-        document.querySelectorAll('.faq-item').forEach(function(el) { el.classList.remove('is-open'); });
-        if (!open) item.classList.add('is-open');
+        // Close all
+        document.querySelectorAll('.faq-item').forEach(function(el) {
+            el.classList.remove('is-open');
+            el.querySelector('.faq-q')?.setAttribute('aria-expanded', 'false');
+        });
+        // Open this one if it was closed
+        if (!open) {
+            item.classList.add('is-open');
+            btn.setAttribute('aria-expanded', 'true');
+        }
     }
     btn.addEventListener('click', toggle);
     btn.addEventListener('keydown', function(e) {
@@ -1006,6 +1092,7 @@ document.querySelectorAll('.faq-q').forEach(function(btn) {
 <script>
 document.addEventListener('DOMContentLoaded', async () => {
     await window.MeasurelyAuth?.init();
+    clearTimeout(window._mlyOverlayTimeout);
     if (window._mlyHasValidToken && window.MeasurelyAuth?.getUser()) {
         // Confirmed valid session — go straight to the dashboard
         window.location.replace('app.html');
