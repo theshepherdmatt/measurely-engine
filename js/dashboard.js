@@ -1411,6 +1411,12 @@ class MeasurelyDashboard {
         // Load phrase bank + speaker metadata
         await this.loadData();
 
+        // If pullAll() finishes after we've already initialised (the common case
+        // on a fresh page load), reload so cloud sessions appear immediately.
+        window.addEventListener('mly:syncComplete', async () => {
+            await this.loadData();
+        }, { once: true });
+
         this.startPolling();
         this.showSuccess('Analysis loaded');
 
@@ -1525,6 +1531,18 @@ class MeasurelyDashboard {
                     this.aiSummary = ai.ai_summary || null;
                     this.updateDashboard();
                     return; // done — no network needed
+                }
+
+                // Cloud session: has scores breakdown but no full analysis payload.
+                // Can't render charts but DO populate the history cards.
+                if (latest.scores && Number.isFinite(latest.overall_score)) {
+                    this.currentData = null;
+                    this.updateDashboard();
+                    if (!this._historyLoaded) {
+                        this._historyLoaded = true;
+                        this.loadHistory();
+                    }
+                    return;
                 }
             }
         }

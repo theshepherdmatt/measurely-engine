@@ -780,7 +780,7 @@ body.ra-body-root {
     transition: transform 0.15s;
 }
 
-.ra-slider::-webkit-slider-thumb:hover { transform: scale(1.25); }
+/* :hover on ::-webkit-slider-thumb is rejected by non-webkit browsers — use JS or omit */
 .ra-slider::-moz-range-thumb {
     width: 14px; height: 14px; border-radius: 50%;
     background: var(--c-accent, #6366f1); border: none; cursor: pointer;

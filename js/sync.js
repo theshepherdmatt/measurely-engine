@@ -152,6 +152,8 @@
                     return tb - ta;
                 });
                 localStorage.setItem(LS_SESSIONS, JSON.stringify(merged.slice(0, 20)));
+                // Signal dashboard to reload — it likely initialised before this fetch completed.
+                window.dispatchEvent(new CustomEvent('mly:syncComplete', { detail: { sessions: merged.length } }));
             }
             await pullProfile();
             _setState('ok', { op: 'pullAll' });
