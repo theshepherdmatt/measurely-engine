@@ -372,10 +372,14 @@ header, section, footer { position: relative; z-index: 1; }
 /* ── Footer ── */
 .site-footer {
     text-align: center;
-    padding: 4rem 1.5rem 3rem;
+    padding: 5rem 1.5rem 4rem; /* More breathing room */
+    background: #0f131d; /* Deep offset background */
     border-top: 1px solid var(--border-soft);
     color: var(--text-muted);
     font-size: 0.88rem;
+    position: relative;
+    z-index: 1;
+    width: 100%;
 }
 .site-footer img { height: 1.8rem; margin-bottom: 1rem; opacity: 0.7; }
 .site-footer a { color: var(--purple-400); text-decoration: none; }
@@ -946,9 +950,25 @@ document.getElementById('sboxLaunchBtn')?.addEventListener('click', () => {
 </section>
 
 <footer class="site-footer">
-    <img src="./icons/mainlogo.svg" alt="Measurely">
-    <p>© 2026 Measurely · Built because REW made my head hurt.</p>
-    <p style="margin-top:0.5rem"><a href="mailto:info@measurely.uk">info@measurely.uk</a></p>
+    <div class="section-inner">
+        <img src="./icons/mainlogo.svg" alt="Measurely" style="height: 2rem; margin-bottom: 1.5rem; opacity: 0.9;">
+        
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 1.25rem; margin-bottom: 2rem;">
+            <a href="https://discord.gg/DkPJN4sxNA" target="_blank" style="display: inline-flex; align-items: center; gap: 10px; background: rgba(129, 140, 248, 0.1); border: 1px solid rgba(129, 140, 248, 0.2); padding: 0.6rem 1.25rem; border-radius: 99px; color: #818cf8; text-decoration: none; font-weight: 700; font-size: 0.9rem; transition: 0.2s;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.862-1.297 1.197-1.99a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-2.863-1.366.077.077 0 0 1-.008-.127c.2-.15.4-.305.59-.463a.071.071 0 0 1 .075-.01c3.922 1.795 8.18 1.795 12.056 0a.072.072 0 0 1 .075.01c.19.158.39.313.59.463a.077.077 0 0 1-.008.127 12.986 12.986 0 0 1-2.863 1.366.077.077 0 0 0-.041.106c.335.693.735 1.36 1.197 1.99a.078.078 0 0 0 .084.028 19.83 19.83 0 0 0 6.024-3.03.077.077 0 0 0 .032-.057c.487-5.18-.838-9.66-3.418-13.66a.061.061 0 0 0-.031-.027zM8.02 15.33c-1.182 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.419 0 1.334-.956 2.419-2.157 2.419zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.419 0 1.334-.946 2.419-2.157 2.419z"/></svg>
+                Join the Discord
+            </a>
+            <a href="mailto:info@measurely.uk" style="color: var(--text-muted); text-decoration: none; font-size: 0.85rem; transition: 0.2s;">
+                Questions? info@measurely.uk
+            </a>
+        </div>
+
+        <div style="width: 40px; height: 1px; background: var(--border-soft); margin: 0 auto 1.5rem;"></div>
+
+        <p style="font-size: 0.8rem; color: var(--text-muted); opacity: 0.8;">
+            © 2026 Measurely · Built because REW made my head hurt.
+        </p>
+    </div>
 </footer>
 
 <script>
