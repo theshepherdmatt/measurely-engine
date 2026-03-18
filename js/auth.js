@@ -419,10 +419,11 @@
         }
     }
 
-    // ── Sign up handler ──────────────────────────────────────────────────────
+// ── Sign up handler ──────────────────────────────────────────────────────
     async function _handleSignUp(e) {
         e.preventDefault();
         if (!_pb) return;
+        
         const email    = document.getElementById('mlyEmailUp').value.trim();
         const password = document.getElementById('mlyPasswordUp').value;
         const confirm  = document.getElementById('mlyPasswordUpConfirm').value;
@@ -444,20 +445,34 @@
         btn.textContent = 'Creating account…';
 
         try {
+            // 1. Create the user record in PocketBase
             await _pb.collection('users').create({
-                email, password, passwordConfirm: confirm,
+                email, 
+                password, 
+                passwordConfirm: confirm,
             });
-            await _pb.collection('users').authWithPassword(email, password);
-            _closeModal();
-            _updateNav(_pb.authStore.model);
-            _notify(_pb.authStore.model);
-            if (!window.location.pathname.includes('app.html')) {
-                window.location.replace('app.html');
-                return;
+
+            // 2. Trigger the verification email via Resend
+            await _pb.collection('users').requestVerification(email);
+
+            // 3. Update the UI to show success
+            // Instead of logging in, we tell them to check their email.
+            const signUpPanel = document.getElementById('mlySignUpPanel');
+            if (signUpPanel) {
+                signUpPanel.innerHTML = `
+                    <div style="text-align: center; padding: 20px 0;">
+                        <div style="width: 60px; height: 60px; background: rgba(99, 102, 241, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; color: #6366f1; font-size: 30px;">✓</div>
+                        <h2 class="mly-auth-title">Check your inbox</h2>
+                        <p class="mly-auth-sub">We've sent a verification link to <strong>${email}</strong>. Please click it to activate your account.</p>
+                        <button type="button" class="mly-auth-btn-primary" onclick="window.location.reload()">Got it</button>
+                    </div>
+                `;
             }
-            await window.MeasurelySync?.pullAll();
-            await window.MeasurelySync?.pushLocalData();
+
+            window.toast?.('Verification email sent!', 'success');
+
         } catch (err) {
+            console.error('[auth] Sign up failed:', err);
             errEl.textContent = _friendlyError(err);
             btn.disabled = false;
             btn.textContent = 'Create account';
