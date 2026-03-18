@@ -221,17 +221,12 @@ header, section, footer { position: relative; z-index: 1; }
     padding: 5rem 1.5rem;
 }
 .section--centered { text-align: center; }
-.section--alt::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    left: -9999px;
-    right: -9999px;
+.section--alt {
     background: #1e2338;
     border-top: 1px solid rgba(99, 102, 241, 0.13);
     border-bottom: 1px solid rgba(99, 102, 241, 0.13);
-    z-index: -1;
 }
+
 .section h2 { font-size: clamp(1.8rem,4vw,2.4rem); font-weight: 800; }
 .section p { max-width: 48rem; margin: 1rem auto 0; color: var(--text-secondary); }
 .divider {
