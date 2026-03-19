@@ -99,6 +99,9 @@
 
 <body class="page-entering">
 
+    <!-- Skip link for keyboard / screen-reader users -->
+    <a href="#main-content" class="skip-link">Skip to content</a>
+
     <!-- AUTH GUARD OVERLAY
          Covers the page while we verify the session token, preventing a flash
          of unauthenticated content on direct links / hard refreshes. -->
@@ -159,7 +162,7 @@
 
 
         <!-- MAIN CONTENT -->
-        <main class="main-content">
+        <main class="main-content" id="main-content">
 
             <!-- HEADER -->
             <header class="header">
@@ -234,7 +237,7 @@
                         <p class="engine-section-label">Measure</p>
                         <div class="engine-actions">
                             <button id="uploadMeasurementBtn" class="btn btn-primary engine-action is-cta">
-                                <img src="icons/white/sweep.svg" alt="">
+                                <img src="icons/white/sweep.svg" alt="" aria-hidden="true">
                                 <div class="engine-action-text">
                                     <strong>Upload Measurement</strong>
                                     <span>Import your REW files</span>
@@ -281,7 +284,7 @@
                         <p class="engine-section-label">Room Setup</p>
                         <div class="engine-actions">
                             <a id="editRoomBtn" class="btn btn-secondary engine-action" href="myroom.html">
-                                <img src="icons/white/home.svg" alt="">
+                                <img src="icons/white/home.svg" alt="" aria-hidden="true">
                                 <div class="engine-action-text">
                                     <strong>My Room</strong>
                                     <span>Dimensions, layout &amp; furnishings</span>
@@ -297,7 +300,7 @@
                         <p class="engine-section-label">Analyse</p>
                         <div class="engine-actions">
                             <a class="btn btn-secondary engine-action" href="simulate.html">
-                                <img src="icons/white/lightbulb.svg" alt="">
+                                <img src="icons/white/lightbulb.svg" alt="" aria-hidden="true">
                                 <div class="engine-action-text">
                                     <strong>Room Analysis</strong>
                                     <span>Diagnose problems &amp; plan treatment</span>
@@ -370,11 +373,11 @@
             <section class="analysis-section animate-enter delay-2">
                 <aside class="analysis-sidebar-menu">
 
-                    <button class="card glass-panel analysis-card-trigger" data-overlay="sbir">
+                    <button class="card glass-panel analysis-card-trigger" data-overlay="sbir" aria-label="View Peaks &amp; Dips details">
 
                         <div class="card-header">
                             <h2 class="card-title">Peaks & Dips</h2>
-                            <img src="icons/mountain.svg" class="card-icon" alt="">
+                            <img src="icons/mountain.svg" class="card-icon" alt="" aria-hidden="true">
                         </div>
 
                         <div class="score-readout">
@@ -390,10 +393,10 @@
 
                     </button>
 
-                    <button class="card glass-panel analysis-card-trigger" data-overlay="side_reflections">
+                    <button class="card glass-panel analysis-card-trigger" data-overlay="side_reflections" aria-label="View Reflections details">
                         <div class="card-header">
                             <h2 class="card-title">Reflections</h2>
-                            <img src="icons/square-caret-left.svg" class="card-icon" alt="">
+                            <img src="icons/square-caret-left.svg" class="card-icon" alt="" aria-hidden="true">
                         </div>
                         <div class="score-readout">
                             <span id="reflectionsScore" class="score-value">--</span>
@@ -406,10 +409,10 @@
 
                     </button>
 
-                    <button class="card glass-panel analysis-card-trigger" data-overlay="bandwidth">
+                    <button class="card glass-panel analysis-card-trigger" data-overlay="bandwidth" aria-label="View Bandwidth details">
                         <div class="card-header">
                             <h2 class="card-title">Bandwidth</h2>
-                            <img src="icons/signal.svg" class="card-icon" alt="">
+                            <img src="icons/signal.svg" class="card-icon" alt="" aria-hidden="true">
                         </div>
                         <div class="score-readout">
                             <span id="bandwidthScore" class="score-value">--</span>
@@ -421,10 +424,10 @@
                         <div id="bandwidthDave" class="dave-quote-mini">--</div>
                     </button>
 
-                    <button class="card glass-panel analysis-card-trigger" data-overlay="balance">
+                    <button class="card glass-panel analysis-card-trigger" data-overlay="balance" aria-label="View Balance details">
                         <div class="card-header">
                             <h2 class="card-title">Balance</h2>
-                            <img src="icons/balance-scale.svg" class="card-icon" alt="">
+                            <img src="icons/balance-scale.svg" class="card-icon" alt="" aria-hidden="true">
                         </div>
                         <div class="score-readout">
                             <span id="balanceScore" class="score-value">--</span>
@@ -436,10 +439,10 @@
                         <div id="balanceDave" class="dave-quote-mini">--</div>
                     </button>
 
-                    <button class="card glass-panel analysis-card-trigger" data-overlay="smoothness">
+                    <button class="card glass-panel analysis-card-trigger" data-overlay="smoothness" aria-label="View Smoothness details">
                         <div class="card-header">
                             <h2 class="card-title">Smoothness</h2>
-                            <img src="icons/wave-square.svg" class="card-icon" alt="">
+                            <img src="icons/wave-square.svg" class="card-icon" alt="" aria-hidden="true">
                         </div>
                         <div class="score-readout">
                             <span id="smoothnessScore" class="score-value">--</span>
@@ -451,10 +454,10 @@
                         <div id="smoothnessDave" class="dave-quote-mini">--</div>
                     </button>
 
-                    <button class="card glass-panel analysis-card-trigger" data-overlay="clarity">
+                    <button class="card glass-panel analysis-card-trigger" data-overlay="clarity" aria-label="View Clarity details">
                         <div class="card-header">
                             <h2 class="card-title">Clarity</h2>
-                            <img src="icons/clock.svg" class="card-icon" alt="">
+                            <img src="icons/clock.svg" class="card-icon" alt="" aria-hidden="true">
                         </div>
                         <div class="score-readout">
                             <span id="clarityScore" class="score-value">--</span>
@@ -778,7 +781,7 @@
     </script>
 
     <!-- NOTES MODAL (GLOBAL POPUP) -->
-    <div id="notesModal" class="notes-modal hidden" aria-hidden="true">
+    <div id="notesModal" class="notes-modal hidden" role="dialog" aria-modal="true" aria-labelledby="notesModalTitle" aria-hidden="true">
         <div class="notes-modal-backdrop"></div>
 
         <div class="notes-modal-content">
@@ -959,11 +962,11 @@
 
 
     <!-- UPLOAD MEASUREMENT MODAL -->
-    <div id="uploadModal" class="sweep-modal hidden" aria-hidden="true">
+    <div id="uploadModal" class="sweep-modal hidden" role="dialog" aria-modal="true" aria-labelledby="uploadModalTitle" aria-hidden="true">
         <div class="sweep-modal-backdrop"></div>
 
         <div class="sweep-modal-content glass-panel">
-            <h3 class="sweep-title">Upload REW Measurement</h3>
+            <h3 class="sweep-title" id="uploadModalTitle">Upload REW Measurement</h3>
 
             <!-- IDLE STATE: file pickers -->
             <div id="uploadIdleState">

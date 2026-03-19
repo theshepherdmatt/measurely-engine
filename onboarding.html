@@ -33,6 +33,9 @@
 
 <body>
 
+<!-- Skip link for keyboard / screen-reader users -->
+<a href="#main-content" class="skip-link">Skip to content</a>
+
 <!-- PORTRAIT-MODE LOCK OVERLAY (hidden in landscape / desktop) -->
 <div id="portraitLock" aria-live="polite" role="alertdialog" aria-modal="true" aria-labelledby="plTitle">
     <svg class="pl-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
@@ -74,7 +77,7 @@
 <div id="cinemaVignette" aria-hidden="true"></div>
 
 <!-- Room setup completion modal — shown after flyby lands at listening position -->
-<div id="completionModal" class="flyby-completion-backdrop hidden" aria-hidden="true">
+<div id="completionModal" class="flyby-completion-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="completionModalTitle" aria-hidden="true">
   <div class="flyby-completion-card">
     <div class="flyby-check-ring">
       <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -82,7 +85,7 @@
         <polyline points="11,21 17,27 29,13" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     </div>
-    <h2 class="flyby-completion-title">Listening Room Mapped</h2>
+    <h2 class="flyby-completion-title" id="completionModalTitle">Listening Room Mapped</h2>
     <p class="flyby-completion-sub">
       Your room is set up. Head to the dashboard to upload a sweep measurement and hear exactly what your space is doing to the sound.
     </p>
@@ -220,10 +223,11 @@
 <div id="daveChip" aria-live="polite" aria-atomic="true"></div>
 
 <!-- SLIDING QUESTION PANEL -->
+<span id="main-content" tabindex="-1" aria-hidden="true"></span>
 <div id="questionPanel">
 
   <!-- Progress bar: step dots + label -->
-  <div id="sectionProgress" class="wizard-progress" aria-label="Wizard progress">
+  <div id="sectionProgress" class="wizard-progress" aria-label="Wizard progress" aria-live="polite" aria-atomic="true">
     <div class="wizard-progress-dots" id="progressDots"></div>
     <span class="wizard-progress-label" id="progressLabel"></span>
   </div>

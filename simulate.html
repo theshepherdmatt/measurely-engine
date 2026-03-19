@@ -54,7 +54,10 @@
 
 <body class="ra-body-root">
 
-<div class="ra-page">
+<!-- Skip link for keyboard / screen-reader users -->
+<a href="#main-content" class="skip-link">Skip to content</a>
+
+<div class="ra-page" id="main-content">
 
     <!-- ═══════════════════════════════════════
          HEADER
@@ -89,7 +92,7 @@
             <div class="ra-canvas-badge" id="raModesBadge"></div>
 
             <!-- Current / Treated toggle -->
-            <div id="simTreatmentToggle" class="treatment-toggle">
+            <div id="simTreatmentToggle" class="treatment-toggle" role="group" aria-label="Room view">
                 <button class="tt-btn tt-active" data-view="current">Current room</button>
                 <button class="tt-btn" id="simTtTreated" data-view="treated">Treated room</button>
             </div>
@@ -98,18 +101,18 @@
 
 
         <!-- RIGHT: control panel -->
-        <aside class="ra-panel card glass-panel">
+        <aside class="ra-panel card glass-panel" aria-label="Room analysis controls">
 
             <!-- Tab nav -->
-            <div class="ra-tabs">
-                <button class="ra-tab ra-tab--active" data-pane="pane-simulate">Simulate</button>
-                <button class="ra-tab" data-pane="pane-fixroom">Fix My Room</button>
+            <div class="ra-tabs" role="tablist" aria-label="Room analysis views">
+                <button class="ra-tab ra-tab--active" role="tab" aria-selected="true" aria-controls="pane-simulate" id="tab-simulate">Simulate</button>
+                <button class="ra-tab" role="tab" aria-selected="false" aria-controls="pane-fixroom" id="tab-fixroom">Fix My Room</button>
             </div>
 
             <!-- ─────────────────────────────────
                  SIMULATE CONTENT
             ───────────────────────────────── -->
-            <div class="ra-pane" id="pane-simulate">
+            <div class="ra-pane" id="pane-simulate" role="tabpanel" aria-labelledby="tab-simulate">
 
                 <!-- Speaker placement -->
                 <div class="ra-sim-section">
@@ -149,7 +152,7 @@
                         <span>Predicted</span>
                     </div>
 
-                    <div class="ra-score-row ra-diag-trigger" data-metric="peaks_dips" role="button" tabindex="0" aria-expanded="false">
+                    <div class="ra-score-row ra-diag-trigger" data-metric="peaks_dips" role="button" tabindex="0" aria-expanded="false" aria-label="Peaks &amp; Dips – tap to view diagnostic">
                         <span class="ra-score-metric-name">Peaks &amp; Dips <span class="ra-diag-chevron" aria-hidden="true">›</span></span>
                         <span class="ra-score-before" id="sim-before-peaks_dips">—</span>
                         <span class="ra-score-after" id="sim-after-peaks_dips">—</span>
@@ -163,7 +166,7 @@
                         </div>
                     </div>
 
-                    <div class="ra-score-row ra-diag-trigger" data-metric="reflections" role="button" tabindex="0" aria-expanded="false">
+                    <div class="ra-score-row ra-diag-trigger" data-metric="reflections" role="button" tabindex="0" aria-expanded="false" aria-label="Reflections – tap to view diagnostic">
                         <span class="ra-score-metric-name">Reflections <span class="ra-diag-chevron" aria-hidden="true">›</span></span>
                         <span class="ra-score-before" id="sim-before-reflections">—</span>
                         <span class="ra-score-after" id="sim-after-reflections">—</span>
@@ -177,7 +180,7 @@
                         </div>
                     </div>
 
-                    <div class="ra-score-row ra-diag-trigger" data-metric="bandwidth" role="button" tabindex="0" aria-expanded="false">
+                    <div class="ra-score-row ra-diag-trigger" data-metric="bandwidth" role="button" tabindex="0" aria-expanded="false" aria-label="Bandwidth – tap to view diagnostic">
                         <span class="ra-score-metric-name">Bandwidth <span class="ra-diag-chevron" aria-hidden="true">›</span></span>
                         <span class="ra-score-before" id="sim-before-bandwidth">—</span>
                         <span class="ra-score-after" id="sim-after-bandwidth">—</span>
@@ -191,7 +194,7 @@
                         </div>
                     </div>
 
-                    <div class="ra-score-row ra-diag-trigger" data-metric="smoothness" role="button" tabindex="0" aria-expanded="false">
+                    <div class="ra-score-row ra-diag-trigger" data-metric="smoothness" role="button" tabindex="0" aria-expanded="false" aria-label="Smoothness – tap to view diagnostic">
                         <span class="ra-score-metric-name">Smoothness <span class="ra-diag-chevron" aria-hidden="true">›</span></span>
                         <span class="ra-score-before" id="sim-before-smoothness">—</span>
                         <span class="ra-score-after" id="sim-after-smoothness">—</span>
@@ -205,7 +208,7 @@
                         </div>
                     </div>
 
-                    <div class="ra-score-row ra-diag-trigger" data-metric="balance" role="button" tabindex="0" aria-expanded="false">
+                    <div class="ra-score-row ra-diag-trigger" data-metric="balance" role="button" tabindex="0" aria-expanded="false" aria-label="Balance – tap to view diagnostic">
                         <span class="ra-score-metric-name">Balance <span class="ra-diag-chevron" aria-hidden="true">›</span></span>
                         <span class="ra-score-before" id="sim-before-balance">—</span>
                         <span class="ra-score-after" id="sim-after-balance">—</span>
@@ -219,7 +222,7 @@
                         </div>
                     </div>
 
-                    <div class="ra-score-row ra-diag-trigger" data-metric="clarity" role="button" tabindex="0" aria-expanded="false">
+                    <div class="ra-score-row ra-diag-trigger" data-metric="clarity" role="button" tabindex="0" aria-expanded="false" aria-label="Clarity – tap to view diagnostic">
                         <span class="ra-score-metric-name">Clarity <span class="ra-diag-chevron" aria-hidden="true">›</span></span>
                         <span class="ra-score-before" id="sim-before-clarity">—</span>
                         <span class="ra-score-after" id="sim-after-clarity">—</span>
@@ -327,7 +330,7 @@
             <!-- ─────────────────────────────────
                  FIX MY ROOM PANE
             ───────────────────────────────── -->
-            <div class="ra-pane ra-pane--hidden" id="pane-fixroom">
+            <div class="ra-pane ra-pane--hidden" id="pane-fixroom" role="tabpanel" aria-labelledby="tab-fixroom">
 
                 <div class="fix-intro">
                     <p class="fix-intro-text">Tell us your budget and we'll rank every treatment by acoustic bang-per-buck — cheapest wins first.</p>
@@ -336,9 +339,10 @@
                 <!-- Budget slider -->
                 <div class="fix-budget-wrap">
                     <div class="fix-budget-top">
-                        <span class="fix-budget-label">Budget</span>
+                        <span class="fix-budget-label" aria-hidden="true">Budget</span>
                         <span class="fix-budget-val">£<span id="fix-budget-display">250</span></span>
                     </div>
+                    <label for="fix-budget-slider" class="sr-only">Budget</label>
                     <input type="range" id="fix-budget-slider" class="measurely-slider"
                            min="0" max="1000" step="25" value="250">
                     <div class="fix-budget-ticks">
@@ -388,7 +392,7 @@
 <!-- ═══════════════════════════════════════
      NOTES MODAL (kept for dashboard compat)
 ═══════════════════════════════════════ -->
-<div id="notesModal" class="notes-modal hidden" aria-hidden="true">
+<div id="notesModal" class="notes-modal hidden" role="dialog" aria-modal="true" aria-labelledby="notesModalTitle" aria-hidden="true">
     <div class="notes-modal-backdrop"></div>
     <div class="notes-modal-content">
         <div class="notes-modal-header">
@@ -1046,10 +1050,16 @@ const baselinePoll = setInterval(() => {
 document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.ra-tab').forEach(tab => {
         tab.addEventListener('click', () => {
-            const targetId = tab.dataset.pane;
-            document.querySelectorAll('.ra-tab').forEach(t => t.classList.remove('ra-tab--active'));
+            const targetId = tab.getAttribute('aria-controls');
+            // Update tab state
+            document.querySelectorAll('.ra-tab').forEach(t => {
+                t.classList.remove('ra-tab--active');
+                t.setAttribute('aria-selected', 'false');
+            });
+            // Update panel state
             document.querySelectorAll('.ra-pane').forEach(p => p.classList.add('ra-pane--hidden'));
             tab.classList.add('ra-tab--active');
+            tab.setAttribute('aria-selected', 'true');
             document.getElementById(targetId)?.classList.remove('ra-pane--hidden');
             if (targetId === 'pane-fixroom') runFixMyRoom();
         });

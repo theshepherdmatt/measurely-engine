@@ -66,6 +66,27 @@ body {
   border: 0;
 }
 
+/* Skip-to-content link — visible only on keyboard focus */
+.skip-link {
+  position: absolute;
+  top: -100%;
+  left: 1rem;
+  background: #6366f1;
+  color: #fff;
+  padding: 0.4rem 1rem;
+  border-radius: 0 0 0.5rem 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  z-index: 9999;
+  transition: top 0.15s;
+}
+.skip-link:focus {
+  top: 0;
+  outline: 2px solid #a855f7;
+  outline-offset: 2px;
+}
+
 .page {
   min-height: 100vh;
   padding: 0;

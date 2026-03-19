@@ -223,6 +223,9 @@
 
 <body>
 
+<!-- Skip link for keyboard / screen-reader users -->
+<a href="#main-content" class="skip-link">Skip to content</a>
+
 <div id="toeModal" class="modal-overlay">
   <div class="modal-content">
     <h3>Toe-In Calculator</h3>
@@ -279,7 +282,7 @@
 
 
 <!-- FULLSCREEN ROOM -->
-<div id="roomCanvas">
+<div id="roomCanvas" aria-label="3D room preview" role="img">
     <div class="room3d-loader" id="room3dLoader">
         <div class="room3d-spinner"></div>
         <p class="room3d-loader-text">Initialising 3D Room…</p>
@@ -287,6 +290,7 @@
 </div>
 
 <!-- SLIDING QUESTION PANEL -->
+<span id="main-content" tabindex="-1" aria-hidden="true"></span>
 <div id="questionPanel">
   <div class="question" id="qText"></div>
   <div class="sub" id="qSub"></div>
