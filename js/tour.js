@@ -189,12 +189,12 @@ export function createTour(steps, callbacks = {}) {
         position: fixed;
         display: none;
         width: ${TIP_WIDTH}px;
-        background: rgba(15, 23, 42, 0.40);
+        background: rgba(0,0,0,0.15);
         backdrop-filter: blur(14px);
         -webkit-backdrop-filter: blur(14px);
         border: 1px solid rgba(255,255,255,.10);
         border-radius: 16px;
-        box-shadow: 0 24px 60px rgba(0,0,0,.7), 0 0 0 1px rgba(99,102,241,.15);
+        box-shadow: 0 24px 60px rgba(0,0,0,.7), 0 0 0 1px rgba(212,149,15,.15);
         padding: 18px 20px;
         font-family: inherit;
         box-sizing: border-box;
@@ -229,7 +229,7 @@ export function createTour(steps, callbacks = {}) {
       .tt-skip { color: #475569; font-size: 12px; }
       .tt-back { color: #64748b; font-size: 13px; padding: 4px 8px; }
       .tt-next {
-        background: #6366f1;
+        background: #d4950f;
         color: #fff;
         border-radius: 9px;
         font-size: 13px;

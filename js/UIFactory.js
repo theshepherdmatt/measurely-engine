@@ -75,7 +75,7 @@ export const UIFactory = {
         else if (type === 'select') {
             const options = fieldConfig.options || [];
             const optionHtml = options.map(opt => `
-                <option value="${opt.value}" ${currentValue === opt.value ? 'selected' : ''}>
+                <option value="${opt.value}" ${currentValue === opt.value ? 'selected' : ''} ${opt.disabled ? 'disabled' : ''}>
                     ${opt.label}
                 </option>
             `).join('');

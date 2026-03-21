@@ -31,17 +31,7 @@ body {
   font-family: var(--font-main);
   color: var(--c-text-main);
 
-  background:
-    radial-gradient(
-      1200px 600px at 50% -200px,
-      rgba(var(--c-primary-rgb), 0.08),
-      transparent 60%
-    ),
-    linear-gradient(
-      180deg,
-      var(--c-bg) 0%,
-      #0b1222 100%
-    );
+  background: #eae6e0;
 
   -webkit-font-smoothing: antialiased;
 }
@@ -71,7 +61,7 @@ body {
   position: absolute;
   top: -100%;
   left: 1rem;
-  background: #6366f1;
+  background: #d4950f;
   color: #fff;
   padding: 0.4rem 1rem;
   border-radius: 0 0 0.5rem 0.5rem;
@@ -83,7 +73,7 @@ body {
 }
 .skip-link:focus {
   top: 0;
-  outline: 2px solid #a855f7;
+  outline: 2px solid #d4950f;
   outline-offset: 2px;
 }
 

@@ -29,11 +29,11 @@ body.mly-auth-open { overflow: hidden; }
     width: min(460px, 100%);
     max-height: calc(100vh - 48px);
     overflow-y: auto;
-    background: rgba(11, 18, 32, 0.98);
-    border: 1px solid rgba(99, 102, 241, 0.25);
+    background: #ffffff;
+    border: 1px solid rgba(212, 149, 15, 0.25);
     border-radius: 20px;
     padding: 36px 32px 28px;
-    box-shadow: 0 32px 80px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.14), 0 0 0 1px rgba(0, 0, 0, 0.06);
     /* vertical centering when viewport is tall enough */
     margin: auto;
     transition: transform 0.2s ease, opacity 0.2s ease;
@@ -69,7 +69,7 @@ body.mly-auth-open { overflow: hidden; }
 .mly-auth-title {
     font-size: 1.3rem;
     font-weight: 700;
-    color: var(--c-text-main, #f8fafc);
+    color: var(--c-text-main, #1a1714);
     margin: 0 0 6px;
     letter-spacing: -0.01em;
 }
@@ -88,16 +88,16 @@ body.mly-auth-open { overflow: hidden; }
     gap: 6px;
     font-size: 0.8rem;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.55);
+    color: rgba(26, 23, 20, 0.55);
     margin-bottom: 14px;
 }
 
 .mly-auth-input {
     padding: 11px 14px;
     border-radius: 10px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(255, 255, 255, 0.04);
-    color: var(--c-text-main, #f8fafc);
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    background: #f7f6f5;
+    color: var(--c-text-main, #1a1714);
     font-size: 0.9rem;
     font-family: var(--font-main, system-ui, sans-serif);
     outline: none;
@@ -107,11 +107,11 @@ body.mly-auth-open { overflow: hidden; }
 }
 
 .mly-auth-input:focus {
-    border-color: rgba(99, 102, 241, 0.55);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    border-color: rgba(212, 149, 15, 0.55);
+    box-shadow: 0 0 0 3px rgba(212, 149, 15, 0.15);
 }
 
-.mly-auth-input::placeholder { color: rgba(255, 255, 255, 0.22); }
+.mly-auth-input::placeholder { color: rgba(26, 23, 20, 0.35); }
 
 /* ── Error message ────────────────────────────────────────── */
 .mly-auth-error {
@@ -128,19 +128,19 @@ body.mly-auth-open { overflow: hidden; }
     padding: 12px;
     border-radius: 10px;
     border: none;
-    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    background: linear-gradient(135deg, #d4950f, #b87c08);
     color: #fff;
     font-size: 0.95rem;
     font-weight: 700;
     font-family: var(--font-main, system-ui, sans-serif);
     cursor: pointer;
     transition: opacity 0.15s, transform 0.12s, box-shadow 0.15s;
-    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.35);
+    box-shadow: 0 4px 16px rgba(212, 149, 15, 0.35);
     margin-bottom: 14px;
 }
 .mly-auth-btn-primary:hover:not(:disabled) {
     opacity: 0.9;
-    box-shadow: 0 6px 24px rgba(99, 102, 241, 0.5);
+    box-shadow: 0 6px 24px rgba(212, 149, 15, 0.45);
 }
 .mly-auth-btn-primary:active:not(:disabled) { transform: scale(0.98); }
 .mly-auth-btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -156,23 +156,23 @@ body.mly-auth-open { overflow: hidden; }
 .mly-auth-link {
     background: none;
     border: none;
-    color: #a5b4fc;
+    color: #f0b429;
     font-size: inherit;
     font-family: inherit;
     cursor: pointer;
     padding: 0;
     text-decoration: underline;
-    text-decoration-color: rgba(165, 180, 252, 0.4);
+    text-decoration-color: rgba(240, 180, 41, 0.4);
     transition: color 0.15s;
 }
-.mly-auth-link:hover { color: #c7d2fe; }
+.mly-auth-link:hover { color: #fde68a; }
 
 /* ── Divider ──────────────────────────────────────────────── */
 .mly-auth-divider {
     display: flex;
     align-items: center;
     gap: 10px;
-    color: rgba(255, 255, 255, 0.18);
+    color: rgba(26, 23, 20, 0.35);
     font-size: 0.75rem;
     margin: 10px 0;
 }
@@ -181,7 +181,7 @@ body.mly-auth-open { overflow: hidden; }
     content: '';
     flex: 1;
     height: 1px;
-    background: rgba(255, 255, 255, 0.09);
+    background: rgba(0, 0, 0, 0.10);
 }
 
 /* ── Ghost / skip button ──────────────────────────────────── */
@@ -189,7 +189,7 @@ body.mly-auth-open { overflow: hidden; }
     width: 100%;
     background: none;
     border: none;
-    color: rgba(255, 255, 255, 0.35);
+    color: rgba(26, 23, 20, 0.45);
     font-size: 0.82rem;
     font-family: var(--font-main, system-ui, sans-serif);
     cursor: pointer;
@@ -197,7 +197,7 @@ body.mly-auth-open { overflow: hidden; }
     transition: color 0.15s;
     text-align: center;
 }
-.mly-auth-btn-ghost:hover { color: rgba(255, 255, 255, 0.65); }
+.mly-auth-btn-ghost:hover { color: rgba(26, 23, 20, 0.75); }
 
 /* ── Mobile adjustments ───────────────────────────────────── */
 @media (max-width: 480px) {
@@ -210,10 +210,10 @@ body.mly-auth-open { overflow: hidden; }
     display: inline-flex;
     align-items: center;
     padding: 6px 14px;
-    border-radius: 8px;
-    border: 1px solid rgba(99, 102, 241, 0.4);
-    background: rgba(99, 102, 241, 0.08);
-    color: #a5b4fc;
+    border-radius: 4px;
+    border: 1px solid rgba(212,149,15,0.35);
+    background: rgba(212,149,15,0.1);
+    color: #a87a08;
     font-size: 0.82rem;
     font-weight: 600;
     font-family: var(--font-main, system-ui, sans-serif);
@@ -222,9 +222,9 @@ body.mly-auth-open { overflow: hidden; }
     white-space: nowrap;
 }
 .mly-auth-nav-btn:hover {
-    background: rgba(99, 102, 241, 0.18);
-    border-color: rgba(99, 102, 241, 0.7);
-    color: #c7d2fe;
+    background: rgba(212,149,15,0.18);
+    border-color: rgba(212,149,15,0.6);
+    color: #8a6406;
 }
 
 /* ── Nav: profile card (logged-in state) ──────────────────── */
@@ -256,14 +256,14 @@ body.mly-auth-open { overflow: hidden; }
     width: 46px;
     height: 46px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    background: linear-gradient(135deg, #d4950f, #b87c08);
     color: #fff;
     font-size: 1rem;
     font-weight: 700;
     font-family: var(--font-main, system-ui, sans-serif);
-    /* 2px indigo ring + outer aura */
-    border: 2px solid #6366f1;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.22), 0 2px 10px rgba(99, 102, 241, 0.45);
+    /* 2px gold ring + outer aura */
+    border: 2px solid #d4950f;
+    box-shadow: 0 0 0 3px rgba(212, 149, 15, 0.22), 0 2px 10px rgba(212, 149, 15, 0.45);
     cursor: pointer;
     display: inline-flex;
     align-items: center;
@@ -272,8 +272,8 @@ body.mly-auth-open { overflow: hidden; }
     transition: box-shadow 0.18s, transform 0.12s, border-color 0.18s;
 }
 .mly-auth-avatar:hover {
-    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.35), 0 4px 18px rgba(99, 102, 241, 0.6);
-    border-color: #818cf8;
+    box-shadow: 0 0 0 4px rgba(212, 149, 15, 0.35), 0 4px 18px rgba(212, 149, 15, 0.6);
+    border-color: #f0b429;
     transform: scale(1.06);
 }
 
@@ -282,10 +282,10 @@ body.mly-auth-open { overflow: hidden; }
     top: calc(100% + 8px);
     right: 0;
     min-width: 200px;
-    background: rgba(15, 23, 42, 0.98);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: #ffffff;
+    border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: 12px;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
     padding: 8px;
     z-index: 800;
     backdrop-filter: blur(12px);
@@ -296,7 +296,7 @@ body.mly-auth-open { overflow: hidden; }
     color: var(--c-text-muted, #94a3b8);
     padding: 6px 10px 8px;
     margin: 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
     word-break: break-all;
 }
 
@@ -307,7 +307,7 @@ body.mly-auth-open { overflow: hidden; }
     border-radius: 7px;
     border: none;
     background: none;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--c-text-main);
     font-size: 0.83rem;
     font-family: var(--font-main, system-ui, sans-serif);
     cursor: pointer;
@@ -316,8 +316,8 @@ body.mly-auth-open { overflow: hidden; }
     transition: background 0.12s, color 0.12s;
 }
 .mly-auth-dropdown-item:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: #f87171;
+    background: rgba(26, 23, 20, 0.06);
+    color: #ef4444;
 }
 
 /* ── Google OAuth button ──────────────────────────────────── */
@@ -330,8 +330,8 @@ body.mly-auth-open { overflow: hidden; }
     padding: 13px 16px;
     border-radius: 10px;
     border: 1px solid rgba(255, 255, 255, 0.14);
-    background: #1e2133;
-    color: #f0f2f8;
+    background: #f7f6f5;
+    color: #1a1714;
     font-size: 1rem;        /* larger than form fields — primary action */
     font-weight: 600;
     font-family: 'Inter', var(--font-main, system-ui, sans-serif);
@@ -345,8 +345,8 @@ body.mly-auth-open { overflow: hidden; }
 }
 
 .mly-auth-btn-google:hover:not(:disabled) {
-    background: #252840;
-    border-color: rgba(255, 255, 255, 0.24);
+    background: #eeede9;
+    border-color: rgba(0, 0, 0, 0.18);
     box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
     transform: translateY(-1px);
 }

@@ -2,19 +2,19 @@
 
 export const onboardingStyles = {
   options: {
-    arrowColor: "#1e293b",
-    backgroundColor: "#1e293b",
+    arrowColor: "#ffffff",
+    backgroundColor: "#ffffff",
     overlayColor: "rgba(0, 0, 0, 0.55)",
-    primaryColor: "#6366f1",
+    primaryColor: "#d4950f",
     textColor: "#e2e8f0",
     width: 340,
     zIndex: 99999,
   },
   tooltip: {
-    backgroundColor: "#1e293b",
+    backgroundColor: "#ffffff",
     borderRadius: "16px",
     border: "1px solid rgba(255,255,255,0.10)",
-    boxShadow: "0 24px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(99,102,241,0.15)",
+    boxShadow: "0 24px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(212,149,15,0.15)",
     padding: "18px 20px",
     fontFamily: "inherit",
   },
@@ -34,7 +34,7 @@ export const onboardingStyles = {
   },
   tooltipFooter: { marginTop: "14px", paddingTop: "0" },
   buttonNext: {
-    backgroundColor: "#6366f1",
+    backgroundColor: "#d4950f",
     color: "#ffffff",
     borderRadius: "9px",
     fontSize: "13px",

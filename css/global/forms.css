@@ -20,7 +20,7 @@
   background: linear-gradient(
     90deg,
     var(--c-accent) var(--fill, 50%),
-    rgba(255, 255, 255, 0.12) var(--fill, 50%)
+    rgba(26, 23, 20, 0.14) var(--fill, 50%)
   );
 
   outline: none;
@@ -79,8 +79,8 @@
 select.measurely-select {
   width: 100%;
   appearance: none;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.12);
+  background: #f7f6f5;
+  border: 1px solid rgba(0, 0, 0, 0.12);
   border-radius: 8px;
   padding: 0.55rem 0.75rem;
   font-size: 0.85rem;
@@ -89,15 +89,13 @@ select.measurely-select {
   cursor: pointer;
   outline: none;
   transition: border-color 0.15s;
-  /* Tell the OS to render the native dropdown in dark mode so option text
-     stays light against a dark popup background (not white-on-white) */
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 /* Explicit option colors for browsers that honour them (Firefox, Chromium) */
 select.measurely-select option {
-  background: #1a2235;
-  color: #e5e7eb;
+  background: #ffffff;
+  color: #1a1714;
 }
 
 select.measurely-select:focus {
@@ -126,8 +124,8 @@ select.measurely-select:focus {
 .measurely-switch .slider {
   position: absolute;
   inset: 0;
-  background: rgba(255,255,255,0.1);
-  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(26, 23, 20, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.15);
   border-radius: 999px;
   cursor: pointer;
   transition: background 0.2s, border-color 0.2s;

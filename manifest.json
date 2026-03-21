@@ -4,8 +4,8 @@
   "description": "Room acoustics analysis — upload a sweep and hear what your space is doing to the sound.",
   "start_url": "/app.html",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#6366f1",
+  "background_color": "#f4f2ee",
+  "theme_color": "#d4950f",
   "icons": [
     {
       "src": "/icons/dave.svg",

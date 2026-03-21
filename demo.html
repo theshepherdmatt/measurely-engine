@@ -48,7 +48,7 @@ body {
     left: calc(50% - 140px); /* centred in canvas area */
     transform: translateX(-50%);
     background: rgba(15,23,42,.9);
-    border: 1px solid rgba(99,102,241,.4);
+    border: 1px solid rgba(212,149,15,.4);
     border-radius: 999px;
     padding: 5px 16px;
     font-size: 0.78rem;
@@ -71,7 +71,7 @@ body {
     height: 100%;
     z-index: 40;
 
-    background: linear-gradient(165deg, rgba(23,32,48,0.97), rgba(13,18,28,0.99));
+    background: linear-gradient(165deg, rgba(255,255,255,0.97), rgba(247,246,245,0.99));
     backdrop-filter: blur(20px) saturate(200%);
     -webkit-backdrop-filter: blur(20px) saturate(200%);
 
@@ -146,11 +146,11 @@ body {
     gap: 14px;
     /* custom scrollbar */
     scrollbar-width: thin;
-    scrollbar-color: rgba(99,102,241,.3) transparent;
+    scrollbar-color: rgba(212,149,15,.3) transparent;
 }
 .demo-panel-body::-webkit-scrollbar { width: 4px; }
 .demo-panel-body::-webkit-scrollbar-track { background: transparent; }
-.demo-panel-body::-webkit-scrollbar-thumb { background: rgba(99,102,241,.3); border-radius: 2px; }
+.demo-panel-body::-webkit-scrollbar-thumb { background: rgba(212,149,15,.3); border-radius: 2px; }
 
 /* ── Section header (label above a group of controls) ────── */
 .demo-group-label {
@@ -185,8 +185,8 @@ body {
     transition: background .15s, border-color .15s, color .15s;
     white-space: nowrap;
 }
-.sbox-btn:hover  { background: rgba(99,102,241,.14); border-color: rgba(99,102,241,.35); color: var(--c-accent-tint); }
-.sbox-btn.active { background: rgba(99,102,241,.2);  border-color: rgba(99,102,241,.5);  color: var(--c-accent-light); }
+.sbox-btn:hover  { background: rgba(212,149,15,.14); border-color: rgba(212,149,15,.35); color: var(--c-accent-tint); }
+.sbox-btn.active { background: rgba(212,149,15,.2);  border-color: rgba(212,149,15,.5);  color: var(--c-accent-light); }
 .sbox-btn.sbox-reset { border-color: rgba(255,255,255,.07); color: rgba(255,255,255,.25); }
 .sbox-btn.sbox-reset:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.6); }
 
@@ -203,8 +203,8 @@ body {
     transition: background .15s, border-color .15s, color .15s;
     white-space: nowrap;
 }
-.overlay-btn:hover  { background: rgba(99,102,241,.1); color: rgba(255,255,255,.7); }
-.overlay-btn.active { background: rgba(99,102,241,.22); border-color: var(--c-accent); color: var(--c-accent-light); }
+.overlay-btn:hover  { background: rgba(212,149,15,.1); color: rgba(255,255,255,.7); }
+.overlay-btn.active { background: rgba(212,149,15,.22); border-color: var(--c-accent); color: var(--c-accent-light); }
 
 /* ── Slider field (matches onboarding field style) ───────── */
 .demo-field {
@@ -237,8 +237,8 @@ body {
 .demo-cta-bar {
     margin: 0 -18px;
     padding: 10px 18px max(14px, env(safe-area-inset-bottom, 14px));
-    background: linear-gradient(135deg, rgba(99,102,241,.12), rgba(139,92,246,.12));
-    border-top: 1px solid rgba(99,102,241,.2);
+    background: linear-gradient(135deg, rgba(212,149,15,.12), rgba(139,92,246,.12));
+    border-top: 1px solid rgba(212,149,15,.2);
     display: flex;
     flex-direction: row;
     align-items: center;

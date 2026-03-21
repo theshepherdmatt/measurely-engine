@@ -3,15 +3,17 @@
     --font-main: 'Inter', sans-serif;
 
     /* Premium Palette */
-    --c-bg: #0f172a; /* Deep Slate */
-    --c-surface: #1e293b; /* Lighter Slate */
-    --c-surface-glass: rgba(30, 41, 59, 0.7);
+    --c-bg: #eae6e0; /* Warm Stone */
+    --c-surface: #ffffff; /* Pure White */
+    --c-surface2: #f7f6f5;
+    --c-border: #e0dedd;
+    --c-surface-glass: rgba(255,255,255,0.75);
 
-    --c-text-main: #f8fafc;
-    --c-text-muted: #94a3b8;
+    --c-text-main: #1a1714;
+    --c-text-muted: #9a8f87;
 
-    --c-accent: #6366f1; /* Indigo */
-    --c-accent-glow: rgba(99, 102, 241, 0.5);
+    --c-accent: #d4950f; /* Gold */
+    --c-accent-glow: rgba(212, 149, 15, 0.45);
 
     /* Status Colors */
     --c-excellent: #10b981; /* Emerald */
@@ -22,14 +24,14 @@
     /* Status tints — light text/fill on dark backgrounds */
     --c-poor-text: #f87171;     /* red-400, danger button text */
     --c-poor-dark: #dc2626;     /* red-600, danger gradient end */
-    --c-accent-light: #a5b4fc;  /* indigo-300, active nav/tab text */
-    --c-accent-dark: #4f46e5;   /* indigo-600, button gradient end */
+    --c-accent-light: #f0b429;  /* gold-300, active nav/tab text */
+    --c-accent-dark: #b87c08;   /* gold-600, button gradient end */
     --c-okay-light: #93c5fd;    /* blue-300, Mid band pill text */
     --c-cyan-light: #67e8f9;    /* cyan-300, Treble band pill text */
     --c-pink-light: #f9a8d4;    /* pink-300, Air band pill text */
 
     /* Chip & callout tints — coloured badges on dark surfaces */
-    --c-accent-tint: #c7d2fe;      /* indigo-200 */
+    --c-accent-tint: #fde68a;      /* gold-200 */
     --c-excellent-tint: #a7f3d0;   /* emerald-200 */
     --c-excellent-mid: #6ee7b7;    /* emerald-300 */
     --c-good-tint: #fde68a;        /* amber-200 */
@@ -41,16 +43,16 @@
 
     /* Utility */
     --c-white: #ffffff;
-    --c-bg-dark: #111;          /* near-black, log panel background */
-    --c-sweep-text: #9fe0ff;    /* cyan tint, sweep log info text */
+    --c-bg-dark: #232019;       /* charcoal, log panel background */
+    --c-sweep-text: #b87c08;    /* gold tint, sweep log info text */
 
     /* UX/UI Enhancement: Icon glow colors */
-    --icon-glow-primary: rgba(99, 102, 241, 0.4);
-    --icon-glow-accent: rgba(129, 140, 248, 0.5);
+    --icon-glow-primary: rgba(212, 149, 15, 0.35);
+    --icon-glow-accent: rgba(240, 180, 41, 0.45);
 
     /* ... your existing variables ... */
-    --c-primary: #6366f1; /* Link primary to your indigo accent */
-    --c-primary-rgb: 99, 102, 241;
+    --c-primary: #d4950f; /* Link primary to your gold accent */
+    --c-primary-rgb: 212, 149, 15;
 
 }
 
@@ -62,7 +64,7 @@
 }
 
 :root {
-    --measurely-accent: #ff4f9a; /* tweak later */
+    --measurely-accent: #d4950f; /* gold accent */
 }
 
 .measurely-mark {

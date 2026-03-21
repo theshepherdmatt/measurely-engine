@@ -35,10 +35,16 @@
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
+  background: #232019;
+  color: #f0eeec;
+  border-bottom: 2px solid rgba(212, 149, 15, 0.4);
+  padding: 0.85rem 2rem;
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
 }
 
 .header-title h1 {
-  font-size: 2.9rem;          /* was 2.5rem */
+  font-size: 2.2rem;
   font-weight: 750;           /* subtle confidence bump */
   letter-spacing: -0.035em;   /* tighter = more premium */
   margin: 0;
@@ -55,7 +61,7 @@
 .header-title p {
   margin: 0;
   font-size: 1.1rem;
-  color: var(--c-text-muted);
+  color: rgba(240, 238, 236, 0.55);
   max-width: 720px;
   display: flex;
   align-items: center;
@@ -66,7 +72,6 @@
     width: 30px;
     height: 30px;
     opacity: 0.75;
-    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
 }
 
 
@@ -84,14 +89,14 @@
   padding: 0;
   font-family: inherit;
   font-size: 0.72rem;
-  color: #6366f1;
+  color: #d4950f;
   cursor: pointer;
   text-align: left;
   transition: color 0.15s;
   line-height: 1;
 }
-.sample-wav-link:hover { color: #818cf8; }
-.sample-wav-link:disabled { color: #4b5563; cursor: wait; }
+.sample-wav-link:hover { color: #f0b429; }
+.sample-wav-link:disabled { color: #9a8f87; cursor: wait; }
 
 .rew-guide {
   margin-top: 0.6rem;
@@ -111,13 +116,13 @@
   transition: color 0.15s;
 }
 .rew-guide-toggle::-webkit-details-marker { display: none; }
-.rew-guide-toggle:hover { color: #a5b4fc; }
+.rew-guide-toggle:hover { color: #f0b429; }
 
 .rew-guide-body {
   margin-top: 0.65rem;
   padding: 0.85rem 0.9rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 0.65rem;
 }
 
@@ -130,12 +135,12 @@
 }
 .rew-guide-steps li {
   font-size: 0.79rem;
-  color: #d1d5db;
+  color: #1a1714;
   line-height: 1.4;
 }
 .rew-guide-steps li span {
   display: block;
-  color: #64748b;
+  color: #9a8f87;
   font-size: 0.72rem;
   margin-top: 0.1rem;
 }
@@ -143,10 +148,10 @@
 .rew-guide-link {
   margin: 0.6rem 0 0;
   font-size: 0.72rem;
-  color: #4b5563;
+  color: #9a8f87;
 }
 .rew-guide-link a {
-  color: #818cf8;
+  color: #f0b429;
   text-decoration: none;
 }
 .rew-guide-link a:hover { text-decoration: underline; }

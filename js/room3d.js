@@ -98,12 +98,12 @@ export function initRoom3D({
 ------------------------------------------ */
   const ROOM_COLOURS = {
     idle: {
-      room: 0x6366f1,     // Measurely purple
-      accent: 0x818cf8,   // Cyan accent
-      furniture: 0x4338ca // Deeper purple for grounding
+      room: 0x1a1714,     // Measurely dark charcoal
+      accent: 0x1a1714,   // Dark charcoal — scene is monochrome on light bg
+      furniture: 0x3d3530 // Warm dark for furniture
     },
     active: {
-      room: 0x22d3ee,
+      room: 0x0d9488,
       accent: 0xffffff,   // White glow for analysis
       furniture: 0x0e7490
     },
@@ -216,7 +216,7 @@ export function initRoom3D({
 
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setClearColor(0x050608, 1); // Pure-black base — makes slate beams pop
+  renderer.setClearColor(0xf0ede8, 1); // Warm off-white — matches site light theme
   renderer.domElement.style.touchAction = 'none'; // prevent iOS/iPad scroll hijack
   container.appendChild(renderer.domElement);
 
@@ -520,7 +520,7 @@ function rebuild() {
       // Always solid — no transparency. depthTest:false means the cage renders
       // on top of interior geometry so it's never occluded by walls.
       const shellMat = new THREE.MeshBasicMaterial({
-        color:       0x818cf8, // Indigo-400 — pops against dark background
+        color:       0x1a1714, // Dark charcoal — pops against light background
         transparent: false,
         opacity:     1.0,
         depthTest:   false,
@@ -610,7 +610,7 @@ function rebuild() {
     // Unit plane: scale.x = width, scale.y = length (plane local-Y maps to world-Z
     // after the -90° X rotation). Stored for live resize.
     const floorMat = new THREE.MeshStandardMaterial({
-      color: 0x0f172a,
+      color: 0xf0ede8,
       roughness: 0.2,
       metalness: 0.4,
       transparent: true,
@@ -632,7 +632,7 @@ function rebuild() {
       // setRoomWidth/Length can update scale.x / scale.z without rebuilding.
       // Fewer divisions on mobile so lines are further apart and more legible.
       const gridDivisions = isTablet ? 10 : 20;
-      const grid = new THREE.GridHelper(1, gridDivisions, colors.room, 0x334155);
+      const grid = new THREE.GridHelper(1, gridDivisions, colors.room, 0xd0cbc4);
       grid.scale.set(room.width_m, 1, room.length_m);
       grid.position.y = -room.height_m / 2;
 
@@ -692,7 +692,7 @@ function rebuild() {
             w: 0.34,
             h: 1.05,
             d: 0.32,
-            color: 0x7c5cff,
+            color: 0x1a1714,
             tweeterPos: 0.9   // near top of cabinet
           };
 
@@ -701,7 +701,7 @@ function rebuild() {
             w: 0.55,
             h: 1.55,
             d: 0.06,
-            color: 0xa5b4fc,
+            color: 0x1a1714,
             floorStand: true, // sits on floor, not tweeter-height positioned
             tweeterPos: 0.50  // acoustic centre at mid-panel
           };
@@ -743,7 +743,7 @@ function rebuild() {
         const profile = getSpeakerProfile(room.speaker_type);
         const isSpkHighlit = highlightTarget === 'speakers';
 
-        const spkColor   = isSpkHighlit ? 0x22d3ee : profile.color;
+        const spkColor   = isSpkHighlit ? 0x0d9488 : profile.color;
         const spkOpacity = isSpkHighlit ? 0.9 : Math.max(OP_OBJ, 0.80);
 
         const speaker = new THREE.Mesh(
@@ -842,16 +842,16 @@ function rebuild() {
     ? 1.22  // seated ear height at a desk (~desk surface 0.75m + ~0.47m seated posture)
     : 0.82; // seated ear height on a sofa — sofa back tops out at ~0.80m
 
-  // Bright indigo-300 outline so edges pop clearly against the dark background.
+  // Dark charcoal outline so edges pop clearly against the light background.
   const furnEdgeMat = useFatEdges
     ? new THREE.MeshBasicMaterial({
-        color:       0xa5b4fc, // Indigo-300
+        color:       0x1a1714, // Dark charcoal
         transparent: false,
         depthTest:   true,
         depthWrite:  true
       })
     : new THREE.LineBasicMaterial({
-        color:       0xa5b4fc, // Indigo-300
+        color:       0x1a1714, // Dark charcoal
         transparent: false,
         depthTest:   true,
         depthWrite:  true
@@ -884,7 +884,7 @@ function rebuild() {
 
     // ── Listener sphere (always visible) ──
     const isListHighlit = highlightTarget === 'listener';
-    const sphereColor   = isListHighlit ? 0x22d3ee : colors.accent;
+    const sphereColor   = isListHighlit ? 0x0d9488 : colors.accent;
     const sphere = new THREE.Mesh(
       new THREE.SphereGeometry(isListHighlit ? 0.26 : 0.18, 24, 24),
       new THREE.MeshBasicMaterial({
@@ -904,7 +904,7 @@ function rebuild() {
       const rug = new THREE.Mesh(
         new THREE.PlaneGeometry(room.width_m * 0.45, room.length_m * 0.35),
         new THREE.MeshBasicMaterial({
-          color:       rugIsNew ? 0x10b981 : 0x818cf8, // green if recommended by treatment plan, indigo if existing
+          color:       rugIsNew ? 0x10b981 : 0x9a8f87, // green if recommended by treatment plan, muted warm grey if existing
           wireframe:   true,
           transparent: true,
           opacity:     rugIsNew ? 0.45 : 0.22,
@@ -1001,12 +1001,12 @@ function rebuild() {
      ACOUSTIC TREATMENT PANELS
   ------------------------------------------ */
   const panelMat = new THREE.MeshStandardMaterial({
-    color: 0x22d3ee,
-    emissive: 0x22d3ee,
-    emissiveIntensity: 0.4,
+    color: 0x0d9488,
+    emissive: 0x0d9488,
+    emissiveIntensity: 0.15,
     wireframe: true,
     transparent: true,
-    opacity: 0.55,
+    opacity: 0.65,
     depthTest: false,
     depthWrite: false
   });
@@ -1264,7 +1264,7 @@ function rebuild() {
     geo.attributes.position.setUsage(THREE.DynamicDrawUsage);
 
     const mat = new THREE.MeshBasicMaterial({
-      color: intensity > 0.6 ? 0xff3b3b : 0x22d3ee,
+      color: intensity > 0.6 ? 0xff3b3b : 0x0d9488,
       wireframe: true,
       transparent: true,
       opacity: focusedOverlay === OVERLAYS.SMOOTHNESS ? 0.9 : 0.15,
@@ -1379,7 +1379,7 @@ function rebuild() {
 
   // Draw a two-leg reflection path (speaker → bounce → listener) using mesh tubes.
   // Adds a pulsing sphere at the bounce point.
-  function drawReflectionPath(start, bounce, end, color = 0x818cf8) {
+  function drawReflectionPath(start, bounce, end, color = 0xd4950f) {
     _addReflectionTube(start, bounce, color);
     _addReflectionTube(bounce, end, color);
 
@@ -1406,7 +1406,7 @@ function rebuild() {
     if (!highlightTarget) return;
 
     const glowMat = new THREE.MeshBasicMaterial({
-      color: 0x22d3ee,
+      color: 0x0d9488,
       transparent: true,
       opacity: 0.22,
       side: THREE.DoubleSide,
@@ -1611,7 +1611,7 @@ function rebuild() {
           room.length_m * 0.6
         ),
         new THREE.MeshBasicMaterial({
-          color: 0x6366f1,
+          color: 0xd4950f,
           transparent: true,
           opacity: 0.08,
           side: THREE.DoubleSide,
@@ -1642,9 +1642,9 @@ function rebuild() {
       const isSevere = effectiveScore < 5;
 
       const sbirMaterial = new THREE.MeshStandardMaterial({
-        color: isSevere ? 0xff3b3b : 0x22d3ee,
-        emissive: isSevere ? 0xff0000 : 0x00f2ff,
-        emissiveIntensity: simulatePanels ? 0.4 : 1.2,
+        color: isSevere ? 0xff3b3b : 0x0d9488,
+        emissive: isSevere ? 0xff0000 : 0x0d9488,
+        emissiveIntensity: simulatePanels ? 0.15 : 0.5,
         transparent: true,
         opacity: simulatePanels
           ? 0.25
@@ -1921,7 +1921,7 @@ function rebuild() {
       const tableReflection = new THREE.Mesh(
         new THREE.BoxGeometry(1.1, 0.15, 0.7),
         new THREE.MeshBasicMaterial({
-          color: 0x22d3ee,
+          color: 0x0d9488,
           transparent: true,
           opacity: 0.12,
           depthWrite: false
@@ -1947,7 +1947,7 @@ function rebuild() {
           room.length_m * 0.95
         ),
         new THREE.MeshBasicMaterial({
-          color: 0x7c3aed, // Measurely purple
+          color: 0xd4950f, // Measurely gold
           transparent: true,
           opacity: focusedOverlay === OVERLAYS.BANDWIDTH ? 0.55 : 0.08,
           depthWrite: false,
@@ -1969,7 +1969,7 @@ function rebuild() {
           room.length_m * 0.92
         ),
         new THREE.MeshBasicMaterial({
-          color: 0x7c3aed,
+          color: 0xd4950f,
           transparent: true,
           opacity: focusedOverlay === OVERLAYS.BANDWIDTH ? 0.35 : 0.06,
           depthWrite: false
@@ -2004,7 +2004,7 @@ function rebuild() {
 
       // 2️⃣ Speaker symmetry planes
       const planeMat = new THREE.MeshBasicMaterial({
-        color: 0x22d3ee,
+        color: 0x0d9488,
         transparent: true,
         opacity: focusedOverlay === OVERLAYS.BALANCE ? 0.45 : 0.05,
         side: THREE.DoubleSide,
@@ -2041,7 +2041,7 @@ function rebuild() {
         arrowDir,
         new THREE.Vector3(0, -room.height_m / 2 + 0.05, -room.length_m * 0.15),
         Math.min(Math.abs(offset) * 2, 1.2),
-        isBad ? 0xff3b3b : 0x22d3ee,
+        isBad ? 0xff3b3b : 0x0d9488,
         0.25,
         0.15
       );
@@ -2078,7 +2078,7 @@ function rebuild() {
         const beam = new THREE.Line(
           new THREE.BufferGeometry().setFromPoints([speakerPos, listenerPos]),
           new THREE.LineBasicMaterial({
-            color: 0x22d3ee,
+            color: 0x0d9488,
             transparent: true,
             opacity: focusedOverlay === OVERLAYS.CLARITY ? 0.95 : 0.15
           })
@@ -2093,7 +2093,7 @@ function rebuild() {
       const clarityBubble = new THREE.Mesh(
         new THREE.SphereGeometry(clarityRadius, 32, 32),
         new THREE.MeshBasicMaterial({
-          color: 0x22d3ee,
+          color: 0x0d9488,
           transparent: true,
           opacity: focusedOverlay === OVERLAYS.CLARITY ? 0.35 : 0.05,
           depthWrite: false
@@ -2132,7 +2132,7 @@ function rebuild() {
             reflectionEnd
           ]),
           new THREE.LineDashedMaterial({
-            color: hitsBubble ? 0xff3b3b : 0x22d3ee,
+            color: hitsBubble ? 0xff3b3b : 0x0d9488,
             dashSize: 0.25,
             gapSize: 0.15,
             transparent: true,

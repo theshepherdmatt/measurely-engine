@@ -35,7 +35,7 @@
     const STYLES = {
         error:   { bg: '#ef4444', icon: '✕' },
         success: { bg: '#22c55e', icon: '✓' },
-        info:    { bg: '#6366f1', icon: 'ℹ' },
+        info:    { bg: '#d4950f', icon: 'ℹ' },
         warning: { bg: '#f59e0b', icon: '⚠' },
     };
 

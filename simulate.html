@@ -28,7 +28,7 @@
     <meta name="apple-mobile-web-app-title" content="Measurely">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#0b1220">
+    <meta name="theme-color" content="#f4f2ee">
 
     <script>
     document.addEventListener('click', function(event) {
@@ -294,9 +294,9 @@
                 </div>
 
                 <!-- Shopping list preview — shown after Fix My Room plan is applied -->
-                <div id="sim-plan-preview" style="display:none;margin-top:0.75rem;padding:0.65rem 0.75rem;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.25);border-radius:8px;">
+                <div id="sim-plan-preview" style="display:none;margin-top:0.75rem;padding:0.65rem 0.75rem;background:rgba(212,149,15,0.08);border:1px solid rgba(212,149,15,0.25);border-radius:8px;">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;">
-                        <span style="font-size:0.7rem;font-weight:600;color:#a5b4fc;letter-spacing:0.06em;text-transform:uppercase;">From Fix My Room</span>
+                        <span style="font-size:0.7rem;font-weight:600;color:#f0b429;letter-spacing:0.06em;text-transform:uppercase;">From Fix My Room</span>
                         <span id="sim-plan-budget-label" style="font-size:0.75rem;color:#94a3b8;"></span>
                     </div>
                     <ul id="sim-plan-items" style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:0.2rem;"></ul>
@@ -1764,9 +1764,9 @@ window.addEventListener('measurely:simUpdated', () => {
     white-space: nowrap;
 }
 .tt-btn.tt-active {
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    background: linear-gradient(135deg, #d4950f, #b87c08);
     color: #fff;
-    box-shadow: 0 2px 8px rgba(99,102,241,0.4);
+    box-shadow: 0 2px 8px rgba(212,149,15,0.4);
 }
 .tt-btn:not(.tt-active):hover { color: rgba(255,255,255,0.8); }
 
@@ -1808,14 +1808,14 @@ window.addEventListener('measurely:simUpdated', () => {
 }
 .ra-diag-trigger:hover,
 .ra-diag-trigger:focus-visible {
-    background: rgba(99,102,241,0.08);
+    background: rgba(212,149,15,0.08);
     outline: none;
 }
 .ra-diag-trigger--open {
-    background: rgba(99,102,241,0.10);
+    background: rgba(212,149,15,0.10);
 }
 .ra-diag-trigger--open .ra-score-metric-name {
-    color: #a5b4fc;
+    color: #f0b429;
 }
 
 /* Chevron rotates open */
@@ -1830,13 +1830,13 @@ window.addEventListener('measurely:simUpdated', () => {
 }
 .ra-diag-trigger--open .ra-diag-chevron {
     transform: rotate(90deg);
-    color: #a5b4fc;
+    color: #f0b429;
 }
 
 /* ── Diagnostic accordion panel ─────────────────────────── */
 .ra-diagnostic-panel {
     grid-column: 1 / -1;
-    border-top: 1px solid rgba(99,102,241,0.18);
+    border-top: 1px solid rgba(212,149,15,0.18);
     background: rgba(15, 18, 40, 0.75);
     animation: diagSlideIn 0.18s ease forwards;
 }
@@ -1889,7 +1889,7 @@ window.addEventListener('measurely:simUpdated', () => {
 }
 .ra-diag-section:last-child .ra-diag-text {
     padding-left: 0.65rem;
-    border-left: 2px solid rgba(99,102,241,0.4);
+    border-left: 2px solid rgba(212,149,15,0.4);
 }
 
 /* ── Diagnostic close button ─────────────────────────────── */
@@ -1919,9 +1919,9 @@ window.addEventListener('measurely:simUpdated', () => {
     font-size: 0.78rem;
     font-weight: 700;
     letter-spacing: 0.02em;
-    background: rgba(99,102,241,0.15);
-    color: #a5b4fc;
-    border: 1px solid rgba(99,102,241,0.3);
+    background: rgba(212,149,15,0.15);
+    color: #f0b429;
+    border: 1px solid rgba(212,149,15,0.3);
 }
 .ra-gain-badge[data-valence="positive"] {
     background: rgba(16,185,129,0.15);

@@ -87,9 +87,9 @@ body.intro-open {
   align-items: center;
   justify-content: center;
 
-  color: #6366f1;
-  background: rgba(99, 102, 241, 0.12);
-  border: 1.5px solid rgba(99, 102, 241, 0.28);
+  color: #d4950f;
+  background: rgba(212, 149, 15, 0.12);
+  border: 1.5px solid rgba(212, 149, 15, 0.28);
 }
 
 
@@ -204,10 +204,10 @@ body.intro-open {
     overflow-y: auto;
 
     background: var(--c-surface);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(0, 0, 0, 0.09);
     border-radius: 20px;
 
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
 
     animation: modalSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -233,7 +233,7 @@ body.intro-open {
 
     padding: 1.25rem 1.5rem;
 
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .notes-modal-header h3 {
@@ -265,8 +265,8 @@ body.intro-open {
 }
 
 .notes-modal-close:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: #fff;
+    background: rgba(26, 23, 20, 0.08);
+    color: var(--c-text-main);
 }
 
 /* Body */
@@ -281,11 +281,11 @@ body.intro-open {
 
     padding: 1rem;
 
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: #f7f6f5;
+    border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: 12px;
 
-    color: #fff;
+    color: var(--c-text-main);
     font-family: var(--font-main);
     font-size: 0.95rem;
     line-height: 1.5;
@@ -300,13 +300,13 @@ body.intro-open {
 
 .notes-textarea:focus {
     outline: none;
-    background: rgba(0, 0, 0, 0.4);
+    background: #ffffff;
     border-color: var(--c-accent);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+    box-shadow: 0 0 0 3px rgba(212, 149, 15, 0.25);
 }
 
 .notes-textarea::placeholder {
-    color: rgba(255, 255, 255, 0.35);
+    color: rgba(26, 23, 20, 0.35);
 }
 
 /* Footer */
@@ -317,6 +317,6 @@ body.intro-open {
 
     padding: 1.25rem 1.5rem;
 
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
 }
 

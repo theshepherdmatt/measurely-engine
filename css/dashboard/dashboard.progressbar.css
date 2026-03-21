@@ -87,7 +87,7 @@
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(168,85,247,0.8),
+    rgba(212,149,15,0.8),
     transparent
   );
   animation: sweep 1.8s ease-in-out infinite;
@@ -163,7 +163,7 @@
 }
 
 .upload-file-row:has(.upload-file-input:not([value=""])) {
-  border-color: rgba(168,85,247,0.4);
+  border-color: rgba(212,149,15,0.4);
 }
 
 .upload-error {

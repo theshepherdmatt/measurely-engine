@@ -32,23 +32,23 @@
 .analysis-card-trigger:hover {
     transform: translateY(-2px);
     box-shadow:
-        0 24px 48px rgba(0, 0, 0, 0.55),
-        inset 0 1px 1px rgba(255, 255, 255, 0.07);
+        0 8px 24px rgba(0, 0, 0, 0.13),
+        inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
 .analysis-card-trigger.active-trigger {
     border-color: var(--c-accent);
     box-shadow:
-        0 0 0 1px rgba(99, 102, 241, 0.4),
-        0 16px 36px rgba(99, 102, 241, 0.18);
+        0 0 0 1px rgba(212, 149, 15, 0.4),
+        0 16px 36px rgba(212, 149, 15, 0.18);
 }
 
 /* Small icon top-right in card header */
 .card-icon {
     width: 20px;
     height: 20px;
-    opacity: 0.75;
-    filter: brightness(1.4);
+    opacity: 0.65;
+    filter: brightness(0.7);
     flex-shrink: 0;
 }
 
@@ -66,7 +66,7 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: rgba(255,255,255,0.75);
+    color: rgba(26, 23, 20, 0.55);
     white-space: nowrap;
 }
 
@@ -80,10 +80,10 @@
     margin-top: auto;
     padding-top: 0.6rem;
     padding-left: 0.7rem;
-    border-left: 2px solid rgba(255, 255, 255, 0.18);
+    border-left: 2px solid rgba(212, 149, 15, 0.35);
     font-size: 0.85rem;
     line-height: 1.5;
-    color: rgba(255,255,255,0.8);
+    color: rgba(26, 23, 20, 0.65);
     font-style: italic;
 }
 
@@ -187,7 +187,7 @@
     bottom: 0.2em;
     width: 2px;
     border-radius: 1px;
-    background: rgba(99, 102, 241, 0.4);
+    background: rgba(212, 149, 15, 0.4);
 }
 
 /* Dave "See what Dave recommends" nudge link */
@@ -197,7 +197,7 @@
     font-size: 0.8rem;
     font-style: normal;
     font-weight: 600;
-    color: var(--c-accent, #6366f1);
+    color: var(--c-accent, #d4950f);
     text-decoration: none;
     opacity: 0.85;
     transition: opacity 0.15s;
@@ -211,7 +211,7 @@
 /* Instrument Tracks */
 .perf-track {
     height: 5px;
-    background: rgba(255, 255, 255, 0.18);
+    background: rgba(26, 23, 20, 0.12);
     border-radius: 3px;
     margin: 1.25rem 0;
     overflow: hidden;
@@ -223,7 +223,7 @@
     width: 0%; /* Dynamic */
     background: var(--c-accent);
     box-shadow: 0 0 10px var(--c-accent-glow),
-                0 0 20px rgba(99,102,241,0.25);
+                0 0 20px rgba(212,149,15,0.25);
     transition: width 1.5s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 

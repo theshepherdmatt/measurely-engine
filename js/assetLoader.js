@@ -74,8 +74,8 @@
         ring.style.cssText = [
             'width:26px',
             'height:26px',
-            'border:2px solid rgba(99,102,241,0.2)',
-            'border-top-color:#6366f1',
+            'border:2px solid rgba(212,149,15,0.2)',
+            'border-top-color:#d4950f',
             'border-radius:50%',
             'animation:mly-chart-spin 0.72s linear infinite',
             'flex-shrink:0',

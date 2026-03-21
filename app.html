@@ -18,26 +18,26 @@
     font-weight: 600;
     font-family: inherit;
     cursor: pointer;
-    border: 1px solid rgba(99,102,241,0.3);
-    background: rgba(99,102,241,0.1);
-    color: #a5b4fc;
+    border: 1px solid rgba(212,149,15,0.3);
+    background: rgba(212,149,15,0.1);
+    color: #f0b429;
     transition: background 0.2s, border-color 0.2s, color 0.2s;
     white-space: nowrap;
     letter-spacing: 0.01em;
 }
 .mly-sync-chip:hover {
-    background: rgba(99,102,241,0.2);
-    border-color: rgba(99,102,241,0.5);
-    color: #c7d2fe;
+    background: rgba(212,149,15,0.2);
+    border-color: rgba(212,149,15,0.5);
+    color: #fde68a;
 }
 .mly-sync-chip.is-cta {
-    background: linear-gradient(135deg,#6366f1,#8b5cf6);
+    background: linear-gradient(135deg,#d4950f,#b87c08);
     border-color: transparent;
     color: #fff;
-    box-shadow: 0 4px 14px rgba(99,102,241,0.4);
+    box-shadow: 0 4px 14px rgba(212,149,15,0.4);
 }
 .mly-sync-chip.is-cta:hover {
-    box-shadow: 0 6px 20px rgba(99,102,241,0.55);
+    box-shadow: 0 6px 20px rgba(212,149,15,0.55);
     transform: translateY(-1px);
 }
 .mly-sync-chip.is-ok   { border-color: rgba(16,185,129,0.35); color: #6ee7b7; background: rgba(16,185,129,0.1); }
@@ -93,7 +93,7 @@
     <meta name="apple-mobile-web-app-title" content="Measurely">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#0b1220">
+    <meta name="theme-color" content="#f4f2ee">
     <script src="https://cdn.jsdelivr.net/npm/pocketbase/dist/pocketbase.umd.js"></script>
 </head>
 
@@ -127,13 +127,13 @@
             el.id = 'mlyAuthGuard';
             el.style.cssText = [
                 'position:fixed', 'inset:0', 'z-index:9998',
-                'background:#0b1220',
+                'background:#f4f2ee',
                 'display:flex', 'align-items:center', 'justify-content:center',
                 'flex-direction:column', 'gap:1rem',
             ].join(';');
             el.innerHTML =
-                '<div style="width:36px;height:36px;border:2px solid rgba(99,102,241,0.25);' +
-                'border-top-color:#6366f1;border-radius:50%;animation:_mlySpinG 0.75s linear infinite"></div>' +
+                '<div style="width:36px;height:36px;border:2px solid rgba(212,149,15,0.25);' +
+                'border-top-color:#d4950f;border-radius:50%;animation:_mlySpinG 0.75s linear infinite"></div>' +
                 '<p style="font-family:system-ui,sans-serif;font-size:0.875rem;' +
                 'color:#94a3b8;letter-spacing:0.02em;margin:0;">' +
                 (hasToken ? 'Loading your space\u2026' : 'Just a moment\u2026') + '</p>';
@@ -187,7 +187,7 @@
             </header>
 
             <!-- ONBOARDING NUDGE — visible only when no room has been set up yet -->
-            <div id="onboardingNudge" class="card glass-panel animate-enter" style="display:none;margin-bottom:1rem;padding:1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;border-left:3px solid #6366f1;">
+            <div id="onboardingNudge" class="card glass-panel animate-enter" style="display:none;margin-bottom:1rem;padding:1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;border-left:3px solid #d4950f;">
                 <div>
                     <strong style="font-size:0.875rem;">Room not set up yet</strong>
                     <p style="font-size:0.78rem;color:var(--c-text-muted,#94a3b8);margin:0.2rem 0 0;">Define your room dimensions and speaker positions to unlock accurate acoustic analysis.</p>
@@ -685,7 +685,7 @@
 
                     const listHtml = items.map(i =>
                         `<div style="font-size:0.78rem;color:rgba(226,232,240,0.75);padding:0.15rem 0;display:flex;align-items:center;gap:0.4rem;">
-                            <span style="color:#a5b4fc;font-size:0.65rem;">✦</span>${i}
+                            <span style="color:#f0b429;font-size:0.65rem;">✦</span>${i}
                         </div>`
                     ).join('');
 
@@ -1477,6 +1477,69 @@ document.body.addEventListener('animationend', function onPageIn(e) {
         document.body.removeEventListener('animationend', onPageIn);
     }
 });
+</script>
+
+<script>
+/* ── Auth wall wave animation ── */
+(function () {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  function initWave() {
+  var canvas = document.getElementById('auth-wave-canvas');
+  if (!canvas) return;
+  if (canvas._waveInit) return;
+  canvas._waveInit = true;
+  var ctx = canvas.getContext('2d');
+  var raf;
+  var waves = [
+    { f: 1.2,  a: 0.50, cy: 0.50, s: 0.00012, p: 0.00, o: 0.30, c: '212,149,15' },
+    { f: 2.1,  a: 0.40, cy: 0.20, s: 0.00008, p: 1.10, o: 0.22, c: '184,124,8'  },
+    { f: 0.8,  a: 0.55, cy: 0.80, s: 0.00009, p: 2.30, o: 0.20, c: '212,149,15' },
+    { f: 3.4,  a: 0.35, cy: 0.35, s: 0.00015, p: 0.75, o: 0.18, c: '150,100,6'  },
+    { f: 1.7,  a: 0.45, cy: 0.65, s: 0.00010, p: 3.60, o: 0.22, c: '212,149,15' },
+    { f: 0.55, a: 0.55, cy: 0.90, s: 0.00006, p: 5.10, o: 0.16, c: '150,100,6'  },
+    { f: 2.8,  a: 0.40, cy: 0.45, s: 0.00013, p: 4.20, o: 0.18, c: '212,149,15' },
+  ];
+  function resize() {
+    canvas.width  = canvas.offsetWidth  * Math.min(window.devicePixelRatio, 2);
+    canvas.height = canvas.offsetHeight * Math.min(window.devicePixelRatio, 2);
+    ctx.scale(Math.min(window.devicePixelRatio, 2), Math.min(window.devicePixelRatio, 2));
+  }
+  function drawWave(wave, t, W, H) {
+    var amp = Math.min(W * 0.6, H * 0.5) * wave.a;
+    var cy = H * wave.cy;
+    var lambda = W / wave.f;
+    ctx.beginPath();
+    for (var x = 0; x <= W; x += 3) {
+      var y = cy + amp * Math.sin((x / lambda) * Math.PI * 2 + t * wave.s + wave.p);
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = 'rgba(' + wave.c + ',' + wave.o + ')';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+  var start = null;
+  function frame(ts) {
+    if (!start) start = ts;
+    var t = ts - start;
+    var W = canvas.offsetWidth;
+    var H = canvas.offsetHeight;
+    ctx.clearRect(0, 0, W, H);
+    for (var i = 0; i < waves.length; i++) drawWave(waves[i], t, W, H);
+    raf = requestAnimationFrame(frame);
+  }
+  resize();
+  window.addEventListener('resize', function () { ctx.setTransform(1,0,0,1,0,0); resize(); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) cancelAnimationFrame(raf);
+    else { start = null; raf = requestAnimationFrame(frame); }
+  });
+  raf = requestAnimationFrame(frame);
+  }
+  /* Start immediately if canvas already exists, else observe DOM */
+  initWave();
+  var _obs = new MutationObserver(function() { initWave(); });
+  _obs.observe(document.body, { childList: true, subtree: true });
+}());
 </script>
 
 </body>

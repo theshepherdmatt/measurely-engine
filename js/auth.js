@@ -194,6 +194,7 @@
 
         root.innerHTML = `
 <div class="mly-auth-backdrop" id="mlyAuthBackdrop" aria-hidden="true">
+<canvas id="auth-wave-canvas" aria-hidden="true" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;"></canvas>
 <div class="mly-auth-modal" id="mlyAuthModal" role="dialog" aria-modal="true" aria-labelledby="mlyAuthTitle">
 
     <!-- Sign-in panel -->
@@ -461,7 +462,7 @@
             if (signUpPanel) {
                 signUpPanel.innerHTML = `
                     <div style="text-align: center; padding: 20px 0;">
-                        <div style="width: 60px; height: 60px; background: rgba(99, 102, 241, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; color: #6366f1; font-size: 30px;">✓</div>
+                        <div style="width: 60px; height: 60px; background: rgba(212, 149, 15, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; color: #d4950f; font-size: 30px;">✓</div>
                         <h2 class="mly-auth-title">Check your inbox</h2>
                         <p class="mly-auth-sub">We've sent a verification link to <strong>${email}</strong>. Please click it to activate your account.</p>
                         <button type="button" class="mly-auth-btn-primary" onclick="window.location.reload()">Got it</button>

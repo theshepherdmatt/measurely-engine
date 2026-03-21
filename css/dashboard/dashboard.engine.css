@@ -8,9 +8,9 @@
   flex-direction: column;
   gap: 0.6rem;
   /* Deepens the internal depth of the engine card */
-  box-shadow: 
-    0 20px 40px rgba(0, 0, 0, 0.4),
-    inset 0 0 20px rgba(0, 0, 0, 0.2);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.07),
+    inset 0 0 20px rgba(0, 0, 0, 0.03);
 }
 
 /* Header / meta */
@@ -18,7 +18,7 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
   padding-bottom: 0.6rem;
 }
 
@@ -26,7 +26,7 @@
   font-size: 1.1rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: #fff;
+  color: var(--c-text-main);
 }
 
 .engine-subtitle {
@@ -57,33 +57,33 @@
 /* Add these two lines to fix the underline and color */
   text-decoration: none; 
   color: inherit;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(26, 23, 20, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.09);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
   height: auto; /* Overrides global btn height */
 }
 
-/* Primary "Upload" Action - Indigo Shimmer */
+/* Primary "Upload" Action - Gold Shimmer */
 .btn.engine-action.primary {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(79, 70, 229, 0.05) 100%);
-  border-color: rgba(99, 102, 241, 0.4);
+  background: linear-gradient(135deg, rgba(212, 149, 15, 0.15) 0%, rgba(184, 124, 8, 0.05) 100%);
+  border-color: rgba(212, 149, 15, 0.4);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 /* Specific styling for the Download button within the Engine Bay */
 .btn.engine-action.download-style {
     margin-top: 0.5rem; /* Slight gap to separate it from config actions */
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px dashed rgba(255, 255, 255, 0.1); /* Dashed border for "Export" feel */
+    background: rgba(26, 23, 20, 0.02);
+    border: 1px dashed rgba(0, 0, 0, 0.12);
     opacity: 0.8;
 }
 
 .btn.engine-action.download-style:hover {
     opacity: 1;
-    background: rgba(99, 102, 241, 0.05);
+    background: rgba(212, 149, 15, 0.05);
     border-style: solid;
-    border-color: rgba(99, 102, 241, 0.3);
+    border-color: rgba(212, 149, 15, 0.3);
 }
 
 /* Ensure the Overall Score footer remains clean after the move */
@@ -93,23 +93,23 @@
 }
 
 .btn.engine-action:hover {
-  transform: translateY(-1px); /* subtle lift, not slide */
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.22);
-  box-shadow: 0 10px 24px rgba(0,0,0,0.45);
+  transform: translateY(-1px);
+  background: rgba(26, 23, 20, 0.07);
+  border-color: rgba(0, 0, 0, 0.18);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.09);
 }
 
 
 .btn.engine-action.primary:hover {
   border-color: var(--c-accent);
-  background: rgba(99, 102, 241, 0.2);
+  background: rgba(212, 149, 15, 0.2);
 }
 
 /* Text & Icon Styling */
 .engine-action img {
   width: 18px;
   height: 18px;
-  filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.1));
+  filter: invert(1) opacity(0.6);
 }
 
 .engine-action-text {
@@ -120,7 +120,7 @@
 
 .engine-action-text strong {
   font-size: 0.82rem;
-  color: var(--c-white);
+  color: var(--c-text-main);
   font-weight: 600;
 }
 
@@ -140,15 +140,15 @@
 
 .btn.engine-action {
   /* ... existing styles ... */
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.15), /* Top edge light */
-    0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 2px 8px rgba(0, 0, 0, 0.07);
 }
 
 .engine-divider {
     margin: 0.10rem 0;
     height: 1px;
-    background: rgba(255,255,255,0.06);
+    background: rgba(0, 0, 0, 0.07);
 }
 
 .engine-footer {
@@ -164,14 +164,19 @@
 }
 
 
+/* Engine-bay uses white SVG icons — invert to dark on light bg */
+.engine-bay .card-title img {
+  filter: invert(1) opacity(0.55);
+}
+
 /* ENGINE PRIMARY ACTION — calm, physical */
 .btn.engine-action.is-cta {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(26, 23, 20, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.12);
 
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.08),
-    0 6px 16px rgba(0,0,0,0.35);
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 2px 8px rgba(0, 0, 0, 0.07);
 
   transition:
     transform 0.2s ease,
@@ -183,10 +188,10 @@
 .btn.engine-action.is-cta:hover {
   background: linear-gradient(
     135deg,
-    rgba(99, 102, 241, 0.35),
-    rgba(236, 72, 153, 0.25)
+    rgba(212, 149, 15, 0.15),
+    rgba(184, 124, 8, 0.10)
   );
-  border-color: rgba(99, 102, 241, 0.8);
+  border-color: rgba(212, 149, 15, 0.6);
 }
 
 /* =========================================================
@@ -215,7 +220,7 @@
   height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
-  background: rgba(255,255,255,0.25);
+  background: rgba(26, 23, 20, 0.2);
 }
 
 /* States */
@@ -310,7 +315,7 @@
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(148, 163, 184, 0.5);
+  color: rgba(26, 23, 20, 0.55);
 }
 
 /* =========================================================
@@ -336,13 +341,13 @@
 }
 
 .engine-nav-tab:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(26, 23, 20, 0.05);
   color: var(--c-text-main);
 }
 
 .engine-nav-tab.active {
-  background: rgba(99, 102, 241, 0.12);
-  border-color: rgba(99, 102, 241, 0.3);
+  background: rgba(212, 149, 15, 0.12);
+  border-color: rgba(212, 149, 15, 0.3);
   color: var(--c-accent-light);
   font-weight: 600;
 }
@@ -373,9 +378,7 @@
   }
 
   .engine-action {
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.08);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    background: rgba(26, 23, 20, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.09);
   }
 }

@@ -1952,12 +1952,12 @@ class MeasurelyDashboard {
         const noRoomHtml = `
         <div style="max-width:480px;width:100%;
              background:linear-gradient(160deg,rgba(28,36,54,0.97),rgba(15,20,36,0.99));
-             border:1px solid rgba(99,102,241,0.25);border-radius:1.5rem;
+             border:1px solid rgba(212,149,15,0.25);border-radius:1.5rem;
              padding:2.25rem 2rem;text-align:center;
              box-shadow:0 32px 80px rgba(0,0,0,0.65),inset 0 1px 0 rgba(255,255,255,0.05);">
 
           <div style="width:3.5rem;height:3.5rem;border-radius:50%;
-               background:linear-gradient(135deg,#6366f1,#8b5cf6);
+               background:linear-gradient(135deg,#d4950f,#b87c08);
                display:flex;align-items:center;justify-content:center;
                margin:0 auto 1.25rem;">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none"
@@ -1977,10 +1977,10 @@ class MeasurelyDashboard {
 
           <a href="onboarding.html"
              style="display:inline-flex;align-items:center;gap:0.5rem;
-                    background:linear-gradient(135deg,#6366f1,#4f46e5);color:white;
+                    background:linear-gradient(135deg,#d4950f,#b87c08);color:white;
                     text-decoration:none;border-radius:0.75rem;padding:0.85rem 1.75rem;
                     font-size:0.95rem;font-weight:700;cursor:pointer;font-family:inherit;
-                    box-shadow:0 8px 24px rgba(99,102,241,0.4);
+                    box-shadow:0 8px 24px rgba(212,149,15,0.4);
                     transition:transform .15s,box-shadow .15s;">
             Set up my room
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none"
@@ -2018,7 +2018,7 @@ class MeasurelyDashboard {
                border-radius:0.85rem;
                padding:1rem 1.15rem;
                margin-bottom:1.5rem;">
-            <p style="font-size:0.72rem;font-weight:700;color:#a5b4fc;margin:0 0 0.65rem;
+            <p style="font-size:0.72rem;font-weight:700;color:#f0b429;margin:0 0 0.65rem;
                letter-spacing:0.06em;text-transform:uppercase;">How to get a WAV from REW</p>
             <ol style="margin:0;padding-left:1.15rem;display:flex;flex-direction:column;gap:0.55rem;">
               <li style="font-size:0.82rem;color:#d1d5db;line-height:1.5;">
