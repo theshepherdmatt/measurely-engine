@@ -848,25 +848,16 @@ html, body {
   height: 28px;
   position: relative;
   z-index: 1;
-  filter: drop-shadow(0 0 10px rgba(212, 149, 15, 0.7));
+  opacity: 0.85;
 }
 
-/* Glowing ring around the icon */
+/* Simple bordered ring around the icon — no glow */
 .welcome-logo-ring {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: rgba(212, 149, 15, 0.10);
-  border: 1px solid rgba(212, 149, 15, 0.30);
-  box-shadow:
-    0 0 0 6px rgba(212, 149, 15, 0.07),
-    0 0 28px rgba(212, 149, 15, 0.22);
-  animation: ringPulse 3s ease-in-out infinite;
-}
-
-@keyframes ringPulse {
-  0%, 100% { box-shadow: 0 0 0 6px rgba(212,149,15,0.07), 0 0 28px rgba(212,149,15,0.22); }
-  50%       { box-shadow: 0 0 0 10px rgba(212,149,15,0.04), 0 0 42px rgba(212,149,15,0.34); }
+  background: rgba(212, 149, 15, 0.08);
+  border: 1px solid rgba(212, 149, 15, 0.25);
 }
 
 /* ── Eyebrow ────────────────────────────────────────── */
@@ -887,16 +878,7 @@ html, body {
   font-weight: 800;
   letter-spacing: -0.05em;
   line-height: 1.12;
-
-  background: linear-gradient(
-    150deg,
-    #1a1714 0%,
-    #d4950f 55%,
-    #b87c08 100%
-  );
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--c-text-main);
 }
 
 /* ── Sub ────────────────────────────────────────────── */
@@ -1008,21 +990,15 @@ html, body {
   letter-spacing: -0.01em;
   cursor: pointer;
 
-  box-shadow:
-    0 0 0 1px rgba(212, 149, 15, 0.5),
-    0 8px 28px rgba(212, 149, 15, 0.38),
-    0 2px 6px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
 
-  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 .welcome-cta:hover {
-  background: linear-gradient(135deg, #e0a020 0%, #c58a12 100%);
-  transform: translateY(-2px);
-  box-shadow:
-    0 0 0 1px rgba(212, 149, 15, 0.6),
-    0 14px 38px rgba(212, 149, 15, 0.48),
-    0 2px 8px rgba(0, 0, 0, 0.35);
+  opacity: 0.92;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
 }
 
 .welcome-cta:active {
@@ -1059,7 +1035,7 @@ html, body {
 .welcome-hint {
   margin-top: 0.85rem;
   font-size: 0.72rem;
-  color: #2d3f5a;
+  color: var(--c-text-muted);
   letter-spacing: 0.025em;
 }
 
