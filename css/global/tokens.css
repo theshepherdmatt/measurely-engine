@@ -53,7 +53,7 @@
     /* ── Utility ─────────────────────────────────────── */
     --c-white:      #ffffff;
     --c-bg-dark:    var(--c-header-bg); /* alias for log panel */
-    --c-sweep-text: #b87c08; /* gold tint — sweep log info text */
+    --c-sweep-text: rgba(240, 238, 236, 0.6); /* warm white — text on dark log panel */
 
     /* ── Icon Glows ──────────────────────────────────── */
     --icon-glow-primary: rgba(212, 149, 15, 0.35);

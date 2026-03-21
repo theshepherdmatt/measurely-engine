@@ -100,12 +100,12 @@
 }
 
 .as-ts {
-    color: rgba(212, 149, 15, 0.7);
+    color: rgba(240, 238, 236, 0.4); /* dimmed header-text on dark panel */
     flex-shrink: 0;
 }
 
 .as-msg {
-    color: rgba(26, 23, 20, 0.65);
+    color: rgba(240, 238, 236, 0.75); /* legible warm white on dark panel */
 }
 
 .as-msg.as-ok {
