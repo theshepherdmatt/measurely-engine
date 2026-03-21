@@ -27,12 +27,18 @@
    collapses to 0 so it starts at top when content is taller than viewport */
 .sweep-modal-content {
   position: relative;
-  width: min(420px, 90vw);
+  width: min(480px, 90vw);
   margin: auto;
   padding: 2rem;
   border-radius: 16px;
   text-align: center;
   flex-shrink: 0;
+  background: var(--c-surface, #ffffff);
+  border: 1px solid rgba(26, 23, 20, 0.10);
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.04),
+    0 8px 32px rgba(0,0,0,0.18),
+    0 32px 64px rgba(0,0,0,0.12);
 }
 
 /* Text */

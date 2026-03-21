@@ -136,10 +136,10 @@
   font-size: 1.8rem;
 }
 
-/* Score coloring by performance */
-.uploads-score.metric-good { color: var(--c-excellent, #4ade80); }
-.uploads-score.metric-ok   { color: var(--c-okay,      #facc15); }
-.uploads-score.metric-poor { color: var(--c-poor,      #f87171); }
+/* Score coloring — warm palette only, no neon */
+.uploads-score.metric-good { color: var(--c-accent, #d4950f); }
+.uploads-score.metric-ok   { color: var(--c-accent, #d4950f); }
+.uploads-score.metric-poor { color: #b85c4a; }
 
 /* ── Trend delta badge ──────────────────────────────── */
 .sweep-trend {
@@ -152,15 +152,15 @@
 }
 
 .sweep-trend.trend-up {
-  color: #4ade80;
-  background: rgba(74, 222, 128, 0.12);
-  border: 1px solid rgba(74, 222, 128, 0.25);
+  color: #5a8a5a;
+  background: rgba(90, 138, 90, 0.10);
+  border: 1px solid rgba(90, 138, 90, 0.22);
 }
 
 .sweep-trend.trend-down {
-  color: #f87171;
-  background: rgba(248, 113, 113, 0.12);
-  border: 1px solid rgba(248, 113, 113, 0.25);
+  color: #b85c4a;
+  background: rgba(184, 92, 74, 0.10);
+  border: 1px solid rgba(184, 92, 74, 0.22);
 }
 
 .sweep-trend.trend-flat {
@@ -187,16 +187,9 @@
   overflow: hidden;
 }
 
-/* Mini fill bar behind each row */
+/* Mini fill bar removed — too noisy */
 .uploads-metrics > div::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: var(--metric-pct, 0%);
-  background: rgba(212, 149, 15, 0.09);
-  border-radius: 4px;
-  transition: width 0.7s ease;
-  pointer-events: none;
+  display: none;
 }
 
 /* Label */
@@ -213,10 +206,10 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Metric value color coding */
-.metric-good { color: #4ade80 !important; }
-.metric-ok   { color: #facc15 !important; }
-.metric-poor { color: #f87171 !important; }
+/* Metric value color coding — warm, not neon */
+.metric-good { color: var(--c-accent, #d4950f) !important; }
+.metric-ok   { color: #a07840 !important; }
+.metric-poor { color: #b85c4a !important; }
 
 /* ── Footer: actions + note button ─────────────────── */
 .uploads-footer {
