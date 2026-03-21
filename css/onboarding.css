@@ -84,7 +84,7 @@ html, body {
 .header-onboarding .header-title p {
   margin: 0;
   font-size: 0.85rem;         /* scaled relative to h1 */
-  color: rgba(240, 238, 236, 0.55);
+  color: rgba(26, 23, 20, 0.5);
   max-width: 520px;
 }
 
@@ -105,15 +105,12 @@ html, body {
   top: 0;
   left: 0;
   z-index: 20;
+  color: #1a1714;
 
   padding: 1.5rem 1.75rem 1.25rem;
   /* top | sides | bottom */
 
-  background: linear-gradient(
-    to bottom,
-    rgba(35, 32, 25, 0.90),
-    rgba(35, 32, 25, 0)
-  );
+  background: none;
 
   pointer-events: none;
 }
@@ -783,14 +780,13 @@ html, body {
   place-items: center;
   overflow-y: auto;
 
-  /* Semi-transparent so the spinning 3D room shows through */
+  /* Light overlay so the 3D room shows through */
   background:
-    radial-gradient(ellipse 120% 55% at 50% 110%, rgba(255, 79, 154, 0.09), transparent 60%),
-    radial-gradient(ellipse 90% 60% at 50% -5%,   rgba(212, 149, 15, 0.18), transparent 55%),
-    rgba(5, 8, 20, 0.82);
+    radial-gradient(ellipse 90% 60% at 50% -5%, rgba(212, 149, 15, 0.10), transparent 55%),
+    rgba(234, 230, 224, 0.88);
 
-  backdrop-filter: blur(7px) saturate(160%);
-  -webkit-backdrop-filter: blur(7px) saturate(160%);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
 
   transition: opacity 0.45s ease, transform 0.45s ease;
 }
