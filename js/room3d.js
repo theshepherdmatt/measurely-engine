@@ -103,9 +103,9 @@ export function initRoom3D({
       furniture: 0x3d3530 // Warm dark for furniture
     },
     active: {
-      room: 0x0d9488,
+      room: 0x0f766e,
       accent: 0xffffff,   // White glow for analysis
-      furniture: 0x0e7490
+      furniture: 0x0f766e
     },
     success: {
       room: 0x22c55e,
@@ -743,7 +743,7 @@ function rebuild() {
         const profile = getSpeakerProfile(room.speaker_type);
         const isSpkHighlit = highlightTarget === 'speakers';
 
-        const spkColor   = isSpkHighlit ? 0x0d9488 : profile.color;
+        const spkColor   = isSpkHighlit ? 0x0f766e : profile.color;
         const spkOpacity = isSpkHighlit ? 0.9 : Math.max(OP_OBJ, 0.80);
 
         const speaker = new THREE.Mesh(
@@ -884,7 +884,7 @@ function rebuild() {
 
     // ── Listener sphere (always visible) ──
     const isListHighlit = highlightTarget === 'listener';
-    const sphereColor   = isListHighlit ? 0x0d9488 : colors.accent;
+    const sphereColor   = isListHighlit ? 0x0f766e : colors.accent;
     const sphere = new THREE.Mesh(
       new THREE.SphereGeometry(isListHighlit ? 0.26 : 0.18, 24, 24),
       new THREE.MeshBasicMaterial({
@@ -1001,8 +1001,8 @@ function rebuild() {
      ACOUSTIC TREATMENT PANELS
   ------------------------------------------ */
   const panelMat = new THREE.MeshStandardMaterial({
-    color: 0x0d9488,
-    emissive: 0x0d9488,
+    color: 0x0f766e,
+    emissive: 0x0f766e,
     emissiveIntensity: 0.15,
     wireframe: true,
     transparent: true,
@@ -1264,7 +1264,7 @@ function rebuild() {
     geo.attributes.position.setUsage(THREE.DynamicDrawUsage);
 
     const mat = new THREE.MeshBasicMaterial({
-      color: intensity > 0.6 ? 0xff3b3b : 0x0d9488,
+      color: intensity > 0.6 ? 0xff3b3b : 0x0f766e,
       wireframe: true,
       transparent: true,
       opacity: focusedOverlay === OVERLAYS.SMOOTHNESS ? 0.9 : 0.15,
@@ -1406,7 +1406,7 @@ function rebuild() {
     if (!highlightTarget) return;
 
     const glowMat = new THREE.MeshBasicMaterial({
-      color: 0x0d9488,
+      color: 0x0f766e,
       transparent: true,
       opacity: 0.22,
       side: THREE.DoubleSide,
@@ -1642,8 +1642,8 @@ function rebuild() {
       const isSevere = effectiveScore < 5;
 
       const sbirMaterial = new THREE.MeshStandardMaterial({
-        color: isSevere ? 0xff3b3b : 0x0d9488,
-        emissive: isSevere ? 0xff0000 : 0x0d9488,
+        color: isSevere ? 0xff3b3b : 0x0f766e,
+        emissive: isSevere ? 0xff0000 : 0x0f766e,
         emissiveIntensity: simulatePanels ? 0.15 : 0.5,
         transparent: true,
         opacity: simulatePanels
@@ -1768,7 +1768,7 @@ function rebuild() {
             speakerY,
             listenerZ
           ),
-          effectiveScore < 5 ? 0xff3e00 : 0x00f3ff
+          effectiveScore < 5 ? 0xff3e00 : 0x14b8a6
         );
 
         // RIGHT speaker → front wall → listener
@@ -1788,7 +1788,7 @@ function rebuild() {
             speakerY,
             listenerZ
           ),
-          effectiveScore < 5 ? 0xff3e00 : 0x00f3ff
+          effectiveScore < 5 ? 0xff3e00 : 0x14b8a6
         );
       }
     
@@ -1880,7 +1880,7 @@ function rebuild() {
             speakerPos,
             bouncePoint,
             listenerPos,
-            effectiveScore < 5 ? 0xff3e00 : 0x00f3ff
+            effectiveScore < 5 ? 0xff3e00 : 0x14b8a6
           );
         }
       }
