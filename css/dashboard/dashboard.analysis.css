@@ -913,9 +913,9 @@ body.ra-body-root {
     opacity: 0.8;
 }
 
-.ra-sbir-callout--bad  { background: rgba(239,68,68,0.12);  border-color: rgba(239,68,68,0.3);  color: var(--c-poor-tint); }
-.ra-sbir-callout--okay { background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.3); color: var(--c-good-mid); }
-.ra-sbir-callout--good { background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.3); color: var(--c-excellent-mid); }
+.ra-sbir-callout--bad  { background: rgba(217,64,48,0.10);  border-color: rgba(217,64,48,0.28);  color: var(--c-poor); }
+.ra-sbir-callout--okay { background: rgba(232,150,26,0.10); border-color: rgba(232,150,26,0.28); color: var(--c-good); }
+.ra-sbir-callout--good { background: rgba(26,158,114,0.10); border-color: rgba(26,158,114,0.28); color: var(--c-excellent); }
 
 /* ── Score comparison table ───────────────────────────── */
 .ra-score-table {
