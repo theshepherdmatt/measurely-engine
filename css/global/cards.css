@@ -68,12 +68,17 @@
     font-weight: 800;
     line-height: 0.85;
     letter-spacing: -0.05em;
-    color: var(--c-accent);
-    filter: drop-shadow(0 2px 12px rgba(212, 149, 15, 0.25));
+    color: var(--c-accent); /* fallback before JS applies status class */
+    filter: none;
     background: none;
     -webkit-background-clip: initial;
     -webkit-text-fill-color: initial;
 }
+
+/* Status-aware overall score colour */
+.overall-score-number.metric-good { color: var(--c-excellent); }
+.overall-score-number.metric-ok   { color: var(--c-good); }
+.overall-score-number.metric-poor { color: var(--c-poor); }
 
 .overall-score-max {
     opacity: 0.25;

@@ -2109,7 +2109,12 @@ class MeasurelyDashboard {
         const overallGauge = document.getElementById('overallGauge');
         const overallPercent = document.getElementById('overallScorePercent');
 
-        if (overallEl) overallEl.textContent = overall.toFixed(1);
+        if (overallEl) {
+            overallEl.textContent = overall.toFixed(1);
+            overallEl.classList.remove('metric-good', 'metric-ok', 'metric-poor');
+            const overallPct = overall * 10;
+            overallEl.classList.add(overallPct < 45 ? 'metric-poor' : overallPct >= 70 ? 'metric-good' : 'metric-ok');
+        }
         if (overallPercent) overallPercent.textContent = (overall * 10).toFixed(0) + '%';
 
         if (overallGauge) {

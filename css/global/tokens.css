@@ -28,10 +28,10 @@
     --c-accent-rgb:   212, 149, 15; /* for rgba() composition */
 
     /* ── Status — Traffic Light ──────────────────────── */
-    --c-excellent: #10b981; /* Emerald — score ≥ 7 */
-    --c-good:      #f59e0b; /* Amber  — score 4.5–7 */
-    --c-okay:      #3b82f6; /* Blue   — mid-range metric */
-    --c-poor:      #ef4444; /* Red    — score < 4.5 */
+    --c-excellent: #1a9e72; /* Forest green — warm, not teal */
+    --c-good:      #e8961a; /* Deep amber   — warm, distinct from gold */
+    --c-okay:      #4a90d9; /* Muted blue   — mid-range metric */
+    --c-poor:      #d94030; /* Warm red      — slight orange shift */
 
     /* ── Status Tints — coloured badges on light surfaces */
     --c-excellent-tint: #a7f3d0; /* emerald-200 */
