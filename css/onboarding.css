@@ -1470,6 +1470,9 @@ body.flyby-active #cinemaVignette {
     padding: 2.5rem 2rem;
     z-index: 30;
 
+    background: var(--c-surface, #ffffff);
+    border-left: 1px solid var(--c-border, #e0dedd);
+
     /* Hidden until flyby-active */
     opacity: 0;
     pointer-events: none;
@@ -1499,7 +1502,7 @@ body.flyby-active #cinemaVignette {
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--c-text-muted);
 }
 
 .fnp-step-num {
@@ -1525,13 +1528,13 @@ body.flyby-active #cinemaVignette {
 }
 
 .fnp-step--next {
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--c-text-muted);
 }
 
 .fnp-progress-line {
   flex: 1;
   height: 1px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--c-border);
 }
 
 /* ── Title & description ───────────────────────────── */
@@ -1540,7 +1543,7 @@ body.flyby-active #cinemaVignette {
   font-size: 2rem;
   font-weight: 700;
   letter-spacing: -0.04em;
-  color: #f0f4f8;
+  color: var(--c-text-main);
   margin: 0;
   line-height: 1.15;
 }
@@ -1555,7 +1558,7 @@ body.flyby-active #cinemaVignette {
 /* ── Next-step block ───────────────────────────────── */
 
 .fnp-next-block {
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-top: 1px solid var(--c-border);
   padding-top: 1.2rem;
   display: flex;
   flex-direction: column;
@@ -1575,13 +1578,13 @@ body.flyby-active #cinemaVignette {
 .fnp-next-title {
   font-size: 1rem;
   font-weight: 600;
-  color: #e5e7eb;
+  color: var(--c-text-main);
   margin: 0;
 }
 
 .fnp-next-sub {
   font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--c-text-muted);
   margin: 0.3rem 0 0;
   line-height: 1.55;
 }
