@@ -1188,83 +1188,85 @@ startApp();
 
 
 <script>
-// Acoustic wave background animation for the welcome screen
+// Acoustic wave background — same gold waves as index.html hero
 (function () {
-  const canvas = document.getElementById('welcomeWaves');
+  var canvas = document.getElementById('welcomeWaves');
   if (!canvas) return;
-  // Respect user preference — hide canvas entirely if motion is unwanted
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     canvas.style.display = 'none';
     return;
   }
-  const ctx = canvas.getContext('2d');
+  var ctx = canvas.getContext('2d');
+  var raf;
 
-  function resize() {
-    canvas.width  = window.innerWidth;
-    canvas.height = window.innerHeight;
-  }
-  resize();
-  window.addEventListener('resize', resize);
-
-  // Wave definitions: each is a layered sine with a harmonic overtone
-  const waves = [
-    { freq: 0.0042, amp: 0.13, speed: 0.014, phase: 0.0, r: 99,  g: 102, b: 241, a: 0.22, lw: 2.0 },
-    { freq: 0.0068, amp: 0.08, speed: 0.021, phase: 1.8, r: 99,  g: 102, b: 241, a: 0.14, lw: 1.5 },
-    { freq: 0.0031, amp: 0.17, speed: 0.009, phase: 3.5, r: 255, g: 79,  b: 154, a: 0.11, lw: 1.5 },
-    { freq: 0.0115, amp: 0.04, speed: 0.030, phase: 0.9, r: 99,  g: 102, b: 241, a: 0.08, lw: 1.0 },
-    { freq: 0.0022, amp: 0.21, speed: 0.006, phase: 5.1, r: 148, g: 163, b: 184, a: 0.07, lw: 2.5 },
+  var waves = [
+    { f: 1.2,  a: 0.50, cy: 0.50, s: 0.00012, p: 0.00, o: 0.35, c: '212,149,15'  },
+    { f: 2.1,  a: 0.40, cy: 0.20, s: 0.00008, p: 1.10, o: 0.28, c: '184,124,8'   },
+    { f: 0.8,  a: 0.55, cy: 0.80, s: 0.00009, p: 2.30, o: 0.25, c: '212,149,15'  },
+    { f: 3.4,  a: 0.35, cy: 0.35, s: 0.00015, p: 0.75, o: 0.22, c: '150,100,6'   },
+    { f: 1.7,  a: 0.45, cy: 0.65, s: 0.00010, p: 3.60, o: 0.28, c: '212,149,15'  },
+    { f: 4.2,  a: 0.30, cy: 0.10, s: 0.00020, p: 1.55, o: 0.18, c: '184,124,8'   },
+    { f: 0.55, a: 0.55, cy: 0.90, s: 0.00006, p: 5.10, o: 0.20, c: '150,100,6'   },
+    { f: 2.8,  a: 0.40, cy: 0.45, s: 0.00013, p: 4.20, o: 0.22, c: '212,149,15'  },
   ];
 
-  let t = 0;
-  let animId;
-
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    const W  = canvas.width;
-    const H  = canvas.height;
-    const cy = H * 0.60; // anchor point slightly below vertical centre
-
-    waves.forEach(w => {
-      const amp = w.amp * H;
-      ctx.beginPath();
-      ctx.strokeStyle = `rgba(${w.r},${w.g},${w.b},${w.a})`;
-      ctx.lineWidth   = w.lw;
-
-      for (let x = 0; x <= W; x += 3) {
-        // Primary sine + one harmonic for organic shape
-        const y = cy
-          + Math.sin(x * w.freq + t * w.speed + w.phase) * amp
-          + Math.sin(x * w.freq * 2.6 + t * w.speed * 0.55 + w.phase * 1.4) * amp * 0.28;
-        if (x === 0) ctx.moveTo(x, y);
-        else          ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-    });
-
-    t++;
-    animId = requestAnimationFrame(draw);
+  function resize() {
+    canvas.width  = canvas.offsetWidth  * window.devicePixelRatio;
+    canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
   }
 
-  draw();
+  function drawWave(wave, t, W, H) {
+    var amp    = Math.min(W * 0.6, H * 0.5) * wave.a;
+    var cy     = H * wave.cy;
+    var fScale = (W < H) ? Math.min(2.2, (H / W) * 0.75) : 1;
+    var lambda = W / (wave.f * fScale);
+    var dx     = (W < 600) ? 5 : 3;
+    ctx.beginPath();
+    for (var x = 0; x <= W; x += dx) {
+      var y = cy + amp * Math.sin((x / lambda) * Math.PI * 2 + t * wave.s + wave.p);
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = 'rgba(' + wave.c + ',' + wave.o + ')';
+    ctx.lineWidth   = (W < 600) ? 2 : 1.5;
+    ctx.stroke();
+  }
 
-  // Pause when tab is hidden (saves battery on mobile)
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) { cancelAnimationFrame(animId); }
+  var start = null;
+  function frame(ts) {
+    if (!start) start = ts;
+    var t = ts - start;
+    var W = canvas.offsetWidth;
+    var H = canvas.offsetHeight;
+    ctx.clearRect(0, 0, W, H);
+    for (var i = 0; i < waves.length; i++) {
+      if (W < 600 && waves[i].o <= 0.09) continue;
+      drawWave(waves[i], t, W, H);
+    }
+    raf = requestAnimationFrame(frame);
+  }
+
+  resize();
+  window.addEventListener('resize', function () { ctx.setTransform(1,0,0,1,0,0); resize(); });
+
+  // Pause when tab hidden
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { cancelAnimationFrame(raf); }
     else if (!document.getElementById('welcomeScreen')?.classList.contains('hidden')) {
-      animId = requestAnimationFrame(draw);
+      start = null; raf = requestAnimationFrame(frame);
     }
   });
 
-  // Stop the loop once the screen is fully dismissed
-  const screen = document.getElementById('welcomeScreen');
+  // Stop once dismissed
+  var screen = document.getElementById('welcomeScreen');
   if (screen) {
-    new MutationObserver(() => {
-      if (screen.classList.contains('hidden')) {
-        cancelAnimationFrame(animId);
-      }
+    new MutationObserver(function () {
+      if (screen.classList.contains('hidden')) cancelAnimationFrame(raf);
     }).observe(screen, { attributes: true, attributeFilter: ['class'] });
   }
+
+  raf = requestAnimationFrame(frame);
 }());
 </script>
 
