@@ -35,9 +35,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 1.5rem;
-  background: #232019;
-  color: #f0eeec;
-  border-bottom: 2px solid rgba(212, 149, 15, 0.4);
+  background: var(--c-header-bg);
+  color: var(--c-header-text);
+  border-bottom: 2px solid rgba(var(--c-accent-rgb), 0.4);
   padding: 0.85rem 2rem;
   border-radius: 0 0 8px 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
@@ -61,7 +61,7 @@
 .header-title p {
   margin: 0;
   font-size: 1.1rem;
-  color: rgba(240, 238, 236, 0.55);
+  color: var(--c-header-text-dim);
   max-width: 720px;
   display: flex;
   align-items: center;
@@ -89,14 +89,14 @@
   padding: 0;
   font-family: inherit;
   font-size: 0.72rem;
-  color: #d4950f;
+  color: var(--c-accent);
   cursor: pointer;
   text-align: left;
   transition: color 0.15s;
   line-height: 1;
 }
-.sample-wav-link:hover { color: #f0b429; }
-.sample-wav-link:disabled { color: #9a8f87; cursor: wait; }
+.sample-wav-link:hover { color: var(--c-accent-light); }
+.sample-wav-link:disabled { color: var(--c-text-muted); cursor: wait; }
 
 .rew-guide {
   margin-top: 0.6rem;
@@ -108,7 +108,7 @@
   gap: 0.4rem;
   font-size: 0.74rem;
   font-weight: 500;
-  color: var(--c-text-muted, #94a3b8);
+  color: var(--c-text-muted);
   cursor: pointer;
   list-style: none;
   user-select: none;
@@ -116,7 +116,7 @@
   transition: color 0.15s;
 }
 .rew-guide-toggle::-webkit-details-marker { display: none; }
-.rew-guide-toggle:hover { color: #f0b429; }
+.rew-guide-toggle:hover { color: var(--c-accent-light); }
 
 .rew-guide-body {
   margin-top: 0.65rem;
@@ -135,12 +135,12 @@
 }
 .rew-guide-steps li {
   font-size: 0.79rem;
-  color: #1a1714;
+  color: var(--c-text-main);
   line-height: 1.4;
 }
 .rew-guide-steps li span {
   display: block;
-  color: #9a8f87;
+  color: var(--c-text-muted);
   font-size: 0.72rem;
   margin-top: 0.1rem;
 }
@@ -148,10 +148,10 @@
 .rew-guide-link {
   margin: 0.6rem 0 0;
   font-size: 0.72rem;
-  color: #9a8f87;
+  color: var(--c-text-muted);
 }
 .rew-guide-link a {
-  color: #f0b429;
+  color: var(--c-accent-light);
   text-decoration: none;
 }
 .rew-guide-link a:hover { text-decoration: underline; }

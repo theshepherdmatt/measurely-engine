@@ -136,10 +136,10 @@
   font-size: 1.8rem;
 }
 
-/* Score coloring — warm palette only, no neon */
-.uploads-score.metric-good { color: var(--c-accent, #d4950f); }
-.uploads-score.metric-ok   { color: var(--c-accent, #d4950f); }
-.uploads-score.metric-poor { color: #b85c4a; }
+/* Score coloring — traffic-light hierarchy */
+.uploads-score.metric-good { color: var(--c-excellent); }
+.uploads-score.metric-ok   { color: var(--c-good); }
+.uploads-score.metric-poor { color: var(--c-poor); }
 
 /* ── Trend delta badge ──────────────────────────────── */
 .sweep-trend {
@@ -206,10 +206,10 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Metric value color coding — warm, not neon */
-.metric-good { color: var(--c-accent, #d4950f) !important; }
-.metric-ok   { color: #a07840 !important; }
-.metric-poor { color: #b85c4a !important; }
+/* Metric value color coding — traffic-light hierarchy */
+.metric-good { color: var(--c-excellent) !important; }
+.metric-ok   { color: var(--c-good)      !important; }
+.metric-poor { color: var(--c-poor)      !important; }
 
 /* ── Footer: actions + note button ─────────────────── */
 .uploads-footer {

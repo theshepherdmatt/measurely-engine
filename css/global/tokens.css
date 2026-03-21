@@ -2,73 +2,65 @@
 
     --font-main: 'Inter', sans-serif;
 
-    /* Premium Palette */
-    --c-bg: #eae6e0; /* Warm Stone */
-    --c-surface: #ffffff; /* Pure White */
-    --c-surface2: #f7f6f5;
-    --c-border: #e0dedd;
-    --c-surface-glass: rgba(255,255,255,0.75);
+    /* ── Backgrounds & Surfaces ──────────────────────── */
+    --c-bg:             #eae6e0; /* Warm Stone — page background */
+    --c-surface:        #ffffff; /* Pure White — card backgrounds */
+    --c-surface2:       #f7f6f5; /* Off-white — nested cards, inputs */
+    --c-border:         #e0dedd; /* Light Beige — borders */
+    --c-surface-glass:  rgba(255,255,255,0.75); /* Semi-transparent overlay */
 
-    --c-text-main: #1a1714;
-    --c-text-muted: #9a8f87;
+    /* ── Structure / Chrome ──────────────────────────── */
+    --c-header-bg:      #232019; /* Charcoal — header, log panel */
+    --c-header-text:    #f0eeec; /* Warm off-white — header text */
+    --c-header-text-dim: rgba(240, 238, 236, 0.55); /* Dimmed header text */
+    --c-backdrop:       rgba(0, 0, 0, 0.6); /* Modal backdrop */
 
-    --c-accent: #d4950f; /* Gold */
-    --c-accent-glow: rgba(212, 149, 15, 0.45);
+    /* ── Text ────────────────────────────────────────── */
+    --c-text-main:  #1a1714; /* Dark brown — primary text */
+    --c-text-muted: #9a8f87; /* Gray-brown — secondary / disabled */
 
-    /* Status Colors */
-    --c-excellent: #10b981; /* Emerald */
-    --c-good: #f59e0b; /* Amber */
-    --c-okay: #3b82f6; /* Blue */
-    --c-poor: #ef4444; /* Red */
+    /* ── Accent (Gold) ───────────────────────────────── */
+    --c-accent:       #d4950f; /* Gold — primary brand accent */
+    --c-accent-light: #f0b429; /* gold-300 — active nav, hover states */
+    --c-accent-dark:  #b87c08; /* gold-600 — button gradient end */
+    --c-accent-tint:  #fde68a; /* gold-200 — chip/badge fill */
+    --c-accent-glow:  rgba(212, 149, 15, 0.45);
+    --c-accent-rgb:   212, 149, 15; /* for rgba() composition */
 
-    /* Status tints — light text/fill on dark backgrounds */
-    --c-poor-text: #f87171;     /* red-400, danger button text */
-    --c-poor-dark: #dc2626;     /* red-600, danger gradient end */
-    --c-accent-light: #f0b429;  /* gold-300, active nav/tab text */
-    --c-accent-dark: #b87c08;   /* gold-600, button gradient end */
-    --c-okay-light: #93c5fd;    /* blue-300, Mid band pill text */
-    --c-cyan-light: #67e8f9;    /* cyan-300, Treble band pill text */
-    --c-pink-light: #f9a8d4;    /* pink-300, Air band pill text */
+    /* ── Status — Traffic Light ──────────────────────── */
+    --c-excellent: #10b981; /* Emerald — score ≥ 7 */
+    --c-good:      #f59e0b; /* Amber  — score 4.5–7 */
+    --c-okay:      #3b82f6; /* Blue   — mid-range metric */
+    --c-poor:      #ef4444; /* Red    — score < 4.5 */
 
-    /* Chip & callout tints — coloured badges on dark surfaces */
-    --c-accent-tint: #fde68a;      /* gold-200 */
-    --c-excellent-tint: #a7f3d0;   /* emerald-200 */
-    --c-excellent-mid: #6ee7b7;    /* emerald-300 */
-    --c-good-tint: #fde68a;        /* amber-200 */
-    --c-good-mid: #fcd34d;         /* amber-300 */
-    --c-poor-tint: #fca5a5;        /* red-200 */
+    /* ── Status Tints — coloured badges on light surfaces */
+    --c-excellent-tint: #a7f3d0; /* emerald-200 */
+    --c-excellent-mid:  #6ee7b7; /* emerald-300 */
+    --c-good-tint:      #fef3c7; /* amber-100 (distinct from gold --c-accent-tint) */
+    --c-good-mid:       #fcd34d; /* amber-300 */
+    --c-poor-tint:      #fca5a5; /* red-200 */
+    --c-poor-text:      #f87171; /* red-400 — danger button text */
+    --c-poor-dark:      #dc2626; /* red-600 — danger gradient end */
 
-    /* Simulation delta colours */
-    --c-sim-better: #4ade80;    /* green-400, score improvement */
+    /* ── Frequency Band Pill text (on dark surface) ────── */
+    --c-okay-light: #93c5fd; /* blue-300 — Mid band */
+    --c-cyan-light: #67e8f9; /* cyan-300 — Treble band */
+    --c-pink-light: #f9a8d4; /* pink-300 — Air band */
 
-    /* Utility */
-    --c-white: #ffffff;
-    --c-bg-dark: #232019;       /* charcoal, log panel background */
-    --c-sweep-text: #b87c08;    /* gold tint, sweep log info text */
+    /* ── Simulation Delta ────────────────────────────── */
+    --c-sim-better: #4ade80; /* green-400 — score improvement indicator */
 
-    /* UX/UI Enhancement: Icon glow colors */
+    /* ── Utility ─────────────────────────────────────── */
+    --c-white:      #ffffff;
+    --c-bg-dark:    var(--c-header-bg); /* alias for log panel */
+    --c-sweep-text: #b87c08; /* gold tint — sweep log info text */
+
+    /* ── Icon Glows ──────────────────────────────────── */
     --icon-glow-primary: rgba(212, 149, 15, 0.35);
-    --icon-glow-accent: rgba(240, 180, 41, 0.45);
-
-    /* ... your existing variables ... */
-    --c-primary: #d4950f; /* Link primary to your gold accent */
-    --c-primary-rgb: 212, 149, 15;
-
-}
-
-/* Semantic aliases (do not style directly) */
-:root {
-  --c-bg-app: var(--c-bg);
-  --c-panel: var(--c-surface);
-  --c-text-primary: var(--c-text-main);
-}
-
-:root {
-    --measurely-accent: #d4950f; /* gold accent */
+    --icon-glow-accent:  rgba(240, 180, 41, 0.45);
 }
 
 .measurely-mark {
-    color: var(--measurely-accent);
-    fill: var(--measurely-accent);
+    color: var(--c-accent);
+    fill: var(--c-accent);
 }
-

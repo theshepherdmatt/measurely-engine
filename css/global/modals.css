@@ -51,8 +51,8 @@ body.intro-open {
 
   background: linear-gradient(
     165deg,
-    rgba(18, 26, 44, 0.97),
-    rgba(8,  12, 22, 0.99)
+    color-mix(in srgb, var(--c-header-bg) 97%, transparent),
+    color-mix(in srgb, var(--c-header-bg) 99%, #000)
   );
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 22px;
@@ -87,9 +87,9 @@ body.intro-open {
   align-items: center;
   justify-content: center;
 
-  color: #d4950f;
-  background: rgba(212, 149, 15, 0.12);
-  border: 1.5px solid rgba(212, 149, 15, 0.28);
+  color: var(--c-accent);
+  background: rgba(var(--c-accent-rgb), 0.12);
+  border: 1.5px solid rgba(var(--c-accent-rgb), 0.28);
 }
 
 
@@ -99,12 +99,12 @@ body.intro-open {
   font-weight: 700;
   letter-spacing: -0.03em;
   margin: 0 0 0.8rem;
-  color: #f0f4f8;
+  color: var(--c-header-text);
 }
 
 .section-intro-body {
   font-size: 0.925rem;
-  color: var(--c-text-muted, #94a3b8);
+  color: var(--c-header-text-dim);
   line-height: 1.72;
   margin: 0 auto 1.75rem;
   max-width: 360px;

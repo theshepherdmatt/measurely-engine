@@ -224,7 +224,25 @@
     background: var(--c-accent);
     box-shadow: 0 0 10px var(--c-accent-glow),
                 0 0 20px rgba(212,149,15,0.25);
-    transition: width 1.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+    transition: width 1.5s cubic-bezier(0.2, 0.8, 0.2, 1),
+                background 0.4s ease;
+}
+
+/* Status-aware fill: inherits the score class from the card ancestor */
+.analysis-card-trigger:has(.metric-good) .perf-fill {
+    background: var(--c-excellent);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.35),
+                0 0 20px rgba(16, 185, 129, 0.18);
+}
+.analysis-card-trigger:has(.metric-ok) .perf-fill {
+    background: var(--c-good);
+    box-shadow: 0 0 10px rgba(245, 158, 11, 0.35),
+                0 0 20px rgba(245, 158, 11, 0.18);
+}
+.analysis-card-trigger:has(.metric-poor) .perf-fill {
+    background: var(--c-poor);
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.35),
+                0 0 20px rgba(239, 68, 68, 0.18);
 }
 
 /* Status Colors */

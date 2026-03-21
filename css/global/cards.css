@@ -11,7 +11,7 @@
 }
 
 .card.glass-panel {
-    background: #ffffff;
+    background: var(--c-surface);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     border: 1px solid rgba(26, 23, 20, 0.12);
@@ -78,7 +78,7 @@
 .overall-score-max {
     opacity: 0.25;
     font-size: 1.2rem;
-    color: #1a1714;
+    color: var(--c-text-main);
     font-weight: 500;
     margin-left: 0.35rem;
     transform: translateY(-10px);
@@ -281,7 +281,7 @@
 .card .card {
   padding: 1rem;
   border-radius: 14px;
-  background: #f7f6f5;
+  background: var(--c-surface2);
   border: 1px solid rgba(0, 0, 0, 0.07);
   box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.05);
 }
@@ -290,7 +290,7 @@
 .card.glass-panel .card.glass-panel {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  background: #f7f6f5;
+  background: var(--c-surface2);
   box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.05);
   border-color: rgba(0, 0, 0, 0.07);
 }
