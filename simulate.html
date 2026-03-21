@@ -708,11 +708,24 @@ function initSimulate(room) {
     updateSliderDisplays();
 }
 
+// ── Slider fill helper (keeps measurely-slider gradient in sync) ──
+function updateSliderFill(el) {
+    const min = parseFloat(el.min), max = parseFloat(el.max), val = parseFloat(el.value);
+    const pct = ((val - min) / (max - min) * 100).toFixed(1);
+    el.style.setProperty('--fill', pct + '%');
+}
+
 // ── Update slider value labels ────────────────────────────────
 function updateSliderDisplays() {
     const spkFront   = parseFloat(document.getElementById('sim-spk-front')?.value  ?? 0.45);
     const spkSpacing = parseFloat(document.getElementById('sim-spk-spacing')?.value ?? 3.0);
     const toeIn      = parseFloat(document.getElementById('sim-toe-in')?.value      ?? 21);
+
+    // Keep gradient fills in sync
+    ['sim-spk-front', 'sim-spk-spacing', 'sim-toe-in'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) updateSliderFill(el);
+    });
 
     const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
     setText('val-spk-front',   spkFront.toFixed(2) + ' m');
@@ -1393,9 +1406,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const slider  = document.getElementById('fix-budget-slider');
     const display = document.getElementById('fix-budget-display');
     if (slider) {
+        updateSliderFill(slider);
         slider.addEventListener('input', () => {
             const v = parseInt(slider.value, 10);
             if (display) display.textContent = v >= 1000 ? '1000+' : v;
+            updateSliderFill(slider);
             runFixMyRoom();
         });
     }
