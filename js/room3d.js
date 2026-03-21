@@ -356,7 +356,8 @@ function rebuild() {
                      listener_offset_m: 0, subwoofer: false },
       environment: { room_type: 'home', floor_material: 'hard',
                      furniture: { opt_area_rug: true,  opt_sofa: true,
-                                  opt_coffee_table: false, opt_desk: false, opt_chair: false },
+                                  opt_coffee_table: false, opt_desk: false, opt_chair: false,
+                                  seating_type: 'sofa' },
                      treatment: { wall_panel_mode: 'none',  side_panel_mode: 'none',
                                   bass_trap_mode: 'none',   ceiling_panel_mode: 'none' } }
     };
@@ -417,6 +418,7 @@ function rebuild() {
       opt_coffee_table: furn.opt_coffee_table ?? env.opt_coffee_table ?? data.opt_coffee_table,
       opt_desk:         furn.opt_desk         ?? env.opt_desk         ?? data.opt_desk,
       opt_chair:        furn.opt_chair        ?? env.opt_chair        ?? data.opt_chair,
+      seating_type:     furn.seating_type     ?? env.seating_type     ?? data.seating_type ?? 'sofa',
 
       // TREATMENT: Digging into data.environment.treatment
       wall_panel_mode:    treat.wall_panel_mode    ?? env.wall_panel_mode    ?? "none",
@@ -894,8 +896,11 @@ function rebuild() {
         opacity:     isListHighlit ? 0.95 : 0.90
       })
     );
-    // Home: shift sphere into sofa seat (+Z = toward back wall); studio: centred at desk
-    sphere.position.set(0, effectiveHeadHeight, isStudio ? 0 : 0.15);
+    // Home: shift sphere into seat. Lounge chair has head further back (reclined posture).
+    const _seatType = room.seating_type || 'sofa';
+    const _sphereZ  = isStudio ? 0 : (_seatType === 'lounge' ? 0.38 : 0.15);
+    const _sphereY  = isStudio ? effectiveHeadHeight : (_seatType === 'lounge' ? 1.00 : effectiveHeadHeight);
+    sphere.position.set(0, _sphereY, _sphereZ);
     station.add(sphere);
 
     // ── Rug (local coords: centred in front of sphere) ──
@@ -918,27 +923,101 @@ function rebuild() {
       station.add(rug);
     }
 
-    // ── Sofa (home mode only) — anchored to the listener station ──
-    // In station-local coords: +Z is toward the back wall, so the sofa sits
-    // just behind the listening position (listener is seated at the front edge).
+    // ── Seating (home mode only) — driven by room.seating_type ('sofa' | 'lounge') ──
+    // In station-local coords: +Z is toward the back wall.
     if (VISIBILITY.furniture.sofa && !isStudio && room.opt_sofa) {
-      const sofaGroup = new THREE.Group();
+      const seatingGroup = new THREE.Group();
+      const seatingStyle = room.seating_type || 'sofa';
 
-      const base = _ghostBox(2.1, 0.4, 0.9);
-      base.position.y = 0.2;
-      sofaGroup.add(base);
+      if (seatingStyle === 'sofa') {
+        // ── Three-seater sofa (2.1 m wide) ──────────────────────────────────
+        const base = _ghostBox(2.1, 0.4, 0.9);
+        base.position.y = 0.2;
+        seatingGroup.add(base);
 
-      const back = _ghostBox(2.1, 0.5, 0.2);
-      back.position.set(0, 0.55, 0.35);
-      sofaGroup.add(back);
+        const back = _ghostBox(2.1, 0.5, 0.2);
+        back.position.set(0, 0.55, 0.35);
+        seatingGroup.add(back);
 
-      const lArm = _ghostBox(0.2, 0.35, 0.9); lArm.position.set(-0.95, 0.4, 0);
-      const rArm = _ghostBox(0.2, 0.35, 0.9); rArm.position.set( 0.95, 0.4, 0);
-      sofaGroup.add(lArm, rArm);
+        const lArm = _ghostBox(0.2, 0.35, 0.9); lArm.position.set(-0.95, 0.4, 0);
+        const rArm = _ghostBox(0.2, 0.35, 0.9); rArm.position.set( 0.95, 0.4, 0);
+        seatingGroup.add(lArm, rArm);
 
-      // +0.35 m behind the listener (toward back wall) — listener sits at front of sofa
-      sofaGroup.position.set(0, 0, 0.35);
-      station.add(sofaGroup);
+      } else {
+        // ── Eames 670 Lounge Chair + 671 Ottoman ─────────────────────────────
+        // Line material for 5-star pedestal arms
+        const starLineMat = new THREE.LineBasicMaterial({
+          color: furnEdgeMat.color, transparent: false, depthTest: true
+        });
+
+        // 5 radial arms radiating from origin
+        function _fiveStar(radius, y) {
+          const pts = [];
+          for (let i = 0; i < 5; i++) {
+            const a = (i / 5) * Math.PI * 2 + Math.PI / 10;
+            pts.push(
+              new THREE.Vector3(0, y, 0),
+              new THREE.Vector3(Math.sin(a) * radius, y, Math.cos(a) * radius)
+            );
+          }
+          return new THREE.LineSegments(
+            new THREE.BufferGeometry().setFromPoints(pts), starLineMat
+          );
+        }
+
+        // ── CHAIR ──
+        const eamesChair = new THREE.Group();
+
+        eamesChair.add(_fiveStar(0.30, 0.025));
+        const col = _ghostBox(0.045, 0.28, 0.045);
+        col.position.y = 0.16;
+        eamesChair.add(col);
+
+        // Seat: reclined
+        const seat = _ghostBox(0.58, 0.09, 0.52);
+        seat.rotation.x = +0.28;
+        seat.position.set(0, 0.33, -0.12);
+        eamesChair.add(seat);
+
+        // Back: Eames signature lean
+        const chairBack = _ghostBox(0.50, 0.52, 0.09);
+        chairBack.rotation.x = 0.38;
+        chairBack.position.set(0, 0.60, 0.22);
+        eamesChair.add(chairBack);
+
+        // Headrest
+        const head = _ghostBox(0.42, 0.19, 0.09);
+        head.rotation.x = 0.30;
+        head.position.set(0, 0.88, 0.28);
+        eamesChair.add(head);
+
+        // Arm rests
+        const lArm = _ghostBox(0.07, 0.05, 0.42); lArm.position.set(-0.31, 0.46, 0.0);
+        const rArm = _ghostBox(0.07, 0.05, 0.42); rArm.position.set( 0.31, 0.46, 0.0);
+        eamesChair.add(lArm, rArm);
+
+        seatingGroup.add(eamesChair);
+
+        // ── OTTOMAN (671) ──
+        const eamesOttoman = new THREE.Group();
+
+        eamesOttoman.add(_fiveStar(0.22, 0.022));
+        const ottCol = _ghostBox(0.04, 0.20, 0.04);
+        ottCol.position.y = 0.12;
+        eamesOttoman.add(ottCol);
+
+        const ottTop = _ghostBox(0.56, 0.09, 0.50);
+        ottTop.position.y = 0.26;
+        eamesOttoman.add(ottTop);
+
+        // Ottoman sits ~0.75 m in front of the chair (toward speakers)
+        eamesOttoman.position.set(0, 0, -0.75);
+        seatingGroup.add(eamesOttoman);
+      }
+
+      // Both sit +0.35 m behind listener (toward back wall)
+      seatingGroup.position.set(0, 0, 0.35);
+      station.add(seatingGroup);
     }
 
     // ── Coffee table — anchored to listener station, in front of sofa ──

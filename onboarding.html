@@ -326,7 +326,8 @@ const DEFAULT_ROOM_STATE = {
     furniture: {
         opt_area_rug: false,
         opt_sofa: false,
-        opt_coffee_table: false
+        opt_coffee_table: false,
+        seating_type: 'sofa'
     },
     treatment: {
         wall_panel_mode: "none",
@@ -573,6 +574,17 @@ const steps = [
         kind: "toggle",
         label: "Sofa",
         sub: "Adds absorption behind position"
+      },
+      {
+        key: "environment.furniture.seating_type",
+        kind: "select",
+        label: "Seating style",
+        sub: "Shape of seat shown in the 3D view",
+        options: [
+          { value: "sofa",   label: "Three-seater sofa" },
+          { value: "lounge", label: "Lounge chair (Eames 670)" }
+        ],
+        showIf: { key: "environment.furniture.opt_sofa", value: true }
       },
       {
         key: "environment.furniture.opt_coffee_table",
