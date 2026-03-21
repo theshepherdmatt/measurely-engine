@@ -2161,17 +2161,23 @@ class MeasurelyDashboard {
         };
 
         for (const [key, val] of Object.entries(metrics)) {
+            const percent = val * 10;
+            const statusClass = percent < 45 ? 'metric-poor' : percent >= 70 ? 'metric-good' : 'metric-ok';
+
             const scoreEl = document.getElementById(`${key}Score`);
-            if (scoreEl) scoreEl.textContent = val.toFixed(1);
+            if (scoreEl) {
+                scoreEl.textContent = val.toFixed(1);
+                scoreEl.classList.remove('metric-good', 'metric-ok', 'metric-poor');
+                scoreEl.classList.add(statusClass);
+            }
 
             const trackEl = document.getElementById(`${key}Track`);
             if (trackEl) {
-                const percent = val * 10;
                 trackEl.style.width = `${percent}%`;
-
-                if (percent < 40) trackEl.style.background = 'var(--c-poor)';
-                else if (percent > 75) trackEl.style.background = 'var(--c-excellent)';
-                else trackEl.style.background = 'var(--c-accent)';
+                if (statusClass === 'metric-poor')      trackEl.style.background = 'var(--c-poor)';
+                else if (statusClass === 'metric-good') trackEl.style.background = 'var(--c-excellent)';
+                else                                    trackEl.style.background = 'var(--c-good)';
+                trackEl.style.boxShadow = '';
             }
         }
 
