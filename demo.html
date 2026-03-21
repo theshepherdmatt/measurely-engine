@@ -75,8 +75,8 @@ body {
     backdrop-filter: blur(20px) saturate(200%);
     -webkit-backdrop-filter: blur(20px) saturate(200%);
 
-    border-left: 1px solid rgba(255,255,255,0.08);
-    box-shadow: -6px 0 32px rgba(0,0,0,0.45);
+    border-left: 1px solid var(--c-border);
+    box-shadow: -6px 0 32px rgba(0,0,0,0.12);
 
     display: flex;
     flex-direction: column;
@@ -89,7 +89,7 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 14px 18px 12px;
-    border-bottom: 1px solid rgba(255,255,255,0.07);
+    border-bottom: 1px solid var(--c-border);
     flex-shrink: 0;
 }
 
@@ -119,8 +119,8 @@ body {
     gap: 5px;
     padding: 5px 10px;
     border-radius: 7px;
-    border: 1px solid rgba(255,255,255,.1);
-    background: rgba(255,255,255,.05);
+    border: 1px solid var(--c-border);
+    background: var(--c-surface2);
     color: var(--c-text-muted);
     font-size: 0.75rem;
     font-weight: 600;
@@ -130,9 +130,9 @@ body {
     text-decoration: none;
 }
 .demo-close-btn:hover {
-    background: rgba(255,255,255,.1);
+    background: var(--c-border);
     color: var(--c-text-main);
-    border-color: rgba(255,255,255,.2);
+    border-color: rgba(26,23,20,0.2);
 }
 
 /* ── Panel body (scrollable) ─────────────────────────────── */
@@ -146,7 +146,7 @@ body {
     gap: 14px;
     /* custom scrollbar */
     scrollbar-width: thin;
-    scrollbar-color: rgba(212,149,15,.3) transparent;
+    scrollbar-color: rgba(212,149,15,.4) transparent;
 }
 .demo-panel-body::-webkit-scrollbar { width: 4px; }
 .demo-panel-body::-webkit-scrollbar-track { background: transparent; }
@@ -158,7 +158,7 @@ body {
     font-weight: 700;
     letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: rgba(255,255,255,.3);
+    color: var(--c-text-muted);
     margin-bottom: 6px;
 }
 
@@ -179,16 +179,16 @@ body {
     font-weight: 600;
     font-family: inherit;
     cursor: pointer;
-    border: 1px solid rgba(255,255,255,.1);
-    background: rgba(255,255,255,.04);
-    color: rgba(255,255,255,.45);
+    border: 1px solid var(--c-border);
+    background: var(--c-surface2);
+    color: var(--c-text-muted);
     transition: background .15s, border-color .15s, color .15s;
     white-space: nowrap;
 }
-.sbox-btn:hover  { background: rgba(212,149,15,.14); border-color: rgba(212,149,15,.35); color: var(--c-accent-tint); }
-.sbox-btn.active { background: rgba(212,149,15,.2);  border-color: rgba(212,149,15,.5);  color: var(--c-accent-light); }
-.sbox-btn.sbox-reset { border-color: rgba(255,255,255,.07); color: rgba(255,255,255,.25); }
-.sbox-btn.sbox-reset:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.6); }
+.sbox-btn:hover  { background: rgba(212,149,15,.12); border-color: rgba(212,149,15,.4); color: var(--c-accent-dark); }
+.sbox-btn.active { background: rgba(212,149,15,.18); border-color: rgba(212,149,15,.55); color: var(--c-accent-dark); }
+.sbox-btn.sbox-reset { border-color: var(--c-border); color: var(--c-text-muted); }
+.sbox-btn.sbox-reset:hover { background: var(--c-border); color: var(--c-text-main); }
 
 .overlay-btn {
     padding: 5px 10px;
@@ -197,14 +197,14 @@ body {
     font-weight: 600;
     font-family: inherit;
     cursor: pointer;
-    border: 1px solid rgba(255,255,255,.09);
-    background: transparent;
-    color: rgba(255,255,255,.35);
+    border: 1px solid var(--c-border);
+    background: var(--c-surface2);
+    color: var(--c-text-muted);
     transition: background .15s, border-color .15s, color .15s;
     white-space: nowrap;
 }
-.overlay-btn:hover  { background: rgba(212,149,15,.1); color: rgba(255,255,255,.7); }
-.overlay-btn.active { background: rgba(212,149,15,.22); border-color: var(--c-accent); color: var(--c-accent-light); }
+.overlay-btn:hover  { background: rgba(212,149,15,.12); border-color: rgba(212,149,15,.4); color: var(--c-accent-dark); }
+.overlay-btn.active { background: rgba(212,149,15,.18); border-color: rgba(212,149,15,.55); color: var(--c-accent-dark); font-weight: 700; }
 
 /* ── Slider field (matches onboarding field style) ───────── */
 .demo-field {
@@ -237,8 +237,8 @@ body {
 .demo-cta-bar {
     margin: 0 -18px;
     padding: 10px 18px max(14px, env(safe-area-inset-bottom, 14px));
-    background: linear-gradient(135deg, rgba(212,149,15,.12), rgba(139,92,246,.12));
-    border-top: 1px solid rgba(212,149,15,.2);
+    background: linear-gradient(135deg, rgba(212,149,15,.08), rgba(212,149,15,.04));
+    border-top: 1px solid var(--c-border);
     display: flex;
     flex-direction: row;
     align-items: center;
@@ -248,7 +248,7 @@ body {
 
 .demo-cta-text {
     font-size: 0.72rem;
-    color: rgba(255,255,255,.55);
+    color: var(--c-text-muted);
     margin: 0;
     line-height: 1.3;
     flex: 1;
@@ -276,7 +276,7 @@ body {
 /* ── Divider ─────────────────────────────────────────────── */
 .demo-divider {
     height: 1px;
-    background: rgba(255,255,255,.06);
+    background: var(--c-border);
     margin: 0 -18px;
 }
 
