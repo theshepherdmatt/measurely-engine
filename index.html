@@ -549,6 +549,29 @@
                 font-size: 0.9rem;
             }
         }
+
+        /* ── Mobile hero fixes ── */
+        @media (max-width: 480px) {
+            /* Fix 2: tighter topbar */
+            .topbar {
+                padding: 0.65rem 1rem;
+            }
+
+            /* Fix 3: reduce hero top padding */
+            .hero {
+                padding: 3.5rem 1.25rem 3rem;
+            }
+
+            /* Fix 1: hide long eyebrow pill — hero copy covers it */
+            .hero .hero-eyebrow {
+                display: none;
+            }
+
+            /* Fix 5: smaller body copy */
+            .hero-sub {
+                font-size: 1rem;
+            }
+        }
     </style>
     <link rel="stylesheet" href="css/global/auth.css">
     <link rel="stylesheet" href="css/global/profile.css">
@@ -1258,9 +1281,10 @@
                     if (x === 0) ctx.moveTo(x, y);
                     else ctx.lineTo(x, y);
                 }
-                ctx.strokeStyle = 'rgba(' + wave.c + ',' + wave.o + ')';
-                // Slightly thicker lines on mobile so the waves read clearly
-                ctx.lineWidth = (W < 600) ? 2 : 1.5;
+                // On portrait, halve opacity so the waves don't overwhelm the narrow canvas
+                var opacity = (W < H) ? wave.o * 0.5 : wave.o;
+                ctx.strokeStyle = 'rgba(' + wave.c + ',' + opacity + ')';
+                ctx.lineWidth = 1.5;
                 ctx.stroke();
             }
 
