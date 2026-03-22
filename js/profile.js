@@ -34,6 +34,7 @@
     let _avatarFile     = null; // unused — avatar upload disabled
     let _device         = null; // paired Measurely Remote device record
     let _sweepPollTimer = null;
+    let _lastCmdId      = null; // last completed sweep command ID
 
     // ── DOM injection ────────────────────────────────────────────────────────
     function _inject() {
@@ -198,6 +199,7 @@
                 </div>
                 <button type="button" class="mly-remote-sweep-btn" id="mlyRmtSweepBtn">Run Sweep</button>
                 <div class="mly-remote-sweep-status" id="mlyRmtSweepStatus"></div>
+                <button type="button" class="mly-remote-analyse-btn" id="mlyRmtAnalyseBtn" style="display:none">Load to Dashboard</button>
             </div>
 
             <!-- Unpair -->
@@ -301,12 +303,10 @@
         document.getElementById('mlyRmtDeviceUI').style.display  = 'none';
 
         try {
-            console.log('[remote] user.id:', user.id);
             const result = await window._pb().collection('devices').getList(1, 1, {
                 filter: `owner='${user.id}'`,
                 sort: '-created',
             });
-            console.log('[remote] devices result:', result);
 
             document.getElementById('mlyRmtLoading').style.display = 'none';
 
@@ -418,7 +418,9 @@
                 if (cmd.status === 'done') {
                     _setSweepStatus(status, 'ok', 'Sweep complete ✓');
                     btn.disabled = false;
-                    setTimeout(() => _setSweepStatus(status, '', ''), 4000);
+                    _lastCmdId = cmdId;
+                    const ab = document.getElementById('mlyRmtAnalyseBtn');
+                    if (ab) ab.style.display = '';
                 } else if (cmd.status === 'error') {
                     _setSweepStatus(status, 'error', cmd.error_message || 'Sweep failed');
                     btn.disabled = false;
@@ -432,6 +434,80 @@
         };
 
         _sweepPollTimer = setTimeout(tick, 2000);
+    }
+
+    async function _analyseResults() {
+        const btn    = document.getElementById('mlyRmtAnalyseBtn');
+        const status = document.getElementById('mlyRmtSweepStatus');
+        if (!_lastCmdId) return;
+
+        btn.disabled = true;
+        _setSweepStatus(status, 'waiting', 'Fetching WAV…');
+
+        try {
+            const pb = window._pb();
+
+            // Get sweep_results record via the command
+            const cmd = await pb.collection('sweep_commands').getOne(_lastCmdId);
+            if (!cmd.result) throw new Error('No result record on command');
+            const rec = await pb.collection('sweep_results').getOne(cmd.result);
+            if (!rec.wav_room) throw new Error('No WAV file on result record');
+
+            // Build PocketBase file URL
+            const wavUrl = `https://api.measurely.uk/api/files/sweep_results/${rec.id}/${rec.wav_room}`;
+            const resp = await fetch(wavUrl, {
+                headers: pb.authStore.token ? { Authorization: pb.authStore.token } : {},
+            });
+            if (!resp.ok) throw new Error(`Download failed: ${resp.status}`);
+            const blob = await resp.blob();
+            const file = new File([blob], 'room-impulse.wav', { type: 'audio/wav' });
+
+            _setSweepStatus(status, 'waiting', 'Analysing…');
+
+            // Run through the existing analysis pipeline
+            const session = await window.MeasurelyFileLoader.loadSession(file);
+            const room    = JSON.parse(localStorage.getItem('measurely_room') || '{}');
+            const result  = window.MeasurelyAnalyse.analyse(session.ir, session.fs, session.freq, session.mag, room);
+            const ai      = result.ai || {};
+            const sc      = (ai.scores || ai) || {};
+
+            const sessionObj = {
+                id:          'upload_' + Date.now(),
+                label:       'Remote Sweep',
+                timestamp:   new Date().toISOString(),
+                ai:          result.ai,
+                analysis:    result.analysis,
+                reportCurve: result.reportCurve,
+                room_modes:  {},
+                schroeder_freq: 0,
+                sbir_null:   0,
+                scores: {
+                    overall:     +(sc.overall     ?? 0),
+                    peaks_dips:  +(sc.peaks_dips  ?? 0),
+                    reflections: +(sc.reflections ?? 0),
+                    bandwidth:   +(sc.bandwidth   ?? 0),
+                    balance:     +(sc.balance     ?? 0),
+                    smoothness:  +(sc.smoothness  ?? 0),
+                    clarity:     +(sc.clarity     ?? 0),
+                },
+            };
+
+            window.MeasurelySessions?.saveSession(sessionObj);
+            window.MeasurelySync?.pushSession?.(sessionObj);
+
+            // Refresh dashboard if it's open
+            window.dashboard?.loadLatestAnalysis?.(result.ai);
+            window.dashboard?.loadHistory?.();
+
+            _setSweepStatus(status, 'ok', 'Dashboard updated ✓');
+            btn.style.display = 'none';
+            _lastCmdId = null;
+
+        } catch (e) {
+            console.error('[remote] analyse:', e);
+            _setSweepStatus(status, 'error', 'Failed: ' + e.message);
+            btn.disabled = false;
+        }
     }
 
     function _setSweepStatus(el, state, text) {
@@ -458,6 +534,7 @@
         document.getElementById('mlyRemoteClose')?.addEventListener('click', _closeRemoteModal);
         document.getElementById('mlyRmtGenCode')?.addEventListener('click',  _generatePairingCode);
         document.getElementById('mlyRmtSweepBtn')?.addEventListener('click', _runSweep);
+        document.getElementById('mlyRmtAnalyseBtn')?.addEventListener('click', _analyseResults);
         document.getElementById('mlyRmtUnpairBtn')?.addEventListener('click', async () => {
             if (!_device || !confirm('Unpair this device?')) return;
             try { await window._pb().collection('devices').delete(_device.id); } catch (_) {}
