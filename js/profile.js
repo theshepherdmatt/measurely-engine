@@ -28,10 +28,12 @@
     ];
 
     // ── Module state ────────────────────────────────────────────────────────
-    let _backdrop   = null;
-    let _profile    = {};
-    let _gearItems  = [];   // working copy while the editor is open
-    let _avatarFile = null; // unused — avatar upload disabled
+    let _backdrop       = null;
+    let _profile        = {};
+    let _gearItems      = [];   // working copy while the editor is open
+    let _avatarFile     = null; // unused — avatar upload disabled
+    let _device         = null; // paired Measurely Remote device record
+    let _sweepPollTimer = null;
 
     // ── DOM injection ────────────────────────────────────────────────────────
     function _inject() {
@@ -86,6 +88,44 @@
         <div class="mly-profile-section">
             <h3 class="mly-profile-section-title">Listening Level</h3>
             <div class="mly-level-grid" id="mlyLevelGrid"></div>
+        </div>
+
+        <!-- Measurely Remote -->
+        <div class="mly-profile-section" id="mlyRemoteSection" style="display:none">
+            <h3 class="mly-profile-section-title">Measurely Remote</h3>
+
+            <!-- No device paired yet -->
+            <div id="mlyRemotePairUI">
+                <p class="mly-profile-hint">Pair your Measurely Remote device to trigger room sweeps from here.</p>
+                <button type="button" class="mly-remote-pair-btn" id="mlyRemoteGenCode">Generate Pairing Code</button>
+                <div id="mlyRemoteCodeDisplay" style="display:none;margin-top:12px;text-align:center">
+                    <div class="mly-remote-code" id="mlyRemoteCode"></div>
+                    <p class="mly-profile-hint" style="margin-top:6px">Enter this code on your device during setup.<br>It expires after one use.</p>
+                </div>
+            </div>
+
+            <!-- Device paired -->
+            <div id="mlyRemoteDeviceUI" style="display:none">
+                <div class="mly-remote-device-card">
+                    <div class="mly-remote-device-header">
+                        <span class="mly-remote-status-dot" id="mlyRemoteStatusDot"></span>
+                        <span class="mly-remote-device-name" id="mlyRemoteDeviceName">Measurely Device</span>
+                        <span class="mly-remote-last-seen" id="mlyRemoteLastSeen"></span>
+                    </div>
+                    <div class="mly-remote-hw-row">
+                        <span class="mly-remote-hw-chip" id="mlyRemoteMicChip">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                            Mic
+                        </span>
+                        <span class="mly-remote-hw-chip" id="mlyRemoteDacChip">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                            DAC
+                        </span>
+                    </div>
+                </div>
+                <button type="button" class="mly-remote-sweep-btn" id="mlyRemoteSweepBtn">Run Sweep</button>
+                <div class="mly-remote-sweep-status" id="mlyRemoteSweepStatus"></div>
+            </div>
         </div>
 
         <!-- Privacy -->
@@ -181,6 +221,166 @@
     }
 
 
+    // ── Measurely Remote ─────────────────────────────────────────────────────
+
+    async function _loadRemoteDevice() {
+        const user = window.MeasurelyAuth?.getUser();
+        const section = document.getElementById('mlyRemoteSection');
+        if (!user || !section) return;
+
+        section.style.display = '';
+
+        try {
+            const pb = window._pb;
+            const result = await pb.collection('devices').getList(1, 1, {
+                filter: `owner='${user.id}'`,
+                sort: '-created',
+            });
+
+            if (result.items.length > 0) {
+                _device = result.items[0];
+                _renderDevice(_device);
+            } else {
+                _device = null;
+                document.getElementById('mlyRemotePairUI').style.display  = '';
+                document.getElementById('mlyRemoteDeviceUI').style.display = 'none';
+            }
+        } catch (e) {
+            console.error('[profile] load device:', e);
+        }
+    }
+
+    function _renderDevice(device) {
+        document.getElementById('mlyRemotePairUI').style.display  = 'none';
+        document.getElementById('mlyRemoteDeviceUI').style.display = '';
+
+        // Status dot
+        const online = device.status === 'online';
+        const dot = document.getElementById('mlyRemoteStatusDot');
+        dot.className = 'mly-remote-status-dot ' + (online ? 'online' : 'offline');
+
+        // Name
+        document.getElementById('mlyRemoteDeviceName').textContent = device.name || 'Measurely Device';
+
+        // Last seen
+        const ls = document.getElementById('mlyRemoteLastSeen');
+        if (device.last_seen) {
+            const ago = _timeAgo(new Date(device.last_seen));
+            ls.textContent = 'Last seen ' + ago;
+        }
+
+        // Mic / DAC chips
+        _setHwChip('mlyRemoteMicChip', device.mic_connected);
+        _setHwChip('mlyRemoteDacChip', device.dac_connected);
+    }
+
+    function _setHwChip(id, connected) {
+        const chip = document.getElementById(id);
+        if (!chip) return;
+        if (connected === true)       { chip.classList.add('connected');    chip.classList.remove('disconnected'); }
+        else if (connected === false) { chip.classList.add('disconnected'); chip.classList.remove('connected'); }
+        // undefined / null = unknown — no extra class
+    }
+
+    function _timeAgo(date) {
+        const s = Math.floor((Date.now() - date) / 1000);
+        if (s < 60)   return 'just now';
+        if (s < 3600) return Math.floor(s / 60) + 'm ago';
+        if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+        return Math.floor(s / 86400) + 'd ago';
+    }
+
+    async function _generatePairingCode() {
+        const user = window.MeasurelyAuth?.getUser();
+        if (!user) return;
+
+        const btn  = document.getElementById('mlyRemoteGenCode');
+        btn.disabled = true;
+        btn.textContent = 'Generating…';
+
+        const code = String(Math.floor(100000 + Math.random() * 900000));
+
+        try {
+            await window._pb.collection('pairing_codes').create({
+                code,
+                owner: user.id,
+                used:  false,
+            });
+            document.getElementById('mlyRemoteCode').textContent = code;
+            document.getElementById('mlyRemoteCodeDisplay').style.display = '';
+        } catch (e) {
+            console.error('[profile] generate code:', e);
+        }
+
+        btn.disabled = false;
+        btn.textContent = 'Generate New Code';
+    }
+
+    async function _runSweep() {
+        if (!_device) return;
+
+        const btn    = document.getElementById('mlyRemoteSweepBtn');
+        const status = document.getElementById('mlyRemoteSweepStatus');
+
+        btn.disabled = true;
+        _setSweepStatus(status, 'waiting', 'Sending command…');
+
+        try {
+            const cmd = await window._pb.collection('sweep_commands').create({
+                device:    _device.id,
+                status:    'pending',
+                channel:   'both',
+                dur:       9.0,
+                level_dbfs: -12.0,
+            });
+            _pollSweep(cmd.id, btn, status);
+        } catch (e) {
+            _setSweepStatus(status, 'error', 'Failed to send command');
+            btn.disabled = false;
+        }
+    }
+
+    function _pollSweep(cmdId, btn, status) {
+        let attempts = 0;
+        const MAX = 80; // ~4 min
+
+        clearTimeout(_sweepPollTimer);
+
+        const tick = async () => {
+            attempts++;
+            if (attempts > MAX) {
+                _setSweepStatus(status, 'error', 'Timed out — check device');
+                btn.disabled = false;
+                return;
+            }
+            try {
+                const cmd = await window._pb.collection('sweep_commands').getOne(cmdId);
+                if (cmd.status === 'done') {
+                    _setSweepStatus(status, 'ok', 'Sweep complete ✓');
+                    btn.disabled = false;
+                    setTimeout(() => _setSweepStatus(status, '', ''), 4000);
+                } else if (cmd.status === 'error') {
+                    _setSweepStatus(status, 'error', cmd.error_message || 'Sweep failed');
+                    btn.disabled = false;
+                } else {
+                    _setSweepStatus(status, 'waiting',
+                        cmd.status === 'running' ? 'Sweeping…' : 'Waiting for device…');
+                    _sweepPollTimer = setTimeout(tick, 3000);
+                }
+            } catch (e) {
+                _sweepPollTimer = setTimeout(tick, 3000);
+            }
+        };
+
+        _sweepPollTimer = setTimeout(tick, 2000);
+    }
+
+    function _setSweepStatus(el, state, text) {
+        if (!el) return;
+        el.textContent = text;
+        el.className = 'mly-remote-sweep-status' + (state ? ' ' + state : '');
+    }
+
     // ── Event wiring ─────────────────────────────────────────────────────────
     function _bindEvents() {
         document.getElementById('mlyProfileClose')?.addEventListener('click', closeModal);
@@ -192,7 +392,9 @@
         document.getElementById('mlyGearInput')?.addEventListener('keydown', e => {
             if (e.key === 'Enter') { e.preventDefault(); _addGearItem(); }
         });
-document.getElementById('mlyProfileSave')?.addEventListener('click', _save);
+        document.getElementById('mlyProfileSave')?.addEventListener('click', _save);
+        document.getElementById('mlyRemoteGenCode')?.addEventListener('click', _generatePairingCode);
+        document.getElementById('mlyRemoteSweepBtn')?.addEventListener('click', _runSweep);
     }
 
     // ── Populate form from a profile object ──────────────────────────────────
@@ -316,6 +518,7 @@ if (status) { status.textContent = 'Saved ✓'; status.classList.add('ok'); }
         _backdrop.classList.add('open');
         document.body.classList.add('mly-auth-open'); // borrow body-scroll-lock
         document.getElementById('mlyGearInput')?.focus();
+        _loadRemoteDevice();
     }
 
     function closeModal() {

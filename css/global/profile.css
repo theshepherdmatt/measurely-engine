@@ -392,6 +392,122 @@
 .mly-profile-save-status.ok  { color: var(--c-excellent, #4ade80); }
 .mly-profile-save-status.err { color: #f87171; }
 
+/* ── Measurely Remote section ──────────────────────────────── */
+.mly-remote-pair-btn,
+.mly-remote-sweep-btn {
+    padding: 9px 18px;
+    border-radius: 9px;
+    border: 1px solid rgba(212, 149, 15, 0.4);
+    background: rgba(212, 149, 15, 0.1);
+    color: #f0b429;
+    font-size: 0.85rem;
+    font-weight: 600;
+    font-family: var(--font-main, system-ui, sans-serif);
+    cursor: pointer;
+    transition: background 0.14s, border-color 0.14s, opacity 0.14s;
+    white-space: nowrap;
+}
+.mly-remote-pair-btn:hover,
+.mly-remote-sweep-btn:hover {
+    background: rgba(212, 149, 15, 0.22);
+    border-color: rgba(212, 149, 15, 0.65);
+}
+.mly-remote-pair-btn:disabled,
+.mly-remote-sweep-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.mly-remote-code {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    color: var(--c-text-main, #1a1714);
+    background: rgba(26, 23, 20, 0.05);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+    padding: 10px 20px;
+    display: inline-block;
+}
+
+.mly-remote-device-card {
+    background: rgba(26, 23, 20, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.mly-remote-device-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mly-remote-status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: rgba(26, 23, 20, 0.2);
+    flex-shrink: 0;
+}
+.mly-remote-status-dot.online  { background: #4ade80; box-shadow: 0 0 6px rgba(74, 222, 128, 0.5); }
+.mly-remote-status-dot.offline { background: #f87171; }
+
+.mly-remote-device-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--c-text-main, #1a1714);
+    flex: 1;
+}
+
+.mly-remote-last-seen {
+    font-size: 0.75rem;
+    color: rgba(26, 23, 20, 0.4);
+}
+
+.mly-remote-hw-row {
+    display: flex;
+    gap: 8px;
+}
+
+.mly-remote-hw-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    background: rgba(26, 23, 20, 0.05);
+    color: rgba(26, 23, 20, 0.4);
+}
+.mly-remote-hw-chip.connected {
+    border-color: rgba(74, 222, 128, 0.4);
+    background: rgba(74, 222, 128, 0.1);
+    color: #4ade80;
+}
+.mly-remote-hw-chip.disconnected {
+    border-color: rgba(248, 113, 113, 0.4);
+    background: rgba(248, 113, 113, 0.08);
+    color: #f87171;
+}
+
+.mly-remote-sweep-status {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: rgba(26, 23, 20, 0.5);
+    min-height: 1.2em;
+    margin-top: 6px;
+}
+.mly-remote-sweep-status.ok      { color: #4ade80; }
+.mly-remote-sweep-status.error   { color: #f87171; }
+.mly-remote-sweep-status.waiting { color: #f0b429; }
+
 /* ── Dropdown: profile menu item ───────────────────────────── */
 .mly-auth-dropdown-item-profile {
     display: block;
