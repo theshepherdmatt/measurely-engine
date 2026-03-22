@@ -90,43 +90,19 @@
             <div class="mly-level-grid" id="mlyLevelGrid"></div>
         </div>
 
-        <!-- Measurely Remote -->
-        <div class="mly-profile-section" id="mlyRemoteSection" style="display:none">
-            <h3 class="mly-profile-section-title">Measurely Remote</h3>
-
-            <!-- No device paired yet -->
-            <div id="mlyRemotePairUI">
-                <p class="mly-profile-hint">Pair your Measurely Remote device to trigger room sweeps from here.</p>
-                <button type="button" class="mly-remote-pair-btn" id="mlyRemoteGenCode">Generate Pairing Code</button>
-                <div id="mlyRemoteCodeDisplay" style="display:none;margin-top:12px;text-align:center">
-                    <div class="mly-remote-code" id="mlyRemoteCode"></div>
-                    <p class="mly-profile-hint" style="margin-top:6px">Enter this code on your device during setup.<br>It expires after one use.</p>
+        <!-- Measurely Remote — nav row -->
+        <button type="button" class="mly-remote-nav-row" id="mlyRemoteNavBtn" style="display:none">
+            <div class="mly-remote-nav-left">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/>
+                </svg>
+                <div>
+                    <div class="mly-remote-nav-title">Measurely Remote</div>
+                    <div class="mly-remote-nav-sub" id="mlyRemoteNavSub">Pair a device or run a sweep</div>
                 </div>
             </div>
-
-            <!-- Device paired -->
-            <div id="mlyRemoteDeviceUI" style="display:none">
-                <div class="mly-remote-device-card">
-                    <div class="mly-remote-device-header">
-                        <span class="mly-remote-status-dot" id="mlyRemoteStatusDot"></span>
-                        <span class="mly-remote-device-name" id="mlyRemoteDeviceName">Measurely Device</span>
-                        <span class="mly-remote-last-seen" id="mlyRemoteLastSeen"></span>
-                    </div>
-                    <div class="mly-remote-hw-row">
-                        <span class="mly-remote-hw-chip" id="mlyRemoteMicChip">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-                            Mic
-                        </span>
-                        <span class="mly-remote-hw-chip" id="mlyRemoteDacChip">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
-                            DAC
-                        </span>
-                    </div>
-                </div>
-                <button type="button" class="mly-remote-sweep-btn" id="mlyRemoteSweepBtn">Run Sweep</button>
-                <div class="mly-remote-sweep-status" id="mlyRemoteSweepStatus"></div>
-            </div>
-        </div>
+            <svg class="mly-remote-nav-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
 
         <!-- Privacy -->
         <div class="mly-profile-section mly-privacy-section">
@@ -154,6 +130,84 @@
 
         document.body.appendChild(el);
         _backdrop = el;
+
+        // ── Remote modal (separate) ──────────────────────────────────────
+        if (!document.getElementById('mlyRemoteBackdrop')) {
+            const rem = document.createElement('div');
+            rem.id = 'mlyRemoteBackdrop';
+            rem.className = 'mly-profile-backdrop mly-remote-backdrop';
+            rem.setAttribute('role', 'dialog');
+            rem.setAttribute('aria-modal', 'true');
+            rem.setAttribute('aria-labelledby', 'mlyRemoteTitle');
+            rem.innerHTML = `
+<div class="mly-profile-modal">
+    <div class="mly-profile-head">
+        <div style="display:flex;align-items:center;gap:10px">
+            <button class="mly-profile-close" id="mlyRemoteBack" type="button" aria-label="Back" style="font-size:1rem">&#8592;</button>
+            <h2 class="mly-profile-title" id="mlyRemoteTitle">Measurely Remote</h2>
+        </div>
+        <button class="mly-profile-close" id="mlyRemoteClose" type="button" aria-label="Close">&times;</button>
+    </div>
+
+    <div class="mly-profile-body" style="gap:20px">
+
+        <!-- Loading -->
+        <div id="mlyRmtLoading" style="text-align:center;padding:24px 0;color:var(--c-text-muted);font-size:0.85rem">
+            Loading…
+        </div>
+
+        <!-- No device: pair UI -->
+        <div id="mlyRmtPairUI" style="display:none">
+            <p class="mly-profile-hint" style="margin-bottom:14px">
+                Generate a 6-digit code and enter it on your Measurely Remote device during Wi-Fi setup.
+            </p>
+            <button type="button" class="mly-remote-pair-btn" id="mlyRmtGenCode">Generate Pairing Code</button>
+            <div id="mlyRmtCodeDisplay" style="display:none;margin-top:16px;text-align:center">
+                <div class="mly-remote-code" id="mlyRmtCode"></div>
+                <p class="mly-profile-hint" style="margin-top:8px">Enter this on your device during setup.<br>Valid for one use only.</p>
+            </div>
+        </div>
+
+        <!-- Device paired -->
+        <div id="mlyRmtDeviceUI" style="display:none">
+
+            <!-- Device card -->
+            <div class="mly-remote-device-card">
+                <div class="mly-remote-device-header">
+                    <span class="mly-remote-status-dot" id="mlyRmtStatusDot"></span>
+                    <span class="mly-remote-device-name" id="mlyRmtDeviceName">Measurely Device</span>
+                    <span class="mly-remote-last-seen" id="mlyRmtLastSeen"></span>
+                </div>
+                <div class="mly-remote-hw-row">
+                    <span class="mly-remote-hw-chip" id="mlyRmtMicChip">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                        Microphone
+                    </span>
+                    <span class="mly-remote-hw-chip" id="mlyRmtDacChip">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                        DAC / Digi+
+                    </span>
+                </div>
+            </div>
+
+            <!-- Sweep -->
+            <div class="mly-remote-sweep-panel">
+                <div class="mly-remote-sweep-panel-info">
+                    <div class="mly-remote-sweep-panel-title">Room Sweep</div>
+                    <div class="mly-remote-sweep-panel-hint">Plays a test tone through both speakers and captures the impulse response.</div>
+                </div>
+                <button type="button" class="mly-remote-sweep-btn" id="mlyRmtSweepBtn">Run Sweep</button>
+                <div class="mly-remote-sweep-status" id="mlyRmtSweepStatus"></div>
+            </div>
+
+            <!-- Unpair -->
+            <button type="button" class="mly-remote-unpair-btn" id="mlyRmtUnpairBtn">Unpair device</button>
+        </div>
+
+    </div>
+</div>`;
+            document.body.appendChild(rem);
+        }
 
         _buildGenreGrid();
         _buildLevelGrid();
@@ -221,57 +275,71 @@
     }
 
 
-    // ── Measurely Remote ─────────────────────────────────────────────────────
+    // ── Measurely Remote modal ────────────────────────────────────────────────
+
+    function _openRemoteModal() {
+        const rem = document.getElementById('mlyRemoteBackdrop');
+        if (!rem) return;
+        rem.classList.add('open');
+        _loadRemoteDevice();
+    }
+
+    function _closeRemoteModal() {
+        document.getElementById('mlyRemoteBackdrop')?.classList.remove('open');
+        clearTimeout(_sweepPollTimer);
+    }
 
     async function _loadRemoteDevice() {
         const user = window.MeasurelyAuth?.getUser();
-        const section = document.getElementById('mlyRemoteSection');
-        if (!user || !section) return;
+        // Show nav button only when authenticated
+        const navBtn = document.getElementById('mlyRemoteNavBtn');
+        if (navBtn) navBtn.style.display = user ? '' : 'none';
+        if (!user) return;
 
-        section.style.display = '';
+        document.getElementById('mlyRmtLoading').style.display   = '';
+        document.getElementById('mlyRmtPairUI').style.display    = 'none';
+        document.getElementById('mlyRmtDeviceUI').style.display  = 'none';
 
         try {
-            const pb = window._pb;
-            const result = await pb.collection('devices').getList(1, 1, {
+            const result = await window._pb.collection('devices').getList(1, 1, {
                 filter: `owner='${user.id}'`,
                 sort: '-created',
             });
 
+            document.getElementById('mlyRmtLoading').style.display = 'none';
+
             if (result.items.length > 0) {
                 _device = result.items[0];
                 _renderDevice(_device);
+                // Update nav row subtitle
+                const sub = document.getElementById('mlyRemoteNavSub');
+                if (sub) sub.textContent = _device.status === 'online' ? 'Online' : 'Offline';
             } else {
                 _device = null;
-                document.getElementById('mlyRemotePairUI').style.display  = '';
-                document.getElementById('mlyRemoteDeviceUI').style.display = 'none';
+                document.getElementById('mlyRmtPairUI').style.display = '';
+                const sub = document.getElementById('mlyRemoteNavSub');
+                if (sub) sub.textContent = 'No device paired';
             }
         } catch (e) {
             console.error('[profile] load device:', e);
+            document.getElementById('mlyRmtLoading').style.display = 'none';
         }
     }
 
     function _renderDevice(device) {
-        document.getElementById('mlyRemotePairUI').style.display  = 'none';
-        document.getElementById('mlyRemoteDeviceUI').style.display = '';
+        document.getElementById('mlyRmtDeviceUI').style.display = '';
 
-        // Status dot
         const online = device.status === 'online';
-        const dot = document.getElementById('mlyRemoteStatusDot');
+        const dot = document.getElementById('mlyRmtStatusDot');
         dot.className = 'mly-remote-status-dot ' + (online ? 'online' : 'offline');
 
-        // Name
-        document.getElementById('mlyRemoteDeviceName').textContent = device.name || 'Measurely Device';
+        document.getElementById('mlyRmtDeviceName').textContent = device.name || 'Measurely Device';
 
-        // Last seen
-        const ls = document.getElementById('mlyRemoteLastSeen');
-        if (device.last_seen) {
-            const ago = _timeAgo(new Date(device.last_seen));
-            ls.textContent = 'Last seen ' + ago;
-        }
+        const ls = document.getElementById('mlyRmtLastSeen');
+        if (ls && device.last_seen) ls.textContent = _timeAgo(new Date(device.last_seen));
 
-        // Mic / DAC chips
-        _setHwChip('mlyRemoteMicChip', device.mic_connected);
-        _setHwChip('mlyRemoteDacChip', device.dac_connected);
+        _setHwChip('mlyRmtMicChip', device.mic_connected);
+        _setHwChip('mlyRmtDacChip', device.dac_connected);
     }
 
     function _setHwChip(id, connected) {
@@ -279,13 +347,12 @@
         if (!chip) return;
         if (connected === true)       { chip.classList.add('connected');    chip.classList.remove('disconnected'); }
         else if (connected === false) { chip.classList.add('disconnected'); chip.classList.remove('connected'); }
-        // undefined / null = unknown — no extra class
     }
 
     function _timeAgo(date) {
         const s = Math.floor((Date.now() - date) / 1000);
-        if (s < 60)   return 'just now';
-        if (s < 3600) return Math.floor(s / 60) + 'm ago';
+        if (s < 60)    return 'just now';
+        if (s < 3600)  return Math.floor(s / 60) + 'm ago';
         if (s < 86400) return Math.floor(s / 3600) + 'h ago';
         return Math.floor(s / 86400) + 'd ago';
     }
@@ -294,20 +361,16 @@
         const user = window.MeasurelyAuth?.getUser();
         if (!user) return;
 
-        const btn  = document.getElementById('mlyRemoteGenCode');
+        const btn = document.getElementById('mlyRmtGenCode');
         btn.disabled = true;
         btn.textContent = 'Generating…';
 
         const code = String(Math.floor(100000 + Math.random() * 900000));
 
         try {
-            await window._pb.collection('pairing_codes').create({
-                code,
-                owner: user.id,
-                used:  false,
-            });
-            document.getElementById('mlyRemoteCode').textContent = code;
-            document.getElementById('mlyRemoteCodeDisplay').style.display = '';
+            await window._pb.collection('pairing_codes').create({ code, owner: user.id, used: false });
+            document.getElementById('mlyRmtCode').textContent = code;
+            document.getElementById('mlyRmtCodeDisplay').style.display = '';
         } catch (e) {
             console.error('[profile] generate code:', e);
         }
@@ -319,19 +382,16 @@
     async function _runSweep() {
         if (!_device) return;
 
-        const btn    = document.getElementById('mlyRemoteSweepBtn');
-        const status = document.getElementById('mlyRemoteSweepStatus');
+        const btn    = document.getElementById('mlyRmtSweepBtn');
+        const status = document.getElementById('mlyRmtSweepStatus');
 
         btn.disabled = true;
         _setSweepStatus(status, 'waiting', 'Sending command…');
 
         try {
             const cmd = await window._pb.collection('sweep_commands').create({
-                device:    _device.id,
-                status:    'pending',
-                channel:   'both',
-                dur:       9.0,
-                level_dbfs: -12.0,
+                device: _device.id, status: 'pending',
+                channel: 'both', dur: 9.0, level_dbfs: -12.0,
             });
             _pollSweep(cmd.id, btn, status);
         } catch (e) {
@@ -342,13 +402,10 @@
 
     function _pollSweep(cmdId, btn, status) {
         let attempts = 0;
-        const MAX = 80; // ~4 min
-
         clearTimeout(_sweepPollTimer);
 
         const tick = async () => {
-            attempts++;
-            if (attempts > MAX) {
+            if (++attempts > 80) {
                 _setSweepStatus(status, 'error', 'Timed out — check device');
                 btn.disabled = false;
                 return;
@@ -363,8 +420,7 @@
                     _setSweepStatus(status, 'error', cmd.error_message || 'Sweep failed');
                     btn.disabled = false;
                 } else {
-                    _setSweepStatus(status, 'waiting',
-                        cmd.status === 'running' ? 'Sweeping…' : 'Waiting for device…');
+                    _setSweepStatus(status, 'waiting', cmd.status === 'running' ? 'Sweeping…' : 'Waiting for device…');
                     _sweepPollTimer = setTimeout(tick, 3000);
                 }
             } catch (e) {
@@ -393,8 +449,26 @@
             if (e.key === 'Enter') { e.preventDefault(); _addGearItem(); }
         });
         document.getElementById('mlyProfileSave')?.addEventListener('click', _save);
-        document.getElementById('mlyRemoteGenCode')?.addEventListener('click', _generatePairingCode);
-        document.getElementById('mlyRemoteSweepBtn')?.addEventListener('click', _runSweep);
+        document.getElementById('mlyRemoteNavBtn')?.addEventListener('click', _openRemoteModal);
+        // Remote modal buttons (injected at same time)
+        document.getElementById('mlyRemoteBack')?.addEventListener('click',  _closeRemoteModal);
+        document.getElementById('mlyRemoteClose')?.addEventListener('click', _closeRemoteModal);
+        document.getElementById('mlyRmtGenCode')?.addEventListener('click',  _generatePairingCode);
+        document.getElementById('mlyRmtSweepBtn')?.addEventListener('click', _runSweep);
+        document.getElementById('mlyRmtUnpairBtn')?.addEventListener('click', async () => {
+            if (!_device || !confirm('Unpair this device?')) return;
+            try { await window._pb.collection('devices').delete(_device.id); } catch (_) {}
+            _device = null;
+            await _loadRemoteDevice();
+        });
+        document.getElementById('mlyRemoteBackdrop')?.addEventListener('click', e => {
+            if (e.target === document.getElementById('mlyRemoteBackdrop')) _closeRemoteModal();
+        });
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && document.getElementById('mlyRemoteBackdrop')?.classList.contains('open')) {
+                _closeRemoteModal();
+            }
+        });
     }
 
     // ── Populate form from a profile object ──────────────────────────────────
@@ -518,7 +592,9 @@ if (status) { status.textContent = 'Saved ✓'; status.classList.add('ok'); }
         _backdrop.classList.add('open');
         document.body.classList.add('mly-auth-open'); // borrow body-scroll-lock
         document.getElementById('mlyGearInput')?.focus();
-        _loadRemoteDevice();
+        // Show Remote nav row only for authenticated users
+        const navBtn = document.getElementById('mlyRemoteNavBtn');
+        if (navBtn) navBtn.style.display = window.MeasurelyAuth?.getUser() ? '' : 'none';
     }
 
     function closeModal() {

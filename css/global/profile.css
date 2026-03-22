@@ -392,6 +392,89 @@
 .mly-profile-save-status.ok  { color: var(--c-excellent, #4ade80); }
 .mly-profile-save-status.err { color: #f87171; }
 
+/* ── Measurely Remote nav row (in profile modal) ───────────── */
+.mly-remote-nav-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    background: rgba(26, 23, 20, 0.03);
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.14s, border-color 0.14s;
+    font-family: var(--font-main, system-ui, sans-serif);
+}
+.mly-remote-nav-row:hover {
+    background: rgba(212, 149, 15, 0.08);
+    border-color: rgba(212, 149, 15, 0.3);
+}
+.mly-remote-nav-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--c-text-main, #1a1714);
+}
+.mly-remote-nav-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--c-text-main, #1a1714);
+}
+.mly-remote-nav-sub {
+    font-size: 0.75rem;
+    color: var(--c-text-muted, #9a8f87);
+    margin-top: 1px;
+}
+.mly-remote-nav-chevron {
+    color: rgba(26, 23, 20, 0.3);
+    flex-shrink: 0;
+}
+
+/* ── Remote modal z-index (stacks above profile) ────────────── */
+.mly-remote-backdrop { z-index: 960; }
+
+/* ── Sweep panel ────────────────────────────────────────────── */
+.mly-remote-sweep-panel {
+    background: rgba(26, 23, 20, 0.03);
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 4px;
+}
+.mly-remote-sweep-panel-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--c-text-main, #1a1714);
+}
+.mly-remote-sweep-panel-hint {
+    font-size: 0.78rem;
+    color: var(--c-text-muted, #9a8f87);
+    line-height: 1.5;
+    margin-top: 2px;
+}
+
+/* ── Unpair button ───────────────────────────────────────────── */
+.mly-remote-unpair-btn {
+    background: none;
+    border: none;
+    padding: 6px 0;
+    font-size: 0.78rem;
+    font-family: var(--font-main, system-ui, sans-serif);
+    color: var(--c-text-muted, #9a8f87);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    transition: color 0.14s;
+    align-self: flex-start;
+}
+.mly-remote-unpair-btn:hover { color: #f87171; }
+
 /* ── Measurely Remote section ──────────────────────────────── */
 .mly-remote-pair-btn,
 .mly-remote-sweep-btn {
