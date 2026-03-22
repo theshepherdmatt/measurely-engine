@@ -149,7 +149,7 @@
         <button class="mly-profile-close" id="mlyRemoteClose" type="button" aria-label="Close">&times;</button>
     </div>
 
-    <div class="mly-profile-body" style="gap:20px">
+    <div class="mly-profile-body" style="gap:20px;min-height:200px">
 
         <!-- Loading -->
         <div id="mlyRmtLoading" style="text-align:center;padding:24px 0;color:var(--c-text-muted);font-size:0.85rem">
@@ -322,7 +322,8 @@
             }
         } catch (e) {
             console.error('[profile] load device:', e);
-            document.getElementById('mlyRmtLoading').style.display = 'none';
+            document.getElementById('mlyRmtLoading').style.display  = 'none';
+            document.getElementById('mlyRmtPairUI').style.display   = '';
         }
     }
 
