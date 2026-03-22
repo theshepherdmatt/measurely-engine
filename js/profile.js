@@ -301,10 +301,12 @@
         document.getElementById('mlyRmtDeviceUI').style.display  = 'none';
 
         try {
-            const result = await window._pb.collection('devices').getList(1, 1, {
+            console.log('[remote] user.id:', user.id);
+            const result = await window._pb().collection('devices').getList(1, 1, {
                 filter: `owner='${user.id}'`,
                 sort: '-created',
             });
+            console.log('[remote] devices result:', result);
 
             document.getElementById('mlyRmtLoading').style.display = 'none';
 
@@ -369,7 +371,7 @@
         const code = String(Math.floor(100000 + Math.random() * 900000));
 
         try {
-            await window._pb.collection('pairing_codes').create({ code, owner: user.id, used: false });
+            await window._pb().collection('pairing_codes').create({ code, owner: user.id, used: false });
             document.getElementById('mlyRmtCode').textContent = code;
             document.getElementById('mlyRmtCodeDisplay').style.display = '';
         } catch (e) {
@@ -390,7 +392,7 @@
         _setSweepStatus(status, 'waiting', 'Sending command…');
 
         try {
-            const cmd = await window._pb.collection('sweep_commands').create({
+            const cmd = await window._pb().collection('sweep_commands').create({
                 device: _device.id, status: 'pending',
                 channel: 'both', dur: 9.0, level_dbfs: -12.0,
             });
@@ -412,7 +414,7 @@
                 return;
             }
             try {
-                const cmd = await window._pb.collection('sweep_commands').getOne(cmdId);
+                const cmd = await window._pb().collection('sweep_commands').getOne(cmdId);
                 if (cmd.status === 'done') {
                     _setSweepStatus(status, 'ok', 'Sweep complete ✓');
                     btn.disabled = false;
@@ -458,7 +460,7 @@
         document.getElementById('mlyRmtSweepBtn')?.addEventListener('click', _runSweep);
         document.getElementById('mlyRmtUnpairBtn')?.addEventListener('click', async () => {
             if (!_device || !confirm('Unpair this device?')) return;
-            try { await window._pb.collection('devices').delete(_device.id); } catch (_) {}
+            try { await window._pb().collection('devices').delete(_device.id); } catch (_) {}
             _device = null;
             await _loadRemoteDevice();
         });
