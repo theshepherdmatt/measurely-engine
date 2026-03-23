@@ -1019,7 +1019,7 @@ function rebuild() {
         new THREE.Vector3( hw,  hh,  hd), new THREE.Vector3(-hw,  hh,  hd),
       ];
       const pairs = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
-      grp.add(_fatEdgeGroup(v, pairs, EDGE_TUBE_T * 0.55, furnEdgeMat));
+      grp.add(_fatEdgeGroup(v, pairs, EDGE_TUBE_T * 0.36, furnEdgeMat));
     } else {
       grp.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), furnEdgeMat));
     }
@@ -1581,6 +1581,12 @@ function rebuild() {
       }
     }
 
+    // SBIR interference field — advance time uniform
+    {
+      const sbirMesh = roomGroup.children.find(o => o.userData?.isSbirField);
+      if (sbirMesh) sbirMesh.material.uniforms.uTime.value = performance.now() * 0.002;
+    }
+
     // Smoothness field animation
     if (focusedOverlay === OVERLAYS.SMOOTHNESS) {
       const field = roomGroup.children.find(o => o.userData?.isSmoothnessField);
@@ -1947,21 +1953,20 @@ function rebuild() {
 
       const isSevere = effectiveScore < 5;
 
-      // ── Pressure-arc rings replace the old filled box ─────────────────────
-      // Each arc is a semicircle in the XZ plane at tweeter height.
-      // Arcs sit at 2×, 4×, 6× sbirDepth from the front wall — the distances
-      // where direct and reflected wavefronts cancel (λ/4 multiples).
-      const arcColor   = isSevere ? 0xff3b3b : 0x0f766e;
+      // ── Live SBIR interference field (ShaderMaterial) ─────────────────────
+      // Two point sources per speaker (direct + front-wall mirror image).
+      // The shader computes the exact wave interference at every pixel in the
+      // horizontal plane at tweeter height — destructive bands = SBIR nulls.
+      const fieldColor = isSevere ? 0xff3b3b : 0x0f766e;
       const tweeterY   = -room.height_m / 2 + (room.tweeter_height_m || 0.95);
       const frontWallZ = -room.length_m / 2;
-      const hW         = room.width_m / 2;
       const isFocSBIR  = isFocused(OVERLAYS.SBIR);
 
-      // Soft glow on the front wall face to anchor the arcs visually
+      // Front wall glow — anchors the field to the reflective surface
       const wallGlow = new THREE.Mesh(
         new THREE.PlaneGeometry(room.width_m, room.height_m),
         new THREE.MeshBasicMaterial({
-          color: arcColor, transparent: true,
+          color: fieldColor, transparent: true,
           opacity: isFocSBIR ? 0.10 : 0.05,
           side: THREE.DoubleSide, depthWrite: false
         })
@@ -1969,27 +1974,70 @@ function rebuild() {
       wallGlow.position.set(offsetX, 0, frontWallZ + 0.01);
       roomGroup.add(wallGlow);
 
-      // Arc rings — fade with distance
-      const arcOpacities = isFocSBIR ? [0.85, 0.55, 0.28] : [0.45, 0.25, 0.12];
-      for (let n = 1; n <= 3; n++) {
-        const dist = n * 2 * sbirDepth;
-        if (dist > room.length_m * 0.92) continue;
-        const SEG = 52;
-        const pts = [];
-        for (let i = 0; i <= SEG; i++) {
-          const a = (i / SEG) * Math.PI; // 0 → π  (semicircle into room)
-          pts.push(new THREE.Vector3(
-            Math.max(-hW + 0.05, Math.min(hW - 0.05, offsetX + Math.cos(a) * dist)),
-            tweeterY,
-            frontWallZ + Math.sin(a) * dist
-          ));
-        }
-        const arcMat = new THREE.LineBasicMaterial({
-          color: arcColor, transparent: true,
-          opacity: arcOpacities[n - 1], depthWrite: false
-        });
-        roomGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), arcMat));
-      }
+      // Wave number k = π / (2 × sbirDepth)  — first null at quarter-wavelength
+      const sbirK = Math.PI / (2 * sbirDepth);
+
+      const sbirMat = new THREE.ShaderMaterial({
+        uniforms: {
+          uTime:    { value: 0 },
+          uK:       { value: sbirK },
+          uSpkL:    { value: new THREE.Vector2(offsetX - room.spk_spacing_m / 2, frontWallZ + sbirDepth) },
+          uSpkR:    { value: new THREE.Vector2(offsetX + room.spk_spacing_m / 2, frontWallZ + sbirDepth) },
+          uRoomW:   { value: room.width_m },
+          uRoomL:   { value: room.length_m },
+          uColor:   { value: new THREE.Color(fieldColor) },
+          uOpacity: { value: isFocSBIR ? 0.55 : 0.20 },
+        },
+        vertexShader: `
+          uniform float uRoomW;
+          uniform float uRoomL;
+          varying vec2 vXZ;
+          void main() {
+            // Map UV → world XZ (PlaneGeometry rotated -90° around X)
+            vXZ = vec2(
+              (uv.x - 0.5) * uRoomW,
+              (0.5 - uv.y) * uRoomL
+            );
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          #define PI 3.14159265359
+          uniform float uTime;
+          uniform float uK;
+          uniform vec2  uSpkL;
+          uniform vec2  uSpkR;
+          uniform float uRoomL;
+          uniform vec3  uColor;
+          uniform float uOpacity;
+          varying vec2  vXZ;
+          void main() {
+            float wallZ = -uRoomL * 0.5;
+            // Mirror images behind the front wall (rigid reflection = +PI phase)
+            vec2 mirL = vec2(uSpkL.x, 2.0 * wallZ - uSpkL.y);
+            vec2 mirR = vec2(uSpkR.x, 2.0 * wallZ - uSpkR.y);
+            // Wave interference: direct + reflected for each speaker
+            float wL = sin(distance(vXZ, uSpkL) * uK - uTime)
+                     + sin(distance(vXZ, mirL)  * uK - uTime + PI);
+            float wR = sin(distance(vXZ, uSpkR) * uK - uTime)
+                     + sin(distance(vXZ, mirR)  * uK - uTime + PI);
+            float field = (wL + wR) * 0.25;
+            gl_FragColor = vec4(uColor, clamp(abs(field) * uOpacity, 0.0, 0.92));
+          }
+        `,
+        transparent: true,
+        depthWrite:  false,
+        side: THREE.DoubleSide,
+      });
+
+      const sbirField = new THREE.Mesh(
+        new THREE.PlaneGeometry(room.width_m, room.length_m, 1, 1),
+        sbirMat
+      );
+      sbirField.rotation.x = -Math.PI / 2;
+      sbirField.position.set(0, tweeterY, 0);
+      sbirField.userData.isSbirField = true;
+      roomGroup.add(sbirField);
 
       // ------------------------------------------
       // REAR CORNER BASS TRAPS (2 only)
