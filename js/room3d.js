@@ -779,7 +779,7 @@ function rebuild() {
       return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat);
     }
 
-    const TILT = 15 * Math.PI / 180;
+    const TILT = 6 * Math.PI / 180;
 
     // ── Plinth (wide base at floor level, stays level) ────────────────────
     const pH = 0.05;
