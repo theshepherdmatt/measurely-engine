@@ -797,9 +797,9 @@ function rebuild() {
     upperCab.position.y = -H / 2 + lH + uH / 2;
     grp.add(upperCab);
 
-    // ── Driver rings on the front face of each cabinet ────────────────────
-    const lFront = -D / 2 - 0.002;          // lower cabinet front face Z
-    const uFront = -uD / 2 - 0.002;         // upper cabinet front face Z
+    // ── Driver rings on the front face of each cabinet (toward listener) ──
+    const lFront = D / 2 + 0.002;           // lower cabinet front face Z
+    const uFront = uD / 2 + 0.002;          // upper cabinet front face Z
 
     const lBase = -H / 2;                    // y of cabinet floor
     const uBase = lBase + lH;                // y of upper cabinet floor

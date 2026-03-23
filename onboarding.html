@@ -439,7 +439,7 @@ const steps = [
         key: "geometry.height_m",
         label: "Ceiling height",
         sub: "Floor to ceiling (high side if slanted)",
-        min: 2, max: 3.5, step: 0.01
+        min: 2, max: 6.0, step: 0.01
       },
       {
         key: "geometry.ceiling_type",
@@ -480,7 +480,7 @@ const steps = [
         key: "geometry.ceiling_height_secondary_m",
         label: "Low-side ceiling height",
         sub: "Eaves height (wall height where slope begins)",
-        min: 1.8, max: 3.5, step: 0.01,
+        min: 1.8, max: 5.0, step: 0.01,
         showIf: { key: "geometry.ceiling_type", value: ["slanted", "gable"] }
       }
     ]
