@@ -694,11 +694,12 @@ function rebuild() {
 
         case "floorstander":
           return {
-            w: 0.34,
-            h: 1.05,
-            d: 0.32,
+            w: 0.24,
+            h: 1.18,
+            d: 0.42,
             color: 0x1a1714,
-            tweeterPos: 0.9   // near top of cabinet
+            tweeterPos: 0.805, // tweeter at ~0.95 m when cabinet bottom sits on floor
+            detailed: true
           };
 
         case "panel":
@@ -734,6 +735,84 @@ function rebuild() {
     }
 
 /* ------------------------------------------
+   DETAILED SPEAKER BUILDER
+   Multi-part wireframe: plinth + lower/upper cabinet + driver rings.
+   Self-contained — creates its own edge material so it can be called
+   before furnEdgeMat is defined later in rebuild().
+------------------------------------------ */
+  function _buildDetailedSpeaker(W, H, D, color, opacity) {
+    const grp = new THREE.Group();
+
+    const edgeMat = useFatEdges
+      ? new THREE.MeshBasicMaterial({ color, transparent: true, opacity })
+      : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+
+    // Edge-only box (no diagonal fill lines)
+    function _ebox(w, h, d) {
+      const geo = new THREE.BoxGeometry(w, h, d);
+      const g = new THREE.Group();
+      if (useFatEdges) {
+        const hw = w/2, hh = h/2, hd = d/2;
+        const v = [
+          new THREE.Vector3(-hw,-hh,-hd), new THREE.Vector3( hw,-hh,-hd),
+          new THREE.Vector3( hw,-hh, hd), new THREE.Vector3(-hw,-hh, hd),
+          new THREE.Vector3(-hw, hh,-hd), new THREE.Vector3( hw, hh,-hd),
+          new THREE.Vector3( hw, hh, hd), new THREE.Vector3(-hw, hh, hd),
+        ];
+        const pairs = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+        g.add(_fatEdgeGroup(v, pairs, EDGE_TUBE_T * 0.55, edgeMat));
+      } else {
+        g.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), edgeMat));
+      }
+      return g;
+    }
+
+    // Circle arc for driver cone indicators
+    function _ring(cx, cy, cz, r) {
+      const SEG = 28;
+      const pts = [];
+      for (let i = 0; i <= SEG; i++) {
+        const a = (i / SEG) * Math.PI * 2;
+        pts.push(new THREE.Vector3(cx + Math.cos(a) * r, cy + Math.sin(a) * r, cz));
+      }
+      const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: opacity * 0.65 });
+      return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat);
+    }
+
+    // ── Plinth (wide base at floor level) ─────────────────────────────────
+    const pH = 0.05;
+    const plinth = _ebox(W + 0.14, pH, D + 0.08);
+    plinth.position.y = -H / 2 - pH / 2;
+    grp.add(plinth);
+
+    // ── Lower cabinet — woofer section, bottom 62 % of total H ────────────
+    const lH = H * 0.62;
+    const lowerCab = _ebox(W, lH, D);
+    lowerCab.position.y = -H / 2 + lH / 2;
+    grp.add(lowerCab);
+
+    // ── Upper cabinet — mid + tweeter, top 38 % of H, slightly narrower ───
+    const uH = H * 0.38, uW = W * 0.91, uD = D * 0.93;
+    const upperCab = _ebox(uW, uH, uD);
+    upperCab.position.y = -H / 2 + lH + uH / 2;
+    grp.add(upperCab);
+
+    // ── Driver rings on the front face of each cabinet ────────────────────
+    const lFront = -D / 2 - 0.002;          // lower cabinet front face Z
+    const uFront = -uD / 2 - 0.002;         // upper cabinet front face Z
+
+    const lBase = -H / 2;                    // y of cabinet floor
+    const uBase = lBase + lH;                // y of upper cabinet floor
+
+    grp.add(_ring(0, lBase + lH * 0.22, lFront, W * 0.32)); // woofer 1
+    grp.add(_ring(0, lBase + lH * 0.52, lFront, W * 0.32)); // woofer 2
+    grp.add(_ring(0, uBase + uH * 0.28, uFront, W * 0.25)); // midrange
+    grp.add(_ring(0, uBase + uH * 0.70, uFront, W * 0.09)); // tweeter
+
+    return grp;
+  }
+
+/* ------------------------------------------
         SPEAKERS + BEAMS (LEVEL AXIS LOCK)
     ------------------------------------------ */
     // Reset speaker refs — will be set below when speakers are built
@@ -751,15 +830,14 @@ function rebuild() {
         const spkColor   = isSpkHighlit ? 0x0f766e : profile.color;
         const spkOpacity = isSpkHighlit ? 0.9 : Math.max(OP_OBJ, 0.80);
 
-        const speaker = new THREE.Mesh(
-          new THREE.BoxGeometry(profile.w, profile.h, profile.d),
-          new THREE.MeshBasicMaterial({
-            color: spkColor,
-            wireframe: true,
-            transparent: true,
-            opacity: spkOpacity
-          })
-        );
+        const speaker = profile.detailed
+          ? _buildDetailedSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
+          : new THREE.Mesh(
+              new THREE.BoxGeometry(profile.w, profile.h, profile.d),
+              new THREE.MeshBasicMaterial({
+                color: spkColor, wireframe: true, transparent: true, opacity: spkOpacity
+              })
+            );
 
         // X position — always based on speaker spacing
         const x = offsetX + (side === "L" ? -1 : 1) * room.spk_spacing_m / 2;
@@ -788,7 +866,8 @@ function rebuild() {
         spkGroup.add(speaker); // cabinet sits at group origin (= cabinet centre)
 
         // Stand for standmounts: thin post + base plate
-        if (!profile.onDesk && !profile.floorStand) {
+        // Skip for detailed speakers — they render their own plinth
+        if (!profile.onDesk && !profile.floorStand && !profile.detailed) {
           const standHeight = (y - profile.h / 2) - baseY; // floor → cabinet bottom
           const standMat = new THREE.MeshBasicMaterial({
             color: spkColor, wireframe: true, transparent: true,
