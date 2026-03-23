@@ -273,6 +273,8 @@ export function initRoom3D({
   let _listenStation = null;  // Group: sphere + rug + sofa + coffee table
   let _autoToe       = false; // Auto-toe disabled by default; use toe_in_deg from room data
   let _autoToeAngle  = 0;     // Last computed angle (radians) — readable via API
+  let _waveRings     = [];    // Expanding wave ring Lines, repopulated on rebuild
+  let _wavesEnabled  = false; // Off by default; toggled via api.setWaves()
 
   // ── Room-geometry refs (for live resize without full rebuild) ─
   let _roomShell = null;  // LineSegments of the flat-ceiling wireframe box
@@ -343,6 +345,7 @@ function rebuild() {
     console.log("[Room3D] 🔧 rebuild() | stage:", renderStage, "| mode:", currentMode);
 
     roomGroup.clear();
+    _waveRings = [];
     colourState = "idle";
 
     // Merge whatever getRoomData() returns over safe defaults so that
@@ -711,11 +714,11 @@ function rebuild() {
         case "standmount":
         default:
           return {
-            w: 0.30,
-            h: 0.65,
-            d: 0.28,
+            w: 0.22,
+            h: 0.34,
+            d: 0.25,
             color: colors.accent,
-            tweeterPos: 0.85 // bookshelves on stands
+            tweeterPos: 0.82 // tweeter near top of cabinet
           };
 
         case "monitor":
@@ -827,6 +830,40 @@ function rebuild() {
 
         speaker.add(beam);
         roomGroup.add(spkGroup);
+
+        // ── Wave rings — expanding circles at tweeter height ──────────────
+        if (_wavesEnabled) {
+          const NUM_RINGS   = 5;
+          const maxR        = Math.max(room.length_m, room.width_m) * 0.85;
+          const waveY       = baseY + room.tweeter_height_m;
+          const waveZ       = -room.length_m / 2 + room.spk_front_m;
+          const waveX       = offsetX + (side === "L" ? -1 : 1) * room.spk_spacing_m / 2;
+          const waveColor   = isSpkHighlit ? 0x0f766e : profile.color;
+
+          // Build a unit circle (r=1) in the XZ plane — scaled each frame
+          const circlePts = [];
+          const SEG = 72;
+          for (let j = 0; j <= SEG; j++) {
+            const a = (j / SEG) * Math.PI * 2;
+            circlePts.push(new THREE.Vector3(Math.cos(a), 0, Math.sin(a)));
+          }
+          const circleGeo = new THREE.BufferGeometry().setFromPoints(circlePts);
+
+          for (let ri = 0; ri < NUM_RINGS; ri++) {
+            const ringMat = new THREE.LineBasicMaterial({
+              color:       waveColor,
+              transparent: true,
+              opacity:     0,
+              depthWrite:  false,
+            });
+            const ring = new THREE.Line(circleGeo, ringMat);
+            ring.position.set(waveX, waveY, waveZ);
+            ring.userData.wavePhase  = ri / NUM_RINGS;
+            ring.userData.waveMaxR   = maxR;
+            roomGroup.add(ring);
+            _waveRings.push(ring);
+          }
+        }
 
         // Store refs for live auto-toe updates (Group supports .rotation.y same as Mesh)
         if (side === 'L') { _spkMeshL = spkGroup; _beamGeoL = beamGeo; }
@@ -1405,6 +1442,19 @@ function rebuild() {
         obj.scale.setScalar(s);
       }
     });
+
+    // WAVE RINGS — expanding circles from each speaker at tweeter height
+    if (_waveRings.length > 0) {
+      const _wt = performance.now() * 0.001;
+      const WAVE_CYCLE = 2.8; // seconds per full cycle
+      for (let wi = 0; wi < _waveRings.length; wi++) {
+        const ring = _waveRings[wi];
+        const phase = (_wt / WAVE_CYCLE + ring.userData.wavePhase) % 1.0;
+        const r = phase * ring.userData.waveMaxR;
+        ring.scale.set(r, 1, r);
+        ring.material.opacity = Math.max(0, (1 - phase) * 0.28);
+      }
+    }
 
     // Smoothness field animation
     if (focusedOverlay === OVERLAYS.SMOOTHNESS) {
@@ -2597,6 +2647,12 @@ function rebuild() {
           }
         },
       };
+    },
+
+    /** Toggle expanding sound-wave rings from each speaker.  Triggers a rebuild. */
+    setWaves(enabled) {
+      _wavesEnabled = !!enabled;
+      rebuild();
     },
 
     /** Reset camera to the default overview position and re-enable orbit controls. */
