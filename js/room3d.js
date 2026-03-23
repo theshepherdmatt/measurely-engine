@@ -1585,6 +1585,12 @@ function rebuild() {
       if (sbirMesh) sbirMesh.material.uniforms.uTime.value = performance.now() * 0.002;
     }
 
+    // Standing wave (bass modes) field — advance time uniform
+    {
+      const bwMesh = roomGroup.children.find(o => o.userData?.isBandwidthField);
+      if (bwMesh) bwMesh.material.uniforms.uTime.value = performance.now() * 0.001;
+    }
+
     // Smoothness field animation
     if (focusedOverlay === OVERLAYS.SMOOTHNESS) {
       const field = roomGroup.children.find(o => o.userData?.isSmoothnessField);
@@ -2315,49 +2321,89 @@ function rebuild() {
       roomGroup.add(tableReflection);
     }
 
-    // ---- BANDWIDTH (LOW FREQUENCY SUPPORT ZONE) ----
+    // ---- BANDWIDTH (ROOM MODE PRESSURE FIELD) ----
     if (overlayEnabled(OVERLAYS.BANDWIDTH)) {
 
-      // FLOOR = primary LF boundary
-      const floorZone = new THREE.Mesh(
-        new THREE.PlaneGeometry(
-          room.width_m * 0.95,
-          room.length_m * 0.95
-        ),
-        new THREE.MeshBasicMaterial({
-          color: 0xd4950f, // Measurely gold
-          transparent: true,
-          opacity: focusedOverlay === OVERLAYS.BANDWIDTH ? 0.55 : 0.08,
-          depthWrite: false,
-          side: THREE.DoubleSide
-        })
+      const isFocBW   = focusedOverlay === OVERLAYS.BANDWIDTH;
+
+      // Standing-wave pressure shader — superposition of first two axial
+      // modes for each room dimension. Max pressure at walls/corners
+      // (bass buildup), nulls between (where bass disappears).
+      // P_n(x) = cos(n × π × (x/halfDim + 1) / 2)  [rigid wall boundary]
+      const bwMat = new THREE.ShaderMaterial({
+        uniforms: {
+          uTime:   { value: 0 },
+          uRoomW:  { value: room.width_m },
+          uRoomL:  { value: room.length_m },
+          uOpacity:{ value: isFocBW ? 0.72 : 0.22 },
+        },
+        vertexShader: `
+          uniform float uRoomW;
+          uniform float uRoomL;
+          varying vec2 vXZ;
+          void main() {
+            vXZ = vec2(
+              (uv.x - 0.5) * uRoomW,
+              (0.5 - uv.y) * uRoomL
+            );
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          #define PI 3.14159265359
+          uniform float uTime;
+          uniform float uRoomW;
+          uniform float uRoomL;
+          uniform float uOpacity;
+          varying vec2 vXZ;
+
+          float modeP(float x, float halfDim, int n) {
+            // Rigid-wall solution: max at boundaries, null(s) inside
+            return cos(float(n) * PI * (x / halfDim + 1.0) * 0.5);
+          }
+
+          void main() {
+            float hW = uRoomW * 0.5;
+            float hL = uRoomL * 0.5;
+
+            // First two axial modes each direction, weighted by mode number
+            float pL1 = modeP(vXZ.y, hL, 1);
+            float pL2 = modeP(vXZ.y, hL, 2) * 0.55;
+            float pW1 = modeP(vXZ.x, hW, 1);
+            float pW2 = modeP(vXZ.x, hW, 2) * 0.55;
+
+            // Superpose — energy is proportional to pressure squared
+            float pressure = (pL1 + pL2) * 0.5 + (pW1 + pW2) * 0.5;
+
+            // Standing waves pulse in place — amplitude oscillates, nodes fixed
+            float pulse = 0.78 + 0.22 * cos(uTime * 1.6);
+
+            float alpha = clamp(abs(pressure) * pulse * uOpacity, 0.0, 0.90);
+            gl_FragColor = vec4(0.831, 0.584, 0.059, alpha); // Measurely gold
+          }
+        `,
+        transparent: true,
+        depthWrite:  false,
+        side: THREE.DoubleSide,
+      });
+
+      const bwPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(room.width_m, room.length_m, 1, 1),
+        bwMat
       );
+      bwPlane.rotation.x = -Math.PI / 2;
+      bwPlane.position.y = -room.height_m / 2 + 0.02;
+      bwPlane.userData.isBandwidthField = true;
+      roomGroup.add(bwPlane);
 
-      floorZone.rotation.x = -Math.PI / 2;
-      floorZone.position.y = -room.height_m / 2 + 0.02;
-      roomGroup.add(floorZone);
-
-      // LOWER WALL MASS (bass loading zone)
-      const wallHeight = room.height_m * 0.35;
-
-      const bassWalls = new THREE.Mesh(
-        new THREE.BoxGeometry(
-          room.width_m * 0.92,
-          wallHeight,
-          room.length_m * 0.92
-        ),
+      // Subtle lower-wall glow — bass loads all boundaries, not just floor
+      roomGroup.add(new THREE.Mesh(
+        new THREE.BoxGeometry(room.width_m * 0.98, room.height_m * 0.28, room.length_m * 0.98),
         new THREE.MeshBasicMaterial({
-          color: 0xd4950f,
-          transparent: true,
-          opacity: focusedOverlay === OVERLAYS.BANDWIDTH ? 0.35 : 0.06,
-          depthWrite: false
+          color: 0xd4950f, transparent: true,
+          opacity: isFocBW ? 0.08 : 0.03, depthWrite: false
         })
-      );
-
-      bassWalls.position.y =
-        -room.height_m / 2 + wallHeight / 2;
-
-      roomGroup.add(bassWalls);
+      )).position.y = -room.height_m / 2 + room.height_m * 0.14;
     }
 
     // ---- BALANCE (LEFT / RIGHT SYMMETRY) ----
