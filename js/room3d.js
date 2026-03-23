@@ -782,8 +782,8 @@ function rebuild() {
     const TILT = 6 * Math.PI / 180;
 
     // ── Plinth (wide base at floor level, stays level) ────────────────────
-    const pH = 0.05;
-    const plinth = _ebox(W + 0.14, pH, D + 0.08);
+    const pH = 0.04;
+    const plinth = _ebox(W + 0.07, pH, D + 0.04);
     plinth.position.y = -H / 2 - pH / 2;
     grp.add(plinth);
 
@@ -799,6 +799,12 @@ function rebuild() {
     lowerGroup.add(_ring(0, -lH * 0.28, lFront, W * 0.32)); // woofer 1
     lowerGroup.add(_ring(0,  lH * 0.02, lFront, W * 0.32)); // woofer 2
     grp.add(lowerGroup);
+
+    // ── Junction connector strip — bridges the tilt gap between sections ──
+    const jH = 0.04;
+    const jBox = _ebox(W, jH, D);
+    jBox.position.y = -H / 2 + lH;
+    grp.add(jBox);
 
     // ── Upper cabinet — mid + tweeter, top 38 % of H, slightly narrower ───
     // Tilted FORWARD (top toward listener). Rings are children so they follow.
@@ -1013,7 +1019,7 @@ function rebuild() {
         color:       sphereColor,
         wireframe:   true,
         transparent: true,
-        opacity:     isListHighlit ? 0.95 : 0.90
+        opacity:     isListHighlit ? 0.95 : 0.55
       })
     );
     // Home: shift sphere into seat. Lounge chair has head further back (reclined posture).
