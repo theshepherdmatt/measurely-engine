@@ -1044,8 +1044,8 @@ function rebuild() {
     );
     // Home: shift sphere into seat. Lounge chair has head further back (reclined posture).
     const _seatType = room.seating_type || 'sofa';
-    const _sphereZ  = isStudio ? 0 : (_seatType === 'lounge' ? 0.38 : 0.15);
-    const _sphereY  = isStudio ? effectiveHeadHeight : (_seatType === 'lounge' ? 1.00 : effectiveHeadHeight);
+    const _sphereZ  = isStudio ? 0 : (_seatType === 'lounge' ? 0.38 : 0.28);
+    const _sphereY  = isStudio ? effectiveHeadHeight : (_seatType === 'lounge' ? 1.00 : 0.96);
     sphere.position.set(0, _sphereY, _sphereZ);
     station.add(sphere);
 
