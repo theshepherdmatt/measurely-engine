@@ -316,9 +316,9 @@ body {
     <!-- Scrollable body -->
     <div class="demo-panel-body">
 
-        <!-- Overlays -->
+        <!-- Analysis -->
         <div>
-            <div class="demo-group-label">Overlays</div>
+            <div class="demo-group-label">Analysis</div>
             <div class="demo-btn-row">
                 <button class="overlay-btn active" data-overlay="sbir">SBIR</button>
                 <button class="overlay-btn" data-overlay="bandwidth">Bass modes</button>
@@ -328,9 +328,9 @@ body {
 
         <div class="demo-divider"></div>
 
-        <!-- Room sliders -->
+        <!-- Room -->
         <div>
-            <div class="demo-group-label">Room dimensions</div>
+            <div class="demo-group-label">Room</div>
             <div style="display:flex;flex-direction:column;gap:12px;">
 
                 <div class="demo-field">
@@ -356,9 +356,9 @@ body {
 
         <div class="demo-divider"></div>
 
-        <!-- Setup sliders -->
+        <!-- Speakers -->
         <div>
-            <div class="demo-group-label">Setup</div>
+            <div class="demo-group-label">Speakers</div>
             <div style="display:flex;flex-direction:column;gap:12px;">
 
                 <div class="demo-field">
@@ -384,9 +384,9 @@ body {
 
         <div class="demo-divider"></div>
 
-        <!-- Seating type -->
+        <!-- Acoustics: seating + treatment together -->
         <div>
-            <div class="demo-group-label">Seating</div>
+            <div class="demo-group-label">Acoustics</div>
             <div class="demo-btn-row">
                 <button class="sbox-btn active" id="demoSeatingSofa" data-seat="sofa">
                     <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2"/><path d="M2 11v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v0a2 2 0 0 1-4 0v0a2 2 0 0 1-4 0v0a2 2 0 0 0-4 0z"/></svg>
@@ -396,13 +396,6 @@ body {
                     <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="10" width="5" height="8" rx="2"/><rect x="17" y="10" width="5" height="8" rx="2"/><path d="M7 14h10M7 10V7a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v3"/><line x1="5" y1="18" x2="5" y2="21"/><line x1="19" y1="18" x2="19" y2="21"/></svg>
                     Lounge Chair
                 </button>
-            </div>
-        </div>
-
-        <!-- Treatment -->
-        <div>
-            <div class="demo-group-label">Treatment</div>
-            <div class="demo-btn-row">
                 <button class="sbox-btn" data-item="bass_traps">
                     <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="3 20 12 4 21 20"/></svg>
                     Bass traps
@@ -417,7 +410,7 @@ body {
         <!-- Reset -->
         <div>
             <button class="sbox-btn sbox-reset" id="demoReset" style="width:100%;justify-content:center;"
-                    title="Restores: 4.2 × 5.5 m room, listener at 2.1 m, speakers 0.45 m from wall, furniture on, no treatment">
+                    title="Restores: 4.2 × 5.5 m room, listener at 2.8 m, speakers 0.45 m from wall, sofa, no treatment">
                 <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
                 Reset to defaults
             </button>
@@ -528,10 +521,11 @@ document.querySelectorAll('[data-seat]').forEach(btn => {
         const seat = btn.dataset.seat;
         document.querySelectorAll('[data-seat]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        demoState.environment.furniture.seating_type = seat;
+        demoState.environment.furniture.seating_type    = seat;
+        demoState.environment.furniture.opt_coffee_table = seat !== 'lounge';
         demo3D.update();
         demo3D.stopAutoSpin();
-        showChip(seat === 'lounge' ? 'Lounge chair — listener reclined slightly further back' : 'Sofa — standard listening position');
+        showChip(seat === 'lounge' ? 'Lounge chair — coffee table removed' : 'Sofa — standard listening position');
     });
 });
 
