@@ -796,8 +796,8 @@ function rebuild() {
     lowerGroup.position.y = -H / 2 + lH / 2;
     lowerGroup.rotation.x = -TILT;  // negative X: top tilts toward wall
     lowerGroup.add(_ebox(W, lH, D));
-    lowerGroup.add(_ring(0, -lH * 0.28, lFront, W * 0.32)); // woofer 1
-    lowerGroup.add(_ring(0,  lH * 0.02, lFront, W * 0.32)); // woofer 2
+    lowerGroup.add(_ring(0, -lH * 0.18, lFront, W * 0.32)); // woofer 1
+    lowerGroup.add(_ring(0,  lH * 0.12, lFront, W * 0.32)); // woofer 2
     grp.add(lowerGroup);
 
     // ── Junction connector strip — bridges the tilt gap between sections ──
@@ -895,6 +895,26 @@ function rebuild() {
           );
           base.position.y = -(profile.h / 2) - standHeight + 0.015;
           spkGroup.add(base);
+        }
+
+        // Driver rings for standmounts — bass driver + tweeter on front face
+        if (room.speaker_type === 'standmount' || room.speaker_type === 'monitor') {
+          const ringMat = new THREE.LineBasicMaterial({
+            color: spkColor, transparent: true, opacity: spkOpacity * 0.65
+          });
+          const frontZ = profile.d / 2 + 0.001;
+          const mkRing = (cy, r) => {
+            const pts = [];
+            for (let i = 0; i <= 28; i++) {
+              const a = (i / 28) * Math.PI * 2;
+              pts.push(new THREE.Vector3(Math.cos(a) * r, cy + Math.sin(a) * r, frontZ));
+            }
+            return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), ringMat);
+          };
+          const bassY  = -profile.h * 0.18;
+          const tweetY =  profile.h * (profile.tweeterPos - 0.5);
+          spkGroup.add(mkRing(bassY,  profile.w * 0.30)); // bass/mid driver
+          spkGroup.add(mkRing(tweetY, profile.w * 0.09)); // tweeter
         }
 
         // Initial toe-in (may be overridden by _applyAutoToe after rebuild)
