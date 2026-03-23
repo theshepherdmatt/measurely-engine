@@ -1552,6 +1552,22 @@ function rebuild() {
       }
     });
 
+    // TRAVELLING DOTS — slide along speaker → bounce → listener path
+    const TRAVEL_PERIOD = 2.4; // seconds per full trip
+    const _tt = performance.now() * 0.001;
+    scene.traverse(obj => {
+      if (obj.userData?.isTravelDot) {
+        const { path, phaseOffset } = obj.userData.isTravelDot;
+        const phase = (_tt / TRAVEL_PERIOD + phaseOffset) % 1.0;
+        if (phase < 0.5) {
+          obj.position.lerpVectors(path[0], path[1], phase * 2);
+        } else {
+          obj.position.lerpVectors(path[1], path[2], (phase - 0.5) * 2);
+        }
+        obj.material.opacity = Math.sin(phase * Math.PI) * 0.82;
+      }
+    });
+
     // WAVE RINGS — expanding circles from each speaker at tweeter height
     if (_waveRings.length > 0) {
       const _wt = performance.now() * 0.001;
@@ -1616,25 +1632,54 @@ function rebuild() {
   }
 
   // Draw a two-leg reflection path (speaker → bounce → listener) using mesh tubes.
-  // Adds a pulsing sphere at the bounce point.
+  // Adds a pulsing sphere at the bounce point, a travelling pulse dot, and a
+  // surface-normal indicator at the bounce point.
   function drawReflectionPath(start, bounce, end, color = 0xd4950f) {
     _addReflectionTube(start, bounce, color);
     _addReflectionTube(bounce, end, color);
 
+    // Static pulsing dot at bounce point
     const dot = new THREE.Mesh(
       new THREE.SphereGeometry(useFatEdges ? 0.075 : 0.055, 8, 8),
       new THREE.MeshBasicMaterial({
-        color,
-        transparent: true,
-        opacity: 0.9,
-        depthTest:  false,
-        depthWrite: false,
+        color, transparent: true, opacity: 0.9,
+        depthTest: false, depthWrite: false,
       })
     );
     dot.position.copy(bounce);
     dot.renderOrder = 12;
     dot.userData.isPulseDot = true;
     roomGroup.add(dot);
+
+    // Travelling pulse dot — animates along start → bounce → end
+    const tDot = new THREE.Mesh(
+      new THREE.SphereGeometry(useFatEdges ? 0.042 : 0.030, 6, 6),
+      new THREE.MeshBasicMaterial({
+        color, transparent: true, opacity: 0,
+        depthTest: false, depthWrite: false,
+      })
+    );
+    tDot.renderOrder = 13;
+    tDot.userData.isTravelDot = {
+      path: [start.clone(), bounce.clone(), end.clone()],
+      phaseOffset: Math.random()
+    };
+    roomGroup.add(tDot);
+
+    // Bounce normal — bisector of (bounce→start) and (bounce→end), 0.28 m long
+    const toSrc = new THREE.Vector3().subVectors(start, bounce).normalize();
+    const toDst = new THREE.Vector3().subVectors(end,   bounce).normalize();
+    const normal = new THREE.Vector3().addVectors(toSrc, toDst).normalize();
+    const normalTip = bounce.clone().addScaledVector(normal, 0.28);
+    const normMat = new THREE.LineBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0.38, depthWrite: false
+    });
+    const normLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([bounce.clone(), normalTip]),
+      normMat
+    );
+    normLine.renderOrder = 11;
+    roomGroup.add(normLine);
   }
 
   /* ------------------------------------------
@@ -1865,6 +1910,29 @@ function rebuild() {
       );
 
       roomGroup.add(floorOverlay);
+
+      // Actual speaker → floor → listener reflection paths (image-source method)
+      const floorY    = -room.height_m / 2 + 0.005;
+      const fTweeterY = -room.height_m / 2 + (room.tweeter_height_m || 0.95);
+      const fEarY     = -room.height_m / 2 + 1.0;
+      const fListZ    = -room.length_m / 2 + room.listener_front_m;
+
+      for (const fSide of [-1, 1]) {
+        const spkX = offsetX + fSide * room.spk_spacing_m / 2;
+        const spkZ = -room.length_m / 2 + room.spk_front_m;
+        // Mirror speaker across floor plane
+        const mirrorY = -room.height_m - fTweeterY;
+        // Find floor bounce point: parametric line from mirrorImage to listener
+        const t = (floorY - mirrorY) / (fEarY - mirrorY);
+        const bounceX = spkX + t * (offsetX - spkX);
+        const bounceZ = spkZ + t * (fListZ   - spkZ);
+        drawReflectionPath(
+          new THREE.Vector3(spkX,    fTweeterY, spkZ),
+          new THREE.Vector3(bounceX, floorY,    bounceZ),
+          new THREE.Vector3(offsetX, fEarY,     fListZ),
+          0xd4950f
+        );
+      }
     }
 
     // ---- SBIR ----
@@ -1879,33 +1947,49 @@ function rebuild() {
 
       const isSevere = effectiveScore < 5;
 
-      const sbirMaterial = new THREE.MeshStandardMaterial({
-        color: isSevere ? 0xff3b3b : 0x0f766e,
-        emissive: isSevere ? 0xff0000 : 0x0f766e,
-        emissiveIntensity: simulatePanels ? 0.15 : 0.5,
-        transparent: true,
-        opacity: simulatePanels
-          ? 0.25
-          : (focusedOverlay === OVERLAYS.SBIR ? 0.6 : 0.15),
-        depthWrite: false
-      });
+      // ── Pressure-arc rings replace the old filled box ─────────────────────
+      // Each arc is a semicircle in the XZ plane at tweeter height.
+      // Arcs sit at 2×, 4×, 6× sbirDepth from the front wall — the distances
+      // where direct and reflected wavefronts cancel (λ/4 multiples).
+      const arcColor   = isSevere ? 0xff3b3b : 0x0f766e;
+      const tweeterY   = -room.height_m / 2 + (room.tweeter_height_m || 0.95);
+      const frontWallZ = -room.length_m / 2;
+      const hW         = room.width_m / 2;
+      const isFocSBIR  = isFocused(OVERLAYS.SBIR);
 
-      const sbirZone = new THREE.Mesh(
-        new THREE.BoxGeometry(
-          room.width_m * 0.85,
-          room.height_m * 0.6,
-          sbirDepth
-        ),
-        sbirMaterial
+      // Soft glow on the front wall face to anchor the arcs visually
+      const wallGlow = new THREE.Mesh(
+        new THREE.PlaneGeometry(room.width_m, room.height_m),
+        new THREE.MeshBasicMaterial({
+          color: arcColor, transparent: true,
+          opacity: isFocSBIR ? 0.10 : 0.05,
+          side: THREE.DoubleSide, depthWrite: false
+        })
       );
+      wallGlow.position.set(offsetX, 0, frontWallZ + 0.01);
+      roomGroup.add(wallGlow);
 
-      sbirZone.position.set(
-        0,
-        -room.height_m / 2 + room.height_m * 0.3,
-        -room.length_m / 2 + sbirDepth / 2
-      );
-
-      roomGroup.add(sbirZone);
+      // Arc rings — fade with distance
+      const arcOpacities = isFocSBIR ? [0.85, 0.55, 0.28] : [0.45, 0.25, 0.12];
+      for (let n = 1; n <= 3; n++) {
+        const dist = n * 2 * sbirDepth;
+        if (dist > room.length_m * 0.92) continue;
+        const SEG = 52;
+        const pts = [];
+        for (let i = 0; i <= SEG; i++) {
+          const a = (i / SEG) * Math.PI; // 0 → π  (semicircle into room)
+          pts.push(new THREE.Vector3(
+            Math.max(-hW + 0.05, Math.min(hW - 0.05, offsetX + Math.cos(a) * dist)),
+            tweeterY,
+            frontWallZ + Math.sin(a) * dist
+          ));
+        }
+        const arcMat = new THREE.LineBasicMaterial({
+          color: arcColor, transparent: true,
+          opacity: arcOpacities[n - 1], depthWrite: false
+        });
+        roomGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), arcMat));
+      }
 
       // ------------------------------------------
       // REAR CORNER BASS TRAPS (2 only)
@@ -2091,12 +2175,15 @@ function rebuild() {
             const panelWidth = 0.9;
             const panelHeight = 1.2;
 
+            // Elliptical first-reflection zone (more accurate than a rectangle)
+            const ellipseShape = new THREE.Shape();
+            ellipseShape.absellipse(0, 0, panelWidth / 2, panelHeight / 2, 0, Math.PI * 2, false, 0);
             const panel = new THREE.Mesh(
-              new THREE.PlaneGeometry(panelWidth, panelHeight),
+              new THREE.ShapeGeometry(ellipseShape, 40),
               new THREE.MeshBasicMaterial({
                 color: 0x22c55e,
                 transparent: true,
-                opacity: 0.75,
+                opacity: 0.70,
                 side: THREE.DoubleSide,
                 depthWrite: false
               })
