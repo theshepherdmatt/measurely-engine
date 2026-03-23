@@ -1225,15 +1225,13 @@ function rebuild() {
   /* ------------------------------------------
      ACOUSTIC TREATMENT PANELS
   ------------------------------------------ */
-  const panelMat = new THREE.MeshStandardMaterial({
+  const panelMat = new THREE.MeshBasicMaterial({
     color: 0x0f766e,
-    emissive: 0x0f766e,
-    emissiveIntensity: 0.15,
-    wireframe: true,
     transparent: true,
-    opacity: 0.65,
-    depthTest: false,
-    depthWrite: false
+    opacity: 0.28,
+    depthTest: true,
+    depthWrite: false,
+    side: THREE.DoubleSide
   });
 
   // --- WALL PANELS (front & rear walls) ---
@@ -1620,12 +1618,12 @@ function rebuild() {
 
 
   // Build a single tube segment between two points and add to roomGroup.
-  function _addReflectionTube(a, b, color) {
+  function _addReflectionTube(a, b, color, opacity = 0.85) {
     const TUBE_R = useFatEdges ? 0.022 : 0.010;
     const mat = new THREE.MeshBasicMaterial({
       color,
       transparent: true,
-      opacity: 0.85,
+      opacity,
       depthTest:  false,
       depthWrite: false,
     });
@@ -1640,15 +1638,17 @@ function rebuild() {
   // Draw a two-leg reflection path (speaker → bounce → listener) using mesh tubes.
   // Adds a pulsing sphere at the bounce point, a travelling pulse dot, and a
   // surface-normal indicator at the bounce point.
-  function drawReflectionPath(start, bounce, end, color = 0xd4950f) {
-    _addReflectionTube(start, bounce, color);
-    _addReflectionTube(bounce, end, color);
+  // absorption: 0 = full strength, 1 = fully absorbed (dims tubes + dots)
+  function drawReflectionPath(start, bounce, end, color = 0xd4950f, absorption = 0) {
+    const tubeOpacity = 0.85 * (1 - absorption * 0.75);
+    _addReflectionTube(start, bounce, color, tubeOpacity);
+    _addReflectionTube(bounce, end,   color, tubeOpacity * 0.5); // second leg dimmer — energy lost at panel
 
     // Static pulsing dot at bounce point
     const dot = new THREE.Mesh(
       new THREE.SphereGeometry(useFatEdges ? 0.075 : 0.055, 8, 8),
       new THREE.MeshBasicMaterial({
-        color, transparent: true, opacity: 0.9,
+        color, transparent: true, opacity: 0.9 * (1 - absorption * 0.7),
         depthTest: false, depthWrite: false,
       })
     );
@@ -1985,8 +1985,9 @@ function rebuild() {
           uSpkR:    { value: new THREE.Vector2(offsetX + room.spk_spacing_m / 2, frontWallZ + sbirDepth) },
           uRoomW:   { value: room.width_m },
           uRoomL:   { value: room.length_m },
-          uColor:   { value: new THREE.Color(fieldColor) },
-          uOpacity: { value: isFocSBIR ? 0.55 : 0.20 },
+          uColor:      { value: new THREE.Color(fieldColor) },
+          uOpacity:    { value: isFocSBIR ? 0.55 : 0.20 },
+          uAbsorption: { value: simulatePanels ? 0.75 : 0.0 },
         },
         vertexShader: `
           uniform float uRoomW;
@@ -2010,17 +2011,19 @@ function rebuild() {
           uniform float uRoomL;
           uniform vec3  uColor;
           uniform float uOpacity;
+          uniform float uAbsorption;
           varying vec2  vXZ;
           void main() {
             float wallZ = -uRoomL * 0.5;
             // Mirror images behind the front wall (rigid reflection = +PI phase)
             vec2 mirL = vec2(uSpkL.x, 2.0 * wallZ - uSpkL.y);
             vec2 mirR = vec2(uSpkR.x, 2.0 * wallZ - uSpkR.y);
-            // Wave interference: direct + reflected for each speaker
+            // Bass traps reduce reflected wave — absorption 0=none, 1=full
+            float refl = 1.0 - uAbsorption;
             float wL = sin(distance(vXZ, uSpkL) * uK - uTime)
-                     + sin(distance(vXZ, mirL)  * uK - uTime + PI);
+                     + refl * sin(distance(vXZ, mirL) * uK - uTime + PI);
             float wR = sin(distance(vXZ, uSpkR) * uK - uTime)
-                     + sin(distance(vXZ, mirR)  * uK - uTime + PI);
+                     + refl * sin(distance(vXZ, mirR) * uK - uTime + PI);
             float field = (wL + wR) * 0.25;
             gl_FragColor = vec4(uColor, clamp(abs(field) * uOpacity, 0.0, 0.92));
           }
@@ -2050,8 +2053,9 @@ function rebuild() {
         const trapMaterial = new THREE.MeshBasicMaterial({
           color: 0x22c55e,
           transparent: true,
-          opacity: 0.85,
-          depthWrite: false
+          opacity: 0.30,
+          depthWrite: false,
+          side: THREE.DoubleSide
         });
 
         const halfW = room.width_m / 2;
@@ -2231,7 +2235,7 @@ function rebuild() {
               new THREE.MeshBasicMaterial({
                 color: 0x22c55e,
                 transparent: true,
-                opacity: 0.70,
+                opacity: 0.28,
                 side: THREE.DoubleSide,
                 depthWrite: false
               })
@@ -2248,12 +2252,13 @@ function rebuild() {
             roomGroup.add(panel);
           }
 
-          // Draw reflection path (pulse dot at bouncePoint added by drawReflectionPath)
+          // Draw reflection path — dimmed when side panel absorbs at bounce point
           drawReflectionPath(
             speakerPos,
             bouncePoint,
             listenerPos,
-            effectiveScore < 5 ? 0xff3e00 : 0x14b8a6
+            effectiveScore < 5 ? 0xff3e00 : 0x14b8a6,
+            simulatePanels ? 0.72 : 0
           );
         }
       }
