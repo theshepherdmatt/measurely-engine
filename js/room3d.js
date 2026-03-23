@@ -779,35 +779,39 @@ function rebuild() {
       return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat);
     }
 
-    // ── Plinth (wide base at floor level) ─────────────────────────────────
+    const TILT = 15 * Math.PI / 180;
+
+    // ── Plinth (wide base at floor level, stays level) ────────────────────
     const pH = 0.05;
     const plinth = _ebox(W + 0.14, pH, D + 0.08);
     plinth.position.y = -H / 2 - pH / 2;
     grp.add(plinth);
 
-    // ── Lower cabinet — woofer section, bottom 62 % of total H ────────────
+    // ── Lower cabinet — woofer section, bottom 62 % of H ──────────────────
+    // Tilted BACK (top away from listener). Rings are children so they follow.
     const lH = H * 0.62;
-    const lowerCab = _ebox(W, lH, D);
-    lowerCab.position.y = -H / 2 + lH / 2;
-    grp.add(lowerCab);
+    const lFront = D / 2 + 0.002;   // front face in local space (+Z toward listener)
+
+    const lowerGroup = new THREE.Group();
+    lowerGroup.position.y = -H / 2 + lH / 2;
+    lowerGroup.rotation.x = -TILT;  // negative X: top tilts toward wall
+    lowerGroup.add(_ebox(W, lH, D));
+    lowerGroup.add(_ring(0, -lH * 0.28, lFront, W * 0.32)); // woofer 1
+    lowerGroup.add(_ring(0,  lH * 0.02, lFront, W * 0.32)); // woofer 2
+    grp.add(lowerGroup);
 
     // ── Upper cabinet — mid + tweeter, top 38 % of H, slightly narrower ───
+    // Tilted FORWARD (top toward listener). Rings are children so they follow.
     const uH = H * 0.38, uW = W * 0.91, uD = D * 0.93;
-    const upperCab = _ebox(uW, uH, uD);
-    upperCab.position.y = -H / 2 + lH + uH / 2;
-    grp.add(upperCab);
+    const uFront = uD / 2 + 0.002;  // front face in local space
 
-    // ── Driver rings on the front face of each cabinet (toward listener) ──
-    const lFront = D / 2 + 0.002;           // lower cabinet front face Z
-    const uFront = uD / 2 + 0.002;          // upper cabinet front face Z
-
-    const lBase = -H / 2;                    // y of cabinet floor
-    const uBase = lBase + lH;                // y of upper cabinet floor
-
-    grp.add(_ring(0, lBase + lH * 0.22, lFront, W * 0.32)); // woofer 1
-    grp.add(_ring(0, lBase + lH * 0.52, lFront, W * 0.32)); // woofer 2
-    grp.add(_ring(0, uBase + uH * 0.28, uFront, W * 0.25)); // midrange
-    grp.add(_ring(0, uBase + uH * 0.70, uFront, W * 0.09)); // tweeter
+    const upperGroup = new THREE.Group();
+    upperGroup.position.y = -H / 2 + lH + uH / 2;
+    upperGroup.rotation.x = +TILT;  // positive X: top tilts toward listener
+    upperGroup.add(_ebox(uW, uH, uD));
+    upperGroup.add(_ring(0, -uH * 0.22, uFront, W * 0.25)); // midrange
+    upperGroup.add(_ring(0,  uH * 0.20, uFront, W * 0.09)); // tweeter
+    grp.add(upperGroup);
 
     return grp;
   }
