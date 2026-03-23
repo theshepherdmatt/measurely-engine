@@ -384,13 +384,17 @@ body {
 
         <div class="demo-divider"></div>
 
-        <!-- Furniture -->
+        <!-- Seating type -->
         <div>
-            <div class="demo-group-label">Furniture</div>
+            <div class="demo-group-label">Seating</div>
             <div class="demo-btn-row">
-                <button class="sbox-btn active" id="demoFurnitureToggle">
+                <button class="sbox-btn active" id="demoSeatingSofa" data-seat="sofa">
                     <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2"/><path d="M2 11v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v0a2 2 0 0 1-4 0v0a2 2 0 0 1-4 0v0a2 2 0 0 0-4 0z"/></svg>
-                    Furniture
+                    Sofa
+                </button>
+                <button class="sbox-btn" id="demoSeatingLounge" data-seat="lounge">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="10" width="5" height="8" rx="2"/><rect x="17" y="10" width="5" height="8" rx="2"/><path d="M7 14h10M7 10V7a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v3"/><line x1="5" y1="18" x2="5" y2="21"/><line x1="19" y1="18" x2="19" y2="21"/></svg>
+                    Lounge Chair
                 </button>
             </div>
         </div>
@@ -437,7 +441,7 @@ const demoState = {
              listener_offset_m: 0, subwoofer: false },
     environment: {
         floor_material: 'hard',
-        furniture:  { opt_area_rug: true, opt_sofa: true, opt_coffee_table: true },
+        furniture:  { opt_area_rug: true, opt_sofa: true, opt_coffee_table: true, seating_type: 'sofa' },
         treatment:  { wall_panel_mode: 'none', side_panel_mode: 'none', bass_trap_mode: 'none', ceiling_panel_mode: 'none' }
     }
 };
@@ -518,17 +522,17 @@ lengthSlider?.addEventListener('input', () => {
     demo3D.stopAutoSpin();
 });
 
-// ── Furniture toggle ──────────────────────────────────────
-let furnitureOn = true;
-document.getElementById('demoFurnitureToggle')?.addEventListener('click', () => {
-    furnitureOn = !furnitureOn;
-    document.getElementById('demoFurnitureToggle').classList.toggle('active', furnitureOn);
-    demoState.environment.furniture.opt_area_rug    = furnitureOn;
-    demoState.environment.furniture.opt_sofa        = furnitureOn;
-    demoState.environment.furniture.opt_coffee_table = furnitureOn;
-    demo3D.update();
-    demo3D.stopAutoSpin();
-    showChip(furnitureOn ? 'Furniture on — sofa, rug and table visible' : 'Furniture hidden');
+// ── Seating type selector ─────────────────────────────────
+document.querySelectorAll('[data-seat]').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const seat = btn.dataset.seat;
+        document.querySelectorAll('[data-seat]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        demoState.environment.furniture.seating_type = seat;
+        demo3D.update();
+        demo3D.stopAutoSpin();
+        showChip(seat === 'lounge' ? 'Lounge chair — listener reclined slightly further back' : 'Sofa — standard listening position');
+    });
 });
 
 // ── Treatment toggles ─────────────────────────────────────
@@ -591,8 +595,8 @@ document.getElementById('demoReset')?.addEventListener('click', () => {
     if (listenPosSlider) { listenPosSlider.value = DEFAULTS.listener_front_m; updateSliderFill(listenPosSlider); document.getElementById('valListenPos').textContent = DEFAULTS.listener_front_m.toFixed(1) + ' m'; }
     if (spkWallSlider)   { spkWallSlider.value   = DEFAULTS.spk_front_m;      updateSliderFill(spkWallSlider);   document.getElementById('valSpkWall').textContent   = DEFAULTS.spk_front_m.toFixed(2) + ' m'; }
 
-    furnitureOn = true;
-    document.getElementById('demoFurnitureToggle')?.classList.add('active');
+    demoState.environment.furniture.seating_type = 'sofa';
+    document.querySelectorAll('[data-seat]').forEach(b => b.classList.toggle('active', b.dataset.seat === 'sofa'));
     document.querySelector('.sbox-btn[data-item="bass_traps"]')?.classList.remove('active');
     document.querySelector('.sbox-btn[data-item="side_panels"]')?.classList.add('active');
 
