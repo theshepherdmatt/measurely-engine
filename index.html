@@ -724,22 +724,23 @@
             and room modes shift — before you upload a single file.
         </p>
 
-        <div class="sandbox-wrap">
-            <!-- 3D preview viewport + launch overlay -->
-            <div class="sandbox-viewport">
-                <div id="sandbox-canvas"></div>
-
-                <!-- Launch overlay — sits above the spinning preview -->
-                <div class="sbox-launch-overlay" id="sboxLaunchOverlay">
-                    <button class="sbox-launch-btn" id="sboxLaunchBtn" aria-label="Launch interactive demo">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
-                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                            aria-hidden="true">
-                            <polygon points="5 3 19 12 5 21 5 3" />
-                        </svg>
-                        Try the interactive demo
-                    </button>
-                    <p class="sbox-launch-hint">Best experienced in landscape · takes 10 seconds</p>
+        <div class="demo-wrap">
+            <div class="demo-chrome">
+                <div class="demo-chrome-dots">
+                    <span></span><span></span><span></span>
+                </div>
+                <div class="demo-chrome-url">measurely.uk/demo</div>
+            </div>
+            <div class="demo-frame-outer">
+                <iframe id="demoIframe"
+                        src="./demo.html"
+                        title="Interactive room simulation demo"
+                        scrolling="no"
+                        loading="lazy"
+                        allow="accelerometer"></iframe>
+                <div class="demo-overlay" id="demoOverlay">
+                    <span class="material-icons">play_circle</span>
+                    <p>Click to interact</p>
                 </div>
             </div>
         </div>
@@ -752,151 +753,110 @@
     </section>
 
     <style>
-        /* ── Sandbox Section ──────────────────────────────────────── */
-        .sandbox-wrap {
+        /* ── Demo Section ─────────────────────────────────────────── */
+        .demo-wrap {
+            width: 100%;
+            max-width: 860px;
+            margin: 0 auto;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 16px 48px rgba(0,0,0,0.22);
+        }
+
+        .demo-chrome {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            background: #2c2c2e;
+            padding: 0.55rem 1rem;
+        }
+
+        .demo-chrome-dots {
+            display: flex;
+            gap: 6px;
+        }
+
+        .demo-chrome-dots span {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #555;
+        }
+
+        .demo-chrome-dots span:nth-child(1) { background: #ff5f57; }
+        .demo-chrome-dots span:nth-child(2) { background: #febc2e; }
+        .demo-chrome-dots span:nth-child(3) { background: #28c840; }
+
+        .demo-chrome-url {
+            flex: 1;
+            background: #3a3a3c;
+            border-radius: 4px;
+            padding: 3px 10px;
+            font-size: 0.75rem;
+            color: #aaa;
+            font-family: monospace;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .demo-frame-outer {
+            position: relative;
+            width: 100%;
+            padding-top: 58%;
+            background: #0f1623;
+        }
+
+        .demo-frame-outer iframe {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        .demo-overlay {
+            position: absolute;
+            inset: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 1.25rem;
-            margin-top: 0.5rem;
+            justify-content: center;
+            gap: 10px;
+            background: rgba(15,22,35,0.6);
+            backdrop-filter: blur(2px);
+            cursor: pointer;
+            transition: opacity 0.3s ease;
         }
 
-        .sandbox-viewport {
-    position: relative;
-    width: 100%;
-    max-width: 780px;
-    height: 380px;
-    border-radius: 6px;
-    overflow: hidden;
-    border: 1px solid rgba(0,0,0,0.12);
-    background: #0f1623;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.18);
-}
-
-        @media (min-width: 768px) {
-            .sandbox-viewport {
-                height: 460px;
-            }
-        }
-
-        #sandbox-canvas {
-            width: 100%;
-            height: 100%;
-        }
-
-        /* ── Launch overlay ─────────────────────────────────────── */
-        .sbox-launch-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-    background: rgba(15,22,35,0.55);
-    backdrop-filter: blur(2px);
-    transition: opacity 0.4s ease;
-}
-
-        .sbox-launch-overlay.hidden {
+        .demo-overlay.hidden {
             opacity: 0;
             pointer-events: none;
         }
 
-        .sbox-launch-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    background: var(--accent);
-    color: #ffffff;
-    border: none;
-    border-radius: 4px;
-    padding: 12px 24px;
-    font-size: 0.9375rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background 0.15s;
-    font-family: inherit;
-}
-
-        .sbox-launch-btn:hover {
-            background: var(--accent-mid);
+        .demo-overlay .material-icons {
+            font-size: 3.5rem;
+            color: #fff;
+            opacity: 0.9;
         }
 
-        .sbox-launch-btn:active {
-            filter: brightness(0.95);
-        }
-
-        .sbox-launch-hint {
-            font-size: 0.78rem;
-            color: rgba(200,210,225,0.6);
+        .demo-overlay p {
             margin: 0;
-            letter-spacing: 0.03em;
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.75);
+            letter-spacing: 0.04em;
         }
     </style>
 
-    <!-- Three.js vendor — deferred, so the hero content paints first -->
-    <script src="js/vendor/three/three.min.js" defer></script>
-    <script src="js/vendor/three/OrbitControls.js" defer></script>
-
-    <script type="module">
-        import { initRoom3D } from './js/room3d.js?v=2';
-
-        /* ── WebGL availability check ───────────────────────────── */
-        function _hasWebGL() {
-            try {
-                var c = document.createElement('canvas');
-                return !!(c.getContext('webgl') || c.getContext('experimental-webgl'));
-            } catch (_) { return false; }
-        }
-
-        if (!_hasWebGL()) {
-            var _vp = document.querySelector('.sandbox-viewport');
-            if (_vp) {
-                _vp.innerHTML =
-                    '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:0.75rem;padding:2rem;text-align:center;">' +
-                    '<span style="font-size:2rem">⚠️</span>' +
-                    '<p style="font-size:0.95rem;color:#94a3b8;max-width:320px;margin:0;">Your browser doesn\'t support WebGL. Try Chrome or Firefox to see the interactive demo.</p>' +
-                    '<a href="onboarding.html" class="btn btn-primary" style="margin-top:0.5rem;">Design Your Room →</a>' +
-                    '</div>';
-            }
-            throw new Error('WebGL not available');
-        }
-
-        /* ── Minimal preview state ──────────────────────────────── */
-        const previewState = {
-            room_type: 'home',
-            geometry: {
-                length_m: 5.5, width_m: 4.2, height_m: 2.6,
-                ceiling_type: 'flat', ceiling_height_secondary_m: 2.0,
-                ceiling_slant_direction: 'left_to_right', ceiling_gable_axis: 'depth'
-            },
-            setup: {
-                speaker_type: 'standmount', spk_spacing_m: 2.0, spk_front_m: 0.45,
-                tweeter_height_m: 0.95, toe_in_deg: 12, listener_front_m: 2.8,
-                listener_offset_m: 0, subwoofer: false
-            },
-            environment: {
-                floor_material: 'hard',
-                furniture: { opt_area_rug: true, opt_sofa: true, opt_coffee_table: false },
-                treatment: { wall_panel_mode: 'front', side_panel_mode: 'both', bass_trap_mode: 'all', ceiling_panel_mode: 'none' }
-            }
-        };
-
-        const preview3D = initRoom3D({
-            mountId: 'sandbox-canvas',
-            getRoomData: () => previewState,
-            mode: 'setup',
-        });
-
-        preview3D.setStage('furnishings');
-        preview3D.startAutoSpin();
-        preview3D.setOverlay('sbir', true);
-
-        // ── Launch button ────────────────────────────────────────
-        document.getElementById('sboxLaunchBtn')?.addEventListener('click', () => {
-            window.location.href = 'demo.html';
-        });
+    <script>
+        (function () {
+            var overlay = document.getElementById('demoOverlay');
+            if (!overlay) return;
+            overlay.addEventListener('click', function () {
+                overlay.classList.add('hidden');
+            });
+        })();
     </script>
 
     <!-- HOW IT WORKS -->

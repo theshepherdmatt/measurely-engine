@@ -6,7 +6,15 @@ NEVER create or suggest new branches. - Current branch: gh-pages
 
     If you suggest a branch, you have failed the mission.
 
-2. PocketBase Sync Protocol (CRITICAL)
+2. window._pb() is a FUNCTION — not an object (CRITICAL)
+
+`window._pb` is a lazy getter function that returns the PocketBase SDK instance.
+
+    ALWAYS call it: const pb = window._pb();
+
+    NEVER use it directly: window._pb.collection(...) ❌  — throws "collection is not a function"
+
+3. PocketBase Sync Protocol (CRITICAL)
 
 PocketBase is extremely sensitive to filter syntax.
 
@@ -18,7 +26,29 @@ PocketBase is extremely sensitive to filter syntax.
 
     HELPER: Use the _f() function in sync.js for all filtering logic.
 
-3. Three.js Philosophy: "Clarity over Realism"
+    ALWAYS use { requestKey: null } on PocketBase calls to prevent auto-cancellation during modal interactions.
+
+4. PocketBase Collections
+
+| Collection      | Purpose                                          | Key API Rule                          |
+|-----------------|--------------------------------------------------|---------------------------------------|
+| rooms           | User room config                                 | owner = @request.auth.id              |
+| sessions        | Measurement history (scores, analysis JSON)      | user = @request.auth.id               |
+| users           | User profile (gear, genres, avatar)              | PocketBase native                     |
+| devices         | Paired Measurely Remote Pi devices               | owner = @request.auth.id              |
+| sweep_commands  | Web → Pi command queue (pending/running/done)    | device.owner = @request.auth.id       |
+| sweep_results   | WAV file storage (wav_left, wav_right)           | command.device.owner = @request.auth.id |
+| pairing_codes   | One-time 6-digit pairing codes                   | owner = @request.auth.id              |
+
+5. Measurely Remote Integration
+
+The Remote modal in profile.js connects the web app to the Pi device:
+- Fetches the user's `devices` record from PocketBase
+- Shows device status, mic_connected, dac_connected
+- Run Sweep → creates a `sweep_commands` record → polls for completion
+- Load to Dashboard → fetches `sweep_results.wav_left` from PocketBase → runs through the full analysis pipeline → updates dashboard
+
+6. Three.js Philosophy: "Clarity over Realism"
 
     Visuals: Wireframe shell, simple boxes/spheres. No heavy textures or high-poly models.
 
@@ -26,7 +56,7 @@ PocketBase is extremely sensitive to filter syntax.
 
     Performance: Keep draw calls low. Use THREE.Sprite for UI labels within the scene.
 
-4. Coding Standards
+7. Coding Standards
 
     Vanilla JS: No frameworks (React/Vue). Stay within the existing IIFE or ESM structures.
 

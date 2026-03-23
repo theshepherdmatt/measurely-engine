@@ -1,12 +1,12 @@
 # Measurely — Architecture Reference
 
-> Generated: 2026-03-16 | Branch: `gh-pages`
+> Updated: 2026-03-22 | Branch: `gh-pages`
 
 ---
 
 ## 1. Overview
 
-Measurely is a **fully client-side, static web app** deployed on GitHub Pages. There is no server-side processing. All acoustic analysis runs in the browser. Optional cloud sync (rooms + sessions) is handled by a hosted PocketBase instance.
+Measurely is a **fully client-side, static web app** deployed on GitHub Pages. There is no server-side processing. All acoustic analysis runs in the browser. Optional cloud sync (rooms + sessions) is handled by a hosted PocketBase instance at `https://api.measurely.uk`.
 
 ---
 
@@ -41,7 +41,8 @@ js/
 ├── dashboard.js                ← App page: file upload, chart render, session history
 ├── sync.js                     ← PocketBase cloud sync (IIFE, window.MeasurelySync)
 ├── auth.js                     ← PocketBase auth (login/register/logout)
-├── profile.js                  ← Profile page (gear list, genres, avatar)
+│                                   NOTE: window._pb is a FUNCTION → call as window._pb()
+├── profile.js                  ← Profile modal + Measurely Remote modal
 ├── sessions.js                 ← Session history management
 ├── uiController.js             ← Shared UI state helpers
 ├── UIFactory.js                ← Card / panel component builders
@@ -72,7 +73,7 @@ js/
 ## 4. Data Flow: WAV Upload → Score
 
 ```
-User drops WAV
+User drops WAV  (or WAV fetched from PocketBase sweep_results)
       │
       ▼
 engine/fileLoader.js
@@ -112,7 +113,52 @@ dashboard.js
 
 ---
 
-## 5. 3D Room Engine (`room3d.js`)
+## 5. Measurely Remote Integration
+
+The **Measurely Remote** modal (in `profile.js`) connects the web app to the Pi hardware device.
+
+### Flow
+```
+User clicks "Run Sweep" in Measurely Remote modal
+      │
+      ▼
+profile.js creates sweep_commands record (status=pending)
+      │
+      ▼
+Pi's pocketbase.py polls, detects command → triggers sweep.py
+      │
+      ▼
+sweep.py plays log-sweep, records IR, saves impulse.wav
+      │
+      ▼
+pocketbase.py uploads impulse.wav → sweep_results record (wav_left)
+pocketbase.py marks sweep_commands.status = done, result = sweep_results.id
+      │
+      ▼
+profile.js detects done → shows "Load to Dashboard" button
+      │
+      ▼
+Fetch sweep_results record → download wav_left blob → File object
+      │
+      ▼
+Run through analysis pipeline (same as manual WAV upload)
+      │
+      ▼
+Dashboard updates with new session
+```
+
+### PocketBase Collections (Measurely Remote)
+
+| Collection | Purpose | Key Fields |
+|---|---|---|
+| `devices` | Registered Pi devices | `device_id`, `owner`, `status`, `mic_connected`, `dac_connected`, `last_seen` |
+| `sweep_commands` | Command queue | `device`, `status` (pending/running/done/error), `channel`, `dur`, `result` |
+| `sweep_results` | WAV file storage | `command`, `device`, `wav_left`, `wav_right` |
+| `pairing_codes` | One-time 6-digit pairing | `code`, `owner`, `used` |
+
+---
+
+## 6. 3D Room Engine (`room3d.js`)
 
 ### Instantiation
 ```js
@@ -135,7 +181,7 @@ const api = initRoom3D({
 `flat` · `slanted` (4 directions) · `gable` (depth or width axis)
 
 ### Acoustic Overlays
-Each overlay is toggled via `api.setOverlay(id, true/false)` and renders colour-coded geometry on top of the base scene:
+Each overlay is toggled via `api.setOverlay(id, true/false)`:
 
 | Overlay ID | Visual | Acoustic meaning |
 |---|---|---|
@@ -167,7 +213,7 @@ Every animation frame, both speaker meshes are rotated to face the listener sphe
 
 ---
 
-## 6. Cloud Sync (`sync.js`)
+## 7. Cloud Sync (`sync.js`)
 
 All sync is **opt-in** (requires authenticated PocketBase session). The module is an IIFE that exposes `window.MeasurelySync`.
 
@@ -179,7 +225,7 @@ All sync is **opt-in** (requires authenticated PocketBase session). The module i
 | `users` | `gear_list`, `genres`, `public_profile`, `avatar` | PocketBase native users collection |
 
 ### Sync Protocol
-- **Filter syntax**: `_f('user', userId)` → `user = 'id'` (PocketBase single-quote, space-padded — critical for query compatibility)
+- **Filter syntax**: `_f('user', userId)` → `user = 'id'` (PocketBase single-quote, space-padded — critical)
 - **`requestKey: null`** on all queries to disable PocketBase auto-cancellation
 - **pushRoom**: upsert single room record
 - **pullRoom**: fetch → normalise → write to `localStorage`
@@ -189,16 +235,18 @@ All sync is **opt-in** (requires authenticated PocketBase session). The module i
 
 ---
 
-## 7. Auth Flow
+## 8. Auth Flow
 
 1. On `index.html` load, `<head>` inline script checks `localStorage['pocketbase_auth']`
 2. If JWT is valid and not expired → inject full-screen loading overlay immediately (zero FOUC)
 3. After `MeasurelyAuth.init()` confirms session → `window.location.replace('app.html')`
 4. If no valid session → remove overlay, show landing page normally
 
+**`window._pb` is a function** — always call it as `window._pb()` to get the PocketBase instance.
+
 ---
 
-## 8. LocalStorage Keys
+## 9. LocalStorage Keys
 
 | Key | Contents |
 |---|---|
@@ -211,7 +259,7 @@ All sync is **opt-in** (requires authenticated PocketBase session). The module i
 
 ---
 
-## 9. CSS Architecture
+## 10. CSS Architecture
 
 All CSS lives inline in each page's `<style>` block, with two shared linked stylesheets:
 
@@ -227,7 +275,7 @@ Design tokens (CSS custom properties) defined in `:root` on `index.html`:
 
 ---
 
-## 10. External Dependencies
+## 11. External Dependencies
 
 | Dependency | How loaded | Size | Purpose |
 |---|---|---|---|
