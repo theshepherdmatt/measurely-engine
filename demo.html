@@ -375,6 +375,15 @@ body {
 
                 <div class="demo-field">
                     <div class="demo-field-header">
+                        <span class="demo-field-label">Speaker spacing</span>
+                        <span class="demo-field-value" id="valSpkSpacing">2.0 m</span>
+                    </div>
+                    <input type="range" id="demoSpkSpacing" min="1.0" max="4.0" step="0.1" value="2.0"
+                           class="measurely-slider" style="--fill:33%" aria-label="Distance between speakers in metres">
+                </div>
+
+                <div class="demo-field">
+                    <div class="demo-field-header">
                         <span class="demo-field-label">Listening position</span>
                         <span class="demo-field-value" id="valListenPos">2.8 m</span>
                     </div>
@@ -490,6 +499,7 @@ let activeOverlay = 'sbir';
 // ── Sliders ────────────────────────────────────────────────
 const listenPosSlider = document.getElementById('demoListenPos');
 const spkWallSlider   = document.getElementById('demoSpkWall');
+const spkSpacingSlider = document.getElementById('demoSpkSpacing');
 const widthSlider     = document.getElementById('demoWidth');
 const lengthSlider    = document.getElementById('demoLength');
 
@@ -500,6 +510,15 @@ listenPosSlider?.addEventListener('input', () => {
     demo3D.update();
     demo3D.stopAutoSpin();
     showChip('Listening position adjusted — sofa and rug move with you');
+});
+
+spkSpacingSlider?.addEventListener('input', () => {
+    demoState.setup.spk_spacing_m = Number(spkSpacingSlider.value);
+    updateSliderFill(spkSpacingSlider);
+    document.getElementById('valSpkSpacing').textContent = Number(spkSpacingSlider.value).toFixed(1) + ' m';
+    demo3D.update();
+    demo3D.stopAutoSpin();
+    showChip('Speaker spacing adjusted');
 });
 
 spkWallSlider?.addEventListener('input', () => {
@@ -613,6 +632,7 @@ document.getElementById('demoReset')?.addEventListener('click', () => {
     if (lengthSlider)    { lengthSlider.value    = DEFAULTS.length_m;         updateSliderFill(lengthSlider);    document.getElementById('valLength').textContent    = DEFAULTS.length_m + ' m'; }
     if (listenPosSlider) { listenPosSlider.value = DEFAULTS.listener_front_m; updateSliderFill(listenPosSlider); document.getElementById('valListenPos').textContent = DEFAULTS.listener_front_m.toFixed(1) + ' m'; }
     if (spkWallSlider)   { spkWallSlider.value   = DEFAULTS.spk_front_m;      updateSliderFill(spkWallSlider);   document.getElementById('valSpkWall').textContent   = DEFAULTS.spk_front_m.toFixed(2) + ' m'; }
+    if (spkSpacingSlider){ spkSpacingSlider.value = DEFAULTS.spk_spacing_m;   updateSliderFill(spkSpacingSlider);document.getElementById('valSpkSpacing').textContent = DEFAULTS.spk_spacing_m.toFixed(1) + ' m'; }
 
     demoState.setup.speaker_type = 'floorstander';
     document.querySelectorAll('[data-spk]').forEach(b => b.classList.toggle('active', b.dataset.spk === 'floorstander'));
