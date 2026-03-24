@@ -414,9 +414,9 @@ body {
 
         <div class="demo-divider"></div>
 
-        <!-- Acoustics: seating + treatment together -->
+        <!-- Furniture -->
         <div>
-            <div class="demo-group-label">Acoustics</div>
+            <div class="demo-group-label">Seating</div>
             <div class="demo-btn-row">
                 <button class="sbox-btn active" id="demoSeatingSofa" data-seat="sofa">
                     <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2"/><path d="M2 11v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v0a2 2 0 0 1-4 0v0a2 2 0 0 1-4 0v0a2 2 0 0 0-4 0z"/></svg>
@@ -426,6 +426,15 @@ body {
                     <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="10" width="5" height="8" rx="2"/><rect x="17" y="10" width="5" height="8" rx="2"/><path d="M7 14h10M7 10V7a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v3"/><line x1="5" y1="18" x2="5" y2="21"/><line x1="19" y1="18" x2="19" y2="21"/></svg>
                     Lounge Chair
                 </button>
+            </div>
+        </div>
+
+        <div class="demo-divider"></div>
+
+        <!-- Acoustics Treatment -->
+        <div>
+            <div class="demo-group-label">Acoustics</div>
+            <div class="demo-btn-row">
                 <button class="sbox-btn" data-item="bass_traps">
                     <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polygon points="3 20 12 4 21 20"/></svg>
                     Bass traps
@@ -434,8 +443,14 @@ body {
                     <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="4" height="18" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>
                     Side panels
                 </button>
+                <button class="sbox-btn" data-item="ceiling_clouds">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M17.5 19C19.985 19 22 16.985 22 14.5C22 12.164 20.218 10.245 17.943 10.027C17.447 6.611 14.496 4 11 4C7.134 4 4 7.134 4 11C4 11.232 4.011 11.462 4.032 11.69C1.727 12.146 0 14.12 0 16.5C0 19.538 2.462 22 5.5 22H16"/></svg>
+                    Ceiling clouds
+                </button>
             </div>
         </div>
+
+        <div class="demo-divider"></div>
 
         <!-- Reset -->
         <div>
@@ -605,6 +620,10 @@ document.querySelectorAll('.sbox-btn[data-item]').forEach(btn => {
             demoState.environment.treatment.side_panel_mode = isOn ? 'both' : 'none';
             showChip(isOn ? 'Side panels on — early reflections dampened' : 'Side panels removed');
         }
+        if (item === 'ceiling_clouds') {
+            demoState.environment.treatment.ceiling_panel_mode = isOn ? 'cloud' : 'none';
+            showChip(isOn ? 'Ceiling clouds added — overhead reflections dampened' : 'Ceiling clouds removed');
+        }
         demo3D.update();
         demo3D.stopAutoSpin();
     });
@@ -659,7 +678,8 @@ document.getElementById('demoReset')?.addEventListener('click', () => {
     demoState.environment.furniture.seating_type = 'sofa';
     document.querySelectorAll('[data-seat]').forEach(b => b.classList.toggle('active', b.dataset.seat === 'sofa'));
     document.querySelector('.sbox-btn[data-item="bass_traps"]')?.classList.remove('active');
-    document.querySelector('.sbox-btn[data-item="side_panels"]')?.classList.add('active');
+    document.querySelector('.sbox-btn[data-item="side_panels"]')?.classList.remove('active');
+    document.querySelector('.sbox-btn[data-item="ceiling_clouds"]')?.classList.remove('active');
 
     activeOverlay = 'sbir';
     document.querySelectorAll('.overlay-btn').forEach(b => b.classList.remove('active'));
