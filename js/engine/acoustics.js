@@ -92,10 +92,9 @@ function computeRoomGeometry(room) {
     }
 
     // Schroeder frequency — Schroeder (1962): f_sch = 2000 * sqrt(T60 / V)
-    // For a geometry-only estimate we use the Sabine approximation T60 ≈ 0.161 s·m⁻³ × V / Sa,
-    // which for a typical untreated room simplifies to f_sch ≈ 2000 * sqrt(0.161 / V).
-    // This matches the industry-standard calculator and the value shown in the dashboard UI.
-    const f_sch = 2000.0 * Math.sqrt(0.161 / Math.max(vol, 1e-6));
+    // For a geometry-only estimate without known absorption, we assume a typical
+    // furnished residential room T60 of ~0.4s. Standard calculation applies:
+    const f_sch = 2000.0 * Math.sqrt(0.4 / Math.max(vol, 1e-6));
 
     return { L, W, H, H_eff, volume: vol, surface_area: area, schroeder_hz: f_sch };
 }
@@ -130,10 +129,34 @@ function computeRoomModes(room, maxModes = 15) {
     };
 
     const modeList = [];
-    for (const [axis, dim] of Object.entries(dims)) {
-        if (dim <= 0) continue;
-        for (let n = 1; n <= maxModes; n++) {
-            modeList.push({ axis, order: n, freq_hz: (C / 2.0) * (n / dim) });
+    const _L = dims.length, _W = dims.width, _H = dims.height;
+    if (_L > 0 && _W > 0 && _H > 0) {
+        for (let p = 0; p <= maxModes; p++) {
+            for (let q = 0; q <= maxModes; q++) {
+                for (let r = 0; r <= maxModes; r++) {
+                    if (p === 0 && q === 0 && r === 0) continue;
+                    
+                    const freq = (C / 2.0) * Math.sqrt(
+                        Math.pow(p / _L, 2) + Math.pow(q / _W, 2) + Math.pow(r / _H, 2)
+                    );
+                    
+                    // Categorise mode type
+                    const nonZeroCount = (p > 0 ? 1 : 0) + (q > 0 ? 1 : 0) + (r > 0 ? 1 : 0);
+                    let type = 'oblique';
+                    if (nonZeroCount === 1) type = 'axial';
+                    else if (nonZeroCount === 2) type = 'tangential';
+
+                    // For backwards compatibility/UI mapping, assign an axis label to early axials
+                    let axisLabel = type;
+                    if (type === 'axial') {
+                        if (p > 0) axisLabel = 'length';
+                        else if (q > 0) axisLabel = 'width';
+                        else axisLabel = 'height';
+                    }
+
+                    modeList.push({ axis: axisLabel, type, p, q, r, order: Math.max(p, q, r), freq_hz: freq });
+                }
+            }
         }
     }
 
@@ -201,9 +224,26 @@ function computeSbir(room) {
     }
 
     if (d_ceil > 0) {
-        const f0Ceil   = C / (4.0 * d_ceil);
-        const nullsCeil = Array.from({ length: 6 }, (_, k) => f0Ceil * (2 * k + 1));
-        result.ceiling = { distance_m: d_ceil, nulls_hz: nullsCeil };
+        let pathDiff = 0;
+        const d_list = parseFloat(_get(room, 'listener_front_m', 0));
+        const spk_x = parseFloat(_get(room, 'spk_spacing_m', 0)) / 2;
+        const list_x = parseFloat(_get(room, 'listener_offset_m', 0));
+        const D_horiz = Math.hypot(spk_x - list_x, Math.abs(d_list - d_front));
+        const H_list = 1.0; // Assume 1m ear height
+        
+        if (D_horiz > 0) {
+            const d_dir = Math.hypot(D_horiz, H_tweeter - H_list);
+            const d_refl = Math.hypot(D_horiz, 2 * d_ceil + (H_tweeter - H_list)); 
+            pathDiff = d_refl - d_dir;
+        } else {
+            pathDiff = 2 * d_ceil;
+        }
+
+        if (pathDiff > 0) {
+            const f0Ceil   = C / (2.0 * pathDiff);
+            const nullsCeil = Array.from({ length: 6 }, (_, k) => f0Ceil * (2 * k + 1));
+            result.ceiling = { distance_m: d_ceil, nulls_hz: nullsCeil };
+        }
     }
 
     return result;
@@ -222,16 +262,21 @@ function computeSbir(room) {
  */
 function computeTriangle(room) {
     const spacing  = parseFloat(_get(room, 'spk_spacing_m', 0));
-    const listener = parseFloat(_get(room, 'listener_front_m', 0));
+    const listener_front = parseFloat(_get(room, 'listener_front_m', 0));
+    const spk_front = parseFloat(_get(room, 'spk_front_m', 0));
+    
+    // Triangle depth is the orthogonal distance from listener to speaker baseline
+    const depth = listener_front - spk_front;
 
-    if (spacing <= 0 || listener <= 0) {
+    if (spacing <= 0 || depth <= 0) {
         return { ideal: false, ratio: null, penalty: 2 };
     }
 
-    const ratio = listener / spacing;
+    // Ideal ratio for an equilateral triangle is sqrt(3)/2 ≈ 0.866
+    const ratio = depth / spacing;
     let penalty;
-    if      (ratio >= 0.9 && ratio <= 1.1)  penalty = 0;
-    else if (ratio >= 0.75 && ratio <= 1.25) penalty = 1;
+    if      (ratio >= 0.76 && ratio <= 0.96) penalty = 0; // +/- 0.1 from 0.866
+    else if (ratio >= 0.65 && ratio <= 1.10) penalty = 1;
     else                                     penalty = 2;
 
     return { ideal: penalty === 0, ratio, penalty };
@@ -257,9 +302,9 @@ function computeRoomGain(room) {
         return { gain_hz: null, gain_db: null };
     }
 
-    const dim_min  = Math.min(L, W, H);
-    const gain_hz  = C / (2.0 * dim_min);
-    const gain_db  = 3.0 + Math.max(0.0, 20.0 - dim_min) * 0.1;
+    const dim_max  = Math.max(L, W, H);
+    const gain_hz  = C / (2.0 * dim_max);
+    const gain_db  = 3.0 + Math.max(0.0, 20.0 - dim_max) * 0.1;
 
     return { gain_hz, gain_db };
 }
@@ -336,11 +381,11 @@ function analyseRoom(room) {
                        : triangle.penalty === 1 ? 1.00
                        : 0.90;
 
-    // Trim modes below Schroeder frequency for AI / UI (max 8)
+    // Trim modes below Schroeder frequency for AI / UI (max 12 to capture tangentials)
     const trimmedModes = modeList
         .filter(m => m.freq_hz < sch)
-        .slice(0, 8)
-        .map(m => ({ axis: m.axis, freq_hz: Math.round(m.freq_hz * 10) / 10 }));
+        .slice(0, 12)
+        .map(m => ({ axis: m.axis, type: m.type, p: m.p, q: m.q, r: m.r, freq_hz: Math.round(m.freq_hz * 10) / 10 }));
 
     return {
         geometry,

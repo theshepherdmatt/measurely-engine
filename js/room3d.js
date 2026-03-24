@@ -1501,23 +1501,29 @@ function rebuild() {
         uniform float uTime;
         uniform float uRoomW;
         uniform float uRoomL;
-        uniform float uNModes;
         uniform float uRoughness;
         uniform vec3  uColor;
         uniform float uOpacity;
+        uniform vec4  uModes[12];
         varying vec2  vXZ;
         void main() {
           float halfL = uRoomL * 0.5;
           float halfW = uRoomW * 0.5;
-          float lWave = 0.0;
-          float wWave = 0.0;
-          for (float n = 1.0; n <= 4.0; n++) {
-            if (n > uNModes) break;
-            float w = 1.0 / n;
-            lWave += w * cos(n * PI * (vXZ.y + halfL) / uRoomL) * cos(n * 0.8 * uTime);
-            wWave += w * cos(n * PI * (vXZ.x + halfW) / uRoomW) * cos(n * 0.6 * uTime + 0.5);
+          float field = 0.0;
+          float totalWeight = 0.001;
+          
+          for (int i = 0; i < 12; i++) {
+            vec4 m = uModes[i];
+            if (m.z > 0.0) {
+              float w = m.z * (1.0 + uRoughness);
+              float pL = cos(m.x * PI * (vXZ.y + halfL) / uRoomL); // length = y in vXZ
+              float pW = cos(m.y * PI * (vXZ.x + halfW) / uRoomW); // width = x in vXZ
+              field += w * pL * pW * cos(uTime * 1.5 + m.w);
+              totalWeight += w;
+            }
           }
-          float field = (lWave + wWave * (0.5 + uRoughness * 0.5)) / (1.5 + uRoughness);
+          
+          field = field / totalWeight;
           gl_FragColor = vec4(uColor, clamp(abs(field) * uOpacity * 2.0, 0.0, 0.85));
         }
       `,
@@ -2034,8 +2040,15 @@ function rebuild() {
       wallGlow.position.set(offsetX, 0, frontWallZ + 0.01);
       roomGroup.add(wallGlow);
 
-      // Wave number k = π / (2 × sbirDepth)  — first null at quarter-wavelength
-      const sbirK = Math.PI / (2 * sbirDepth);
+      // Wave number k aligns visually to the exact acoustic front-wall null frequency
+      let sbirK = Math.PI / (2 * sbirDepth);
+      if (window.MeasurelyAcoustics) {
+          const sbirData = window.MeasurelyAcoustics.computeSbir(room);
+          if (sbirData.front_wall && sbirData.front_wall.nulls_hz.length > 0) {
+              const f_null = sbirData.front_wall.nulls_hz[0];
+              sbirK = (2 * Math.PI * f_null) / 343.0;
+          }
+      }
 
       const sbirMat = new THREE.ShaderMaterial({
         uniforms: {
@@ -2379,17 +2392,26 @@ function rebuild() {
     if (overlayEnabled(OVERLAYS.BANDWIDTH)) {
 
       const isFocBW   = focusedOverlay === OVERLAYS.BANDWIDTH;
+      
+      const bwModes = window.MeasurelyAcoustics?.computeRoomModes(room) || [];
+      const uBwModes = [];
+      // Select lowest 8 modes for bass pressure mapping
+      bwModes.slice(0, 8).forEach(m => {
+          const yFrac = 0.14 / room.height_m; // roughly lower wall glow height
+          const rWeight = Math.cos(m.r * Math.PI * yFrac);
+          uBwModes.push(new THREE.Vector3(m.p, m.q, Math.abs(rWeight)));
+      });
+      while (uBwModes.length < 8) uBwModes.push(new THREE.Vector3(0,0,0));
 
-      // Standing-wave pressure shader — superposition of first two axial
-      // modes for each room dimension. Max pressure at walls/corners
-      // (bass buildup), nulls between (where bass disappears).
-      // P_n(x) = cos(n × π × (x/halfDim + 1) / 2)  [rigid wall boundary]
+      // Standing-wave pressure shader — maps exact spatial pressure of the room's
+      // lowest resonant modes to visualise bass buildup accurately.
       const bwMat = new THREE.ShaderMaterial({
         uniforms: {
           uTime:   { value: 0 },
           uRoomW:  { value: room.width_m },
           uRoomL:  { value: room.length_m },
           uOpacity:{ value: isFocBW ? 0.72 : 0.22 },
+          uModes:  { value: uBwModes }
         },
         vertexShader: `
           uniform float uRoomW;
@@ -2409,25 +2431,27 @@ function rebuild() {
           uniform float uRoomW;
           uniform float uRoomL;
           uniform float uOpacity;
+          uniform vec3  uModes[8]; // p, q, weight
           varying vec2 vXZ;
-
-          float modeP(float x, float halfDim, int n) {
-            // Rigid-wall solution: max at boundaries, null(s) inside
-            return cos(float(n) * PI * (x / halfDim + 1.0) * 0.5);
-          }
 
           void main() {
             float hW = uRoomW * 0.5;
             float hL = uRoomL * 0.5;
 
-            // First two axial modes each direction, weighted by mode number
-            float pL1 = modeP(vXZ.y, hL, 1);
-            float pL2 = modeP(vXZ.y, hL, 2) * 0.55;
-            float pW1 = modeP(vXZ.x, hW, 1);
-            float pW2 = modeP(vXZ.x, hW, 2) * 0.55;
+            float pressure = 0.0;
+            float totalWeight = 0.001;
 
-            // Superpose — energy is proportional to pressure squared
-            float pressure = (pL1 + pL2) * 0.5 + (pW1 + pW2) * 0.5;
+            for (int i = 0; i < 8; i++) {
+                vec3 m = uModes[i];
+                if (m.z > 0.0) {
+                    float pL = cos(m.x * PI * (vXZ.y + hL) / uRoomL); // length = y locally
+                    float pW = cos(m.y * PI * (vXZ.x + hW) / uRoomW); // width = x locally
+                    pressure += m.z * pL * pW;
+                    totalWeight += m.z;
+                }
+            }
+
+            pressure /= totalWeight;
 
             // Standing waves pulse in place — amplitude oscillates, nodes fixed
             float pulse = 0.78 + 0.22 * cos(uTime * 1.6);
