@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Measurely – How to Measure</title>
+    
+    <link rel="icon" type="image/svg+xml" href="icons/dave.svg">
+    <link rel="stylesheet" href="css/dashboard/index.css">
+    
+    <!-- PWA / App-like behaviour -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Measurely">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f4f2ee">
+    
+    <style>
+        .instructions-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding-bottom: 4rem;
+        }
+        
+        .instructions-header {
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        
+        .step-card {
+            margin-bottom: 1.5rem;
+            padding: 2rem;
+        }
+        
+        .step-title {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            color: var(--c-text-main);
+            font-size: 1.25rem;
+        }
+        
+        .step-number {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 50%;
+            background: rgba(212,149,15,0.15);
+            color: var(--c-accent-dark);
+            font-weight: 700;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+        
+        .instructions-content p {
+            color: var(--c-text-main);
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+        
+        .instructions-content ul, .instructions-content ol {
+            color: var(--c-text-main);
+            line-height: 1.6;
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+        }
+        
+        .instructions-content li {
+            margin-bottom: 0.5rem;
+        }
+        
+        .instructions-content strong {
+            color: var(--c-text-main);
+            font-weight: 600;
+        }
+        
+        .highlight-box {
+            background: rgba(239, 68, 68, 0.05);
+            border-left: 3px solid #ef4444;
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 0.5rem 0.5rem 0;
+        }
+        
+        .highlight-box.warning {
+            background: rgba(212, 149, 15, 0.05);
+            border-left-color: var(--c-accent);
+        }
+        
+        .highlight-box p {
+            margin: 0;
+            color: var(--c-text-main);
+        }
+        
+        .nav-back {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--c-text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            margin-bottom: 2rem;
+            transition: color 0.2s;
+        }
+        
+        .nav-back:hover {
+            color: var(--c-text-main);
+        }
+        
+        .btn-large {
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            width: 100%;
+            display: inline-flex;
+            justify-content: center;
+            margin-top: 2rem;
+        }
+    </style>
+</head>
+<body class="page-entering">
+
+    <div class="page">
+        <!-- MAIN CONTENT -->
+        <main class="main-content" id="main-content" style="padding-top: 2rem;">
+            
+            <div class="instructions-container">
+                <a href="app.html" class="nav-back">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                    Back to Dashboard
+                </a>
+                
+                <header class="instructions-header">
+                    <h1 style="font-size: 2.25rem; margin-bottom: 0.5rem; color: var(--c-text-main);">How to run a sweep in REW</h1>
+                    <p style="color: var(--c-text-muted); font-size: 1.1rem;">A step-by-step guide to capturing the perfect measurement.</p>
+                </header>
+
+                <div class="card glass-panel step-card animate-enter" style="border-left: 3px solid var(--c-accent); padding: 1.5rem 2rem;">
+                    <h2 class="step-title" style="margin-bottom: 0.75rem;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--c-accent-dark);"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                        What are we actually measuring?
+                    </h2>
+                    <div class="instructions-content">
+                        <p>Measurely isn't testing the quality of your speakers. It measures the <strong>acoustic response of your room</strong> based on exactly where your speakers and listening chair are placed.</p>
+                        <p style="margin-bottom: 0;">You don't just hear the direct sound from the speakers—you hear a complex mix of energy bouncing off the walls, floor, ceiling, and building up in corners. This is why the microphone must point straight up and why we sweep both speakers together: to capture the total acoustic signature of the room precisely as your ears experience it in that specific spot.</p>
+                    </div>
+                </div>
+
+                <div class="card glass-panel step-card animate-enter delay-1">
+                    <h2 class="step-title">
+                        <span class="step-number">1</span>
+                        Physical Setup
+                    </h2>
+                    <div class="instructions-content">
+                        <p>Place your measurement microphone (like a UMIK-1) exactly at your main listening position—right where the centre of your head usually is.</p>
+                        
+                        <div class="highlight-box warning">
+                            <p><strong>Crucial:</strong> Ensure the microphone capsule is pointing <strong>dead straight up</strong> towards the ceiling, not forwards at the speakers.</p>
+                        </div>
+                        
+                        <p>Measuring with the mic pointed upwards captures the room's energy (reflections from the walls, floor, and ceiling) accurately, which is exactly what Measurely needs to diagnose the space.</p>
+                    </div>
+                </div>
+
+                <div class="card glass-panel step-card animate-enter delay-2">
+                    <h2 class="step-title">
+                        <span class="step-number">2</span>
+                        REW Configuration
+                    </h2>
+                    <div class="instructions-content">
+                        <p>Open <a href="https://www.roomeqwizard.com/" target="_blank" style="color: var(--c-accent-dark); text-decoration: none; font-weight: 500;">Room EQ Wizard (REW)</a> and click the <strong>Measure</strong> button in the top left corner.</p>
+                        
+                        <p>Set your sweep parameters as follows:</p>
+                        <ul>
+                            <li><strong>Type:</strong> Sine sweep</li>
+                            <li><strong>Range:</strong> 20 Hz to 20,000 Hz</li>
+                            <li><strong>Length:</strong> 256k or 512k</li>
+                        </ul>
+                        
+                        <div class="highlight-box">
+                            <p><strong>Mono Measurement:</strong> You must measure both the Left and Right speakers <strong>at the exact same time</strong>. In the Output dropdown, select <em>L+R</em> or ensure your audio interface routes the sweep to both channels simultaneously. Measurely analyzes how the speakers interact with the room together.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card glass-panel step-card animate-enter delay-3">
+                    <h2 class="step-title">
+                        <span class="step-number">3</span>
+                        Run the Sweep
+                    </h2>
+                    <div class="instructions-content">
+                        <p>Click <strong>Start Measuring</strong>. Step away from the microphone and remain perfectly quiet while the sweep runs. Any background noise (doors closing, footsteps, breathing too close to the mic) can pollute the measurement.</p>
+                    </div>
+                </div>
+
+                <div class="card glass-panel step-card animate-enter delay-4">
+                    <h2 class="step-title">
+                        <span class="step-number">4</span>
+                        Exporting the WAV File
+                    </h2>
+                    <div class="instructions-content">
+                        <p>Once REW has captured the sweep and generated the response graph on your screen, you need to export the raw impulse response for Measurely to analyze.</p>
+                        
+                        <ol>
+                            <li>Go to the top menu and click <strong>File</strong></li>
+                            <li>Navigate to <strong>Export</strong> &rarr; <strong>Export impulse response as WAV...</strong></li>
+                            <li>Make sure the format is set to <strong>32-bit float</strong> (or 24-bit) and configured to <strong>Mono</strong>.</li>
+                            <li>Save the file somewhere convenient on your computer.</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <div class="animate-enter delay-4">
+                    <a href="app.html" class="btn btn-primary btn-large">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right: 10px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        Upload Measurement to Dashboard
+                    </a>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+</body>
+</html>
