@@ -361,6 +361,18 @@ body {
             <div class="demo-group-label">Speakers</div>
             <div style="display:flex;flex-direction:column;gap:12px;">
 
+                <!-- Speaker type selector -->
+                <div class="demo-btn-row">
+                    <button class="sbox-btn" id="demoSpkStandmount" data-spk="standmount">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="7" y="2" width="10" height="14" rx="2"/><line x1="10" y1="16" x2="9" y2="22"/><line x1="14" y1="16" x2="15" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>
+                        Standmount
+                    </button>
+                    <button class="sbox-btn active" id="demoSpkFloorstander" data-spk="floorstander">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="10" y1="7" x2="14" y2="7"/><circle cx="12" cy="13" r="2"/></svg>
+                        Floorstander
+                    </button>
+                </div>
+
                 <div class="demo-field">
                     <div class="demo-field-header">
                         <span class="demo-field-label">Listening position</span>
@@ -515,6 +527,19 @@ lengthSlider?.addEventListener('input', () => {
     demo3D.stopAutoSpin();
 });
 
+// ── Speaker type selector ─────────────────────────────────
+document.querySelectorAll('[data-spk]').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const spk = btn.dataset.spk;
+        document.querySelectorAll('[data-spk]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        demoState.setup.speaker_type = spk;
+        demo3D.update();
+        demo3D.stopAutoSpin();
+        showChip(spk === 'floorstander' ? 'Floorstander — full-range tower speaker' : 'Standmount — bookshelf speaker on stand');
+    });
+});
+
 // ── Seating type selector ─────────────────────────────────
 document.querySelectorAll('[data-seat]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -589,6 +614,8 @@ document.getElementById('demoReset')?.addEventListener('click', () => {
     if (listenPosSlider) { listenPosSlider.value = DEFAULTS.listener_front_m; updateSliderFill(listenPosSlider); document.getElementById('valListenPos').textContent = DEFAULTS.listener_front_m.toFixed(1) + ' m'; }
     if (spkWallSlider)   { spkWallSlider.value   = DEFAULTS.spk_front_m;      updateSliderFill(spkWallSlider);   document.getElementById('valSpkWall').textContent   = DEFAULTS.spk_front_m.toFixed(2) + ' m'; }
 
+    demoState.setup.speaker_type = 'floorstander';
+    document.querySelectorAll('[data-spk]').forEach(b => b.classList.toggle('active', b.dataset.spk === 'floorstander'));
     demoState.environment.furniture.seating_type = 'sofa';
     document.querySelectorAll('[data-seat]').forEach(b => b.classList.toggle('active', b.dataset.seat === 'sofa'));
     document.querySelector('.sbox-btn[data-item="bass_traps"]')?.classList.remove('active');
