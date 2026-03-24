@@ -92,9 +92,16 @@ function computeRoomGeometry(room) {
     }
 
     // Schroeder frequency — Schroeder (1962): f_sch = 2000 * sqrt(T60 / V)
-    // For a geometry-only estimate without known absorption, we assume a typical
-    // furnished residential room T60 of ~0.4s. Standard calculation applies:
-    const f_sch = 2000.0 * Math.sqrt(0.4 / Math.max(vol, 1e-6));
+    // T60 estimated from room type and floor material rather than a fixed 0.4s:
+    //   studio / treated  → ~0.20 s   hard bare room → ~0.60 s
+    //   carpeted home     → ~0.30 s   furnished home → ~0.40 s (default)
+    const _roomType  = _get(room, 'room_type',      'home');
+    const _floorMat  = _get(room, 'floor_material', 'mixed');
+    const T60_est = (_roomType === 'studio')   ? 0.20
+                  : (_floorMat === 'hard')     ? 0.60
+                  : (_floorMat === 'carpet')   ? 0.30
+                  :                             0.40;
+    const f_sch = 2000.0 * Math.sqrt(T60_est / Math.max(vol, 1e-6));
 
     return { L, W, H, H_eff, volume: vol, surface_area: area, schroeder_hz: f_sch };
 }
@@ -229,7 +236,7 @@ function computeSbir(room) {
         const spk_x = parseFloat(_get(room, 'spk_spacing_m', 0)) / 2;
         const list_x = parseFloat(_get(room, 'listener_offset_m', 0));
         const D_horiz = Math.hypot(spk_x - list_x, Math.abs(d_list - d_front));
-        const H_list = 1.0; // Assume 1m ear height
+        const H_list = 1.2; // Seated ear height per ITU-R BS.1116-3
         
         if (D_horiz > 0) {
             const d_dir = Math.hypot(D_horiz, H_tweeter - H_list);
@@ -303,7 +310,7 @@ function computeRoomGain(room) {
     }
 
     const dim_max  = Math.max(L, W, H);
-    const gain_hz  = C / (2.0 * dim_max);
+    const gain_hz  = C / (4.0 * dim_max); // quarter-wave onset of longest dimension
     const gain_db  = 3.0 + Math.max(0.0, 20.0 - dim_max) * 0.1;
 
     return { gain_hz, gain_db };

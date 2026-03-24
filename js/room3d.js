@@ -1475,14 +1475,24 @@ function rebuild() {
     const isRough    = roughness > 0.55;
     const fieldColor = roughness > 0.8 ? 0xff3b3b : isRough ? 0xd97706 : 0x0f766e;
     const isFocSM    = isFocused(OVERLAYS.SMOOTHNESS);
-    const nModes     = 1.5 + roughness * 2.5;  // more harmonics = rougher look
+
+    // Populate uModes from real room mode data — vec4(p, q, weight, phase_offset)
+    // Axial weighted 1.0, tangential 0.7, oblique 0.4 (Kuttruff energy weighting).
+    // Golden-ratio phase offsets create a complex, non-periodic standing wave pattern.
+    const smRawModes = window.MeasurelyAcoustics?.computeRoomModes(room) || [];
+    const smModeData = [];
+    smRawModes.slice(0, 12).forEach((m, i) => {
+      const w = m.type === 'axial' ? 1.0 : m.type === 'tangential' ? 0.7 : 0.4;
+      smModeData.push(new THREE.Vector4(m.p, m.q, w, i * Math.PI * 0.618));
+    });
+    while (smModeData.length < 12) smModeData.push(new THREE.Vector4(0, 0, 0, 0));
 
     const smMat = new THREE.ShaderMaterial({
       uniforms: {
         uTime:      { value: 0 },
         uRoomW:     { value: room.width_m },
         uRoomL:     { value: room.length_m },
-        uNModes:    { value: nModes },
+        uModes:     { value: smModeData },
         uRoughness: { value: roughness },
         uColor:     { value: new THREE.Color(fieldColor) },
         uOpacity:   { value: isFocSM ? 0.55 : 0.18 },
@@ -1541,37 +1551,36 @@ function rebuild() {
     smField.userData.isSmoothnessField = true;
     roomGroup.add(smField);
 
-    // Focused: show axial mode planes + Hz labels at pressure-node positions
+    // Focused: show axial mode pressure-node planes with frequencies from computeRoomModes()
     if (isFocSM) {
-      const c = 343;
-      const f1L = c / (2 * room.length_m);
-      const f1W = c / (2 * room.width_m);
-      for (let n = 1; n <= 3; n++) {
-        const freqHz = Math.round(n * f1L);
-        for (let k = 0; k < n; k++) {
-          const nodeZ = -room.length_m / 2 + (2 * k + 1) * room.length_m / (2 * n);
-          const nodePlane = new THREE.Mesh(
-            new THREE.PlaneGeometry(room.width_m * 0.9, room.height_m * 0.8),
-            new THREE.MeshBasicMaterial({
-              color: 0xff3b3b, transparent: true,
-              opacity: 0.06, side: THREE.DoubleSide, depthWrite: false,
-            })
-          );
-          nodePlane.position.set(0, 0, nodeZ);
-          roomGroup.add(nodePlane);
+      const axialModes = smRawModes.filter(m => m.type === 'axial').slice(0, 5);
+      axialModes.forEach(m => {
+        const freqHz = Math.round(m.freq_hz);
+        if (m.p > 0) {
+          // Length-axis mode: nodes along Z
+          for (let k = 0; k < m.p; k++) {
+            const nodeZ = -room.length_m / 2 + (2 * k + 1) * room.length_m / (2 * m.p);
+            const nodePlane = new THREE.Mesh(
+              new THREE.PlaneGeometry(room.width_m * 0.9, room.height_m * 0.8),
+              new THREE.MeshBasicMaterial({
+                color: 0xff3b3b, transparent: true,
+                opacity: 0.06, side: THREE.DoubleSide, depthWrite: false,
+              })
+            );
+            nodePlane.position.set(0, 0, nodeZ);
+            roomGroup.add(nodePlane);
+            const lbl = _makeLabelSprite(`${freqHz} Hz`);
+            lbl.position.set(room.width_m * 0.38, -room.height_m / 2 + room.height_m * 0.55, nodeZ);
+            roomGroup.add(lbl);
+          }
+        } else if (m.q > 0) {
+          // Width-axis mode: label only (node along X)
+          const nodeX = (2 * 0 + 1) * room.width_m / (2 * m.q) - room.width_m / 2;
           const lbl = _makeLabelSprite(`${freqHz} Hz`);
-          lbl.position.set(room.width_m * 0.38, -room.height_m / 2 + room.height_m * 0.55, nodeZ);
+          lbl.position.set(nodeX, -room.height_m / 2 + room.height_m * 0.75, 0);
           roomGroup.add(lbl);
         }
-      }
-      // Width modes (first two)
-      for (let n = 1; n <= 2; n++) {
-        const freqHz = Math.round(n * f1W);
-        const nodeX = (2 * 0 + 1) * room.width_m / (2 * n) - room.width_m / 2;
-        const lbl = _makeLabelSprite(`${freqHz} Hz`);
-        lbl.position.set(nodeX, -room.height_m / 2 + room.height_m * 0.75, 0);
-        roomGroup.add(lbl);
-      }
+      });
     }
   }
 
@@ -2040,15 +2049,8 @@ function rebuild() {
       wallGlow.position.set(offsetX, 0, frontWallZ + 0.01);
       roomGroup.add(wallGlow);
 
-      // Wave number k aligns visually to the exact acoustic front-wall null frequency
-      let sbirK = Math.PI / (2 * sbirDepth);
-      if (window.MeasurelyAcoustics) {
-          const sbirData = window.MeasurelyAcoustics.computeSbir(room);
-          if (sbirData.front_wall && sbirData.front_wall.nulls_hz.length > 0) {
-              const f_null = sbirData.front_wall.nulls_hz[0];
-              sbirK = (2 * Math.PI * f_null) / 343.0;
-          }
-      }
+      // Wave number k = π/(2d) gives first SBIR null at f0 = C/(4d)
+      const sbirK = Math.PI / (2 * sbirDepth);
 
       const sbirMat = new THREE.ShaderMaterial({
         uniforms: {
@@ -2094,9 +2096,9 @@ function rebuild() {
             // Bass traps reduce reflected wave — absorption 0=none, 1=full
             float refl = 1.0 - uAbsorption;
             float wL = sin(distance(vXZ, uSpkL) * uK - uTime)
-                     + refl * sin(distance(vXZ, mirL) * uK - uTime + PI);
+                     + refl * sin(distance(vXZ, mirL) * uK - uTime);
             float wR = sin(distance(vXZ, uSpkR) * uK - uTime)
-                     + refl * sin(distance(vXZ, mirR) * uK - uTime + PI);
+                     + refl * sin(distance(vXZ, mirR) * uK - uTime);
             float field = (wL + wR) * 0.25;
             gl_FragColor = vec4(uColor, clamp(abs(field) * uOpacity, 0.0, 0.92));
           }
@@ -2340,7 +2342,7 @@ function rebuild() {
     // ---- REAR WALL ENERGY ----
     if (overlayEnabled(OVERLAYS.REAR_ENERGY)) {
       const rearDepth = Math.max(
-        room.length_m - room.listener_front_m - 0.3,
+        room.length_m - room.listener_front_m,
         0.4
       );
 
@@ -2397,7 +2399,7 @@ function rebuild() {
       const uBwModes = [];
       // Select lowest 8 modes for bass pressure mapping
       bwModes.slice(0, 8).forEach(m => {
-          const yFrac = 0.14 / room.height_m; // roughly lower wall glow height
+          const yFrac = 0; // floor plane → cos(r·π·0) = 1 for all r
           const rWeight = Math.cos(m.r * Math.PI * yFrac);
           uBwModes.push(new THREE.Vector3(m.p, m.q, Math.abs(rWeight)));
       });
@@ -2595,7 +2597,9 @@ function rebuild() {
         // Geometric bounce on side wall
         const bounceZ = spkPos.z + (listenerZ - spkPos.z) * (side * wallX - spkPos.x) / (side * wallX * 2 - spkPos.x - (offsetX + (room.listener_offset_m || 0)));
         const bounce = new THREE.Vector3(side * wallX, speakerY, THREE.MathUtils.clamp(bounceZ, -room.length_m / 2 + 0.1, room.length_m / 2 - 0.1));
-        const hitsBubble = bounce.distanceTo(listenerPos) < clarityR * 1.4;
+        const reflPath   = spkPos.distanceTo(bounce) + bounce.distanceTo(listenerPos);
+        const directPath = spkPos.distanceTo(listenerPos);
+        const hitsBubble = (reflPath - directPath) / 343 * 1000 < 15; // red if delay < 15 ms
         drawReflectionPath(spkPos, bounce, listenerPos, hitsBubble ? 0xff3b3b : 0x0d9488);
 
         if (isFocCl) {
