@@ -779,45 +779,26 @@ function rebuild() {
       return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat);
     }
 
-    const TILT = 6 * Math.PI / 180;
-
-    // ── Plinth (wide base at floor level, stays level) ────────────────────
-    const pH = 0.04;
-    const plinth = _ebox(W + 0.07, pH, D + 0.04);
+    // ── Plinth ────────────────────────────────────────────────────────────
+    const pH = 0.035;
+    const plinth = _ebox(W + 0.05, pH, D + 0.03);
     plinth.position.y = -H / 2 - pH / 2;
     grp.add(plinth);
 
-    // ── Lower cabinet — woofer section, bottom 62 % of H ──────────────────
-    // Tilted BACK (top away from listener). Rings are children so they follow.
-    const lH = H * 0.62;
-    const lFront = D / 2 + 0.002;   // front face in local space (+Z toward listener)
+    // ── Single upright cabinet ─────────────────────────────────────────────
+    const cab = _ebox(W, H, D);
+    grp.add(cab);
 
-    const lowerGroup = new THREE.Group();
-    lowerGroup.position.y = -H / 2 + lH / 2;
-    lowerGroup.rotation.x = -TILT;  // negative X: top tilts toward wall
-    lowerGroup.add(_ebox(W, lH, D));
-    lowerGroup.add(_ring(0, -lH * 0.18, lFront, W * 0.32)); // woofer 1
-    lowerGroup.add(_ring(0,  lH * 0.12, lFront, W * 0.32)); // woofer 2
-    grp.add(lowerGroup);
-
-    // ── Junction connector strip — bridges the tilt gap between sections ──
-    const jH = 0.04;
-    const jBox = _ebox(W, jH, D);
-    jBox.position.y = -H / 2 + lH;
-    grp.add(jBox);
-
-    // ── Upper cabinet — mid + tweeter, top 38 % of H, slightly narrower ───
-    // Tilted FORWARD (top toward listener). Rings are children so they follow.
-    const uH = H * 0.38, uW = W * 0.91, uD = D * 0.93;
-    const uFront = uD / 2 + 0.002;  // front face in local space
-
-    const upperGroup = new THREE.Group();
-    upperGroup.position.y = -H / 2 + lH + uH / 2;
-    upperGroup.rotation.x = +TILT;  // positive X: top tilts toward listener
-    upperGroup.add(_ebox(uW, uH, uD));
-    upperGroup.add(_ring(0, -uH * 0.22, uFront, W * 0.25)); // midrange
-    upperGroup.add(_ring(0,  uH * 0.20, uFront, W * 0.09)); // tweeter
-    grp.add(upperGroup);
+    // ── Drivers on front face ──────────────────────────────────────────────
+    const front = D / 2 + 0.002;
+    // woofer 1 (low)
+    grp.add(_ring(0, -H * 0.28, front, W * 0.20));
+    // woofer 2 (mid-low)
+    grp.add(_ring(0, -H * 0.08, front, W * 0.20));
+    // midrange
+    grp.add(_ring(0,  H * 0.22, front, W * 0.14));
+    // tweeter (small, near top)
+    grp.add(_ring(0,  H * 0.38, front, W * 0.06));
 
     return grp;
   }
