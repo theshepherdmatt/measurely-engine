@@ -803,6 +803,50 @@ function rebuild() {
     return grp;
   }
 
+  function _buildStandmountSpeaker(W, H, D, color, opacity) {
+    const grp = new THREE.Group();
+    const edgeMat = useFatEdges
+      ? new THREE.MeshBasicMaterial({ color, transparent: true, opacity })
+      : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+
+    function _ebox(w, h, d) {
+      const g = new THREE.Group();
+      if (useFatEdges) {
+        const hw = w/2, hh = h/2, hd = d/2;
+        const v = [
+          new THREE.Vector3(-hw,-hh,-hd), new THREE.Vector3( hw,-hh,-hd),
+          new THREE.Vector3( hw,-hh, hd), new THREE.Vector3(-hw,-hh, hd),
+          new THREE.Vector3(-hw, hh,-hd), new THREE.Vector3( hw, hh,-hd),
+          new THREE.Vector3( hw, hh, hd), new THREE.Vector3(-hw, hh, hd),
+        ];
+        const pairs = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+        g.add(_fatEdgeGroup(v, pairs, EDGE_TUBE_T * 0.55, edgeMat));
+      } else {
+        g.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(w, h, d)), edgeMat));
+      }
+      return g;
+    }
+
+    function _ring(cx, cy, cz, r) {
+      const SEG = 28, pts = [];
+      for (let i = 0; i <= SEG; i++) {
+        const a = (i / SEG) * Math.PI * 2;
+        pts.push(new THREE.Vector3(cx + Math.cos(a) * r, cy + Math.sin(a) * r, cz));
+      }
+      return new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(pts),
+        new THREE.LineBasicMaterial({ color, transparent: true, opacity: opacity * 0.65 })
+      );
+    }
+
+    grp.add(_ebox(W, H, D));
+    const front = D / 2 + 0.002;
+    grp.add(_ring(0, -H * 0.18, front, W * 0.28)); // woofer
+    grp.add(_ring(0,  H * 0.28, front, W * 0.08)); // tweeter
+
+    return grp;
+  }
+
 /* ------------------------------------------
         SPEAKERS + BEAMS (LEVEL AXIS LOCK)
     ------------------------------------------ */
@@ -823,12 +867,7 @@ function rebuild() {
 
         const speaker = profile.detailed
           ? _buildDetailedSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
-          : new THREE.Mesh(
-              new THREE.BoxGeometry(profile.w, profile.h, profile.d),
-              new THREE.MeshBasicMaterial({
-                color: spkColor, wireframe: true, transparent: true, opacity: spkOpacity
-              })
-            );
+          : _buildStandmountSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity);
 
         // X position — always based on speaker spacing
         const x = offsetX + (side === "L" ? -1 : 1) * room.spk_spacing_m / 2;
@@ -857,45 +896,21 @@ function rebuild() {
         spkGroup.add(speaker); // cabinet sits at group origin (= cabinet centre)
 
         // Stand for standmounts: thin post + base plate
-        // Skip for detailed speakers — they render their own plinth
         if (!profile.onDesk && !profile.floorStand && !profile.detailed) {
-          const standHeight = (y - profile.h / 2) - baseY; // floor → cabinet bottom
-          const standMat = new THREE.MeshBasicMaterial({
-            color: spkColor, wireframe: true, transparent: true,
-            opacity: spkOpacity * 0.65
+          const standHeight = (y - profile.h / 2) - baseY;
+          const standMat = new THREE.LineBasicMaterial({
+            color: spkColor, transparent: true, opacity: spkOpacity * 0.65
           });
-          // Post (thin column)
-          const post = new THREE.Mesh(
-            new THREE.BoxGeometry(0.05, standHeight, 0.05), standMat
+          const post = new THREE.LineSegments(
+            new THREE.EdgesGeometry(new THREE.BoxGeometry(0.05, standHeight, 0.05)), standMat
           );
           post.position.y = -(profile.h / 2) - standHeight / 2;
           spkGroup.add(post);
-          // Base plate
-          const base = new THREE.Mesh(
-            new THREE.BoxGeometry(0.32, 0.03, 0.28), standMat
+          const base = new THREE.LineSegments(
+            new THREE.EdgesGeometry(new THREE.BoxGeometry(0.32, 0.03, 0.28)), standMat
           );
           base.position.y = -(profile.h / 2) - standHeight + 0.015;
           spkGroup.add(base);
-        }
-
-        // Driver rings for standmounts — bass driver + tweeter on front face
-        if (room.speaker_type === 'standmount' || room.speaker_type === 'monitor') {
-          const ringMat = new THREE.LineBasicMaterial({
-            color: spkColor, transparent: true, opacity: spkOpacity * 0.65
-          });
-          const frontZ = profile.d / 2 + 0.001;
-          const mkRing = (cy, r) => {
-            const pts = [];
-            for (let i = 0; i <= 28; i++) {
-              const a = (i / 28) * Math.PI * 2;
-              pts.push(new THREE.Vector3(Math.cos(a) * r, cy + Math.sin(a) * r, frontZ));
-            }
-            return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), ringMat);
-          };
-          const bassY  = -profile.h * 0.18;
-          const tweetY =  profile.h * (profile.tweeterPos - 0.5);
-          spkGroup.add(mkRing(bassY,  profile.w * 0.30)); // bass/mid driver
-          spkGroup.add(mkRing(tweetY, profile.w * 0.09)); // tweeter
         }
 
         // Initial toe-in (may be overridden by _applyAutoToe after rebuild)
