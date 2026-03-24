@@ -1148,6 +1148,26 @@ class MeasurelyDashboard {
             console.log("📦 Sessions hydrated:", this.sessionOrder);
 
             // =====================================================
+            // CHECK AUTH STATE & TOGGLE UPSELL CARD
+            // =====================================================
+            const isAuth = typeof window !== 'undefined' && window._pb && window._pb().authStore?.isValid;
+            const upsellCard = document.getElementById('historyUpsellCard');
+            
+            if (!isAuth) {
+                // Emphasize the limit in UI by throwing away session history beyond 1
+                this.sessions = this.sessions.slice(0, 1);
+                this.sessionOrder = this.sessionOrder.slice(0, 1);
+                
+                // Hide old card slots, show the upsell prompt slot
+                for (let i = 1; i < cards.length; i++) { cards[i].style.display = 'none'; }
+                if (upsellCard) upsellCard.style.display = 'flex';
+            } else {
+                // Fully unlocked UI
+                for (let i = 1; i < cards.length; i++) { cards[i].style.display = ''; }
+                if (upsellCard) upsellCard.style.display = 'none';
+            }
+
+            // =====================================================
             // EMPTY / RESET STATE
             // =====================================================
             if (this.sessions.length === 0) {

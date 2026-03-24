@@ -514,6 +514,16 @@
                             </div>
                         </div>
 
+                        <!-- upsell card for unauth users -->
+                        <div id="historyUpsellCard" class="card glass-panel" style="display:none; height:100%;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2rem 1.5rem;background:rgba(212,149,15,0.05);border:1px dashed rgba(212,149,15,0.3);border-radius:1rem;">
+                            <div style="width:3rem;height:3rem;border-radius:50%;background:rgba(212,149,15,0.15);display:flex;align-items:center;justify-content:center;margin-bottom:1rem;color:#f59e0b;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                            </div>
+                            <h4 style="margin:0 0 0.5rem;color:#f1f5f9;font-size:1rem;">Unlock History</h4>
+                            <p style="margin:0 0 1.25rem;font-size:0.8rem;color:#94a3b8;line-height:1.5;">Sign up for a free account to automatically save up to 20 sweeps and instantly compare changes.</p>
+                            <button class="btn btn-primary" onclick="if(window.MeasurelyAuth) { window.MeasurelyAuth.openAuthModal('signup'); }" style="padding:0.5rem 1rem;font-size:0.8rem;">Create free account</button>
+                        </div>
+
                         <!-- uploads 2 -->
                         <div class="card glass-panel uploads-card uploads-item" data-index="1">
                             <div class="uploads-card-header">

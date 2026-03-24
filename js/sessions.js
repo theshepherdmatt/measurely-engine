@@ -46,7 +46,10 @@ function lsRead() {
 
 function lsWrite(sessions) {
     try {
-        localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions.slice(0, SESSIONS_MAX)));
+        const isAuth = typeof window !== 'undefined' && window._pb && window._pb().authStore?.isValid;
+        const max = isAuth ? SESSIONS_MAX : 1;
+        // Keep the newest session (index 0) and throw away the rest if max is 1.
+        localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions.slice(0, max)));
     } catch (e) {
         console.warn('[sessions] localStorage write error:', e);
         // Surface quota errors to the user — silent failure means lost data with no explanation.
@@ -128,6 +131,9 @@ function updateNote(id, note) {
 function deleteSession(id) {
     lsWrite(lsRead().filter(s => s.id !== id));
     console.log('[sessions] deleted:', id);
+    if (typeof window !== 'undefined' && window.MeasurelySync) {
+        window.MeasurelySync.deleteSession(id);
+    }
 }
 
 // ---------------------------------------------------------------------------

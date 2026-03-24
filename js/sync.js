@@ -95,29 +95,80 @@
     // Sessions
     // -------------------------------------------------------------------------
 
+    const _pendingSessionPushes = {};
+    let _activeSessionSyncs = new Set();
+
     async function pushSession(session) {
         if (!session?.id || !_authenticated()) return;
-        await _delay(500);
+        
+        // Keep the latest payload
+        _pendingSessionPushes[session.id] = session;
+
+        // If already actively syncing this ID, rely on the ongoing sync to catch our payload update 
+        // or we just delay and try later. The delay handles typical keystroke bursts.
+        if (_activeSessionSyncs.has(session.id)) return;
+        
+        _activeSessionSyncs.add(session.id);
+        
+        // Wait to allow rapid repeated calls (e.g. typing notes) to bundle into one network request
+        await _delay(800);
+
+        const latestSession = _pendingSessionPushes[session.id];
+        delete _pendingSessionPushes[session.id];
+        
+        if (!latestSession) {
+            _activeSessionSyncs.delete(session.id);
+            return; // Was deleted or already dispatched
+        }
+
         const pb = _pb(), userId = _userId();
-        const ai = (session.ai && typeof session.ai === 'object') ? session.ai : {};
+        const ai = (latestSession.ai && typeof latestSession.ai === 'object') ? latestSession.ai : {};
         const aiScores = ai.scores || {};
-        const sc = session.scores || {};
+        const sc = latestSession.scores || {};
         const payload = {
-            user: userId, session_id: session.id, label: session.label ?? '', timestamp: session.timestamp ?? new Date().toISOString(),
-            overall_score: _num(sc.overall ?? aiScores.overall ?? session.overall_score),
-            has_analysis: session.has_analysis ?? true,
-            analysis: session.analysis ?? null, report_curve: session.reportCurve ?? null,
-            room_modes: session.room_modes ? JSON.stringify(session.room_modes) : null,
-            schroeder_freq: _num(session.schroeder_freq), sbir_null: _num(session.sbir_null),
+            user: userId, session_id: latestSession.id, label: latestSession.label ?? '', timestamp: latestSession.timestamp ?? new Date().toISOString(),
+            overall_score: _num(sc.overall ?? aiScores.overall ?? latestSession.overall_score),
+            has_analysis: latestSession.has_analysis ?? true,
+            analysis: latestSession.analysis ?? null, report_curve: latestSession.reportCurve ?? null,
+            room_modes: latestSession.room_modes ? JSON.stringify(latestSession.room_modes) : null,
+            schroeder_freq: _num(latestSession.schroeder_freq), sbir_null: _num(latestSession.sbir_null),
             scores: Object.keys(sc).length ? sc : (Object.keys(aiScores).length ? aiScores : null)
         };
-        _setState('syncing', { op: 'pushSession', id: session.id });
+        _setState('syncing', { op: 'pushSession', id: latestSession.id });
         try {
-            const existing = await pb.collection('sessions').getFirstListItem(_f('user', userId, 'session_id', session.id), NO_CANCEL).catch(() => null);
-            if (existing) { await pb.collection('sessions').update(existing.id, payload, NO_CANCEL); }
-            else { await pb.collection('sessions').create(payload, NO_CANCEL); }
-            _setState('ok', { op: 'pushSession', id: session.id });
+            // Find ALL existing records for this session to self-heal duplicates while pushing
+            const records = await pb.collection('sessions').getFullList({ filter: _f('user', userId, 'session_id', latestSession.id) }).catch(() => []);
+            
+            if (records.length > 0) {
+                // Update the first one, delete all the redundant ones
+                await pb.collection('sessions').update(records[0].id, payload, NO_CANCEL);
+                for (let i = 1; i < records.length; i++) {
+                    await pb.collection('sessions').delete(records[i].id).catch(() => null);
+                }
+            } else { 
+                await pb.collection('sessions').create(payload, NO_CANCEL); 
+            }
+            _setState('ok', { op: 'pushSession', id: latestSession.id });
         } catch (err) { _syncFail('pushSession', err); }
+        
+        _activeSessionSyncs.delete(latestSession.id);
+    }
+
+    async function deleteSession(id) {
+        // Cancel any pending pushes from keystrokes
+        delete _pendingSessionPushes[id];
+
+        if (!_authenticated()) return;
+        const pb = _pb(), userId = _userId();
+        
+        _setState('syncing', { op: 'deleteSession', id });
+        try {
+            const records = await pb.collection('sessions').getFullList({ filter: _f('user', userId, 'session_id', id) }).catch(() => []);
+            for (const r of records) {
+                await pb.collection('sessions').delete(r.id);
+            }
+            _setState('ok', { op: 'deleteSession', id });
+        } catch (err) { _syncFail('deleteSession', err); }
     }
 
     async function pullAll() {
@@ -128,17 +179,25 @@
             await pullRoom();
             const sessionRecords = await pb.collection('sessions').getList(1, 50, { filter: _f('user', userId), sort: '-created', ...NO_CANCEL }).catch(() => null);
             if (sessionRecords?.items?.length) {
-                const cloudSessions = sessionRecords.items.map(r => ({
-                    id: r.session_id, label: r.label, timestamp: r.timestamp, overall_score: r.overall_score,
-                    // Default to false — only mark as having analysis if PocketBase explicitly says so.
-                    // Prevents cloud sessions with null/missing analysis from falsely populating cards.
-                    has_analysis: r.has_analysis ?? false,
-                    // Map scores back (was pushed but never pulled — caused "--" metrics on cloud sessions).
-                    scores: r.scores ?? null,
-                    analysis: r.analysis ?? null, reportCurve: r.report_curve ?? null,
-                    room_modes: r.room_modes ? _parseJson(r.room_modes, null) : null,
-                    _cloud_updated: r.updated
-                }));
+                // Self-Heal duplicates: if there are multiple records for the same session_id, keep the newest and proactively clean the rest
+                const cloudSessions = [];
+                const seenIds = new Set();
+                
+                for (const r of sessionRecords.items) {
+                    if (seenIds.has(r.session_id)) {
+                        pb.collection('sessions').delete(r.id).catch(() => null);
+                        continue;
+                    }
+                    seenIds.add(r.session_id);
+                    cloudSessions.push({
+                        id: r.session_id, label: r.label, timestamp: r.timestamp, overall_score: r.overall_score,
+                        has_analysis: r.has_analysis ?? false,
+                        scores: r.scores ?? null,
+                        analysis: r.analysis ?? null, reportCurve: r.report_curve ?? null,
+                        room_modes: r.room_modes ? _parseJson(r.room_modes, null) : null,
+                        _cloud_updated: r.updated
+                    });
+                }
                 // Merge: local sessions take priority for full analysis payloads.
                 // However, backfill any fields the local copy is missing (e.g. scores
                 // added after the original pull) so stale cache never hides cloud data.
@@ -261,5 +320,5 @@
         } catch (err) { _syncFail('pullTreatment', err); return localPlan; }
     }
 
-    window.MeasurelySync = { pushRoom, pullRoom, pushSession, pullAll, pushLocalData, pushProfile, pullProfile, pushTreatment, pullTreatment, hasPendingData: () => false, getSyncState: () => _syncState };
+    window.MeasurelySync = { pushRoom, pullRoom, pushSession, deleteSession, pullAll, pushLocalData, pushProfile, pullProfile, pushTreatment, pullTreatment, hasPendingData: () => false, getSyncState: () => _syncState };
 })();
