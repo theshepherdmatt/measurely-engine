@@ -384,6 +384,15 @@ body {
 
                 <div class="demo-field">
                     <div class="demo-field-header">
+                        <span class="demo-field-label">Toe-in angle</span>
+                        <span class="demo-field-value" id="valToeIn">12&deg;</span>
+                    </div>
+                    <input type="range" id="demoToeIn" min="0" max="45" step="1" value="12"
+                           class="measurely-slider" style="--fill:27%" aria-label="Speaker toe-in angle in degrees">
+                </div>
+
+                <div class="demo-field">
+                    <div class="demo-field-header">
                         <span class="demo-field-label">Listening position</span>
                         <span class="demo-field-value" id="valListenPos">2.8 m</span>
                     </div>
@@ -500,6 +509,7 @@ let activeOverlay = 'sbir';
 const listenPosSlider = document.getElementById('demoListenPos');
 const spkWallSlider   = document.getElementById('demoSpkWall');
 const spkSpacingSlider = document.getElementById('demoSpkSpacing');
+const toeInSlider     = document.getElementById('demoToeIn');
 const widthSlider     = document.getElementById('demoWidth');
 const lengthSlider    = document.getElementById('demoLength');
 
@@ -519,6 +529,15 @@ spkSpacingSlider?.addEventListener('input', () => {
     demo3D.update();
     demo3D.stopAutoSpin();
     showChip('Speaker spacing adjusted');
+});
+
+toeInSlider?.addEventListener('input', () => {
+    demoState.setup.toe_in_deg = Number(toeInSlider.value);
+    updateSliderFill(toeInSlider);
+    document.getElementById('valToeIn').innerHTML = Number(toeInSlider.value) + '&deg;';
+    demo3D.update();
+    demo3D.stopAutoSpin();
+    showChip('Speaker toe-in adjusted');
 });
 
 spkWallSlider?.addEventListener('input', () => {
@@ -633,6 +652,7 @@ document.getElementById('demoReset')?.addEventListener('click', () => {
     if (listenPosSlider) { listenPosSlider.value = DEFAULTS.listener_front_m; updateSliderFill(listenPosSlider); document.getElementById('valListenPos').textContent = DEFAULTS.listener_front_m.toFixed(1) + ' m'; }
     if (spkWallSlider)   { spkWallSlider.value   = DEFAULTS.spk_front_m;      updateSliderFill(spkWallSlider);   document.getElementById('valSpkWall').textContent   = DEFAULTS.spk_front_m.toFixed(2) + ' m'; }
     if (spkSpacingSlider){ spkSpacingSlider.value = DEFAULTS.spk_spacing_m;   updateSliderFill(spkSpacingSlider);document.getElementById('valSpkSpacing').textContent = DEFAULTS.spk_spacing_m.toFixed(1) + ' m'; }
+    if (toeInSlider)     { toeInSlider.value     = DEFAULTS.toe_in_deg;       updateSliderFill(toeInSlider);     document.getElementById('valToeIn').innerHTML       = DEFAULTS.toe_in_deg + '&deg;'; }
 
     demoState.setup.speaker_type = 'floorstander';
     document.querySelectorAll('[data-spk]').forEach(b => b.classList.toggle('active', b.dataset.spk === 'floorstander'));
