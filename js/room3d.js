@@ -1528,13 +1528,15 @@ function rebuild() {
               float w = m.z * (1.0 + uRoughness);
               float pL = cos(m.x * PI * (vXZ.y + halfL) / uRoomL); // length = y in vXZ
               float pW = cos(m.y * PI * (vXZ.x + halfW) / uRoomW); // width = x in vXZ
-              field += w * pL * pW * cos(uTime * 1.5 + m.w);
+              // Use abs(cos) so modes always add, never cancel — field stays visible
+              float amp = 0.7 + 0.3 * abs(cos(uTime * 1.2 + m.w));
+              field += w * abs(pL * pW) * amp;
               totalWeight += w;
             }
           }
-          
+
           field = field / totalWeight;
-          gl_FragColor = vec4(uColor, clamp(abs(field) * uOpacity * 2.0, 0.0, 0.85));
+          gl_FragColor = vec4(uColor, clamp(field * uOpacity * 2.5, 0.0, 0.85));
         }
       `,
       transparent: true,
@@ -2412,7 +2414,7 @@ function rebuild() {
           uTime:   { value: 0 },
           uRoomW:  { value: room.width_m },
           uRoomL:  { value: room.length_m },
-          uOpacity:{ value: isFocBW ? 0.72 : 0.22 },
+          uOpacity:{ value: isFocBW ? 0.90 : 0.45 },
           uModes:  { value: uBwModes }
         },
         vertexShader: `
@@ -2459,7 +2461,7 @@ function rebuild() {
             float pulse = 0.78 + 0.22 * cos(uTime * 1.6);
 
             float alpha = clamp(abs(pressure) * pulse * uOpacity, 0.0, 0.90);
-            gl_FragColor = vec4(0.831, 0.584, 0.059, alpha); // Measurely gold
+            gl_FragColor = vec4(0.95, 0.45, 0.05, alpha); // deep orange
           }
         `,
         transparent: true,
@@ -2481,7 +2483,7 @@ function rebuild() {
         new THREE.BoxGeometry(room.width_m * 0.98, room.height_m * 0.28, room.length_m * 0.98),
         new THREE.MeshBasicMaterial({
           color: 0xd4950f, transparent: true,
-          opacity: isFocBW ? 0.08 : 0.03, depthWrite: false
+          opacity: isFocBW ? 0.14 : 0.06, depthWrite: false
         })
       )).position.y = -room.height_m / 2 + room.height_m * 0.14;
     }
