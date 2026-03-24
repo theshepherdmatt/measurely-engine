@@ -1468,39 +1468,105 @@ function rebuild() {
   // Auto-toe: snap speakers to face the sphere after every full rebuild
   _applyAutoToe();
 
-  // ---- SMOOTHNESS (Spectral Turbulence Field) ----
+  // ---- SMOOTHNESS (Room Modal Standing Wave Field) ----
   if (overlayEnabled(OVERLAYS.SMOOTHNESS)) {
 
-    const intensity = THREE.MathUtils.clamp(smoothnessStd / 4, 0, 1);
+    const roughness  = THREE.MathUtils.clamp(smoothnessStd / 5, 0, 1);
+    const isRough    = roughness > 0.55;
+    const fieldColor = roughness > 0.8 ? 0xff3b3b : isRough ? 0xd97706 : 0x0f766e;
+    const isFocSM    = isFocused(OVERLAYS.SMOOTHNESS);
+    const nModes     = 1.5 + roughness * 2.5;  // more harmonics = rougher look
 
-    const geo = new THREE.PlaneGeometry(
-      room.width_m * 0.8,
-      room.length_m * 0.6,
-      40,
-      40
-    );
-
-    geo.attributes.position.setUsage(THREE.DynamicDrawUsage);
-
-    const mat = new THREE.MeshBasicMaterial({
-      color: intensity > 0.6 ? 0xff3b3b : 0x0f766e,
-      wireframe: true,
+    const smMat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime:      { value: 0 },
+        uRoomW:     { value: room.width_m },
+        uRoomL:     { value: room.length_m },
+        uNModes:    { value: nModes },
+        uRoughness: { value: roughness },
+        uColor:     { value: new THREE.Color(fieldColor) },
+        uOpacity:   { value: isFocSM ? 0.55 : 0.18 },
+      },
+      vertexShader: `
+        uniform float uRoomW;
+        uniform float uRoomL;
+        varying vec2 vXZ;
+        void main() {
+          vXZ = vec2((uv.x - 0.5) * uRoomW, (0.5 - uv.y) * uRoomL);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        #define PI 3.14159265359
+        uniform float uTime;
+        uniform float uRoomW;
+        uniform float uRoomL;
+        uniform float uNModes;
+        uniform float uRoughness;
+        uniform vec3  uColor;
+        uniform float uOpacity;
+        varying vec2  vXZ;
+        void main() {
+          float halfL = uRoomL * 0.5;
+          float halfW = uRoomW * 0.5;
+          float lWave = 0.0;
+          float wWave = 0.0;
+          for (float n = 1.0; n <= 4.0; n++) {
+            if (n > uNModes) break;
+            float w = 1.0 / n;
+            lWave += w * cos(n * PI * (vXZ.y + halfL) / uRoomL) * cos(n * 0.8 * uTime);
+            wWave += w * cos(n * PI * (vXZ.x + halfW) / uRoomW) * cos(n * 0.6 * uTime + 0.5);
+          }
+          float field = (lWave + wWave * (0.5 + uRoughness * 0.5)) / (1.5 + uRoughness);
+          gl_FragColor = vec4(uColor, clamp(abs(field) * uOpacity * 2.0, 0.0, 0.85));
+        }
+      `,
       transparent: true,
-      opacity: focusedOverlay === OVERLAYS.SMOOTHNESS ? 0.9 : 0.15,
-      depthWrite: false
+      depthWrite:  false,
+      side: THREE.DoubleSide,
     });
 
-    const field = new THREE.Mesh(geo, mat);
-    field.rotation.x = -Math.PI / 2;
-    field.position.set(
-      0,
-      -room.height_m / 2 + room.tweeter_height_m,
-      -room.length_m * 0.1
+    const smField = new THREE.Mesh(
+      new THREE.PlaneGeometry(room.width_m, room.length_m, 1, 1),
+      smMat
     );
+    smField.rotation.x = -Math.PI / 2;
+    smField.position.set(0, -room.height_m / 2 + (room.tweeter_height_m || 0.95), 0);
+    smField.userData.isSmoothnessField = true;
+    roomGroup.add(smField);
 
-    field.userData.isSmoothnessField = true;
-
-    roomGroup.add(field);
+    // Focused: show axial mode planes + Hz labels at pressure-node positions
+    if (isFocSM) {
+      const c = 343;
+      const f1L = c / (2 * room.length_m);
+      const f1W = c / (2 * room.width_m);
+      for (let n = 1; n <= 3; n++) {
+        const freqHz = Math.round(n * f1L);
+        for (let k = 0; k < n; k++) {
+          const nodeZ = -room.length_m / 2 + (2 * k + 1) * room.length_m / (2 * n);
+          const nodePlane = new THREE.Mesh(
+            new THREE.PlaneGeometry(room.width_m * 0.9, room.height_m * 0.8),
+            new THREE.MeshBasicMaterial({
+              color: 0xff3b3b, transparent: true,
+              opacity: 0.06, side: THREE.DoubleSide, depthWrite: false,
+            })
+          );
+          nodePlane.position.set(0, 0, nodeZ);
+          roomGroup.add(nodePlane);
+          const lbl = _makeLabelSprite(`${freqHz} Hz`);
+          lbl.position.set(room.width_m * 0.38, -room.height_m / 2 + room.height_m * 0.55, nodeZ);
+          roomGroup.add(lbl);
+        }
+      }
+      // Width modes (first two)
+      for (let n = 1; n <= 2; n++) {
+        const freqHz = Math.round(n * f1W);
+        const nodeX = (2 * 0 + 1) * room.width_m / (2 * n) - room.width_m / 2;
+        const lbl = _makeLabelSprite(`${freqHz} Hz`);
+        lbl.position.set(nodeX, -room.height_m / 2 + room.height_m * 0.75, 0);
+        roomGroup.add(lbl);
+      }
+    }
   }
 
 
@@ -1587,28 +1653,20 @@ function rebuild() {
       if (bwMesh) bwMesh.material.uniforms.uTime.value = performance.now() * 0.001;
     }
 
-    // Smoothness field animation
-    if (focusedOverlay === OVERLAYS.SMOOTHNESS) {
-      const field = roomGroup.children.find(o => o.userData?.isSmoothnessField);
-      if (field) {
-        const pos = field.geometry.attributes.position;
-        const time = performance.now() * 0.001;
-        const intensity = THREE.MathUtils.clamp(smoothnessStd / 8, 0, 1);
+    // Smoothness field — advance shader time uniform
+    {
+      const smMesh = roomGroup.children.find(o => o.userData?.isSmoothnessField);
+      if (smMesh) smMesh.material.uniforms.uTime.value = performance.now() * 0.001;
+    }
 
-        for (let i = 0; i < pos.count; i++) {
-          const x = pos.getX(i);
-          const y = pos.getY(i);
-
-          const ripple =
-            Math.sin(x * 3 + time * 2.0) *
-            Math.cos(y * 2 + time * 1.5);
-
-          pos.setZ(i, ripple * 0.12 * intensity);
+    // Balance marker — gentle pulse
+    {
+      const _bt = performance.now() * 0.002;
+      scene.traverse(obj => {
+        if (obj.userData?.isBalanceMarker) {
+          obj.scale.setScalar(1 + 0.18 * Math.sin(_bt));
         }
-
-        pos.needsUpdate = true;
-        field.geometry.computeVertexNormals();
-      }
+      });
     }
 
     roomGroup.scale.set(scale, scale, scale);
@@ -2402,167 +2460,150 @@ function rebuild() {
       )).position.y = -room.height_m / 2 + room.height_m * 0.14;
     }
 
-    // ---- BALANCE (LEFT / RIGHT SYMMETRY) ----
+    // ---- BALANCE (STEREO SYMMETRY) ----
     if (overlayEnabled(OVERLAYS.BALANCE)) {
 
-      const halfW = room.width_m / 2;
-      const halfL = room.length_m / 2;
+      const halfW   = room.width_m  / 2;
+      const halfL   = room.length_m / 2;
+      const floorY  = -room.height_m / 2;
+      const spkY    = floorY + room.tweeter_height_m;
+      const lstnZ   = -halfL + room.listener_front_m;
+      const offset  = room.listener_offset_m || 0;
+      const isBad   = Math.abs(offset) > 0.15;
+      const isFocBal = isFocused(OVERLAYS.BALANCE);
 
-      // 1️⃣ Centre reference line (keep)
-      const centreLine = new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(0, -room.height_m / 2, -halfL),
-          new THREE.Vector3(0, -room.height_m / 2,  halfL)
-        ]),
-        new THREE.LineBasicMaterial({
-          color: 0xffffff,
-          transparent: true,
-          opacity: focusedOverlay === OVERLAYS.BALANCE ? 0.9 : 0.15
+      const spkL   = new THREE.Vector3(offsetX - room.spk_spacing_m / 2, spkY, -halfL + room.spk_front_m);
+      const spkR   = new THREE.Vector3(offsetX + room.spk_spacing_m / 2, spkY, -halfL + room.spk_front_m);
+      const lstn   = new THREE.Vector3(offsetX + offset, spkY, lstnZ);
+      const alpha  = isFocBal ? 0.75 : 0.12;
+
+      // 1. Centre axis tube along the floor
+      _addReflectionTube(
+        new THREE.Vector3(0, floorY + 0.01, -halfL + 0.15),
+        new THREE.Vector3(0, floorY + 0.01,  halfL - 0.15),
+        0xffffff, isFocBal ? 0.65 : 0.18
+      );
+
+      // 2. Stereo triangle: L→listener, R→listener, L→R base
+      [[spkL, lstn], [spkR, lstn], [spkL, spkR]].forEach(([a, b]) => {
+        _addReflectionTube(a, b, 0x0d9488, alpha);
+      });
+
+      // 3. Sweet spot ring on floor (±15 cm ideal zone)
+      const sweetRing = new THREE.Mesh(
+        new THREE.TorusGeometry(0.15, 0.012, 6, 48),
+        new THREE.MeshBasicMaterial({
+          color: 0x0d9488, transparent: true,
+          opacity: isFocBal ? 0.75 : 0.2, depthWrite: false
         })
       );
-      roomGroup.add(centreLine);
+      sweetRing.rotation.x = Math.PI / 2;
+      sweetRing.position.set(offsetX, floorY + 0.01, lstnZ);
+      roomGroup.add(sweetRing);
 
-      // 2️⃣ Speaker symmetry planes
-      const planeMat = new THREE.MeshBasicMaterial({
-        color: 0x0d9488,
-        transparent: true,
-        opacity: focusedOverlay === OVERLAYS.BALANCE ? 0.45 : 0.05,
-        side: THREE.DoubleSide,
-        depthWrite: false
-      });
-
-      [-1, 1].forEach(side => {
-        const plane = new THREE.Mesh(
-          new THREE.PlaneGeometry(room.length_m * 0.9, room.height_m * 0.6),
-          planeMat
-        );
-
-        plane.rotation.y = Math.PI / 2;
-        plane.position.set(
-          side * (room.spk_spacing_m / 2),
-          -room.height_m / 2 + room.height_m * 0.3,
-          0
-        );
-
-        roomGroup.add(plane);
-      });
-
-      // 3️⃣ Listener offset arrow
-      const offset = room.listener_offset_m || 0;
-      const isBad = Math.abs(offset) > 0.15;
-
-      const arrowDir = new THREE.Vector3(
-        Math.sign(offset || 1),
-        0,
-        0
+      // 4. Actual listener position marker (pulses, red if off-axis)
+      const markerColor = isBad ? 0xff3b3b : 0x0d9488;
+      const markerRing = new THREE.Mesh(
+        new THREE.TorusGeometry(0.08, 0.016, 6, 32),
+        new THREE.MeshBasicMaterial({
+          color: markerColor, transparent: true,
+          opacity: isFocBal ? 0.9 : 0.35, depthWrite: false
+        })
       );
+      markerRing.rotation.x = Math.PI / 2;
+      markerRing.position.set(offsetX + offset, floorY + 0.01, lstnZ);
+      markerRing.userData.isBalanceMarker = true;
+      roomGroup.add(markerRing);
 
-      const arrow = new THREE.ArrowHelper(
-        arrowDir,
-        new THREE.Vector3(0, -room.height_m / 2 + 0.05, -room.length_m * 0.15),
-        Math.min(Math.abs(offset) * 2, 1.2),
-        isBad ? 0xff3b3b : 0x0d9488,
-        0.25,
-        0.15
-      );
-
-      arrow.line.material.transparent = true;
-      arrow.line.material.opacity =
-        focusedOverlay === OVERLAYS.BALANCE ? 0.95 : 0.15;
-
-
-      roomGroup.add(arrow);
+      // 5. Focused: offset label
+      if (isFocBal) {
+        const cm = Math.round(Math.abs(offset) * 100);
+        const lbl = _makeLabelSprite(cm > 5 ? `${cm} cm off-axis` : 'Centred ✓');
+        lbl.position.set(offsetX + offset, floorY + 0.6, lstnZ);
+        roomGroup.add(lbl);
+      }
     }
 
     // ---- CLARITY (EARLY REFLECTION WINDOW) ----
     if (overlayEnabled(OVERLAYS.CLARITY)) {
 
-      const speakerY = -room.height_m / 2 + room.tweeter_height_m;
-      const listenerZ = -room.length_m / 2 + room.listener_front_m;
+      const floorY     = -room.height_m / 2;
+      const ceilY      =  room.height_m / 2;
+      const speakerY   = floorY + room.tweeter_height_m;
+      const listenerZ  = -room.length_m / 2 + room.listener_front_m;
+      const listenerPos = new THREE.Vector3(offsetX, speakerY, listenerZ);
+      const isFocCl    = isFocused(OVERLAYS.CLARITY);
+      const wallX      = room.width_m / 2;
+      const clarityR   = 0.8;
 
-      const listenerPos = new THREE.Vector3(
-        offsetX,
-        speakerY,
-        listenerZ
-      );
-
-      // 1️⃣ Direct sound beams
+      // 1. Direct beams (speaker → listener) — solid tubes
       [-1, 1].forEach(side => {
-
-        const speakerPos = new THREE.Vector3(
+        const spkPos = new THREE.Vector3(
           offsetX + side * room.spk_spacing_m / 2,
           speakerY,
           -room.length_m / 2 + room.spk_front_m
         );
-
-        const beam = new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints([speakerPos, listenerPos]),
-          new THREE.LineBasicMaterial({
-            color: 0x0d9488,
-            transparent: true,
-            opacity: focusedOverlay === OVERLAYS.CLARITY ? 0.95 : 0.15
-          })
-        );
-
-        roomGroup.add(beam);
+        _addReflectionTube(spkPos, listenerPos, 0x0d9488, isFocCl ? 0.80 : 0.18);
       });
 
-      // 2️⃣ Clarity time window (listener bubble)
-      const clarityRadius = 0.8; // visual proxy for ~20ms window
+      // 2. Listener bubble
+      roomGroup.add(Object.assign(new THREE.Mesh(
+        new THREE.SphereGeometry(clarityR, 24, 16),
+        new THREE.MeshBasicMaterial({ color: 0x0d9488, transparent: true, opacity: isFocCl ? 0.28 : 0.05, depthWrite: false })
+      ), { position: listenerPos.clone() }));
 
-      const clarityBubble = new THREE.Mesh(
-        new THREE.SphereGeometry(clarityRadius, 32, 32),
-        new THREE.MeshBasicMaterial({
-          color: 0x0d9488,
-          transparent: true,
-          opacity: focusedOverlay === OVERLAYS.CLARITY ? 0.35 : 0.05,
-          depthWrite: false
-        })
+      // Foot ring on floor
+      const footRing = new THREE.Mesh(
+        new THREE.TorusGeometry(clarityR * 0.55, 0.012, 6, 48),
+        new THREE.MeshBasicMaterial({ color: 0x0d9488, transparent: true, opacity: isFocCl ? 0.55 : 0.1, depthWrite: false })
       );
+      footRing.rotation.x = Math.PI / 2;
+      footRing.position.set(listenerPos.x, floorY + 0.01, listenerPos.z);
+      roomGroup.add(footRing);
 
-      clarityBubble.position.copy(listenerPos);
-      roomGroup.add(clarityBubble);
-
-      // 3️⃣ Early reflection example (side walls)
-      const wallX = room.width_m / 2;
-
+      // 3. Side-wall reflections — tubes + bounce dots + travelling dots
       [-1, 1].forEach(side => {
-
-        const speakerPos = new THREE.Vector3(
-          side * room.spk_spacing_m / 2,
+        const spkPos = new THREE.Vector3(
+          offsetX + side * room.spk_spacing_m / 2,
           speakerY,
           -room.length_m / 2 + room.spk_front_m
         );
+        // Geometric bounce on side wall
+        const bounceZ = spkPos.z + (listenerZ - spkPos.z) * (side * wallX - spkPos.x) / (side * wallX * 2 - spkPos.x - (offsetX + (room.listener_offset_m || 0)));
+        const bounce = new THREE.Vector3(side * wallX, speakerY, THREE.MathUtils.clamp(bounceZ, -room.length_m / 2 + 0.1, room.length_m / 2 - 0.1));
+        const hitsBubble = bounce.distanceTo(listenerPos) < clarityR * 1.4;
+        drawReflectionPath(spkPos, bounce, listenerPos, hitsBubble ? 0xff3b3b : 0x0d9488);
 
-        const bounce = new THREE.Vector3(
-          side * wallX,
+        if (isFocCl) {
+          const dist = spkPos.distanceTo(bounce) + bounce.distanceTo(listenerPos);
+          const delayMs = Math.round((dist - spkPos.distanceTo(listenerPos)) / 343 * 1000);
+          const lbl = _makeLabelSprite(`${delayMs} ms`);
+          lbl.position.set(bounce.x * 0.85, speakerY + 0.55, bounce.z);
+          roomGroup.add(lbl);
+        }
+      });
+
+      // 4. Ceiling reflections — indigo tubes + travelling dots
+      [-1, 1].forEach(side => {
+        const spkPos = new THREE.Vector3(
+          offsetX + side * room.spk_spacing_m / 2,
           speakerY,
-          0
+          -room.length_m / 2 + room.spk_front_m
         );
-
-        const reflectionEnd = listenerPos.clone();
-
-        const hitsBubble =
-          bounce.distanceTo(listenerPos) < clarityRadius * 1.4;
-
-        const reflection = new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints([
-            speakerPos,
-            bounce,
-            reflectionEnd
-          ]),
-          new THREE.LineDashedMaterial({
-            color: hitsBubble ? 0xff3b3b : 0x0d9488,
-            dashSize: 0.25,
-            gapSize: 0.15,
-            transparent: true,
-            opacity: focusedOverlay === OVERLAYS.CLARITY ? 0.85 : 0.08
-
-          })
+        const ceilBounce = new THREE.Vector3(
+          (spkPos.x + listenerPos.x) / 2,
+          ceilY,
+          (spkPos.z + listenerPos.z) / 2
         );
+        drawReflectionPath(spkPos, ceilBounce, listenerPos, 0x6366f1);
 
-        reflection.computeLineDistances();
-        roomGroup.add(reflection);
+        if (isFocCl) {
+          const dist = spkPos.distanceTo(ceilBounce) + ceilBounce.distanceTo(listenerPos);
+          const delayMs = Math.round((dist - spkPos.distanceTo(listenerPos)) / 343 * 1000);
+          const lbl = _makeLabelSprite(`${delayMs} ms`);
+          lbl.position.set(ceilBounce.x, ceilY - 0.3, ceilBounce.z);
+          roomGroup.add(lbl);
+        }
       });
     }
 

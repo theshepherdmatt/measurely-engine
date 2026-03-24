@@ -641,6 +641,13 @@
                 document.body.appendChild(el);
                 window._mlyHasValidToken = true;
 
+                // No OAuth2 callback in progress — redirect immediately without
+                // waiting for auth.js / DOMContentLoaded to avoid the loading lag.
+                var qs = window.location.search;
+                if (qs.indexOf('code=') === -1 && qs.indexOf('state=') === -1) {
+                    window.location.replace('app.html');
+                }
+
                 // Safety net — if redirect hasn't fired after 10s, let the user out
                 window._mlyOverlayTimeout = setTimeout(function () {
                     var overlay = document.getElementById('mlyAutoFwdOverlay');
