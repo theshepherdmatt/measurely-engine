@@ -638,7 +638,12 @@
         async signOut() {
             if (!_pb) return;
             _pb.authStore.clear();
-            try { localStorage.removeItem('mly_pending_profile'); } catch (_) {}
+            try { 
+                localStorage.removeItem('mly_pending_profile'); 
+                localStorage.removeItem('measurely_sessions');
+                localStorage.removeItem('measurely_room');
+                localStorage.removeItem('measurely_treatment');
+            } catch (_) {}
             _updateNav(null);
             _notify(null);
             window.location.replace('index.html');

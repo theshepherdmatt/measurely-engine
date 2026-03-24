@@ -192,6 +192,13 @@ function getSessionById(id) {
 
 function clearAllSessions() {
     if (!confirm('Delete all local measurement history? This cannot be undone.')) return false;
+    
+    // Clear PocketBase
+    if (typeof window !== 'undefined' && window.MeasurelySync) {
+        const sessions = lsRead();
+        sessions.forEach(s => window.MeasurelySync.deleteSession(s.id));
+    }
+    
     localStorage.removeItem(SESSIONS_KEY);
     console.log('[sessions] cleared all local sessions');
     return true;
