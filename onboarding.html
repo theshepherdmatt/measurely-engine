@@ -377,6 +377,17 @@ const steps = [
             { value: "panel",        label: "Panel / Electrostatic" }
           ];
         }
+      },
+      {
+        key: "environment.furniture.seating_type",
+        kind: "select",
+        label: "Seating",
+        sub: "Sets the chair shape shown in the 3D view",
+        options: [
+          { value: "sofa",   label: "Three-seater sofa" },
+          { value: "lounge", label: "Lounge chair" }
+        ],
+        showIf: { key: "room_type", value: "home" }
       }
     ]
   },
@@ -897,6 +908,47 @@ function loadStep() {
                 // without waiting for Next to be clicked.
                 const bareKey = key.includes('.') ? key.split('.').pop() : key;
                 const isAssetKey = bareKey === 'room_type' || bareKey === 'speaker_type';
+
+                // Side effects ─────────────────────────────────────────────
+                if (bareKey === 'room_type' && val === 'home') {
+                    // Snap to realistic hi-fi defaults: speakers tight to front
+                    // wall, listener near the back wall, sofa visible immediately.
+                    const homeDefaults = {
+                        'setup.spk_front_m':      0.5,
+                        'setup.spk_spacing_m':    2.2,
+                        'setup.tweeter_height_m': 0.95,
+                        'setup.listener_front_m': 3.2,
+                        'setup.toe_in_deg':       10,
+                        'environment.furniture.opt_sofa': true,
+                    };
+                    Object.entries(homeDefaults).forEach(([k, v]) => {
+                        setDeepValue(roomState, k, v);
+                        roomState[k.split('.').pop()] = v;
+                    });
+                }
+                if (bareKey === 'room_type' && val === 'studio') {
+                    // Snap to near-field desk defaults.
+                    const studioDefaults = {
+                        'setup.spk_front_m':      0.6,
+                        'setup.spk_spacing_m':    1.8,
+                        'setup.tweeter_height_m': 1.1,
+                        'setup.listener_front_m': 2.0,
+                        'setup.toe_in_deg':       15,
+                        'environment.furniture.opt_sofa': false,
+                    };
+                    Object.entries(studioDefaults).forEach(([k, v]) => {
+                        setDeepValue(roomState, k, v);
+                        roomState[k.split('.').pop()] = v;
+                    });
+                }
+                // When seating switches to lounge, remove the coffee table
+                // (doesn't suit a lounge chair; user can re-add in step 3).
+                if (bareKey === 'seating_type' && val === 'lounge') {
+                    setDeepValue(roomState, 'environment.furniture.opt_coffee_table', false);
+                    roomState.opt_coffee_table = false;
+                }
+                // ──────────────────────────────────────────────────────────
+
                 if (isAssetKey && window.room3D?.updateFurniture) {
                     window.room3D.updateFurniture(String(val));
                 } else if (window.room3D?.update) {
