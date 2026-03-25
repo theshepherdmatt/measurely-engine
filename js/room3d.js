@@ -535,7 +535,7 @@ function rebuild() {
       // Using _fatEdgeGroup on ALL platforms (desktop + mobile) so the frame has
       // physical heft at every DPR. Live-resize falls back to rebuild() since
       // _roomShell stays null, which is acceptable.
-      const SHELL_BEAM_T  = 0.030; // metres — thicker for high-contrast "cage" look
+      const SHELL_BEAM_T  = 0.015; // metres — thicker for high-contrast "cage" look
       // Always solid — no transparency. depthTest:false means the cage renders
       // on top of interior geometry so it's never occluded by walls.
       const shellMat = new THREE.MeshBasicMaterial({
@@ -1048,11 +1048,12 @@ function rebuild() {
   ------------------------------------------ */
   if (!isStudio && (renderStage === 'speakers' || renderStage === 'furnishings')) {
     const frontZ     = -room.length_m / 2 + room.spk_front_m;
-    const rackWallZ  = -room.length_m / 2 + 0.15; // rack always fixed 15 cm from front wall
     const floorY     = -room.height_m / 2;
 
     // ── Hi-fi rack — small coffee table + stacked component boxes ─
     const rackW = 0.55, rackD = 0.38;
+    // Centre of rack sits rackD/2 + 5 cm gap from front wall so it clears the boundary
+    const rackWallZ  = -room.length_m / 2 + rackD / 2 + 0.05;
     const legH  = 0.28, legT = 0.04;
     const topH  = 0.04;
     const tableTopY = legH + topH / 2; // surface centre height above floor
