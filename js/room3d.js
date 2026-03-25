@@ -987,6 +987,47 @@ function rebuild() {
         if (side === 'L') { _spkMeshL = spkGroup; _beamGeoL = beamGeo; }
         else              { _spkMeshR = spkGroup; _beamGeoR = beamGeo; }
       });
+
+      // ── SUBWOOFER ──────────────────────────────────────────────────────
+      // Rendered when setup.subwoofer === true. Simple cube on the floor,
+      // centred between the stereo pair at speaker depth.
+      if (room.subwoofer) {
+        const profile    = getSpeakerProfile(room.speaker_type);
+        const subColor   = profile.color;
+        const subOpacity = Math.max(OP_OBJ, 0.80);
+        const subW = 0.38, subH = 0.36, subD = 0.38;
+
+        const subMat = useFatEdges
+          ? new THREE.MeshBasicMaterial({ color: subColor, transparent: true, opacity: subOpacity })
+          : new THREE.LineBasicMaterial({ color: subColor, transparent: true, opacity: subOpacity });
+
+        let subMesh;
+        if (useFatEdges) {
+          const hw = subW/2, hh = subH/2, hd = subD/2;
+          const v = [
+            new THREE.Vector3(-hw,-hh,-hd), new THREE.Vector3( hw,-hh,-hd),
+            new THREE.Vector3( hw,-hh, hd), new THREE.Vector3(-hw,-hh, hd),
+            new THREE.Vector3(-hw, hh,-hd), new THREE.Vector3( hw, hh,-hd),
+            new THREE.Vector3( hw, hh, hd), new THREE.Vector3(-hw, hh, hd),
+          ];
+          const pairs = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+          const grp = new THREE.Group();
+          grp.add(_fatEdgeGroup(v, pairs, EDGE_TUBE_T * 0.55, subMat));
+          subMesh = grp;
+        } else {
+          subMesh = new THREE.LineSegments(
+            new THREE.EdgesGeometry(new THREE.BoxGeometry(subW, subH, subD)),
+            subMat
+          );
+        }
+
+        subMesh.position.set(
+          offsetX,                                      // centred between speakers
+          baseY + subH / 2,                             // sits on the floor
+          -room.length_m / 2 + room.spk_front_m        // same depth as speakers
+        );
+        roomGroup.add(subMesh);
+      }
     }
 
   /* ------------------------------------------
