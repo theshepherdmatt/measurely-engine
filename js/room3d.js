@@ -1050,22 +1050,41 @@ function rebuild() {
     const frontZ  = -room.length_m / 2 + room.spk_front_m;
     const floorY  = -room.height_m / 2;
 
-    // ── Hi-fi rack — 4 stacked component boxes with gaps ───────
-    const compW = 0.44, compD = 0.38, compGap = 0.02;
-    // Heights: amp (thicker), integrated, streamer, DAC
-    const compHeights = [0.10, 0.08, 0.06, 0.06];
-    const totalRackH  = compHeights.reduce((s, h) => s + h, 0) + compGap * (compHeights.length - 1);
+    // ── Hi-fi rack — small coffee table + stacked component boxes ─
+    const rackW = 0.55, rackD = 0.38;
+    const legH  = 0.28, legT = 0.04;
+    const topH  = 0.04;
+    const tableTopY = legH + topH / 2; // surface centre height above floor
+
     const rack = new THREE.Group();
-    let curY = 0;
+
+    // Table top
+    const rTop = _ghostBox(rackW, topH, rackD);
+    rTop.position.y = tableTopY;
+    rack.add(rTop);
+
+    // 4 legs (same corner pattern as coffee table, scaled down)
+    const lx = rackW / 2 - 0.05, lz = rackD / 2 - 0.05;
+    [[-lx, legH/2, -lz], [lx, legH/2, -lz],
+     [-lx, legH/2,  lz], [lx, legH/2,  lz]].forEach(([px, py, pz]) => {
+      const leg = _ghostBox(legT, legH, legT);
+      leg.position.set(px, py, pz);
+      rack.add(leg);
+    });
+
+    // Stacked components on top of the table
+    const compW = rackW - 0.06, compD = rackD - 0.06, compGap = 0.015;
+    const compHeights = [0.09, 0.07, 0.055, 0.055]; // amp, integrated, streamer, DAC
+    let curY = legH + topH;
     compHeights.forEach(h => {
       const comp = _ghostBox(compW, h, compD);
       comp.position.y = curY + h / 2;
       rack.add(comp);
       curY += h + compGap;
     });
+
     rack.position.set(offsetX, floorY, frontZ);
     roomGroup.add(rack);
-    const rackW = compW; // used for sub placement below
 
     // ── Subwoofer (right of rack) ───────────────────────────────
     if (room.subwoofer) {
