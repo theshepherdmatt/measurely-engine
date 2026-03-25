@@ -781,6 +781,14 @@
             </div>
         </div>
 
+        <!-- Mobile fallback — shown instead of the iframe on small screens -->
+        <div class="demo-mobile-fallback">
+            <p class="demo-mobile-fallback-note">The interactive demo is designed for desktop. Open it on a larger screen, or launch it directly:</p>
+            <a href="demo.html" target="_blank" rel="noopener" class="btn btn-primary">
+                Open Live Demo →
+            </a>
+        </div>
+
         <div style="margin-top:2.5rem">
             <a href="onboarding.html" class="btn btn-primary">
                 Design Your Room →
@@ -882,6 +890,36 @@
             font-size: 0.9rem;
             color: rgba(255,255,255,0.75);
             letter-spacing: 0.04em;
+        }
+
+        /* ── Mobile: swap iframe for fallback CTA ─────────────────── */
+        .demo-mobile-fallback {
+            display: none;
+        }
+
+        @media (max-width: 767px) {
+            .demo-wrap {
+                display: none;
+            }
+            .demo-mobile-fallback {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 1.25rem;
+                padding: 2rem 1.5rem;
+                background: rgba(255,255,255,0.04);
+                border: 1px solid rgba(255,255,255,0.1);
+                border-radius: 12px;
+                max-width: 480px;
+                margin: 0 auto;
+            }
+            .demo-mobile-fallback-note {
+                margin: 0;
+                font-size: 0.95rem;
+                color: var(--text-secondary);
+                text-align: center;
+                line-height: 1.6;
+            }
         }
     </style>
 

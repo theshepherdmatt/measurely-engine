@@ -254,14 +254,27 @@ export function initRoom3D({
   /* ------------------------------------------
      RESIZE HANDLING
   ------------------------------------------ */
-  window.addEventListener("resize", () => {
-    console.log("[Room3D] window resize");
+  function _onContainerResize() {
     const w = container.clientWidth;
     const h = container.clientHeight;
+    if (!w || !h) return;
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
     renderer.setSize(w, h);
-  });
+  }
+
+  // ResizeObserver catches container changes on mobile (address bar
+  // show/hide, orientation change, layout settling) more reliably than
+  // window "resize" alone.
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(_onContainerResize).observe(container);
+  } else {
+    window.addEventListener("resize", _onContainerResize);
+  }
+
+  // Deferred initial resize — lets the browser finish layout before
+  // we lock in the canvas dimensions (fixes the "must refresh" bug on mobile).
+  requestAnimationFrame(_onContainerResize);
 
   // ── Live object refs (repopulated every rebuild) ─────────
 
