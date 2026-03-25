@@ -339,7 +339,8 @@ export function initRoom3D({
         const worldDist = Math.sqrt(dx * dx + dz * dz);
         const localDist = worldDist / (roomGroup.scale.x || 1);
         const pos = bGeo.attributes.position;
-        pos.setXYZ(1, 0, 0, localDist);
+        const beamY = pos.getY(0); // preserve tweeter Y offset from start point
+        pos.setXYZ(1, 0, beamY, localDist);
         pos.needsUpdate = true;
         const lineObj = spk.children.find(c => c.isLine);
         if (lineObj) lineObj.computeLineDistances();
@@ -897,9 +898,11 @@ function rebuild() {
           y = baseY + profile.h / 2;
           z = -room.length_m / 2 + room.spk_front_m;
         } else {
-          // Free-standing speakers: level-lock tweeter to tweeter_height_m
+          // Standmounts: always sit on a fixed standard stand so tweeter ~0.95 m.
+          // tweeter_height_m drives acoustic overlays only — not the visual position.
+          const stdTweeterH = 0.95;
           const tweeterOffsetFromCenter = (profile.h / 2) - (profile.h * (profile.tweeterPos || 0.5));
-          y = baseY + room.tweeter_height_m + tweeterOffsetFromCenter;
+          y = baseY + stdTweeterH + tweeterOffsetFromCenter;
           z = -room.length_m / 2 + room.spk_front_m;
         }
 
@@ -930,9 +933,11 @@ function rebuild() {
         spkGroup.rotation.y = (side === "L" ? 1 : -1) * toeRad;
 
         // --- BEAMS — extracted so _applyAutoToe can update the endpoint live ---
+        // Start beam at tweeter position within the cabinet (not cabinet centre)
+        const tweeterLocalY = (profile.tweeterPos - 0.5) * profile.h;
         const beamGeo = new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(0, 0, 0),
-          new THREE.Vector3(0, 0, room.length_m)
+          new THREE.Vector3(0, tweeterLocalY, 0),
+          new THREE.Vector3(0, tweeterLocalY, room.length_m)
         ]);
         const beam = new THREE.Line(
           beamGeo,
