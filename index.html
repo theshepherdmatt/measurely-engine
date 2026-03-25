@@ -823,12 +823,20 @@
             </div>
         </div>
 
-        <!-- Mobile fallback — shown instead of the iframe on small screens -->
+        <!-- Mobile fallback — shown instead of the iframe in portrait -->
         <div class="demo-mobile-fallback">
-            <p class="demo-mobile-fallback-note">The interactive demo is designed for desktop. Open it on a larger screen, or launch it directly:</p>
-            <a href="demo.html" target="_blank" rel="noopener" class="btn btn-primary">
-                Open Live Demo →
-            </a>
+            <div class="demo-chrome">
+                <div class="demo-chrome-dots">
+                    <span></span><span></span><span></span>
+                </div>
+                <div class="demo-chrome-url">measurely.uk/demo</div>
+            </div>
+            <div class="demo-mobile-fallback-body">
+                <p class="demo-mobile-fallback-note">The interactive demo is built for landscape. Rotate your device or open it on a larger screen.</p>
+                <a href="demo.html" target="_blank" rel="noopener" class="btn btn-primary">
+                    Open Live Demo →
+                </a>
+            </div>
         </div>
 
         <div style="margin-top:2.5rem">
@@ -934,31 +942,36 @@
             letter-spacing: 0.04em;
         }
 
-        /* ── Mobile: swap iframe for fallback CTA ─────────────────── */
+        /* ── Mobile portrait: swap iframe for fallback shell ──────── */
         .demo-mobile-fallback {
             display: none;
         }
 
-        @media (max-width: 767px) {
+        @media (max-width: 767px) and (orientation: portrait) {
             .demo-wrap {
                 display: none;
             }
             .demo-mobile-fallback {
+                display: block;
+                width: 100%;
+                max-width: 480px;
+                margin: 0 auto;
+                border-radius: 10px;
+                overflow: hidden;
+                box-shadow: 0 16px 48px rgba(0,0,0,0.22);
+            }
+            .demo-mobile-fallback-body {
+                background: #0f1623;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
-                gap: 1.25rem;
-                padding: 2rem 1.5rem;
-                background: rgba(255,255,255,0.04);
-                border: 1px solid rgba(255,255,255,0.1);
-                border-radius: 12px;
-                max-width: 480px;
-                margin: 0 auto;
+                gap: 1.5rem;
+                padding: 2.5rem 1.5rem;
             }
             .demo-mobile-fallback-note {
                 margin: 0;
-                font-size: 0.95rem;
-                color: var(--text-secondary);
+                font-size: 0.9rem;
+                color: rgba(255,255,255,0.55);
                 text-align: center;
                 line-height: 1.6;
             }
