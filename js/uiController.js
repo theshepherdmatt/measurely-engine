@@ -86,7 +86,6 @@ function handleEnvironmentChange(type, state) {
     } : {
         "setup.speaker_type": "standmount",
         "setup.tweeter_height_m": 0.95,
-        "setup.spk_front_m": 0.80,
         "setup.listener_front_m": 2.50,
         "setup.spk_spacing_m": 2.20,
         // Added .furniture. to these paths
