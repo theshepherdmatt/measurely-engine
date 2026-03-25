@@ -1167,21 +1167,10 @@ function rebuild() {
 
     // ── Rug (local coords: centred in front of sphere) ──
     if (VISIBILITY.furniture.rug && room.opt_area_rug) {
-      const rugIsNew = !!room._highlight_rug;
-      const rug = new THREE.Mesh(
-        new THREE.PlaneGeometry(room.width_m * 0.45, room.length_m * 0.35),
-        new THREE.MeshBasicMaterial({
-          color:       rugIsNew ? 0x10b981 : 0x9a8f87, // green if recommended by treatment plan, muted warm grey if existing
-          wireframe:   true,
-          transparent: true,
-          opacity:     rugIsNew ? 0.45 : 0.22,
-          depthWrite:  false,
-          depthTest:   true,
-          side: THREE.DoubleSide
-        })
-      );
-      rug.rotation.x = -Math.PI / 2;
-      rug.position.set(0, 0.01, -1.15); // 1 cm above floor so no z-fighting with grid
+      const rugW = room.width_m * 0.45, rugD = room.length_m * 0.35;
+      // _ghostBox gives the same line weight and material as all other furniture
+      const rug = _ghostBox(rugW, 0.02, rugD);
+      rug.position.set(0, 0.01, -1.15);
       station.add(rug);
     }
 
