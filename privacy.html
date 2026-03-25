@@ -12,6 +12,7 @@
             max-width: 720px;
             margin: 0 auto;
             padding: 3rem 2rem 6rem;
+            background: var(--c-surface-page, #f4f2ee);
         }
 
         .privacy-back {
@@ -49,18 +50,18 @@
         }
 
         .privacy-card {
-            background: linear-gradient(165deg, rgba(35,46,66,0.92) 0%, rgba(18,26,38,0.95) 100%);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 16px;
-            padding: 2rem 2.25rem;
-            margin-bottom: 1.25rem;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            background: #ffffff;
+            border: 1px solid rgba(0,0,0,0.07);
+            border-radius: 12px;
+            padding: 1.75rem 2rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
         }
 
         .privacy-card h2 {
-            font-size: 1rem;
+            font-size: 0.95rem;
             font-weight: 700;
-            color: var(--c-text-main);
+            color: var(--c-text-main, #1a1714);
             margin: 0 0 0.75rem;
             display: flex;
             align-items: center;
@@ -80,7 +81,7 @@
         .privacy-card p,
         .privacy-card li {
             font-size: 0.92rem;
-            color: var(--c-text-muted);
+            color: var(--c-text-muted, #5a5550);
             line-height: 1.7;
             margin: 0 0 0.5rem;
         }
@@ -93,21 +94,23 @@
         .privacy-card li { margin-bottom: 0.35rem; }
 
         .highlight-card {
-            background: linear-gradient(135deg, rgba(212,149,15,0.12), rgba(184,124,8,0.08));
-            border-color: rgba(212,149,15,0.35);
+            background: #fffbf0;
+            border-color: rgba(212,149,15,0.3);
+            border-left: 4px solid var(--c-accent);
         }
 
         .highlight-card p {
-            color: #fde68a;
-            font-size: 1rem;
+            color: var(--c-text-main, #1a1714);
+            font-size: 0.95rem;
             font-weight: 500;
         }
 
         .privacy-footer {
             margin-top: 3rem;
             font-size: 0.78rem;
-            color: rgba(148,163,184,0.45);
+            color: var(--c-text-muted);
             text-align: center;
+            opacity: 0.6;
         }
 
         .privacy-footer a {
