@@ -988,46 +988,6 @@ function rebuild() {
         else              { _spkMeshR = spkGroup; _beamGeoR = beamGeo; }
       });
 
-      // ── SUBWOOFER ──────────────────────────────────────────────────────
-      // Rendered when setup.subwoofer === true. Simple cube on the floor,
-      // centred between the stereo pair at speaker depth.
-      if (room.subwoofer) {
-        const profile    = getSpeakerProfile(room.speaker_type);
-        const subColor   = profile.color;
-        const subOpacity = Math.max(OP_OBJ, 0.80);
-        const subW = 0.38, subH = 0.36, subD = 0.38;
-
-        const subMat = useFatEdges
-          ? new THREE.MeshBasicMaterial({ color: subColor, transparent: true, opacity: subOpacity })
-          : new THREE.LineBasicMaterial({ color: subColor, transparent: true, opacity: subOpacity });
-
-        let subMesh;
-        if (useFatEdges) {
-          const hw = subW/2, hh = subH/2, hd = subD/2;
-          const v = [
-            new THREE.Vector3(-hw,-hh,-hd), new THREE.Vector3( hw,-hh,-hd),
-            new THREE.Vector3( hw,-hh, hd), new THREE.Vector3(-hw,-hh, hd),
-            new THREE.Vector3(-hw, hh,-hd), new THREE.Vector3( hw, hh,-hd),
-            new THREE.Vector3( hw, hh, hd), new THREE.Vector3(-hw, hh, hd),
-          ];
-          const pairs = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
-          const grp = new THREE.Group();
-          grp.add(_fatEdgeGroup(v, pairs, EDGE_TUBE_T * 0.55, subMat));
-          subMesh = grp;
-        } else {
-          subMesh = new THREE.LineSegments(
-            new THREE.EdgesGeometry(new THREE.BoxGeometry(subW, subH, subD)),
-            subMat
-          );
-        }
-
-        subMesh.position.set(
-          offsetX,                                      // centred between speakers
-          baseY + subH / 2,                             // sits on the floor
-          -room.length_m / 2 + room.spk_front_m        // same depth as speakers
-        );
-        roomGroup.add(subMesh);
-      }
     }
 
   /* ------------------------------------------
@@ -1074,6 +1034,91 @@ function rebuild() {
       grp.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), furnEdgeMat));
     }
     return grp;
+  }
+
+  /* ------------------------------------------
+     HI-FI RACK + SUBWOOFER (home room only)
+     Rack sits centre against the front wall.
+     Sub sits to the right of the rack when enabled.
+  ------------------------------------------ */
+  if (!isStudio && (renderStage === 'speakers' || renderStage === 'furnishings')) {
+    const frontZ  = -room.length_m / 2 + room.spk_front_m;
+    const floorY  = -room.height_m / 2;
+
+    // ── Hi-fi rack ─────────────────────────────────────────────
+    const rackW = 0.44, rackH = 0.85, rackD = 0.40;
+    const rack  = new THREE.Group();
+
+    rack.add(_ghostBox(rackW, rackH, rackD)); // outer frame
+
+    // Three stacked components (amp, source, DAC/preamp)
+    const compW = rackW - 0.04, compD = rackD - 0.04;
+    [
+      { h: 0.08, yOff: -rackH * 0.28 }, // amp — thicker, sits low
+      { h: 0.05, yOff:  rackH * 0.02 }, // source (CD/streamer)
+      { h: 0.05, yOff:  rackH * 0.24 }, // DAC / preamp
+    ].forEach(({ h, yOff }) => {
+      const comp = _ghostBox(compW, h, compD);
+      comp.position.y = yOff;
+      rack.add(comp);
+    });
+
+    rack.position.set(offsetX, floorY + rackH / 2, frontZ);
+    roomGroup.add(rack);
+
+    // ── Subwoofer (right of rack) ───────────────────────────────
+    if (room.subwoofer) {
+      const profile    = getSpeakerProfile(room.speaker_type);
+      const subColor   = profile.color;
+      const subOpacity = Math.max(OP_OBJ, 0.80);
+      const subW = 0.38, subH = 0.36, subD = 0.38;
+      const subGap = 0.06;
+
+      const subMat = useFatEdges
+        ? new THREE.MeshBasicMaterial({ color: subColor, transparent: true, opacity: subOpacity })
+        : new THREE.LineBasicMaterial({ color: subColor, transparent: true, opacity: subOpacity });
+
+      const subGroup = new THREE.Group();
+
+      // Cabinet wireframe
+      if (useFatEdges) {
+        const hw = subW/2, hh = subH/2, hd = subD/2;
+        const v = [
+          new THREE.Vector3(-hw,-hh,-hd), new THREE.Vector3( hw,-hh,-hd),
+          new THREE.Vector3( hw,-hh, hd), new THREE.Vector3(-hw,-hh, hd),
+          new THREE.Vector3(-hw, hh,-hd), new THREE.Vector3( hw, hh,-hd),
+          new THREE.Vector3( hw, hh, hd), new THREE.Vector3(-hw, hh, hd),
+        ];
+        const pairs = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+        subGroup.add(_fatEdgeGroup(v, pairs, EDGE_TUBE_T * 0.55, subMat));
+      } else {
+        subGroup.add(new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.BoxGeometry(subW, subH, subD)),
+          subMat
+        ));
+      }
+
+      // Driver ring on front face (faces listener, +z direction)
+      const driverMat = new THREE.LineBasicMaterial({
+        color: subColor, transparent: true, opacity: subOpacity * 0.70
+      });
+      const driverPts = [];
+      const driverR   = subW * 0.32; // ~12cm radius ≈ 24cm woofer
+      for (let i = 0; i <= 32; i++) {
+        const a = (i / 32) * Math.PI * 2;
+        driverPts.push(new THREE.Vector3(Math.cos(a) * driverR, Math.sin(a) * driverR, subD / 2 + 0.002));
+      }
+      subGroup.add(new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(driverPts), driverMat
+      ));
+
+      subGroup.position.set(
+        offsetX + rackW / 2 + subGap + subW / 2, // right of rack
+        floorY + subH / 2,
+        frontZ
+      );
+      roomGroup.add(subGroup);
+    }
   }
 
   {
