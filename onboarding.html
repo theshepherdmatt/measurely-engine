@@ -343,6 +343,19 @@ let roomState = structuredClone(DEFAULT_ROOM_STATE);
 const hasOnboarded = localStorage.getItem('measurely_onboarded');
 const welcomeScreen = document.getElementById('welcomeScreen');
 
+function hasValidAuthToken() {
+  try {
+    const raw = localStorage.getItem('pocketbase_auth');
+    if (!raw) return false;
+    const auth = JSON.parse(raw);
+    if (!auth?.token) return false;
+    const parts = auth.token.split('.');
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
+    return !payload.exp || payload.exp * 1000 > Date.now();
+  } catch { return false; }
+}
+
 function dismissWelcome(cb) {
   localStorage.setItem('measurely_onboarded', 'true');
   welcomeScreen.classList.add('welcome-out');
@@ -352,8 +365,8 @@ function dismissWelcome(cb) {
   }, 420);
 }
 
-if (hasOnboarded) {
-  // Returning user — skip the welcome screen immediately
+if (hasOnboarded && hasValidAuthToken()) {
+  // Returning logged-in user — skip the welcome screen
   welcomeScreen.classList.add('hidden');
 } else {
   document.getElementById('tourBtn').addEventListener('click', () => {

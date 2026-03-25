@@ -485,12 +485,6 @@ html, body {
 
     padding-top: 1rem;
     margin-top: 1rem;
-
-    background: linear-gradient(
-      to top,
-      rgba(244, 242, 238, 0.98),
-      rgba(244, 242, 238, 0)
-    );
   }
 
 }
