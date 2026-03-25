@@ -774,7 +774,7 @@ html, body {
   place-items: center;
   overflow-y: auto;
 
-  background: #eae6e0;
+  background: var(--c-surface-page, #f4f2ee);
 
   transition: opacity 0.45s ease, transform 0.45s ease;
 }
@@ -789,7 +789,7 @@ html, body {
   display: none;
 }
 
-/* Wave canvas — fills the whole screen behind content */
+/* Wave canvas — subtle background texture */
 #welcomeWaves {
   position: absolute;
   inset: 0;
@@ -797,7 +797,7 @@ html, body {
   height: 100%;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.55;
+  opacity: 0.25;
 }
 
 /* Hero content */
@@ -811,7 +811,7 @@ html, body {
   text-align: center;
 
   padding: 1rem 1.5rem 1.25rem;
-  max-width: 540px;
+  max-width: 520px;
   width: 100%;
 
   animation: welcomeEnter 0.9s cubic-bezier(.16, 1, .3, 1) both;
@@ -822,32 +822,12 @@ html, body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* ── Logo mark ──────────────────────────────────────── */
-.welcome-logo-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 58px;
-  height: 58px;
-  margin-bottom: 0.9rem;
-}
-
-.welcome-logo-wrap img {
-  width: 28px;
-  height: 28px;
-  position: relative;
-  z-index: 1;
-  opacity: 0.85;
-}
-
-/* Simple bordered ring around the icon — no glow */
-.welcome-logo-ring {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: rgba(212, 149, 15, 0.08);
-  border: 1px solid rgba(212, 149, 15, 0.25);
+/* ── Logo ───────────────────────────────────────────── */
+.welcome-logo {
+  width: 36px;
+  height: 36px;
+  margin-bottom: 1rem;
+  opacity: 0.8;
 }
 
 /* ── Eyebrow ────────────────────────────────────────── */
@@ -858,12 +838,11 @@ html, body {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--c-accent);
-  opacity: 0.75;
 }
 
 /* ── Headline ───────────────────────────────────────── */
 .welcome-headline {
-  margin: 0 0 0.65rem;
+  margin: 0 0 0.75rem;
   font-size: clamp(1.9rem, 5vw, 3rem);
   font-weight: 800;
   letter-spacing: -0.05em;
@@ -873,79 +852,38 @@ html, body {
 
 /* ── Sub ────────────────────────────────────────────── */
 .welcome-sub {
-  margin: 0 0 1.1rem;
+  margin: 0 0 1.25rem;
   max-width: 400px;
   font-size: 0.88rem;
   line-height: 1.65;
   color: #9a8f87;
 }
 
-/* ── Feature trio ───────────────────────────────────── */
-.welcome-features {
+/* ── Steps list ─────────────────────────────────────── */
+.welcome-steps {
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0;
   display: flex;
-  align-items: center;
-  gap: 0;
+  flex-direction: column;
+  gap: 0.45rem;
+  text-align: left;
+  align-self: flex-start;
   width: 100%;
-  max-width: 420px;
-  margin-bottom: 1.1rem;
-
-  background: rgba(0, 0, 0, 0.03);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 12px;
-  overflow: hidden;
+  max-width: 320px;
 }
 
-.welcome-feature {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.35rem;
-  padding: 0.6rem 0.4rem 0.65rem;
-  transition: background 0.15s ease;
-}
-
-.welcome-feature:hover {
-  background: rgba(212, 149, 15, 0.06);
-}
-
-.welcome-feature-icon {
+.welcome-steps li {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
-  background: rgba(212, 149, 15, 0.12);
-  border: 1px solid rgba(212, 149, 15, 0.22);
-  color: var(--c-accent-light);
-  flex-shrink: 0;
-}
-
-.welcome-feature-text {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.15rem;
-}
-
-.welcome-feature-text strong {
-  font-size: 0.8rem;
-  font-weight: 700;
+  gap: 0.5rem;
+  font-size: 0.875rem;
   color: var(--c-text-main);
-  letter-spacing: -0.01em;
 }
 
-.welcome-feature-text span {
-  font-size: 0.67rem;
-  color: var(--c-text-muted);
-  opacity: 0.7;
-}
-
-.welcome-feature-divider {
-  width: 1px;
-  height: 44px;
-  background: rgba(0, 0, 0, 0.08);
+.welcome-steps .material-icons {
+  font-size: 1rem;
+  color: var(--c-accent);
   flex-shrink: 0;
 }
 
@@ -964,61 +902,50 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.55rem;
 
-  padding: 0.75rem 1.25rem;
+  padding: 0.75rem 1.625rem;
 
-  background: linear-gradient(135deg, #d4950f 0%, #b87c08 100%);
+  background: var(--c-accent, #d4950f);
   color: #fff;
 
-  border: none;
-  border-radius: 11px;
+  border: 1px solid var(--c-accent, #d4950f);
+  border-radius: 4px;
 
   font-family: inherit;
-  font-size: 0.93rem;
+  font-size: 0.9375rem;
   font-weight: 700;
-  letter-spacing: -0.01em;
   cursor: pointer;
 
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
-
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .welcome-cta:hover {
-  opacity: 0.92;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-}
-
-.welcome-cta:active {
-  transform: translateY(0);
+  background: var(--c-accent-dark, #b87c08);
+  border-color: var(--c-accent-dark, #b87c08);
 }
 
 /* SECONDARY — Skip */
 .welcome-skip {
   flex-shrink: 0;
-  padding: 0.7rem 1rem;
+  padding: 0.75rem 1.25rem;
 
-  background: rgba(0, 0, 0, 0.04);
-  color: #9a8f87;
+  background: transparent;
+  color: var(--c-text-main);
 
-  border: 1px solid rgba(0, 0, 0, 0.09);
-  border-radius: 11px;
+  border: 1px solid rgba(0, 0, 0, 0.20);
+  border-radius: 4px;
 
   font-family: inherit;
-  font-size: 0.85rem;
-  font-weight: 500;
+  font-size: 0.9rem;
+  font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
 
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease;
 }
 
 .welcome-skip:hover {
-  background: rgba(0, 0, 0, 0.07);
-  color: #1a1714;
-  border-color: rgba(0, 0, 0, 0.16);
+  background: rgba(0, 0, 0, 0.04);
 }
 
 /* ── Hint ───────────────────────────────────────────── */

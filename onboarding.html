@@ -138,83 +138,29 @@
 
   <div class="welcome-hero">
 
-    <!-- Logo mark -->
-    <div class="welcome-logo-wrap" aria-hidden="true">
-      <div class="welcome-logo-ring"></div>
-      <img src="icons/largedave.svg" alt="">
-    </div>
+    <img src="icons/largedave.svg" alt="" class="welcome-logo" aria-hidden="true">
 
-    <p class="welcome-eyebrow">Room setup wizard</p>
+    <p class="welcome-eyebrow">Room Setup Wizard</p>
 
     <h2 class="welcome-headline">Design your room.<br>Hear the difference.</h2>
 
     <p class="welcome-sub">
-      Map your speakers, furniture, and dimensions in 3D — then upload a sweep
+      Map your speakers, furniture, and dimensions in 3D, then upload a sweep
       from REW to hear exactly what your space is doing to the sound.
     </p>
 
-    <!-- Feature trio -->
-    <div class="welcome-features" aria-hidden="true">
-
-      <div class="welcome-feature">
-        <div class="welcome-feature-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M3 9l9-6 9 6v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
-          </svg>
-        </div>
-        <div class="welcome-feature-text">
-          <strong>Map</strong>
-          <span>Room dimensions</span>
-        </div>
-      </div>
-
-      <div class="welcome-feature-divider" aria-hidden="true"></div>
-
-      <div class="welcome-feature">
-        <div class="welcome-feature-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="2"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/>
-          </svg>
-        </div>
-        <div class="welcome-feature-text">
-          <strong>Position</strong>
-          <span>Speakers &amp; listener</span>
-        </div>
-      </div>
-
-      <div class="welcome-feature-divider" aria-hidden="true"></div>
-
-      <div class="welcome-feature">
-        <div class="welcome-feature-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M20 9V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v2"/><path d="M2 11v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5a2 2 0 0 0-4 0v0a2 2 0 0 1-4 0v0a2 2 0 0 1-4 0v0a2 2 0 0 0-4 0z"/>
-          </svg>
-        </div>
-        <div class="welcome-feature-text">
-          <strong>Furnish</strong>
-          <span>Furniture &amp; treatment</span>
-        </div>
-      </div>
-
-    </div><!-- /welcome-features -->
+    <ul class="welcome-steps" aria-hidden="true">
+      <li><span class="material-icons">check_circle</span> Map your room dimensions</li>
+      <li><span class="material-icons">check_circle</span> Position speakers and listener</li>
+      <li><span class="material-icons">check_circle</span> Add furniture and treatment</li>
+    </ul>
 
     <div class="welcome-actions">
-      <button id="tourBtn" class="welcome-cta">
-        Begin setup
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
-        </svg>
-      </button>
-      <button id="skipBtn" class="welcome-skip">
-        Skip to demo
-      </button>
+      <button id="tourBtn" class="welcome-cta">Begin setup &rarr;</button>
+      <button id="skipBtn" class="welcome-skip">Skip to demo</button>
     </div>
 
-    <p class="welcome-hint">Takes about 2 minutes — you'll need a tape measure.</p>
+    <p class="welcome-hint">Takes about 2 minutes. You will need a tape measure.</p>
 
   </div>
 </div>
