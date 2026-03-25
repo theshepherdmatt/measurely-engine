@@ -735,7 +735,7 @@ const VALIDATION_RULES = {
     const geo = s.geometry;
     if (geo.length_m >= 10) errs.push({ key: "geometry.length_m", msg: "Maximum room length is 10 m." });
     if (geo.width_m  >= 10) errs.push({ key: "geometry.width_m",  msg: "Maximum room width is 10 m." });
-    if (geo.height_m > 3.5) errs.push({ key: "geometry.height_m", msg: "Maximum ceiling height is 3.5 m." });
+    if (geo.height_m > 6.0) errs.push({ key: "geometry.height_m", msg: "Maximum ceiling height is 6.0 m." });
     return errs;
   },
 
