@@ -1045,26 +1045,22 @@ function rebuild() {
     const frontZ  = -room.length_m / 2 + room.spk_front_m;
     const floorY  = -room.height_m / 2;
 
-    // ── Hi-fi rack ─────────────────────────────────────────────
-    const rackW = 0.44, rackH = 0.85, rackD = 0.40;
-    const rack  = new THREE.Group();
-
-    rack.add(_ghostBox(rackW, rackH, rackD)); // outer frame
-
-    // Three stacked components (amp, source, DAC/preamp)
-    const compW = rackW - 0.04, compD = rackD - 0.04;
-    [
-      { h: 0.08, yOff: -rackH * 0.28 }, // amp — thicker, sits low
-      { h: 0.05, yOff:  rackH * 0.02 }, // source (CD/streamer)
-      { h: 0.05, yOff:  rackH * 0.24 }, // DAC / preamp
-    ].forEach(({ h, yOff }) => {
+    // ── Hi-fi rack — 4 stacked component boxes with gaps ───────
+    const compW = 0.44, compD = 0.38, compGap = 0.02;
+    // Heights: amp (thicker), integrated, streamer, DAC
+    const compHeights = [0.10, 0.08, 0.06, 0.06];
+    const totalRackH  = compHeights.reduce((s, h) => s + h, 0) + compGap * (compHeights.length - 1);
+    const rack = new THREE.Group();
+    let curY = 0;
+    compHeights.forEach(h => {
       const comp = _ghostBox(compW, h, compD);
-      comp.position.y = yOff;
+      comp.position.y = curY + h / 2;
       rack.add(comp);
+      curY += h + compGap;
     });
-
-    rack.position.set(offsetX, floorY + rackH / 2, frontZ);
+    rack.position.set(offsetX, floorY, frontZ);
     roomGroup.add(rack);
+    const rackW = compW; // used for sub placement below
 
     // ── Subwoofer (right of rack) ───────────────────────────────
     if (room.subwoofer) {
