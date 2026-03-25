@@ -911,10 +911,9 @@ function loadStep() {
 
                 // Side effects ─────────────────────────────────────────────
                 if (bareKey === 'room_type' && val === 'home') {
-                    // Snap to realistic hi-fi defaults: speakers tight to front
-                    // wall, listener near the back wall, sofa visible immediately.
+                    // Set listener position and furniture — do NOT touch spk_front_m
+                    // so speakers stay wherever they already are against the wall.
                     const homeDefaults = {
-                        'setup.spk_front_m':      0.15,
                         'setup.spk_spacing_m':    2.2,
                         'setup.tweeter_height_m': 0.95,
                         'setup.listener_front_m': 3.2,

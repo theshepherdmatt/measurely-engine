@@ -1047,8 +1047,9 @@ function rebuild() {
      Sub sits to the right of the rack when enabled.
   ------------------------------------------ */
   if (!isStudio && (renderStage === 'speakers' || renderStage === 'furnishings')) {
-    const frontZ  = -room.length_m / 2 + room.spk_front_m;
-    const floorY  = -room.height_m / 2;
+    const frontZ     = -room.length_m / 2 + room.spk_front_m;
+    const rackWallZ  = -room.length_m / 2 + 0.15; // rack always fixed 15 cm from front wall
+    const floorY     = -room.height_m / 2;
 
     // ── Hi-fi rack — small coffee table + stacked component boxes ─
     const rackW = 0.55, rackD = 0.38;
@@ -1083,7 +1084,7 @@ function rebuild() {
       curY += h + compGap;
     });
 
-    rack.position.set(offsetX, floorY, frontZ);
+    rack.position.set(offsetX, floorY, rackWallZ);
     roomGroup.add(rack);
 
     // ── Subwoofer (right of rack) ───────────────────────────────
@@ -1135,7 +1136,7 @@ function rebuild() {
       subGroup.position.set(
         offsetX + rackW / 2 + subGap + subW / 2, // right of rack
         floorY + subH / 2,
-        frontZ
+        rackWallZ
       );
       roomGroup.add(subGroup);
     }
