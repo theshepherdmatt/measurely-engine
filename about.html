@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>About – Measurely</title>
+    <meta name="description" content="Measurely was built by Matt Shepherd, a UK developer and vintage speaker restorer who wanted better data for his workshop. Here's the story.">
+    <link rel="canonical" href="https://measurely.uk/about.html">
+    <link rel="icon" type="image/svg+xml" href="icons/dave.svg">
+    <link rel="stylesheet" href="css/global/tokens.css">
+    <link rel="stylesheet" href="css/global/base.css">
+    <meta name="theme-color" content="#d4950f">
+
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://measurely.uk/about.html">
+    <meta property="og:title" content="About – Measurely">
+    <meta property="og:description" content="Measurely was built by Matt Shepherd, a UK developer and vintage speaker restorer. Here's how a pair of Gale GS401s started it all.">
+    <meta property="og:site_name" content="Measurely">
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "AboutPage",
+      "@id": "https://measurely.uk/about.html#webpage",
+      "url": "https://measurely.uk/about.html",
+      "name": "About Measurely",
+      "description": "The story behind Measurely — built by Matt Shepherd, UK developer and vintage speaker restorer.",
+      "isPartOf": { "@id": "https://measurely.uk/#website" },
+      "about": { "@id": "https://measurely.uk/#organization" },
+      "author": {
+        "@type": "Person",
+        "@id": "https://measurely.uk/#matt",
+        "name": "Matt Shepherd",
+        "jobTitle": "Founder",
+        "description": "UK developer, music lover, and vintage speaker restorer. Specialises in restoring Gale GS401 speakers.",
+        "knowsAbout": ["room acoustics", "speaker restoration", "audio measurement", "Room EQ Wizard", "vintage hi-fi"],
+        "nationality": "GB"
+      },
+      "breadcrumb": {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://measurely.uk/" },
+          { "@type": "ListItem", "position": 2, "name": "About", "item": "https://measurely.uk/about.html" }
+        ]
+      }
+    }
+    </script>
+
+    <style>
+        body {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 3rem 2rem 6rem;
+            background: var(--c-surface-page, #f4f2ee);
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.85rem;
+            color: var(--c-text-muted);
+            text-decoration: none;
+            margin-bottom: 3rem;
+            transition: color 0.15s;
+        }
+        .back-link:hover { color: var(--c-text-main); }
+
+        h1 {
+            font-size: 2.2rem;
+            font-weight: 750;
+            letter-spacing: -0.03em;
+            margin: 0 0 0.4rem;
+            color: var(--c-text-main);
+        }
+
+        .page-meta {
+            font-size: 0.82rem;
+            color: var(--c-text-muted);
+            margin-bottom: 3rem;
+        }
+
+        .about-card {
+            background: #ffffff;
+            border: 1px solid rgba(0,0,0,0.07);
+            border-radius: 12px;
+            padding: 1.75rem 2rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        }
+
+        .about-card h2 {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--c-text-main, #1a1714);
+            margin: 0 0 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .about-card h2::before {
+            content: '';
+            display: inline-block;
+            width: 3px;
+            height: 1em;
+            background: var(--c-accent, #d4950f);
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+
+        .about-card p {
+            font-size: 0.92rem;
+            color: var(--c-text-muted, #5a5550);
+            line-height: 1.7;
+            margin: 0 0 0.75rem;
+        }
+
+        .about-card p:last-child { margin-bottom: 0; }
+
+        .highlight-card {
+            background: #fffbf0;
+            border-color: rgba(212,149,15,0.3);
+            border-left: 4px solid var(--c-accent, #d4950f);
+        }
+
+        .highlight-card p {
+            color: var(--c-text-main, #1a1714);
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+
+        .about-footer {
+            margin-top: 3rem;
+            font-size: 0.78rem;
+            color: var(--c-text-muted);
+            text-align: center;
+            opacity: 0.6;
+        }
+
+        .about-footer a {
+            color: var(--c-accent, #d4950f);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+
+    <a href="/" class="back-link">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to Measurely
+    </a>
+
+    <h1>About Measurely</h1>
+    <p class="page-meta">Built in the UK &nbsp;·&nbsp; Matt Shepherd</p>
+
+    <div class="about-card highlight-card">
+        <p>Measurely started in a workshop, not a boardroom. It was built to solve a specific problem: how do you know if the treble driver on a pair of vintage speakers is actually balanced — not by ear, but by data?</p>
+    </div>
+
+    <div class="about-card">
+        <h2>Where it came from</h2>
+        <p>I restore vintage speakers — mostly Gale GS401s, a British design from the 1970s that I think still sounds remarkable when it's right. Customers bring them in and trust me to get the drivers balanced before they go back. For years I did that by ear. It worked, but it bothered me: ear is subjective, and two restores of the same model can sound meaningfully different depending on the day.</p>
+        <p>I wanted a way to run left and right channel sweeps and use the measurement data to make a clear call — treble up, treble down, leave it alone. Something that turned a graph into a decision. That's what Measurely started as: a workshop tool for one pair of speakers.</p>
+    </div>
+
+    <div class="about-card">
+        <h2>How it grew</h2>
+        <p>Once the sweep-and-score workflow existed, it turned out to be useful for rooms too — not just drivers. The same idea applies: a listening room has peaks and dips, early reflections, imbalance between channels. REW can measure all of it, but most people who love music aren't acoustic engineers. They need scores, not spectrograms.</p>
+        <p>So Measurely grew from a speaker workshop tool into a room acoustics tool. The core idea stayed the same — take measurement data, translate it into plain English, tell you what to do about it. Six scores, a ranked list of next steps, a 3D view of what's happening in your room. Built for people who care about how their music sounds, not for people who want to read graphs for a living.</p>
+    </div>
+
+    <div class="about-card">
+        <h2>Who I am</h2>
+        <p>I'm Matt Shepherd. I'm a developer based in the UK, and I've been into sound — particularly vintage British hi-fi — for most of my adult life. Tinkering is the thread that connects most of what I do: taking something apart, understanding why it works, and making it better before putting it back together.</p>
+        <p>Measurely is a solo project. It's free because I wanted it to be genuinely useful, not because I'm building toward a paywall. The Measurely Remote kit is coming — a Raspberry Pi-based sweep device for rooms without a measurement mic — and that's how the project sustains itself.</p>
+        <p>If you've got questions, found a bug, or want to tell me about your speakers: <a href="mailto:info@measurely.uk">info@measurely.uk</a></p>
+    </div>
+
+    <p class="about-footer">
+        <a href="/">measurely.uk</a> &nbsp;·&nbsp;
+        <a href="/privacy.html">Privacy</a> &nbsp;·&nbsp;
+        <a href="/terms.html">Terms</a>
+    </p>
+
+</body>
+</html>

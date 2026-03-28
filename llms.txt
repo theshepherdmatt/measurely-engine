@@ -12,9 +12,14 @@
 - 3D interactive room visualisation showing speaker positions and reflection paths
 - Measurely Remote: optional Raspberry Pi kit for in-room sweep measurement
 
+## Creator
+
+Measurely was built by Matt Shepherd, a UK developer and vintage speaker restorer. The tool originated from a practical workshop need: balancing treble and mid drivers on restored Gale GS401 speakers using left/right sweep data. It has since grown into a full room acoustics analysis tool.
+
 ## Pages
 
 - [Home](https://measurely.uk/): Product overview, how it works, FAQ, interactive demo
+- [About](https://measurely.uk/about.html): The story behind Measurely and who built it
 - [Privacy Policy](https://measurely.uk/privacy.html): Data handling — no server-side storage of audio or measurements
 - [Terms of Service](https://measurely.uk/terms.html): Terms of use
 
