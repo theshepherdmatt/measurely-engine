@@ -421,6 +421,7 @@ function rebuild() {
       ceiling_height_secondary_m: geo.ceiling_height_secondary_m || 2.0,
 
       speaker_type:     setup.speaker_type,
+      spk_placement:    setup.spk_placement || 'desk',
       spk_spacing_m:    setup.spk_spacing_m,
       spk_front_m:      setup.spk_front_m,
       tweeter_height_m: setup.tweeter_height_m,
@@ -441,12 +442,15 @@ function rebuild() {
       wall_panel_mode:    treat.wall_panel_mode    ?? env.wall_panel_mode    ?? "none",
       side_panel_mode:    treat.side_panel_mode    ?? env.side_panel_mode    ?? "none",
       bass_trap_mode:     treat.bass_trap_mode     ?? env.bass_trap_mode     ?? "none",
-      ceiling_panel_mode: treat.ceiling_panel_mode ?? env.ceiling_panel_mode ?? "none"
+      ceiling_panel_mode: treat.ceiling_panel_mode ?? env.ceiling_panel_mode ?? "none",
+      panel_color:        data.panel_color ?? null,  // optional hex string e.g. '#c8a882'
+      embed_mode:         data.embed_mode  ?? false  // true = audiosilk embed; gates studio-specific visuals
     };
 
     // 2. DEFINE MISSING VARIABLES (Prevents the ReferenceError crash)
     const isLocked = (currentMode === "locked"); 
-    const isStudio = (room.room_type === "studio");
+    const isStudio    = (room.room_type === "studio");
+    const isEmbedMode = !!room.embed_mode;
     const offsetX  = room.listener_offset_m || 0;
 
     // 3. MASTER SWITCHES
@@ -886,13 +890,28 @@ function rebuild() {
         // X position — always based on speaker spacing
         const x = offsetX + (side === "L" ? -1 : 1) * room.spk_spacing_m / 2;
 
+        const deskZ_pos = isEmbedMode
+          ? -room.length_m / 2 + 0.45   // embed: desk flush against speaker wall
+          : -room.length_m / 2 + 0.20 * room.length_m; // main app: 20% from wall
+
         let y, z;
-        if (profile.onDesk) {
+        if (profile.onDesk && room.spk_placement === 'stands') {
+          // Nearfield monitors on floor stands — tweeter at ~1.1 m, beside the desk
+          const standTweeterH = 1.1;
+          const tweeterOffsetFromCenter = (profile.h / 2) - (profile.h * (profile.tweeterPos || 0.5));
+          y = baseY + standTweeterH + tweeterOffsetFromCenter;
+          z = deskZ_pos; // same depth as desk so they sit either side of it
+        } else if (profile.onDesk && room.spk_placement === 'desk_stands') {
+          // Short isolation stands on the desk surface — raises monitor ~7 cm
+          const riserH     = 0.07;
+          const deskSurface = baseY + 0.775;
+          y = deskSurface + riserH + profile.h / 2;
+          z = deskZ_pos - 0.15;
+        } else if (profile.onDesk) {
           // Desk monitors: snap to desk surface (desk top at 0.775 m above floor)
           const deskSurface = baseY + 0.775;
           y = deskSurface + profile.h / 2;
-          // Place at the front edge of the desk (20% of room depth from front wall, offset back slightly)
-          z = -room.length_m / 2 + 0.20 * room.length_m - 0.15;
+          z = deskZ_pos - 0.15;
         } else if (profile.floorStand) {
           // Floor-standing panels (electrostatics): bottom sits on floor, toe toward listener
           y = baseY + profile.h / 2;
@@ -910,6 +929,38 @@ function rebuild() {
         const spkGroup = new THREE.Group();
         spkGroup.position.set(x, y, z);
         spkGroup.add(speaker); // cabinet sits at group origin (= cabinet centre)
+
+        // Riser block for desk stands
+        if (profile.onDesk && room.spk_placement === 'desk_stands') {
+          const riserH = 0.07;
+          const deskSurface = baseY + 0.775;
+          const riserMat = new THREE.LineBasicMaterial({
+            color: spkColor, transparent: true, opacity: spkOpacity * 0.55
+          });
+          const riser = new THREE.LineSegments(
+            new THREE.EdgesGeometry(new THREE.BoxGeometry(profile.w + 0.04, riserH, profile.d + 0.02)), riserMat
+          );
+          riser.position.y = -(profile.h / 2) - riserH / 2;
+          spkGroup.add(riser);
+        }
+
+        // Stand for monitors on floor stands
+        if (profile.onDesk && room.spk_placement === 'stands') {
+          const standHeight = (y - profile.h / 2) - baseY;
+          const standMat = new THREE.LineBasicMaterial({
+            color: spkColor, transparent: true, opacity: spkOpacity * 0.65
+          });
+          const post = new THREE.LineSegments(
+            new THREE.EdgesGeometry(new THREE.BoxGeometry(0.04, standHeight, 0.04)), standMat
+          );
+          post.position.y = -(profile.h / 2) - standHeight / 2;
+          spkGroup.add(post);
+          const base = new THREE.LineSegments(
+            new THREE.EdgesGeometry(new THREE.BoxGeometry(0.28, 0.02, 0.24)), standMat
+          );
+          base.position.y = -(profile.h / 2) - standHeight + 0.01;
+          spkGroup.add(base);
+        }
 
         // Stand for standmounts: thin post + base plate
         if (!profile.onDesk && !profile.floorStand && !profile.detailed) {
@@ -1000,10 +1051,14 @@ function rebuild() {
     Sphere + rug + sofa + coffee table anchored at the listen position.
   ------------------------------------------ */
 
-  const listenerZ = -room.length_m / 2 + room.listener_front_m;
+  // In embed mode, listener snaps to chair position; main app uses listener_front_m
+  const studioChairZ = (-room.length_m / 2 + 0.45) + 0.55;
+  const listenerZ = (isStudio && isEmbedMode)
+    ? studioChairZ
+    : -room.length_m / 2 + room.listener_front_m;
   const effectiveHeadHeight = isStudio
     ? 1.22  // seated ear height at a desk (~desk surface 0.75m + ~0.47m seated posture)
-    : 0.82; // seated ear height on a sofa — sofa back tops out at ~0.80m
+    : 0.82; // seated ear height on a sofa — sofa back tops at ~0.80m
 
   // Dark charcoal outline so edges pop clearly against the light background.
   const furnEdgeMat = useFatEdges
@@ -1151,7 +1206,7 @@ function rebuild() {
     const isListHighlit = highlightTarget === 'listener';
     const sphereColor   = isListHighlit ? 0x0f766e : colors.accent;
     const sphere = new THREE.Mesh(
-      new THREE.SphereGeometry(isListHighlit ? 0.26 : 0.18, 24, 24),
+      new THREE.SphereGeometry(isListHighlit ? 0.22 : (isEmbedMode ? 0.10 : 0.18), 24, 24),
       new THREE.MeshBasicMaterial({
         color:       sphereColor,
         wireframe:   true,
@@ -1161,7 +1216,7 @@ function rebuild() {
     );
     // Home: shift sphere into seat. Lounge chair has head further back (reclined posture).
     const _seatType = room.seating_type || 'sofa';
-    const _sphereZ  = isStudio ? 0 : (_seatType === 'lounge' ? 0.38 : 0.28);
+    const _sphereZ  = isEmbedMode ? 0.30 : (isStudio ? 0 : (_seatType === 'lounge' ? 0.38 : 0.28));
     const _sphereY  = isStudio ? effectiveHeadHeight : (_seatType === 'lounge' ? 1.00 : 0.96);
     sphere.position.set(0, _sphereY, _sphereZ);
     station.add(sphere);
@@ -1294,9 +1349,10 @@ function rebuild() {
 
     // ── Studio: desk + chair — fixed at ~20% of room length from front wall ──
     // Both placed in roomGroup so they scale with room length automatically.
-    if (isStudio && !hasFocus) {
-      // Desk at 20 % from speaker wall
-      const deskZ = -room.length_m / 2 + 0.20 * room.length_m;
+    if (isStudio && (!hasFocus || isEmbedMode)) {
+      const deskZ = isEmbedMode
+        ? -room.length_m / 2 + 0.45
+        : -room.length_m / 2 + 0.20 * room.length_m;
 
       const deskGroup = new THREE.Group();
       const deskTop = _ghostBox(1.6, 0.05, 0.8);
@@ -1305,6 +1361,25 @@ function rebuild() {
       [[-0.75, 0.375, -0.35], [0.75, 0.375, -0.35],
        [-0.75, 0.375,  0.35], [0.75, 0.375,  0.35]]
         .forEach(p => { const l = _ghostBox(0.04, 0.75, 0.04); l.position.set(...p); deskGroup.add(l); });
+
+      // Computer monitor, keyboard, mic — embed-mode only (Audiosilk demo)
+      if (isEmbedMode) {
+      const monBase = _ghostBox(0.22, 0.018, 0.16);  monBase.position.set(-0.10, 0.784, -0.18); // base sits on desk (0.775 + 0.009)
+      const monNeck = _ghostBox(0.035, 0.12, 0.035); monNeck.position.set(-0.10, 0.853, -0.18); // bottom of neck at top of base (0.793)
+      const monScr  = _ghostBox(0.52, 0.30, 0.025);  monScr.position.set(-0.10, 1.063, -0.18); // bottom of screen at top of neck (0.913)
+      deskGroup.add(monScr, monNeck, monBase);
+
+      // Keyboard — thin slab in front-centre of desk
+      const kb = _ghostBox(0.42, 0.015, 0.14); kb.position.set(-0.08, 0.783, 0.10);
+      deskGroup.add(kb);
+
+      // Microphone — condenser on short gooseneck, right side clear of monitor
+      const micBase    = _ghostBox(0.11, 0.015, 0.11); micBase.position.set(0.28, 0.783, 0.10);
+      const micNeck    = _ghostBox(0.014, 0.18, 0.014); micNeck.position.set(0.28, 0.873, 0.10);
+      const micCapsule = _ghostBox(0.038, 0.10, 0.038); micCapsule.position.set(0.28, 0.963, 0.10);
+      deskGroup.add(micBase, micNeck, micCapsule);
+      } // end isEmbedMode
+
       deskGroup.position.set(offsetX, -room.height_m / 2, deskZ);
       roomGroup.add(deskGroup);
 
@@ -1331,51 +1406,75 @@ function rebuild() {
   /* ------------------------------------------
      ACOUSTIC TREATMENT PANELS
   ------------------------------------------ */
+  const _panelHex = room.panel_color
+    ? parseInt(room.panel_color.replace('#', ''), 16)
+    : 0x0f766e;
   const panelMat = new THREE.MeshBasicMaterial({
-    color: 0x0f766e,
+    color: _panelHex,
     transparent: true,
-    opacity: 0.28,
+    opacity: room.panel_color ? 0.55 : 0.28,
     depthTest: true,
     depthWrite: false,
     side: THREE.DoubleSide
   });
 
+  // Helper: panel mesh + edge outline for embed mode
+  const _addPanel = (geo, pos, rot) => {
+    const mesh = new THREE.Mesh(geo, panelMat);
+    mesh.position.copy(pos);
+    if (rot) mesh.rotation.copy(rot);
+    roomGroup.add(mesh);
+    if (isEmbedMode) {
+      const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), furnEdgeMat);
+      edges.position.copy(pos);
+      if (rot) edges.rotation.copy(rot);
+      roomGroup.add(edges);
+    }
+  };
+
   // --- WALL PANELS (front & rear walls) ---
   if (room.wall_panel_mode !== "none") {
-    const panelW    = room.width_m * 0.55;
-    const panelH    = room.height_m * 0.5;
-    const thickness = 0.06;
 
-    if (room.wall_panel_mode === "front" || room.wall_panel_mode === "both") {
+    if (isEmbedMode) {
+      // Audiosilk individual vertical panels: 0.58m wide × 1.16m tall × 0.01m deep
+      const AS_PW = 0.58, AS_PH = 1.16, AS_PD = 0.01, AS_GAP = 0.04;
+      const panelCount = Math.max(1, Math.min(5, Math.floor((room.width_m - 0.3) / (AS_PW + AS_GAP))));
+      const totalSpan  = panelCount * AS_PW + (panelCount - 1) * AS_GAP;
+      const panelY     = 0; // centered on wall height
 
-      const frontPanel = new THREE.Mesh(
-        new THREE.BoxGeometry(panelW, panelH, thickness),
-        panelMat
-      );
+      const addWallPanels = (wallZ, facingDir) => {
+        for (let i = 0; i < panelCount; i++) {
+          const px = offsetX - totalSpan / 2 + AS_PW / 2 + i * (AS_PW + AS_GAP);
+          _addPanel(
+            new THREE.BoxGeometry(AS_PW, AS_PH, AS_PD),
+            new THREE.Vector3(px, panelY, wallZ + facingDir * AS_PD / 2)
+          );
+        }
+      };
 
-      frontPanel.position.set(
-        offsetX,
-        0,
-        -room.length_m / 2 + thickness / 2
-      );
+      if (room.wall_panel_mode === "front" || room.wall_panel_mode === "both") {
+        addWallPanels(-room.length_m / 2, 1);
+      }
+      if (room.wall_panel_mode === "rear" || room.wall_panel_mode === "both") {
+        addWallPanels(room.length_m / 2, -1);
+      }
 
-      roomGroup.add(frontPanel);
-    }
+    } else {
+      const panelW    = room.width_m * 0.55;
+      const panelH    = room.height_m * 0.5;
+      const thickness = 0.06;
 
-    if (room.wall_panel_mode === "rear" || room.wall_panel_mode === "both") {
+      if (room.wall_panel_mode === "front" || room.wall_panel_mode === "both") {
+        const frontPanel = new THREE.Mesh(new THREE.BoxGeometry(panelW, panelH, thickness), panelMat);
+        frontPanel.position.set(offsetX, 0, -room.length_m / 2 + thickness / 2);
+        roomGroup.add(frontPanel);
+      }
 
-      const rearPanel = new THREE.Mesh(
-        new THREE.BoxGeometry(panelW, panelH, thickness),
-        panelMat
-      );
-
-      rearPanel.position.set(
-        offsetX,
-        0,
-        room.length_m / 2 - thickness / 2
-      );
-
-      roomGroup.add(rearPanel);
+      if (room.wall_panel_mode === "rear" || room.wall_panel_mode === "both") {
+        const rearPanel = new THREE.Mesh(new THREE.BoxGeometry(panelW, panelH, thickness), panelMat);
+        rearPanel.position.set(offsetX, 0, room.length_m / 2 - thickness / 2);
+        roomGroup.add(rearPanel);
+      }
     }
   }
 
@@ -1479,6 +1578,26 @@ function rebuild() {
       
       roomGroup.add(panelGroup);
 
+    } else if (isEmbedMode) {
+      // Audiosilk ceiling cloud: individual panels in landscape (1.16m along Z, 0.58m along X)
+      const AS_CW = 0.58, AS_CL = 1.16, AS_PD = 0.01, AS_GAP = 0.04;
+      const cols = Math.max(1, Math.min(3, Math.floor((cpW + AS_GAP) / (AS_CW + AS_GAP))));
+      const rows = Math.max(1, Math.min(3, Math.floor((cpL + AS_GAP) / (AS_CL + AS_GAP))));
+      const totalX = cols * AS_CW + (cols - 1) * AS_GAP;
+      const totalZ = rows * AS_CL + (rows - 1) * AS_GAP;
+      const ceilY  = room.height_m / 2 - AS_PD / 2;
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const px = offsetX - totalX / 2 + AS_CW / 2 + c * (AS_CW + AS_GAP);
+          const pz = midZ    - totalZ / 2 + AS_CL / 2 + r * (AS_CL + AS_GAP);
+          _addPanel(
+            new THREE.BoxGeometry(AS_CW, AS_PD, AS_CL),
+            new THREE.Vector3(px, ceilY, pz)
+          );
+        }
+      }
+
     } else {
       // Flat or Slanted roof: One single panel
       const ceilPanel = new THREE.Mesh(
@@ -1541,10 +1660,13 @@ function rebuild() {
 
       }
 
+      const spkZ = isEmbedMode
+        ? -room.length_m / 2 + 0.45   // embed: actual desk position
+        : -room.length_m / 2 + room.spk_front_m;
       const speakerPos = new THREE.Vector3(
         offsetX + side * room.spk_spacing_m / 2,
         earY,
-        -room.length_m / 2 + room.spk_front_m
+        spkZ
       );
 
       const mirrorSpeaker = speakerPos.clone();
@@ -1555,18 +1677,29 @@ function rebuild() {
 
       const bouncePoint = listenerPos.clone().add(dir.multiplyScalar(t));
 
-      const panel = new THREE.Mesh(
-        new THREE.BoxGeometry(thickness, spH, spL),
-        panelMat
-      );
+      if (isEmbedMode) {
+        // Audiosilk individual vertical panels: 0.58m wide (along Z) × 1.16m tall × 0.01m deep
+        const AS_PW = 0.58, AS_PH = 1.16, AS_PD = 0.01, AS_GAP = 0.04;
+        const panelCount = Math.max(1, Math.min(3, Math.floor((room.length_m * 0.4 + AS_GAP) / (AS_PW + AS_GAP))));
+        const totalSpan  = panelCount * AS_PW + (panelCount - 1) * AS_GAP;
+        const panelY     = 0; // centered on wall height
 
-      panel.position.set(
-        side * (wallX - thickness / 2),
-        bouncePoint.y,
-        bouncePoint.z
-      );
+        for (let i = 0; i < panelCount; i++) {
+          const pz = bouncePoint.z - totalSpan / 2 + AS_PW / 2 + i * (AS_PW + AS_GAP);
+          _addPanel(
+            new THREE.BoxGeometry(AS_PD, AS_PH, AS_PW),
+            new THREE.Vector3(side * (wallX - AS_PD / 2), panelY, pz)
+          );
+        }
 
-      roomGroup.add(panel);
+      } else {
+        const panel = new THREE.Mesh(
+          new THREE.BoxGeometry(thickness, spH, spL),
+          panelMat
+        );
+        panel.position.set(side * (wallX - thickness / 2), bouncePoint.y, bouncePoint.z);
+        roomGroup.add(panel);
+      }
     }
 
   }
@@ -2149,9 +2282,48 @@ function rebuild() {
       const frontWallZ = -room.length_m / 2;
       const isFocSBIR  = isFocused(OVERLAYS.SBIR);
 
-      // Front wall glow — anchors the field to the reflective surface
+      // Front wall glow — shaped to follow the ceiling profile
+      const _fwHalfW  = room.width_m  / 2;
+      const _fwHalfH  = room.height_m / 2;
+      const _fwFloorY = -_fwHalfH;
+      const _fwHighY  =  _fwHalfH;
+      const _fwLowY   = room.ceiling_height_secondary_m != null
+        ? -_fwHalfH + room.ceiling_height_secondary_m
+        : _fwHighY;
+      const _fwCeilType  = room.ceiling_type || 'flat';
+      const _fwSlantDir  = room.ceiling_slant_direction || 'left_to_right';
+      const _fwGableAxis = room.ceiling_gable_axis || 'depth';
+      const _fwCeilAt = (x) => {
+        if (_fwCeilType === 'slanted') {
+          let t;
+          switch (_fwSlantDir) {
+            case 'left_to_right':  t = (x + _fwHalfW) / room.width_m; break;
+            case 'right_to_left':  t = 1 - (x + _fwHalfW) / room.width_m; break;
+            case 'front_to_back':  t = 1; break; // front wall is high side
+            case 'back_to_front':  t = 0; break; // front wall is low side
+            default: t = (x + _fwHalfW) / room.width_m;
+          }
+          return _fwLowY + t * (_fwHighY - _fwLowY);
+        }
+        if (_fwCeilType === 'gable') {
+          const distRatio = _fwGableAxis === 'depth'
+            ? Math.abs(x) / _fwHalfW
+            : 1; // width-axis gable: front wall is at eave height
+          return _fwHighY - distRatio * (_fwHighY - _fwLowY);
+        }
+        return _fwHighY;
+      };
+      const _fwShape = new THREE.Shape();
+      const _fwSteps = 20;
+      _fwShape.moveTo(-_fwHalfW, _fwFloorY);
+      _fwShape.lineTo( _fwHalfW, _fwFloorY);
+      for (let i = _fwSteps; i >= 0; i--) {
+        const _sx = -_fwHalfW + (i / _fwSteps) * room.width_m;
+        _fwShape.lineTo(_sx, _fwCeilAt(_sx));
+      }
+      _fwShape.closePath();
       const wallGlow = new THREE.Mesh(
-        new THREE.PlaneGeometry(room.width_m, room.height_m),
+        new THREE.ShapeGeometry(_fwShape),
         new THREE.MeshBasicMaterial({
           color: fieldColor, transparent: true,
           opacity: isFocSBIR ? 0.10 : 0.05,
