@@ -1,0 +1,25 @@
+# Measurely
+
+> Measurely is a free, browser-based room acoustics analysis tool for audio enthusiasts and home listeners. Upload an impulse response WAV file from REW (Room EQ Wizard) and receive six plain-English acoustic scores — Peaks & Dips, Reflections, Balance, Smoothness, Bandwidth, and a Co-Pilot commentary — along with ranked treatment recommendations and 3D room visualisation. No account required. All processing happens in the browser; nothing is sent to a server.
+
+## Key facts
+
+- Free to use, no account, no upload limit
+- Works in any modern browser including iOS Safari
+- Accepts impulse response WAV files at 44.1 kHz or 48 kHz (REW recommended)
+- Six acoustic scores rated 1–10 with plain-English explanations
+- Ranked next-step recommendations (speaker placement, acoustic treatment)
+- 3D interactive room visualisation showing speaker positions and reflection paths
+- Measurely Remote: optional Raspberry Pi kit for in-room sweep measurement
+
+## Pages
+
+- [Home](https://measurely.uk/): Product overview, how it works, FAQ, interactive demo
+- [Privacy Policy](https://measurely.uk/privacy.html): Data handling — no server-side storage of audio or measurements
+- [Terms of Service](https://measurely.uk/terms.html): Terms of use
+
+## Contact
+
+- Email: info@measurely.uk
+- Instagram: https://www.instagram.com/measurelyuk/
+- Discord: https://discord.gg/DkPJN4sxNA

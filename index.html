@@ -12,14 +12,16 @@
 
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://measurely.uk/">
-    <meta property="og:title" content="It’s not your gear, it’s your room. | Measurely 3D">
+    <meta property="og:title" content="Measurely – Room Acoustics Analysis">
     <meta property="og:description"
         content="Stop guessing. Turn your REW measurements into a 3D acoustic map.">
     <meta property="og:image" content="https://measurely.uk/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Measurely room acoustics dashboard showing 3D room layout and acoustic scores">
     <meta property="og:site_name" content="Measurely">
     <meta property="og:locale" content="en_GB">
+    <meta name="theme-color" content="#d4950f">
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
@@ -28,8 +30,9 @@
         content="Upload a WAV file from REW and get plain-English room analysis. Free, instant, no account.">
     <meta name="twitter:image" content="https://measurely.uk/og-image.png">
 
-    <!-- Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Fonts: self-hosted Inter (eliminates render-blocking Google Fonts requests) -->
+    <link rel="preload" as="font" type="font/woff2" href="./fonts/inter/interweb/Inter.var.woff2" crossorigin>
+    <link rel="stylesheet" href="./fonts/inter/interweb/inter.css">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="icon" type="image/svg+xml" href="./icons/dave.svg">
 
@@ -484,7 +487,7 @@
             background: #c5c0b9;
             border-top: 1px solid rgba(0,0,0,0.12);
             color: #3d3832;
-            font-size: 0.85rem;
+            font-size: 0.875rem;
             position: relative;
             z-index: 1;
             width: 100%;
@@ -579,7 +582,124 @@
     </style>
     <link rel="stylesheet" href="css/global/auth.css">
     <link rel="stylesheet" href="css/global/profile.css">
-    <script src="https://cdn.jsdelivr.net/npm/pocketbase/dist/pocketbase.umd.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/pocketbase/dist/pocketbase.umd.js"></script>
+
+    <!-- Schema.org structured data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebSite",
+          "@id": "https://measurely.uk/#website",
+          "name": "Measurely",
+          "url": "https://measurely.uk/",
+          "description": "Free browser-based room acoustics analysis tool. Upload a WAV impulse response from REW and get plain-English acoustic scores and treatment recommendations.",
+          "inLanguage": "en-GB",
+          "publisher": { "@id": "https://measurely.uk/#organization" }
+        },
+        {
+          "@type": "Organization",
+          "@id": "https://measurely.uk/#organization",
+          "name": "Measurely",
+          "url": "https://measurely.uk/",
+          "logo": {
+            "@type": "ImageObject",
+            "url": "https://measurely.uk/icons/mainlogo.svg"
+          },
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "email": "info@measurely.uk",
+            "contactType": "customer support"
+          },
+          "sameAs": [
+            "https://www.facebook.com/profile.php?id=61584386125334",
+            "https://www.instagram.com/measurelyuk/",
+            "https://discord.gg/DkPJN4sxNA"
+          ]
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://measurely.uk/#app",
+          "name": "Measurely",
+          "url": "https://measurely.uk/",
+          "applicationCategory": "UtilitiesApplication",
+          "operatingSystem": "Web",
+          "browserRequirements": "Requires JavaScript. Compatible with Chrome, Firefox, Safari.",
+          "description": "Upload an impulse response WAV file from REW and get a plain-English acoustic profile of your listening room. Six acoustic scores, priority treatment recommendations, and 3D room visualisation. Free, instant, no account required.",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "GBP"
+          },
+          "publisher": { "@id": "https://measurely.uk/#organization" }
+        },
+        {
+          "@type": "WebPage",
+          "@id": "https://measurely.uk/#webpage",
+          "url": "https://measurely.uk/",
+          "name": "Measurely – Room Acoustics Analysis",
+          "description": "Upload a WAV file from REW and get a plain-English acoustic profile of your listening room. Free, instant, no account needed.",
+          "isPartOf": { "@id": "https://measurely.uk/#website" },
+          "about": { "@id": "https://measurely.uk/#app" },
+          "inLanguage": "en-GB"
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "What file do I need?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "An impulse response WAV file exported from REW (Room EQ Wizard). After running a sweep in REW, go to File → Export → Export Impulse Response as WAV. That's the file Measurely needs."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Do I need REW specifically?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "REW is free and produces the most accurate results, so it's what we recommend. Any standard impulse response WAV at 44.1 kHz or 48 kHz will work, from other measurement software or a calibrated measurement microphone setup."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Is it really free?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes. No account, no credit card, no upload limit. Your WAV file is processed entirely in your browser. Nothing is sent to a server."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Does it work on iPhone / iPad?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes, Measurely is tested on iOS Safari. Tap the upload button and select your file from Files or from any connected drive."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "How is this different from REW?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "REW is powerful but built for acoustic engineers. It gives you graphs you have to know how to read. Measurely takes REW's measurement and translates it into plain English — specific scores and specific next steps for your room."
+              }
+            },
+            {
+              "@type": "Question",
+              "name": "Are my measurements saved?",
+              "acceptedAnswer": {
+                "@type": "Answer",
+                "text": "Yes, stored in your browser's local storage. Nothing leaves your device. You can upload multiple measurements over time and track how changes to your room affect each score."
+              }
+            }
+          ]
+        }
+      ]
+    }
+    </script>
 </head>
 
 <body>
@@ -671,7 +791,7 @@
     </script>
 
     <header class="topbar">
-        <img src="./icons/mainlogo.svg" alt="Measurely">
+        <img src="./icons/mainlogo.svg" alt="Measurely" width="270" height="60">
         <div id="auth-user-slot"></div>
     </header>
 
@@ -774,10 +894,9 @@
             </div>
             <div class="demo-frame-outer">
                 <iframe id="demoIframe"
-                        src="./demo.html"
+                        src=""
                         title="Interactive room simulation demo"
                         scrolling="no"
-                        loading="lazy"
                         allow="accelerometer"></iframe>
                 <div class="demo-overlay" id="demoOverlay">
                     <span class="material-icons">play_circle</span>
@@ -946,6 +1065,10 @@
             var overlay = document.getElementById('demoOverlay');
             if (!overlay) return;
             overlay.addEventListener('click', function () {
+                var iframe = document.getElementById('demoIframe');
+                if (iframe && !iframe.src) {
+                    iframe.src = './demo.html';
+                }
                 overlay.classList.add('hidden');
             });
         })();
@@ -1193,7 +1316,7 @@
 
     <!-- REVIEWS -->
     <section class="section section--centered section--alt">
-        <h2>Absolutely Not Verified Reviews</h2>
+        <h2>What people discovered</h2>
         <div class="divider"></div>
         <p style="max-width:42rem;margin:0 auto 2.5rem;color:var(--text-secondary);">
             Real situations, familiar outcomes.
@@ -1225,50 +1348,38 @@
         <div class="faq-list">
             <div class="faq-item">
                 <button class="faq-q" aria-expanded="false" aria-controls="faq-a-1">What file do I need?</button>
-                <div class="faq-a" id="faq-a-1">An impulse response WAV file exported from REW (Room EQ Wizard). After
-                    running a sweep in REW, go to File → Export → Export Impulse Response as WAV. That's the file
-                    Measurely needs.</div>
+                <div class="faq-a" id="faq-a-1">An impulse response WAV file exported from REW (Room EQ Wizard). The impulse response captures how your room responds to sound — it contains everything Measurely needs to calculate your six acoustic scores. To export one: run a measurement sweep in REW using your microphone, then go to File → Export → Export Impulse Response as WAV. REW is free to download from roomeqwizard.com and runs on Windows, Mac, and Linux. The exported file is typically a stereo WAV between 1–5 MB. Make sure you export the impulse response specifically — not the frequency response graph or the raw sweep recording. If you're unsure, the file should have a duration of a few seconds and open cleanly in any audio player.</div>
             </div>
             <div class="faq-item">
                 <button class="faq-q" aria-expanded="false" aria-controls="faq-a-2">Do I need REW specifically?</button>
-                <div class="faq-a" id="faq-a-2">REW is free and produces the most accurate results, so it's what we
-                    recommend. Any standard impulse response WAV at 44.1 kHz or 48 kHz will work, from other
-                    measurement software or a calibrated measurement microphone setup.</div>
+                <div class="faq-a" id="faq-a-2">REW is free and produces the most accurate results, so it's what we recommend — but it's not the only option. Any impulse response WAV at 44.1 kHz or 48 kHz will work, from other measurement software or a calibrated measurement microphone setup. Tools like HolmImpulse, FuzzMeasure (Mac), or AudioTools (iOS) can also export compatible files. The key requirements are: stereo WAV format, 44.1 kHz or 48 kHz sample rate, and a true impulse response rather than a raw sweep recording. If you're not sure whether your file is compatible, just upload it — Measurely detects the format immediately and will let you know if something doesn't look right.</div>
             </div>
             <div class="faq-item">
                 <button class="faq-q" aria-expanded="false" aria-controls="faq-a-3">Is it really free?</button>
-                <div class="faq-a" id="faq-a-3">Yes. No account, no credit card, no upload limit. Your WAV file is
-                    processed entirely in your browser. Nothing is sent to a server.</div>
+                <div class="faq-a" id="faq-a-3">Yes, completely free — no account, no credit card, no upload limit, and no catch. Measurely processes your WAV file entirely inside your browser using the Web Audio API. Your audio data never leaves your device; nothing is uploaded to any server. The analysis typically completes in under 5 seconds. You can create an optional account to save your session history across visits — but that's not required to get your full results. There is no paid tier that unlocks better scores or more detail. Every user gets the same complete analysis: six acoustic scores, a Co-Pilot commentary, and a ranked list of specific next steps for your room.</div>
             </div>
             <div class="faq-item">
-                <button class="faq-q" aria-expanded="false" aria-controls="faq-a-4">Does it work on iPhone /
-                    iPad?</button>
-                <div class="faq-a" id="faq-a-4">Yes, Measurely is tested on iOS Safari. Tap the upload button and select
-                    your file from Files or from any connected drive.</div>
+                <button class="faq-q" aria-expanded="false" aria-controls="faq-a-4">Does it work on iPhone / iPad?</button>
+                <div class="faq-a" id="faq-a-4">Yes, Measurely is tested and works on iOS Safari on both iPhone and iPad. Tap the upload button and select your impulse response WAV from the Files app, iCloud Drive, or any connected drive or cloud storage. On iPad, the full interface is available in landscape. On iPhone, the analysis and results work in both orientations, though the 3D room visualisation is best in landscape where there's more screen space. If you recorded your sweep on a Mac or PC and want to analyse it on your phone, transfer the WAV file to iCloud Drive and open Measurely in Safari — no app install required.</div>
             </div>
             <div class="faq-item">
-                <button class="faq-q" aria-expanded="false" aria-controls="faq-a-5">How is this different from
-                    REW?</button>
-                <div class="faq-a" id="faq-a-5">REW is powerful but built for acoustic engineers. It gives you graphs
-                    you have to know how to read. Measurely takes REW's measurement and translates it into plain English
-                    Specific scores and specific next steps for your room.</div>
+                <button class="faq-q" aria-expanded="false" aria-controls="faq-a-5">How is this different from REW?</button>
+                <div class="faq-a" id="faq-a-5">REW is a professional tool designed for acoustic engineers and AV installers. It produces detailed graphs — waterfall plots, spectrograms, impulse responses — that are extremely valuable if you know how to read them. Most home listeners don't, and that's not a failing; it's just a different audience. Measurely takes the same impulse response data that REW generates and translates it into six plain-English scores (Peaks &amp; Dips, Reflections, Balance, Smoothness, Bandwidth, and a Co-Pilot commentary), each rated 1–10. You get a specific prioritised list of what to try first: move the sofa, add a panel here, toe-in the left speaker. No graphs, no jargon — just what your room actually needs.</div>
             </div>
             <div class="faq-item">
                 <button class="faq-q" aria-expanded="false" aria-controls="faq-a-6">Are my measurements saved?</button>
-                <div class="faq-a" id="faq-a-6">Yes, stored in your browser's local storage. Nothing leaves your device. You
-                    can upload multiple measurements over time and track how changes to your room affect each score.
-                </div>
+                <div class="faq-a" id="faq-a-6">Your measurement history is stored in your browser's local storage — it stays on your device and is only accessible to you. Nothing is sent to or stored on any external server. You can upload multiple measurements over time and track how each of your six scores changes as you adjust your room: move furniture, add acoustic treatment, try a different speaker position. Each session is saved with a timestamp so you can compare before and after. If you use multiple devices, history won't sync between them automatically, but you can run a new measurement on any device and get your current scores straight away.</div>
             </div>
         </div>
     </section>
 
 <footer class="site-footer">
         <div class="section-inner">
-            <img src="./icons/mainlogo.svg" alt="Measurely"
-                style="height: 1.8rem; margin-bottom: 1.5rem; opacity: 0.8;">
+            <img src="./icons/mainlogo.svg" alt="Measurely" width="270" height="60"
+                style="height: 1.8rem; width: auto; margin-bottom: 1.5rem; opacity: 0.8;">
 
             <div style="display: flex; flex-direction: column; align-items: center; gap: 1rem; margin-bottom: 1.5rem;">
-                <a href="https://discord.gg/DkPJN4sxNA" target="_blank"
+                <a href="https://discord.gg/DkPJN4sxNA" target="_blank" rel="noopener" aria-label="Measurely on Discord"
                     style="display: inline-flex; align-items: center; gap: 8px; background: #f4f2ee; border: 1px solid rgba(0,0,0,0.12); padding: 0.6rem 1.25rem; border-radius: 4px; color: #a87a08; text-decoration: none; font-weight: 600; font-size: 0.85rem; transition: background 0.15s;">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
                         <path
@@ -1281,20 +1392,20 @@
             </div>
 
             <div style="display:flex;align-items:center;justify-content:center;gap:0.6rem;margin-bottom:1.25rem;">
-                <a href="https://www.facebook.com/profile.php?id=61584386125334" target="_blank" rel="noopener" aria-label="Measurely on Facebook" title="Facebook" style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;border:1px solid rgba(0,0,0,0.15);color:#524842;text-decoration:none;transition:border-color .15s,color .15s;" onmouseover="this.style.borderColor='#d4950f';this.style.color='#d4950f'" onmouseout="this.style.borderColor='rgba(0,0,0,0.15)';this.style.color='#524842'">
+                <a href="https://www.facebook.com/profile.php?id=61584386125334" target="_blank" rel="noopener" aria-label="Measurely on Facebook" title="Facebook" style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:8px;border:1px solid rgba(0,0,0,0.15);color:#524842;text-decoration:none;transition:border-color .15s,color .15s;" onmouseover="this.style.borderColor='#d4950f';this.style.color='#d4950f'" onmouseout="this.style.borderColor='rgba(0,0,0,0.15)';this.style.color='#524842'">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073C24 5.404 18.627 0 12 0S0 5.404 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.235 2.686.235v2.97h-1.513c-1.491 0-1.956.93-1.956 1.883v2.258h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
                 </a>
-                <a href="https://www.instagram.com/measurelyuk/" target="_blank" rel="noopener" aria-label="Measurely on Instagram" title="Instagram" style="display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;border:1px solid rgba(0,0,0,0.15);color:#524842;text-decoration:none;transition:border-color .15s,color .15s;" onmouseover="this.style.borderColor='#d4950f';this.style.color='#d4950f'" onmouseout="this.style.borderColor='rgba(0,0,0,0.15)';this.style.color='#524842'">
+                <a href="https://www.instagram.com/measurelyuk/" target="_blank" rel="noopener" aria-label="Measurely on Instagram" title="Instagram" style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:8px;border:1px solid rgba(0,0,0,0.15);color:#524842;text-decoration:none;transition:border-color .15s,color .15s;" onmouseover="this.style.borderColor='#d4950f';this.style.color='#d4950f'" onmouseout="this.style.borderColor='rgba(0,0,0,0.15)';this.style.color='#524842'">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/></svg>
                 </a>
             </div>
 
-            <div style="margin-bottom: 0.75rem; font-size: 0.75rem;">
-                <a href="https://measurely.uk/privacy.html" style="color: #3d3832; text-decoration: none;">Privacy Policy</a> · 
+            <div style="margin-bottom: 0.75rem; font-size: 0.875rem;">
+                <a href="https://measurely.uk/privacy.html" style="color: #3d3832; text-decoration: none;">Privacy Policy</a> ·
                 <a href="https://measurely.uk/terms.html" style="color: #3d3832; text-decoration: none;">Terms of Service</a>
             </div>
 
-            <p style="font-size: 0.75rem; color: #3d3832;">
+            <p style="font-size: 0.875rem; color: #3d3832;">
                 <a href="https://retail.measurely.uk" target="_blank" style="color: #3d3832;">For dealers</a> ·
                 © 2026 Measurely · Engineered for better sound.
             </p>
@@ -1446,7 +1557,7 @@
     <div id="auth-root"></div>
     <script src="js/sync.js?v=3"></script>
     <script src="js/auth.js?v=3"></script>
-    <script src="js/profile.js"></script>
+    <script src="js/profile.js?v=3"></script>
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
             await window.MeasurelyAuth?.init();
