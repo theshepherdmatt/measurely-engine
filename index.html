@@ -33,7 +33,7 @@
     <!-- Fonts: self-hosted Inter (eliminates render-blocking Google Fonts requests) -->
     <link rel="preload" as="font" type="font/woff2" href="./fonts/inter/interweb/Inter.var.woff2" crossorigin>
     <link rel="stylesheet" href="./fonts/inter/interweb/inter.css">
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <!-- Material Icons replaced with inline SVGs — Google Fonts call removed -->
     <link rel="icon" type="image/svg+xml" href="./icons/dave.svg">
 
     <!-- Import map — must appear before any module script in the document -->
@@ -231,8 +231,15 @@
         }
 
         .needs-strip .material-icons {
-            font-size: 1rem;
+            display: inline-flex;
+            width: 1rem;
+            height: 1rem;
             color: var(--accent);
+            flex-shrink: 0;
+        }
+        .needs-strip .material-icons svg {
+            width: 100%;
+            height: 100%;
         }
 
         /* ── Section primitives ── */
@@ -354,10 +361,15 @@
         }
 
         .benefit .material-icons {
-            font-size: 2.2rem;
+            width: 2.2rem;
+            height: 2.2rem;
             color: var(--accent);
             margin-bottom: 0.75rem;
             display: block;
+        }
+        .benefit .material-icons svg {
+            width: 100%;
+            height: 100%;
         }
 
         .benefit h3 {
@@ -836,9 +848,9 @@
                 })();
             </script>
             <ul class="needs-strip" role="list" aria-label="What you need">
-                <li><span class="material-icons" aria-hidden="true">check_circle</span> REW impulse response WAV</li>
-                <li><span class="material-icons" aria-hidden="true">check_circle</span> Any stereo setup</li>
-                <li><span class="material-icons" aria-hidden="true">check_circle</span> Results in under 5 seconds</li>
+                <li><span class="material-icons" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5l-4.5-4.5 1.41-1.41L10 13.67l7.59-7.59L19 7.5l-9 9z"/></svg></span> REW impulse response WAV</li>
+                <li><span class="material-icons" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5l-4.5-4.5 1.41-1.41L10 13.67l7.59-7.59L19 7.5l-9 9z"/></svg></span> Any stereo setup</li>
+                <li><span class="material-icons" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5l-4.5-4.5 1.41-1.41L10 13.67l7.59-7.59L19 7.5l-9 9z"/></svg></span> Results in under 5 seconds</li>
             </ul>
         </div>
     </section>
@@ -855,17 +867,17 @@
 
         <div class="benefits" style="margin-top: 0;">
             <div class="benefit">
-                <span class="material-icons">architecture</span>
+                <span class="material-icons" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 6.5l-4-4-9.5 9.5-2 4.5 4.5-2L21 6.5zm-14 8.08l-1.5.68.68-1.5 7.82-7.82 .82.82L7 14.58zM3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"/></svg></span>
                 <h3>3D Visualisation</h3>
                 <p>Map your exact room dimensions and speaker positions to see where reflections and cancellations are forming.</p>
             </div>
             <div class="benefit">
-                <span class="material-icons">analytics</span>
+                <span class="material-icons" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg></span>
                 <h3>Plain-English Scores</h3>
                 <p>REW data translated into six acoustic scores from 1–10, with no graphs and no jargon.</p>
             </div>
             <div class="benefit">
-                <span class="material-icons">assignment_turned_in</span>
+                <span class="material-icons" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm-2 14l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/></svg></span>
                 <h3>A Priority Fix List</h3>
                 <p>Ranked next steps from speaker toe-in to panel placement, so you know exactly what to try first.</p>
             </div>
@@ -898,7 +910,7 @@
                         scrolling="no"
                         allow="accelerometer"></iframe>
                 <div class="demo-overlay" id="demoOverlay">
-                    <span class="material-icons">play_circle</span>
+                    <span class="material-icons" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg></span>
                     <p>Click to interact</p>
                 </div>
             </div>
@@ -1278,35 +1290,35 @@
         <div class="divider"></div>
         <div class="benefits">
             <div class="benefit" data-animate data-delay="1">
-                <span class="material-icons">graphic_eq</span>
+                <span class="material-icons" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 18H5V6h2v12zm4 2H9V4h2v16zm4-6h-2v-4h2v4zm4 4h-2V8h2v8z"/></svg></span>
                 <h3>Peaks &amp; Dips</h3>
                 <p>Where your room is boosting or cancelling specific frequencies. The most common culprit behind dull
                     or boomy bass.</p>
             </div>
             <div class="benefit" data-animate data-delay="2">
-                <span class="material-icons">blur_on</span>
+                <span class="material-icons" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 13c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm0 4c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm0-8c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm-3 5.5c-.28 0-.5.22-.5.5s.22.5.5.5.5-.22.5-.5-.22-.5-.5-.5zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm6-9.5c.28 0 .5-.22.5-.5s-.22-.5-.5-.5-.5.22-.5.5.22.5.5.5zm-3 0c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm0 4c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm0 4c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm3-8c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm0 4c-.55 0-1 .45-1 1s.45 1 1 1 1-.45 1-1-.45-1-1-1zm-6-8c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm0 4c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm0 4c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm0 4c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm-3-8c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm0 4c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1z"/></svg></span>
                 <h3>Reflections</h3>
                 <p>Early reflections that smear your stereo image and make it hard to place instruments. Scored and
                     explained.</p>
             </div>
             <div class="benefit" data-animate data-delay="3">
-                <span class="material-icons">tune</span>
+                <span class="material-icons" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg></span>
                 <h3>Balance</h3>
                 <p>Whether bass, mids, and treble are in proportion, or whether your room is pushing one range too hard.
                 </p>
             </div>
             <div class="benefit" data-animate data-delay="1">
-                <span class="material-icons">waves</span>
+                <span class="material-icons" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 16.99c-1.35 0-2.2.42-2.95.8-.65.33-1.18.6-2.05.6-.87 0-1.4-.27-2.05-.6-.75-.38-1.6-.8-2.95-.8s-2.2.42-2.95.81c-.65.33-1.17.59-2.05.59v1.95c1.35 0 2.2-.42 2.95-.8.65-.33 1.18-.6 2.05-.6.87 0 1.4.27 2.05.6.75.38 1.6.8 2.95.8s2.2-.42 2.95-.8c.65-.33 1.17-.6 2.05-.6v-1.95c-.88 0-1.4.27-2 .6zM17 13c-1.35 0-2.2.42-2.95.8-.65.33-1.18.6-2.05.6-.87 0-1.4-.27-2.05-.6C9.2 13.42 8.35 13 7 13s-2.2.42-2.95.81c-.65.33-1.17.59-2.05.59v1.95c1.35 0 2.2-.42 2.95-.8.65-.33 1.18-.6 2.05-.6.87 0 1.4.27 2.05.6.75.38 1.6.8 2.95.8s2.2-.42 2.95-.8c.65-.33 1.17-.6 2.05-.6v-1.95c-.88 0-1.4.27-2 .6zM12 1a9 9 0 00-9 9h2a7 7 0 0114 0h2a9 9 0 00-9-9z"/></svg></span>
                 <h3>Smoothness</h3>
                 <p>How consistent your frequency response is across the audible range. Rougher = more coloration.</p>
             </div>
             <div class="benefit" data-animate data-delay="2">
-                <span class="material-icons">speaker</span>
+                <span class="material-icons" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M17 2H7c-1.1 0-2 .9-2 2v16c0 1.1.9 1.99 2 1.99L17 22c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-5 2c1.1 0 2 .9 2 2s-.9 2-2 2c-1.11 0-2-.9-2-2s.89-2 2-2zm0 16c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg></span>
                 <h3>Bandwidth</h3>
                 <p>How much of the frequency range your room is actually letting through to your ears.</p>
             </div>
             <div class="benefit" data-animate data-delay="3">
-                <span class="material-icons">psychology</span>
+                <span class="material-icons" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.5 2C6.81 2 3 5.81 3 10.5S6.81 19 11.5 19h.5v3c4.86-2.34 8-7 8-11.5C20 5.81 16.19 2 11.5 2zm1 14.5h-2v-2h2v2zm.93-5.31c-.45.45-.88.87-.88 1.81h-2.1c0-1.37.52-1.96 1.03-2.47.46-.46.87-.87.87-1.73 0-.95-.78-1.5-1.85-1.5-1.07 0-1.85.56-1.85 1.5H7.5c0-1.95 1.57-3.5 3.5-3.5s3.5 1.55 3.5 3.5c0 1.38-.53 1.98-.98 2.39z"/></svg></span>
                 <h3>Co-Pilot commentary</h3>
                 <p>Plain-English explanations of what each score means for your room, and what to try first.</p>
             </div>
@@ -1400,6 +1412,7 @@
             </div>
 
             <div style="margin-bottom: 0.75rem; font-size: 0.875rem;">
+                <a href="/about.html" style="color: #3d3832; text-decoration: none;">About</a> ·
                 <a href="https://measurely.uk/privacy.html" style="color: #3d3832; text-decoration: none;">Privacy Policy</a> ·
                 <a href="https://measurely.uk/terms.html" style="color: #3d3832; text-decoration: none;">Terms of Service</a>
             </div>
