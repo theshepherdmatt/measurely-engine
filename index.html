@@ -1066,7 +1066,7 @@
             if (!overlay) return;
             overlay.addEventListener('click', function () {
                 var iframe = document.getElementById('demoIframe');
-                if (iframe && !iframe.src) {
+                if (iframe && iframe.getAttribute('src') === '') {
                     iframe.src = './demo.html';
                 }
                 overlay.classList.add('hidden');
