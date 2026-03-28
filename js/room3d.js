@@ -1364,9 +1364,9 @@ function rebuild() {
 
       // Computer monitor, keyboard, mic — embed-mode only (Audiosilk demo)
       if (isEmbedMode) {
-      const monBase = _ghostBox(0.22, 0.018, 0.16);  monBase.position.set(-0.10, 0.784, -0.18); // base sits on desk (0.775 + 0.009)
-      const monNeck = _ghostBox(0.035, 0.12, 0.035); monNeck.position.set(-0.10, 0.853, -0.18); // bottom of neck at top of base (0.793)
-      const monScr  = _ghostBox(0.52, 0.30, 0.025);  monScr.position.set(-0.10, 1.063, -0.18); // bottom of screen at top of neck (0.913)
+      const monBase = _ghostBox(0.22, 0.018, 0.16);  monBase.position.set(0, 0.784, -0.18); // base sits on desk (0.775 + 0.009)
+      const monNeck = _ghostBox(0.035, 0.12, 0.035); monNeck.position.set(0, 0.853, -0.18); // bottom of neck at top of base (0.793)
+      const monScr  = _ghostBox(0.52, 0.30, 0.025);  monScr.position.set(0, 1.063, -0.18); // bottom of screen at top of neck (0.913)
       deskGroup.add(monScr, monNeck, monBase);
 
       // Keyboard — thin slab in front-centre of desk
