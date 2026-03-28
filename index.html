@@ -911,7 +911,7 @@
                         allow="accelerometer"></iframe>
                 <div class="demo-overlay" id="demoOverlay">
                     <span class="material-icons" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg></span>
-                    <p>Click to interact</p>
+                    <p>Launch interactive demo</p>
                 </div>
             </div>
         </div>
@@ -1011,10 +1011,28 @@
             align-items: center;
             justify-content: center;
             gap: 10px;
-            background: rgba(15,22,35,0.6);
-            backdrop-filter: blur(2px);
+            background:
+                radial-gradient(ellipse at 30% 60%, rgba(212,149,15,0.08) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 30%, rgba(99,179,237,0.06) 0%, transparent 55%),
+                linear-gradient(160deg, #0d1520 0%, #111b2e 50%, #0a1118 100%);
+            background-size: cover;
             cursor: pointer;
             transition: opacity 0.3s ease;
+            overflow: hidden;
+        }
+
+        /* Subtle grid lines to suggest a 3D floor */
+        .demo-overlay::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+            background-size: 40px 40px;
+            transform: perspective(400px) rotateX(45deg) translateY(20%);
+            transform-origin: bottom center;
+            pointer-events: none;
         }
 
         .demo-overlay.hidden {
@@ -1023,9 +1041,17 @@
         }
 
         .demo-overlay .material-icons {
-            font-size: 3.5rem;
+            width: 3.5rem;
+            height: 3.5rem;
             color: #fff;
             opacity: 0.9;
+            position: relative;
+            z-index: 1;
+        }
+        .demo-overlay .material-icons svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 0 12px rgba(212,149,15,0.6));
         }
 
         .demo-overlay p {
@@ -1033,6 +1059,8 @@
             font-size: 0.9rem;
             color: rgba(255,255,255,0.75);
             letter-spacing: 0.04em;
+            position: relative;
+            z-index: 1;
         }
 
         /* ── Mobile portrait: swap iframe for fallback shell ──────── */
