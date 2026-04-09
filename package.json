@@ -1,0 +1,20 @@
+{
+  "name": "@measurely/engine",
+  "version": "1.0.0",
+  "description": "Measurely acoustic analysis engine and 3D room visualizer",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./room3d": "./js/room3d.js",
+    "./speakers": "./js/speakers.js",
+    "./engine/fft": "./js/engine/fft.js",
+    "./engine/signal-math": "./js/engine/signal_math.js",
+    "./engine/acoustics": "./js/engine/acoustics.js",
+    "./engine/file-loader": "./js/engine/fileLoader.js",
+    "./engine/analyse": "./js/engine/analyse.js",
+    "./engine/score": "./js/engine/score.js",
+    "./engine/signal-integrity": "./js/engine/signalIntegrityCard.js"
+  },
+  "keywords": ["acoustics", "room-acoustics", "audio-analysis", "three.js", "measurement"],
+  "license": "SEE LICENSE IN LICENSE.md"
+}
