@@ -1,0 +1,160 @@
+/*
+  @measurely/engine — Form Controls (.measurely-slider, .measurely-switch, select.measurely-select)
+
+  SINGLE SOURCE OF TRUTH for all Measurely satellites.
+  Uses --mly-* tokens from measurely-core.css — no satellite-specific values.
+
+  Satellites consume this via the engine/css/index.css barrel import.
+  Do NOT copy these rules into satellite CSS — edit here to propagate everywhere.
+
+  Load order: measurely-core.css → this file
+*/
+
+/* ── RANGE SLIDER ─────────────────────────────────── */
+
+/*
+  The fill effect uses a --fill CSS custom property (0%–100%) set by JS:
+    el.style.setProperty('--fill', el.value / el.max * 100 + '%');
+  Without it, the track defaults to 50% filled.
+*/
+.measurely-slider {
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    height: 6px;
+    border-radius: var(--mly-radius-pill);
+    /* Prevent iOS/iPadOS from hijacking horizontal drag as vertical scroll.
+       The parent container stays scrollable when touch starts outside the slider. */
+    touch-action: none;
+
+    background: linear-gradient(
+        90deg,
+        var(--mly-brand-accent) var(--fill, 50%),
+        rgba(26, 23, 20, 0.14) var(--fill, 50%)
+    );
+
+    outline: none;
+    cursor: pointer;
+}
+
+.measurely-slider::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+
+    background: #ffffff;
+    box-shadow:
+        0 0 0 3px var(--mly-brand-accent-glow),
+        0 4px 12px rgba(0, 0, 0, 0.5);
+
+    cursor: grab;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.measurely-slider:active::-webkit-slider-thumb {
+    cursor: grabbing;
+    transform: scale(1.15);
+    box-shadow:
+        0 0 0 5px var(--mly-brand-accent-glow),
+        0 6px 16px rgba(0, 0, 0, 0.55);
+}
+
+.measurely-slider::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #ffffff;
+    border: none;
+    cursor: grab;
+    box-shadow:
+        0 0 0 3px var(--mly-brand-accent-glow),
+        0 4px 12px rgba(0, 0, 0, 0.5);
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.measurely-slider:active::-moz-range-thumb {
+    cursor: grabbing;
+    transform: scale(1.15);
+    box-shadow:
+        0 0 0 5px var(--mly-brand-accent-glow),
+        0 6px 16px rgba(0, 0, 0, 0.55);
+}
+
+/* ── SELECT DROPDOWN ──────────────────────────────── */
+
+select.measurely-select {
+    width: 100%;
+    appearance: none;
+    background: #f7f6f5;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: var(--mly-radius-md);
+    padding: 0.55rem 0.75rem;
+    font-size: 0.85rem;
+    font-family: var(--mly-font-family);
+    color: var(--mly-text-primary);
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.15s;
+    color-scheme: light;
+}
+
+/* Explicit option colors for browsers that honour them (Firefox, Chromium) */
+select.measurely-select option {
+    background: #ffffff;
+    color: #1a1714;
+}
+
+select.measurely-select:focus {
+    border-color: var(--mly-brand-accent);
+    box-shadow: 0 0 0 3px rgba(var(--mly-brand-accent-rgb), 0.2);
+}
+
+/* ── TOGGLE SWITCH ────────────────────────────────── */
+
+.measurely-switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 24px;
+    flex-shrink: 0;
+}
+
+.measurely-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.measurely-switch .slider {
+    position: absolute;
+    inset: 0;
+    background: rgba(26, 23, 20, 0.12);
+    border: 1px solid rgba(0, 0, 0, 0.15);
+    border-radius: var(--mly-radius-pill);
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.measurely-switch .slider::before {
+    content: "";
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    left: 3px;
+    top: 3px;
+    background: var(--mly-text-secondary);
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+}
+
+.measurely-switch input:checked + .slider {
+    background: rgba(var(--mly-brand-accent-rgb), 0.3);
+    border-color: var(--mly-brand-accent);
+}
+
+.measurely-switch input:checked + .slider::before {
+    transform: translateX(20px);
+    background: var(--mly-brand-accent);
+}

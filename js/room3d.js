@@ -715,9 +715,20 @@ function rebuild() {
             w: 0.24,
             h: 1.18,
             d: 0.42,
-            color: 0x1a1714,
+            color: 0x2a2a28,
             tweeterPos: 0.805, // tweeter at ~0.95 m when cabinet bottom sits on floor
             detailed: true
+          };
+
+        case "statement":
+          return {
+            w: 0.46,
+            h: 1.44,
+            d: 0.50,
+            color: 0x2a2a28,
+            tweeterPos: 0.82,
+            floorStand: true,   // floor-standing flagship — bottom sits on floor
+            isStatement: true
           };
 
         case "panel":
@@ -866,6 +877,102 @@ function rebuild() {
   }
 
 /* ------------------------------------------
+   STATEMENT SPEAKER BUILDER
+   Tapered monolith: wide at base, narrows toward top, front baffle
+   angled back for time-alignment. Chamfered front corners. Wilson-style.
+------------------------------------------ */
+  function _buildStatementSpeaker(W, H, D, color, opacity) {
+    const grp = new THREE.Group();
+    const edgeMat = useFatEdges
+      ? new THREE.MeshBasicMaterial({ color, transparent: true, opacity })
+      : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+    const T = EDGE_TUBE_T * 0.55;
+
+    function edges(verts, pairs) {
+      return _fatEdgeGroup(verts, pairs, T, edgeMat);
+    }
+
+    const yB = -H / 2;
+    const yT =  H / 2;
+
+    // Base footprint (wide)
+    const hw_b = W / 2;
+    const hd_b = D / 2;
+    const ch_b = W * 0.09;    // front-corner chamfer at base
+
+    // Top footprint (significantly narrower; front face pulled back = slant)
+    const hw_t  = W * 0.30;
+    const hd_t  = D * 0.42;
+    const ch_t  = W * 0.06;
+    const slant = D * 0.38;   // top-front pulled toward rear vs bottom-front
+
+    // +Z = front of speaker (faces listener)
+    // 12 vertices: 6 bottom (0-5) + 6 top (6-11)
+    const v = [
+      // ── bottom ring ──
+      new THREE.Vector3(-hw_b + ch_b,  yB,  hd_b        ),  // 0 front-left
+      new THREE.Vector3( hw_b - ch_b,  yB,  hd_b        ),  // 1 front-right
+      new THREE.Vector3( hw_b,         yB,  hd_b - ch_b ),  // 2 right-front chamfer
+      new THREE.Vector3( hw_b,         yB, -hd_b        ),  // 3 rear-right
+      new THREE.Vector3(-hw_b,         yB, -hd_b        ),  // 4 rear-left
+      new THREE.Vector3(-hw_b,         yB,  hd_b - ch_b ),  // 5 left-front chamfer
+      // ── top ring (slanted: front pulled back) ──
+      new THREE.Vector3(-hw_t + ch_t,  yT,  hd_t - slant        ),  // 6 front-left
+      new THREE.Vector3( hw_t - ch_t,  yT,  hd_t - slant        ),  // 7 front-right
+      new THREE.Vector3( hw_t,         yT,  hd_t - ch_t - slant ),  // 8 right-front chamfer
+      new THREE.Vector3( hw_t,         yT, -hd_t                ),  // 9 rear-right
+      new THREE.Vector3(-hw_t,         yT, -hd_t                ),  // 10 rear-left
+      new THREE.Vector3(-hw_t,         yT,  hd_t - ch_t - slant ),  // 11 left-front chamfer
+    ];
+
+    const pairs = [
+      [0,1],[1,2],[2,3],[3,4],[4,5],[5,0],       // bottom ring
+      [6,7],[7,8],[8,9],[9,10],[10,11],[11,6],    // top ring
+      [0,6],[1,7],[2,8],[3,9],[4,10],[5,11],      // verticals
+    ];
+
+    grp.add(edges(v, pairs));
+
+    // ── Plinth ──
+    const pH  = 0.04;
+    const phw = hw_b + 0.03;
+    const phd = hd_b + 0.02;
+    const py  = yB - pH;
+    const BOX_PAIRS = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+    const pv = [
+      new THREE.Vector3(-phw, py,       -phd), new THREE.Vector3( phw, py,       -phd),
+      new THREE.Vector3( phw, py,        phd), new THREE.Vector3(-phw, py,        phd),
+      new THREE.Vector3(-phw, py + pH,  -phd), new THREE.Vector3( phw, py + pH,  -phd),
+      new THREE.Vector3( phw, py + pH,   phd), new THREE.Vector3(-phw, py + pH,   phd),
+    ];
+    grp.add(edges(pv, BOX_PAIRS));
+
+    // ── Driver rings on the slanted front baffle ──
+    function baffleRing(cy, r) {
+      const t  = (cy - yB) / H;
+      const cz = hd_b + (hd_t - slant - hd_b) * t + 0.005;  // slightly proud of baffle
+      const pts = [];
+      for (let i = 0; i <= 24; i++) {
+        const a = (i / 24) * Math.PI * 2;
+        pts.push(new THREE.Vector3(Math.cos(a) * r, cy + Math.sin(a) * r, cz));
+      }
+      return new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(pts),
+        new THREE.LineBasicMaterial({ color, transparent: true, opacity: opacity * 0.65 })
+      );
+    }
+
+    [
+      { y: yB + H * 0.15, r: W * 0.17  },   // woofer 1
+      { y: yB + H * 0.35, r: W * 0.17  },   // woofer 2
+      { y: yB + H * 0.60, r: W * 0.12  },   // midrange
+      { y: yB + H * 0.78, r: W * 0.055 },   // tweeter
+    ].forEach(({ y, r }) => grp.add(baffleRing(y, r)));
+
+    return grp;
+  }
+
+/* ------------------------------------------
         SPEAKERS + BEAMS (LEVEL AXIS LOCK)
     ------------------------------------------ */
     // Reset speaker refs — will be set below when speakers are built
@@ -883,9 +990,11 @@ function rebuild() {
         const spkColor   = isSpkHighlit ? 0x0f766e : profile.color;
         const spkOpacity = isSpkHighlit ? 0.9 : Math.max(OP_OBJ, 0.80);
 
-        const speaker = profile.detailed
-          ? _buildDetailedSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
-          : _buildStandmountSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity);
+        const speaker = profile.isStatement
+          ? _buildStatementSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
+          : profile.detailed
+            ? _buildDetailedSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
+            : _buildStandmountSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity);
 
         // X position — always based on speaker spacing
         const x = offsetX + (side === "L" ? -1 : 1) * room.spk_spacing_m / 2;

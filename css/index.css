@@ -1,0 +1,21 @@
+/*
+  @measurely/engine — CSS barrel import
+
+  One import to get all engine design tokens and shared components.
+  Satellites use this in place of importing engine files individually.
+
+  Usage (satellite entry-point CSS):
+    @import "../../engine/css/index.css";
+    @import "../global/tokens.css";   ← satellite semantic aliases
+    @import "../global/buttons.css";  ← satellite enhancement layer
+    ...
+
+  What this provides:
+    - All --mly-* design tokens (measurely-core.css)
+    - .mly-btn-* button system (components/buttons.css)
+    - .measurely-slider, .measurely-switch, select.measurely-select (components/sliders.css)
+*/
+
+@import "./measurely-core.css";
+@import "./components/buttons.css";
+@import "./components/sliders.css";
