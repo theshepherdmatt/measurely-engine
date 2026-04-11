@@ -1,0 +1,110 @@
+/*
+  @measurely/engine — Core Buttons (.mly-btn-*)
+
+  BASE LAYER — intentionally minimal. Works across all satellites
+  (web, retail, remote) without dashboard-specific decoration.
+
+  Satellites may layer their own .btn-* system on top for
+  context-specific enhancements (gradients, shadows, CTA states).
+  The .mly-btn-* classes remain the canonical cross-satellite API.
+
+  Load order: this file → satellite tokens.css → satellite buttons.css
+*/
+
+/* ── Focus ring — all interactive elements ─── */
+:focus-visible {
+    outline: 2px solid var(--mly-brand-accent);
+    outline-offset: 3px;
+    border-radius: 6px;
+}
+
+/* ── Base ─────────────────────────────────── */
+.mly-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+
+    padding: 0.75rem 1.625rem;
+    border-radius: 4px;
+
+    font-family: var(--mly-font-family);
+    font-size: 0.9375rem;   /* 15px — matches index.html */
+    font-weight: 600;
+    line-height: 1;
+    text-decoration: none;
+    white-space: nowrap;
+
+    cursor: pointer;
+    border: 1px solid transparent;
+    background: none;
+
+    transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.mly-btn svg,
+.mly-btn img {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+/* ── PRIMARY ──────────────────────────────── */
+.mly-btn-primary {
+    background: var(--mly-brand-accent);
+    color: #ffffff;
+    border-color: var(--mly-brand-accent);
+    font-weight: 700;
+}
+
+.mly-btn-primary:hover {
+    background: var(--mly-brand-accent-hover);
+    border-color: var(--mly-brand-accent-hover);
+}
+
+/* CTA variant — same style, no glow */
+.mly-btn-primary.is-cta {
+    background: var(--mly-brand-accent);
+    border-color: var(--mly-brand-accent);
+}
+
+.mly-btn-primary.is-cta:hover {
+    background: var(--mly-brand-accent-hover);
+    border-color: var(--mly-brand-accent-hover);
+}
+
+/* ── SECONDARY ────────────────────────────── */
+.mly-btn-secondary {
+    background: transparent;
+    border: 1px solid rgba(0, 0, 0, 0.20);
+    color: var(--mly-text-primary);
+}
+
+.mly-btn-secondary:hover {
+    background: rgba(0, 0, 0, 0.04);
+}
+
+/* ── UTILITY (icon / low-priority) ─────────── */
+.mly-btn-utility {
+    background: transparent;
+    border: 1px solid var(--mly-border-light);
+    color: var(--mly-text-secondary);
+}
+
+.mly-btn-utility:hover {
+    background: rgba(26, 23, 20, 0.06);
+    color: var(--mly-text-primary);
+}
+
+/* ── DANGER ───────────────────────────────── */
+.mly-btn-danger {
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: var(--mly-status-bad);
+}
+
+.mly-btn-danger:hover {
+    background: rgba(239, 68, 68, 0.18);
+    border-color: rgba(239, 68, 68, 0.55);
+    color: #ffffff;
+}

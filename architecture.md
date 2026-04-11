@@ -1,288 +1,82 @@
-# Measurely — Architecture Reference
+# @measurely/engine — Architecture Reference
 
-> Updated: 2026-03-22 | Branch: `gh-pages`
+> Updated: 2026-04-10 | Branch: `main`
 
 ---
 
 ## 1. Overview
 
-Measurely is a **fully client-side, static web app** deployed on GitHub Pages. There is no server-side processing. All acoustic analysis runs in the browser. Optional cloud sync (rooms + sessions) is handled by a hosted PocketBase instance at `https://api.measurely.uk`.
+`measurely-engine` is the **core mathematical and 3D visualization engine** (The Mothership) for the Measurely ecosystem. It is intended to be purely functional and client-side, exported as standard Javascript for consumption by multiple satellite projects (e.g. `measurely-web` and `measurely-retail`).
+
+**Core Doctrine:**
+- **No UI Side-Effects:** The engine must never render custom DOM elements, touch `document.body` or read from URLs, unless explicitly passed to it.
+- **No Third-Party Bloat:** It relies strictly on `Three.js` for room visualization and pure Javascript for FFT arrays.
+- **Single Source of Truth:** `acoustics.js` and `signal_math.js` define how room measurements are calculated. This prevents formulas drifting between the different app endpoints.
 
 ---
 
-## 2. Page Map
-
-| Page | Purpose |
-|---|---|
-| `index.html` | Marketing landing page + spinning 3D preview |
-| `app.html` | Main upload + analysis dashboard |
-| `onboarding.html` | First-run room setup wizard |
-| `myroom.html` | Edit existing room configuration |
-| `demo.html` | Fully interactive 3D sandbox demo |
-| `simulate.html` | Acoustic simulation / prediction tool |
-| `diagnose.html` | Diagnostic / debug page |
-| `report-template.html` | Shareable analysis report layout |
-
----
-
-## 3. JavaScript Module Map
+## 2. Module Map
 
 ```
 js/
-├── engine/                     ← Pure signal-processing (no DOM)
-│   ├── fileLoader.js           — WAV parsing → Float32Array
-│   ├── fft.js                  — FFT implementation
-│   ├── signal_math.js          — Smoothing, octave binning, SBIR maths
-│   ├── acoustics.js            — Room mode, Schroeder, SBIR calculations
-│   ├── analyse.js              — Master analysis pipeline (WAV → scores)
-│   └── score.js                — Score normalisation (0–10)
+├── engine/                     ← Pure signal-processing pipeline
+│   ├── fileLoader.js           — WAV parsing → Float32Array (Left Channel)
+│   ├── fft.js                  — Fast Fourier Transform implementation
+│   ├── signal_math.js          — Smoothing, logarithmic frequency binning
+│   ├── acoustics.js            — SOURCE OF TRUTH: Room mode, Schroeder, SBIR math
+│   ├── analyse.js              — Master pipeline wrapper (WAV array → scores)
+│   ├── score.js                — Value normalisation (0–10 scale)
+│   └── signalIntegrityCard.js  — Optional diagnostic output object generator
 │
 ├── room3d.js                   ← Three.js 3D room engine (ESM, reusable)
-├── dashboard.js                ← App page: file upload, chart render, session history
-├── sync.js                     ← PocketBase cloud sync (IIFE, window.MeasurelySync)
-├── auth.js                     ← PocketBase auth (login/register/logout)
-│                                   NOTE: window._pb is a FUNCTION → call as window._pb()
-├── profile.js                  ← Profile modal + Measurely Remote modal
-├── sessions.js                 ← Session history management
-├── uiController.js             ← Shared UI state helpers
-├── UIFactory.js                ← Card / panel component builders
-├── davePhraseEngine.js         ← Co-Pilot plain-English commentary generator
-├── cinematicEngine.js          ← Cinematic camera fly-through sequences
-├── room.js                     ← Room data read/write helpers
-├── speakers.js                 ← Speaker profile definitions (standmount, floorstander, etc.)
-├── toast.js                    ← Toast notification utility
-├── share-report.js             ← Report sharing logic
-│
-├── dashboard-tour.js           ← Intro.js guided tour for dashboard
-├── dashboard-guide.js          ← Contextual guide hints for dashboard
-├── onboarding-tour.js          ← Intro.js guided tour for onboarding
-├── onboarding-guide.js         ← Contextual guide hints for onboarding
-├── section-intro.js            ← Section header intro animations
-├── tour.js                     ← Base tour utilities
+├── speakers.js                 ← Base speaker catalog and profile definitions
 │
 └── vendor/
-    └── three/
-        ├── three.min.js        — Three.js UMD (script tag, legacy fallback)
-        ├── three.module.js     — ESM bridge re-exporting globalThis.THREE
-        ├── OrbitControls.js    — Camera orbit (appended to THREE namespace)
-        └── DragControls.js     — Drag interaction (speakers in setup mode)
+    └── three/                  ← Self-hosted core 3D dependencies
+        ├── three.min.js        
+        ├── three.module.js     
+        ├── OrbitControls.js    
+        └── DragControls.js     
 ```
 
 ---
 
-## 4. Data Flow: WAV Upload → Score
+## 3. Core Mechanics
 
-```
-User drops WAV  (or WAV fetched from PocketBase sweep_results)
-      │
-      ▼
-engine/fileLoader.js
-  └─ Reads ArrayBuffer → decodes to Float32Array (left channel)
-      │
-      ▼
-engine/fft.js
-  └─ FFT → complex spectrum → magnitude array
-      │
-      ▼
-engine/signal_math.js
-  └─ Log-frequency binning, 1/3 octave smoothing, noise floor trim
-      │
-      ▼
-engine/acoustics.js
-  └─ Room modes (from localStorage room geometry)
-     SBIR prediction (speaker-to-front-wall distance)
-     Schroeder frequency (2000 × √(0.161/V))
-      │
-      ▼
-engine/analyse.js
-  └─ Combines signal + acoustics context
-     Builds report object: { freqs[], mags[], peaks, dips, room_modes, sbir_null, schroeder_freq }
-      │
-      ▼
-engine/score.js
-  └─ Converts analysis → 6 scores (1–10): peaks_dips, reflections, bandwidth, balance, smoothness, clarity
-      │
-      ▼
-dashboard.js
-  ├─ Renders Plotly frequency-response chart (lazy-loaded, 3.5 MB)
-  ├─ Renders score cards (1–10)
-  ├─ Calls davePhraseEngine.js → plain-English Co-Pilot commentary
-  ├─ Stores session to localStorage (measurely_sessions)
-  └─ If authenticated → sync.js pushSession() → PocketBase
-```
+### A. The Signal Pipeline (`analyze.js`)
+When a satellite application receives audio from a user (or from the `measurely-remote` physical mic), it passes the pure `ArrayBuffer` into the engine:
+1. `fileLoader.js`: Decodes the data into a standard `Float32Array`.
+2. `fft.js`: Converts time-domain to complex frequency spectrum magnitudes.
+3. `signal_math.js`: Cleans the spectrum (1/3 octave smoothing, noise trim).
+4. `acoustics.js`: Cross-references signals with real-world dimensions (Modes, SBIR nulls).
+5. `score.js`: Grades the result on a standardized 0-10 scale.
 
----
+### B. The 3D Room Visualizer (`room3d.js`)
+A headless Three.js wrapper that draws the room, places speakers, and paints acoustic overlays. The satellite application provides a mounting div and raw parameters:
+```javascript
+import { initRoom3D } from '@measurely/engine/room3d';
 
-## 5. Measurely Remote Integration
-
-The **Measurely Remote** modal (in `profile.js`) connects the web app to the Pi hardware device.
-
-### Flow
-```
-User clicks "Run Sweep" in Measurely Remote modal
-      │
-      ▼
-profile.js creates sweep_commands record (status=pending)
-      │
-      ▼
-Pi's pocketbase.py polls, detects command → triggers sweep.py
-      │
-      ▼
-sweep.py plays log-sweep, records IR, saves impulse.wav
-      │
-      ▼
-pocketbase.py uploads impulse.wav → sweep_results record (wav_left)
-pocketbase.py marks sweep_commands.status = done, result = sweep_results.id
-      │
-      ▼
-profile.js detects done → shows "Load to Dashboard" button
-      │
-      ▼
-Fetch sweep_results record → download wav_left blob → File object
-      │
-      ▼
-Run through analysis pipeline (same as manual WAV upload)
-      │
-      ▼
-Dashboard updates with new session
-```
-
-### PocketBase Collections (Measurely Remote)
-
-| Collection | Purpose | Key Fields |
-|---|---|---|
-| `devices` | Registered Pi devices | `device_id`, `owner`, `status`, `mic_connected`, `dac_connected`, `last_seen` |
-| `sweep_commands` | Command queue | `device`, `status` (pending/running/done/error), `channel`, `dur`, `result` |
-| `sweep_results` | WAV file storage | `command`, `device`, `wav_left`, `wav_right` |
-| `pairing_codes` | One-time 6-digit pairing | `code`, `owner`, `used` |
-
----
-
-## 6. 3D Room Engine (`room3d.js`)
-
-### Instantiation
-```js
 const api = initRoom3D({
-  mountId:     'canvas-container-id',
-  getRoomData: () => roomStateObject,   // called on every rebuild()
-  mode:        'setup' | 'locked' | 'analysing' | 'final'
+  mountId: 'canvas-container-id', 
+  getRoomData: () => myRoomState,  // Invoked on scene rebuild
+  mode: 'setup' 
 });
 ```
 
-### Render Stages (progressive disclosure)
-| Stage | What's visible |
-|---|---|
-| `room` | Wireframe shell only |
-| `speakers` | + Speaker meshes + beam lines |
-| `furnishings` | + Furniture (rug, sofa, coffee table / desk, chair) |
-| `treatment` | + Acoustic treatment panels |
-
-### Ceiling Types
-`flat` · `slanted` (4 directions) · `gable` (depth or width axis)
-
-### Acoustic Overlays
-Each overlay is toggled via `api.setOverlay(id, true/false)`:
-
-| Overlay ID | Visual | Acoustic meaning |
-|---|---|---|
-| `sbir` | Coloured arc from speaker to front wall | SBIR cancellation prediction |
-| `side_reflections` | Ray lines from speakers to side walls | First reflection points |
-| `floor_reflection` | Ray to floor | Floor bounce path |
-| `rear_energy` | Ray to rear wall | Rear-wall energy accumulation |
-| `coffee_table` | Highlight on table geometry | Diffraction / secondary reflection |
-| `bandwidth` | Floor-level plane | Sub-Schroeder modal region |
-| `clarity` | Radial glow at listener | RT60 / clarity indicator |
-| `balance` | Gradient fill | Tonal tilt visualisation |
-| `smoothness` | Particle scatter | Roughness / comb filtering |
-
-### Modes
-| Mode | Behaviour |
-|---|---|
-| `setup` | Speakers are draggable; auto-toe-in tracks listener sphere in real time |
-| `locked` | All interaction disabled; low-opacity display |
-| `analysing` | Pulsing colour state; overlays animate |
-| `final` | High-opacity, full-colour result state |
-
-### Device Adaptation
-- **Desktop**: `LineSegments` + `LineBasicMaterial` (fast, GPU-accelerated)
-- **Tablet/Mobile** (`< 900 px`): mesh tube geometry per edge (reliable pixel-width at high DPR)
-- Pixel ratio capped at `2×` to protect mobile GPU budget
-
-### Auto-Toe-In
-Every animation frame, both speaker meshes are rotated to face the listener sphere using `atan2(dx, dz)`. The dashed beam geometry endpoint is updated live in the same pass.
-
 ---
 
-## 7. Cloud Sync (`sync.js`)
+## 4. Usage Requirements
 
-All sync is **opt-in** (requires authenticated PocketBase session). The module is an IIFE that exposes `window.MeasurelySync`.
+The engine expects to be consumed dynamically.
+- In **Node environments**, `require('@measurely/engine')` pulls the whole suite via `index.js`.
+- In **Browser environments**, scripts are loaded sequentially or via ES module imports (`import { analyse } from ...`).
 
-### PocketBase Collections
-| Collection | Fields | Notes |
-|---|---|---|
-| `rooms` | `user`, `dimensions`, `speaker_pos`, `treatment` | One record per user; upserted on push |
-| `sessions` | `user`, `session_id`, `label`, `timestamp`, scores (×7), `analysis`, `report_curve`, `room_modes`, `schroeder_freq`, `sbir_null`, `scores` | Up to 50 cloud, 20 hydrated to localStorage |
-| `users` | `gear_list`, `genres`, `public_profile`, `avatar` | PocketBase native users collection |
+### Example Integration
+```javascript
+// A satellite app (like measurely-web) passes generic data to the engine.
+import { analyse } from '@measurely/engine/engine/analyse';
+import { schroederFrequency } from '@measurely/engine/engine/acoustics';
 
-### Sync Protocol
-- **Filter syntax**: `_f('user', userId)` → `user = 'id'` (PocketBase single-quote, space-padded — critical)
-- **`requestKey: null`** on all queries to disable PocketBase auto-cancellation
-- **pushRoom**: upsert single room record
-- **pullRoom**: fetch → normalise → write to `localStorage`
-- **pushSession**: 500 ms debounce delay, upsert by `session_id`
-- **pullAll**: pullRoom + last 50 sessions + pullProfile (called at login)
-- **pushLocalData**: bulk-push all localStorage sessions on first login
-
----
-
-## 8. Auth Flow
-
-1. On `index.html` load, `<head>` inline script checks `localStorage['pocketbase_auth']`
-2. If JWT is valid and not expired → inject full-screen loading overlay immediately (zero FOUC)
-3. After `MeasurelyAuth.init()` confirms session → `window.location.replace('app.html')`
-4. If no valid session → remove overlay, show landing page normally
-
-**`window._pb` is a function** — always call it as `window._pb()` to get the PocketBase instance.
-
----
-
-## 9. LocalStorage Keys
-
-| Key | Contents |
-|---|---|
-| `pocketbase_auth` | PocketBase JWT token + model |
-| `measurely_room` | Room configuration JSON |
-| `measurely_sessions` | Array of up to 20 session objects |
-| `mly.speaker.key` | Last selected speaker profile |
-| `measurely_onboarded` | Boolean flag |
-| `mly_pending_profile` | Queued profile update (pre-auth) |
-
----
-
-## 10. CSS Architecture
-
-All CSS lives inline in each page's `<style>` block, with two shared linked stylesheets:
-
-| File | Purpose |
-|---|---|
-| `css/global/auth.css` | Auth modal overlay, login/register form |
-| `css/global/profile.css` | Profile panel, avatar, gear list |
-
-Design tokens (CSS custom properties) defined in `:root` on `index.html`:
-- `--bg-dark`, `--bg-elevated`, `--purple-400/500`, `--gradient-purple`
-- `--text-primary/secondary/muted`, `--border-soft/strong`, `--glass`
-- `--shadow-md`, `--shadow-lg`
-
----
-
-## 11. External Dependencies
-
-| Dependency | How loaded | Size | Purpose |
-|---|---|---|---|
-| PocketBase SDK | CDN `<script>` | ~80 KB | Auth + database |
-| Three.js | Local vendor | ~580 KB | 3D room engine |
-| OrbitControls | Local vendor | — | Camera orbit |
-| DragControls | Local vendor | — | Speaker drag in setup mode |
-| Plotly.js | Local, lazy `<script>` inject | ~3.5 MB | Frequency response chart |
-| Google Fonts (Outfit) | CDN `<link>` | — | Typography |
-| Material Icons | CDN `<link>` | — | UI icons |
+const result = analyse(myFloat32Array, sampleRate);
+const transitionHz = schroederFrequency(roomVolume, rt60);
+```
