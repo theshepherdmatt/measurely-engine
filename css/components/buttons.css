@@ -5,15 +5,15 @@
   (web, retail, remote) without dashboard-specific decoration.
 
   Satellites may layer their own .btn-* system on top for
-  context-specific enhancements (gradients, shadows, CTA states).
-  The .mly-btn-* classes remain the canonical cross-satellite API.
+  context-specific enhancements. The .mly-btn-* classes remain
+  the canonical cross-satellite API.
 
   Load order: this file → satellite tokens.css → satellite buttons.css
 */
 
 /* ── Focus ring — all interactive elements ─── */
 :focus-visible {
-    outline: 2px solid var(--mly-brand-accent);
+    outline: 2px solid #1A1A1A;   /* Monochrome — never a colour accent */
     outline-offset: 3px;
     border-radius: 6px;
 }
@@ -26,10 +26,10 @@
     gap: 0.5rem;
 
     padding: 0.75rem 1.625rem;
-    border-radius: 4px;
+    border-radius: var(--mly-radius-sm);   /* token: 4px */
 
     font-family: var(--mly-font-family);
-    font-size: 0.9375rem;   /* 15px — matches index.html */
+    font-size: 0.9375rem;   /* 15px */
     font-weight: 600;
     line-height: 1;
     text-decoration: none;
@@ -50,27 +50,28 @@
 }
 
 /* ── PRIMARY ──────────────────────────────── */
+/* Solid black — never a colour accent. One per view maximum. */
 .mly-btn-primary {
-    background: var(--mly-brand-accent);
+    background: #1A1A1A;
     color: #ffffff;
-    border-color: var(--mly-brand-accent);
+    border-color: #1A1A1A;
     font-weight: 700;
 }
 
 .mly-btn-primary:hover {
-    background: var(--mly-brand-accent-hover);
-    border-color: var(--mly-brand-accent-hover);
+    background: #333333;
+    border-color: #333333;
 }
 
-/* CTA variant — same style, no glow */
+/* CTA variant — same monochrome style */
 .mly-btn-primary.is-cta {
-    background: var(--mly-brand-accent);
-    border-color: var(--mly-brand-accent);
+    background: #1A1A1A;
+    border-color: #1A1A1A;
 }
 
 .mly-btn-primary.is-cta:hover {
-    background: var(--mly-brand-accent-hover);
-    border-color: var(--mly-brand-accent-hover);
+    background: #333333;
+    border-color: #333333;
 }
 
 /* ── SECONDARY ────────────────────────────── */
@@ -92,19 +93,21 @@
 }
 
 .mly-btn-utility:hover {
-    background: rgba(26, 23, 20, 0.06);
+    background: rgba(26, 26, 26, 0.06);   /* --mly-text-primary at low opacity */
     color: var(--mly-text-primary);
 }
 
 /* ── DANGER ───────────────────────────────── */
+/* Destructive actions are monochrome — no red accents on interactive controls. */
+/* Copy must communicate the destructive intent; colour does not. */
 .mly-btn-danger {
-    background: rgba(239, 68, 68, 0.12);
-    border: 1px solid rgba(239, 68, 68, 0.35);
-    color: var(--mly-status-bad);
+    background: transparent;
+    border: 1px solid rgba(0, 0, 0, 0.20);
+    color: var(--mly-text-secondary);
 }
 
 .mly-btn-danger:hover {
-    background: rgba(239, 68, 68, 0.18);
-    border-color: rgba(239, 68, 68, 0.55);
-    color: #ffffff;
+    background: rgba(0, 0, 0, 0.04);
+    border-color: rgba(0, 0, 0, 0.35);
+    color: var(--mly-text-primary);
 }

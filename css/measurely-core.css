@@ -8,29 +8,29 @@
 */
 
 :root {
-  /* ── 1. Core Brand Colors ────────────────────────── */
-  --mly-brand-accent:         #D4950F;   /* The Measurely Gold */
-  --mly-brand-accent-hover:   #B87C08;
-  --mly-brand-accent-rgb:     212, 149, 15;
-  --mly-brand-accent-glow:    rgba(212, 149, 15, 0.45); /* thumb/ring glow — use in slider, focus rings */
+  /* ── 1. Monochrome Active State ─────────────────── */
+  --mly-brand-accent:         #1A1A1A;   /* Monochrome active — banned gold replaced */
+  --mly-brand-accent-hover:   #333333;
+  --mly-brand-accent-rgb:     26, 26, 26;
+  --mly-brand-accent-glow:    rgba(0, 0, 0, 0.12); /* Focus ring only — no colour */
 
   /* ── 2. Background & Surface (Default Dark-ish/Glass) ── */
-  --mly-bg-app:               #F4F4F2;
+  --mly-bg-app:               #F7F7F7;   /* Neutral recessed — warm tint removed */
   --mly-surface-glass:        rgba(255, 255, 255, 0.95);
   --mly-surface-dark:         #0F172A;   /* Sleek dashboard night modes */
   --mly-surface-dark-glass:   rgba(15, 23, 42, 0.88);
 
   /* ── 3. Typography & Text ────────────────────────── */
-  --mly-font-family:          "Inter", "Outfit", system-ui, -apple-system, sans-serif;
+  --mly-font-family:          "DM Sans", system-ui, -apple-system, sans-serif;
   --mly-text-primary:         #1C1C1A;
   --mly-text-secondary:       #6B7280;
   --mly-text-inverse:         #F1F5F9;   /* For dark surfaces */
 
   /* ── 4. Status Indicators (Acoustic Scores) ──────── */
-  --mly-status-good:          #34D399;   /* Score 8-10 */
-  --mly-status-warn:          #F59E0B;   /* Score 5-7 */
-  --mly-status-bad:           #F87171;   /* Score 1-4 */
-  --mly-status-info:          #3B82F6;
+  --mly-status-good:          #2D8A4E;   /* Score 8-10 — matches measurely-ui --score-good */
+  --mly-status-warn:          #888888;   /* Score 5-7 — neutral grey, no amber */
+  --mly-status-bad:           #C23B22;   /* Score 1-4 — matches measurely-ui --score-poor */
+  /* --mly-status-info removed — no blue accent exists in the design system */
 
   /* ── 5. Borders & Shadows (Glassmorphism) ────────── */
   --mly-border-light:         rgba(0, 0, 0, 0.10);
@@ -38,11 +38,11 @@
   --mly-shadow-glass:         -6px 0 32px rgba(0, 0, 0, 0.12);
   --mly-radius-sm:            4px;
   --mly-radius-md:            8px;
-  --mly-radius-lg:            16px;
+  --mly-radius-lg:            12px;      /* Hard cap — radius > 12px banned */
   --mly-radius-pill:          999px;
 
   /* ── 6. Animations & Transitions ─────────────────── */
-  --mly-ease-spring:          cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  /* --mly-ease-spring removed — spring/bounce easing banned per measurely-ui */
   --mly-ease-smooth:          cubic-bezier(0.4, 0, 0.2, 1);
   --mly-transition-fast:      150ms var(--mly-ease-smooth);
 }
@@ -51,12 +51,12 @@
   Global Utility Classes Available to All Satellites 
 */
 .mly-glass-panel {
-  background: var(--mly-surface-glass);
-  backdrop-filter: blur(20px) saturate(200%);
-  -webkit-backdrop-filter: blur(20px) saturate(200%);
+  background: rgba(250, 250, 248, 0.82);  /* Wizard overlay spec — no warm tint */
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   border: 1px solid var(--mly-border-light);
   border-radius: var(--mly-radius-md);
-  box-shadow: var(--mly-shadow-glass);
+  /* box-shadow removed — shadows banned except active segmented-control tab */
 }
 
 .mly-dark-chip {

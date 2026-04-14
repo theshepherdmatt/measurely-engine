@@ -21,7 +21,7 @@
     width: 100%;
     appearance: none;
     -webkit-appearance: none;
-    height: 6px;
+    height: 3px;                          /* measurely-ui canonical: 3px, max 4px */
     border-radius: var(--mly-radius-pill);
     /* Prevent iOS/iPadOS from hijacking horizontal drag as vertical scroll.
        The parent container stays scrollable when touch starts outside the slider. */
@@ -29,8 +29,8 @@
 
     background: linear-gradient(
         90deg,
-        var(--mly-brand-accent) var(--fill, 50%),
-        rgba(26, 23, 20, 0.14) var(--fill, 50%)
+        #1A1A1A var(--fill, 50%),         /* Black fill — monochrome */
+        #E8E8E8 var(--fill, 50%)          /* Light grey empty track */
     );
 
     outline: none;
@@ -40,46 +40,39 @@
 .measurely-slider::-webkit-slider-thumb {
     appearance: none;
     -webkit-appearance: none;
-    width: 24px;
-    height: 24px;
+    width: 14px;                          /* measurely-ui canonical: 14px, max 16px */
+    height: 14px;
     border-radius: 50%;
 
-    background: #ffffff;
-    box-shadow:
-        0 0 0 3px var(--mly-brand-accent-glow),
-        0 4px 12px rgba(0, 0, 0, 0.5);
+    background: #FFFFFF;
+    border: 2px solid #1A1A1A;           /* Black border thumb — no glow */
+    box-shadow: none;                     /* Decorative shadows banned */
 
     cursor: grab;
-    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    transition: transform 0.1s ease;
 }
 
 .measurely-slider:active::-webkit-slider-thumb {
     cursor: grabbing;
-    transform: scale(1.15);
-    box-shadow:
-        0 0 0 5px var(--mly-brand-accent-glow),
-        0 6px 16px rgba(0, 0, 0, 0.55);
+    transform: scale(1.1);
+    box-shadow: none;
 }
 
 .measurely-slider::-moz-range-thumb {
-    width: 24px;
-    height: 24px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
-    background: #ffffff;
-    border: none;
+    background: #FFFFFF;
+    border: 2px solid #1A1A1A;
+    box-shadow: none;
     cursor: grab;
-    box-shadow:
-        0 0 0 3px var(--mly-brand-accent-glow),
-        0 4px 12px rgba(0, 0, 0, 0.5);
-    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    transition: transform 0.1s ease;
 }
 
 .measurely-slider:active::-moz-range-thumb {
     cursor: grabbing;
-    transform: scale(1.15);
-    box-shadow:
-        0 0 0 5px var(--mly-brand-accent-glow),
-        0 6px 16px rgba(0, 0, 0, 0.55);
+    transform: scale(1.1);
+    box-shadow: none;
 }
 
 /* ── SELECT DROPDOWN ──────────────────────────────── */
@@ -87,7 +80,7 @@
 select.measurely-select {
     width: 100%;
     appearance: none;
-    background: #f7f6f5;
+    background: var(--mly-bg-app);        /* Token — neutral #F7F7F7, no warm tint */
     border: 1px solid rgba(0, 0, 0, 0.12);
     border-radius: var(--mly-radius-md);
     padding: 0.55rem 0.75rem;
@@ -103,12 +96,14 @@ select.measurely-select {
 /* Explicit option colors for browsers that honour them (Firefox, Chromium) */
 select.measurely-select option {
     background: #ffffff;
-    color: #1a1714;
+    color: #1a1a1a;
 }
 
 select.measurely-select:focus {
-    border-color: var(--mly-brand-accent);
-    box-shadow: 0 0 0 3px rgba(var(--mly-brand-accent-rgb), 0.2);
+    border-color: #1A1A1A;               /* Monochrome focus — no gold */
+    outline: 2px solid #1A1A1A;
+    outline-offset: 2px;
+    box-shadow: none;                    /* No glow */
 }
 
 /* ── TOGGLE SWITCH ────────────────────────────────── */
@@ -130,7 +125,7 @@ select.measurely-select:focus {
 .measurely-switch .slider {
     position: absolute;
     inset: 0;
-    background: rgba(26, 23, 20, 0.12);
+    background: rgba(26, 26, 26, 0.12);
     border: 1px solid rgba(0, 0, 0, 0.15);
     border-radius: var(--mly-radius-pill);
     cursor: pointer;
@@ -150,11 +145,11 @@ select.measurely-select:focus {
 }
 
 .measurely-switch input:checked + .slider {
-    background: rgba(var(--mly-brand-accent-rgb), 0.3);
-    border-color: var(--mly-brand-accent);
+    background: #1A1A1A;                 /* Solid black track when on */
+    border-color: #1A1A1A;
 }
 
 .measurely-switch input:checked + .slider::before {
     transform: translateX(20px);
-    background: var(--mly-brand-accent);
+    background: #FFFFFF;                 /* White knob on black track */
 }
