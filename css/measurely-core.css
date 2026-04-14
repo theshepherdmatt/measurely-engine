@@ -27,10 +27,18 @@
   --mly-text-inverse:         #F1F5F9;   /* For dark surfaces */
 
   /* ── 4. Status Indicators (Acoustic Scores) ──────── */
-  --mly-status-good:          #2D8A4E;   /* Score 8-10 — matches measurely-ui --score-good */
+  --mly-status-good:          #00B8A9;   /* Score 8-10 — Teal (data accent, not green) */
   --mly-status-warn:          #888888;   /* Score 5-7 — neutral grey, no amber */
   --mly-status-bad:           #C23B22;   /* Score 1-4 — matches measurely-ui --score-poor */
   /* --mly-status-info removed — no blue accent exists in the design system */
+
+  /* ── 5a. Teal / Data-Accent Tokens ───────────────── */
+  --mly-teal:                 #00B8A9;   /* Primary graph curves, score-good */
+  --mly-teal-rgb:             0, 184, 169;
+  --mly-teal-neon:            #00F5FF;   /* Shimmer / loading highlight */
+  --mly-teal-neon-rgb:        0, 245, 255;
+  --mly-mint-active:          #3DFFC0;   /* Active status pip */
+  --mly-slate-off:            #6B7280;   /* Disconnected / muted state */
 
   /* ── 5. Borders & Shadows (Glassmorphism) ────────── */
   --mly-border-light:         rgba(0, 0, 0, 0.10);
