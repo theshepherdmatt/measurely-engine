@@ -1,77 +1,276 @@
 /*
   @measurely/engine — Core CSS Design Tokens
-  These globally synchronized variables define the exact aesthetic fingerprint 
-  of all Measurely satellites (Web, Retail, Remote).
-  
-  Do not override these haphazardly in local files; rely on these 
-  for a unified "Mothership" look-and-feel.
+  v2.0 Unified Design System
+
+  Source of truth for ALL Measurely satellites (Web, Retail, Remote).
+  Monochrome + teal acoustic palette. DM Sans. No gradients, no gold, no warm tones.
+
+  Load order in satellites:
+    1.  <link> Google Fonts DM Sans (see comment below)
+    2.  engine/css/index.css   ← this file + components
+    3.  satellite tokens.css   ← semantic aliases (--c-*, --brand-*, etc.)
+
+  Google Fonts snippet (paste into satellite <head>):
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
 */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DESIGN TOKENS
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  /* ── 1. Monochrome Active State ─────────────────── */
-  --mly-brand-accent:         #1A1A1A;   /* Monochrome active — banned gold replaced */
-  --mly-brand-accent-hover:   #333333;
-  --mly-brand-accent-rgb:     26, 26, 26;
-  --mly-brand-accent-glow:    rgba(0, 0, 0, 0.12); /* Focus ring only — no colour */
 
-  /* ── 2. Background & Surface (Default Dark-ish/Glass) ── */
-  --mly-bg-app:               #F7F7F7;   /* Neutral recessed — warm tint removed */
-  --mly-surface-glass:        rgba(255, 255, 255, 0.95);
-  --mly-surface-dark:         #0F172A;   /* Sleek dashboard night modes */
-  --mly-surface-dark-glass:   rgba(15, 23, 42, 0.88);
+  /* ── 1. Viewport / Dark surface ───────────────────────────────────────── */
+  --mly-viewport-bg:            #0A0A0A;
+  --mly-viewport-text:          #FAFAFA;
+  --mly-viewport-text-muted:    rgba(255, 255, 255, 0.4);
+  --mly-viewport-text-subtle:   rgba(255, 255, 255, 0.3);
+  --mly-viewport-border:        rgba(255, 255, 255, 0.1);
+  --mly-viewport-surface:       rgba(255, 255, 255, 0.06);
+  --mly-viewport-grid:          rgba(255, 255, 255, 0.02);
 
-  /* ── 3. Typography & Text ────────────────────────── */
-  --mly-font-family:          "DM Sans", system-ui, -apple-system, sans-serif;
-  --mly-text-primary:         #1C1C1A;
-  --mly-text-secondary:       #6B7280;
-  --mly-text-inverse:         #F1F5F9;   /* For dark surfaces */
+  /* ── 2. Panel / Light surface ─────────────────────────────────────────── */
+  --mly-bg-primary:             #FFFFFF;
+  --mly-bg-recessed:            #F7F7F7;
+  --mly-text-primary:           #1A1A1A;
+  --mly-text-secondary:         #666666;
+  --mly-text-tertiary:          #888888;
+  --mly-text-label:             #AAAAAA;
+  --mly-border:                 #E8E8E8;
+  --mly-border-subtle:          #EBEBEB;
+  --mly-border-light:           rgba(0, 0, 0, 0.08);
+  --mly-border-dark:            rgba(255, 255, 255, 0.1);
+  --mly-control-bg:             #F2F2F2;
+  --mly-control-active-bg:      #FFFFFF;
 
-  /* ── 4. Status Indicators (Acoustic Scores) ──────── */
-  --mly-status-good:          #00B8A9;   /* Score 8-10 — Teal (data accent, not green) */
-  --mly-status-warn:          #888888;   /* Score 5-7 — neutral grey, no amber */
-  --mly-status-bad:           #C23B22;   /* Score 1-4 — matches measurely-ui --score-poor */
-  /* --mly-status-info removed — no blue accent exists in the design system */
+  /* ── 3. Teal — brand accent (3D viewport + landing page accents ONLY) ─── */
+  /*    BANNED on dashboard controls, buttons, fills, or borders.            */
+  --mly-teal:                   #00B8A9;
+  --mly-teal-rgb:               0, 184, 169;
+  --mly-teal-neon:              #00C1B2;       /* brighter variant for viewport paths */
+  --mly-teal-neon-rgb:          0, 193, 178;
 
-  /* ── 5a. Teal / Data-Accent Tokens ───────────────── */
-  --mly-teal:                 #00B8A9;   /* Primary graph curves, score-good */
-  --mly-teal-rgb:             0, 184, 169;
-  --mly-teal-neon:            #00F5FF;   /* Shimmer / loading highlight */
-  --mly-teal-neon-rgb:        0, 245, 255;
-  --mly-mint-active:          #3DFFC0;   /* Active status pip */
-  --mly-slate-off:            #6B7280;   /* Disconnected / muted state */
+  /* ── 4. Semantic neon palette (3D viewport semantics only) ────────────── */
+  --mly-neon-teal:              #00B8A9;       /* active filter / SBIR / primary */
+  --mly-neon-purple:            #7C3AED;       /* bass modes */
+  --mly-neon-pink:              #FF107A;       /* reflections / accuracy band */
 
-  /* ── 5. Borders & Shadows (Glassmorphism) ────────── */
-  --mly-border-light:         rgba(0, 0, 0, 0.10);
-  --mly-border-dark:          rgba(255, 255, 255, 0.12);
-  --mly-shadow-glass:         -6px 0 32px rgba(0, 0, 0, 0.12);
-  --mly-radius-sm:            4px;
-  --mly-radius-md:            8px;
-  --mly-radius-lg:            12px;      /* Hard cap — radius > 12px banned */
-  --mly-radius-pill:          999px;
+  /* ── 5. Acoustic score feedback ──────────────────────────────────────── */
+  --mly-score-good:             #2D8A4E;       /* score 8-10 */
+  --mly-score-ok:               #888888;       /* score 5-7 */
+  --mly-score-poor:             #C23B22;       /* score 1-4 */
+  --mly-mint-active:            #3DFFC0;       /* device Active pip */
+  --mly-slate-off:              #6B7280;       /* device Disconnected pip */
 
-  /* ── 6. Animations & Transitions ─────────────────── */
-  /* --mly-ease-spring removed — spring/bounce easing banned per measurely-ui */
-  --mly-ease-smooth:          cubic-bezier(0.4, 0, 0.2, 1);
-  --mly-transition-fast:      150ms var(--mly-ease-smooth);
+  /* ── 6. Typography ────────────────────────────────────────────────────── */
+  --mly-font-family:            'DM Sans', system-ui, -apple-system, sans-serif;
+  --mly-label-size:             10px;          /* uppercase section labels */
+  --mly-subhead-size:           13px;          /* slider labels, chip text */
+  --mly-body-size:              13px;          /* descriptions, values */
+  --mly-nav-size:               12px;          /* navigation links */
+  --mly-score-size:             48px;          /* room score in viewport */
+
+  /* ── 7. Radius ────────────────────────────────────────────────────────── */
+  --mly-radius-sm:              6px;           /* chips, small buttons */
+  --mly-radius-md:              8px;           /* buttons, segmented tracks, grids */
+  --mly-radius-lg:              12px;          /* modals, wizard cards — MAX allowed */
+
+  /* ── 8. Shadows ───────────────────────────────────────────────────────── */
+  --mly-shadow-tab:             0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --mly-shadow-modal:           0 24px 48px rgba(0,0,0,0.15);
+
+  /* ── 9. Animation ─────────────────────────────────────────────────────── */
+  --mly-ease-smooth:            cubic-bezier(0.4, 0, 0.2, 1);
+  --mly-transition-fast:        150ms var(--mly-ease-smooth);
+  --mly-transition-state:       200ms var(--mly-ease-smooth);
+
+  /* ── 10. Brand action tokens — used by components/buttons.css ─────────── */
+  --mly-brand-accent:           #1A1A1A;   /* monochrome primary CTA */
+  --mly-brand-accent-hover:     #333333;   /* primary hover */
 }
 
-/* 
-  Global Utility Classes Available to All Satellites 
-*/
-.mly-glass-panel {
-  background: rgba(250, 250, 248, 0.82);  /* Wizard overlay spec — no warm tint */
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  border: 1px solid var(--mly-border-light);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GLOBAL ENFORCEMENT
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* DM Sans: mandatory typeface for all Measurely satellites */
+body,
+.demo-panel,
+.ra-panel,
+.room-analysis-panel {
+  font-family: var(--mly-font-family);
+}
+
+/* Heading tight tracking — negative only for text ≥ 13px, never on labels */
+h1, h2, h3, h4,
+.engine-title,
+.ra-header-title,
+.ra-sim-heading {
+  font-family: var(--mly-font-family);
+  letter-spacing: -0.3px;
+}
+
+/* ── Section labels ───────────────────────────────────────────────────────
+   10px · weight 600 · uppercase · 1px letter-spacing · muted colour
+   No background fill, no warm band — structural anchor via border-bottom.  */
+.engine-section-label,
+.demo-group-label {
+  font-family:    var(--mly-font-family);
+  font-size:      var(--mly-label-size);
+  font-weight:    600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color:          var(--mly-text-label);
+  border-bottom:  1px solid var(--mly-border);
+  padding-bottom: 6px;
+  margin-bottom:  12px;
+  display:        block;
+}
+
+/* ── Control label / data-value typography pair ───────────────────────── */
+.mly-ctrl-label {
+  font-family:   var(--mly-font-family);
+  font-size:     var(--mly-subhead-size);
+  font-weight:   500;
+  color:         var(--mly-text-secondary);
+  line-height:   1.4;
+}
+
+.mly-ctrl-value {
+  font-family:          var(--mly-font-family);
+  font-size:            var(--mly-body-size);
+  font-weight:          700;
+  color:                var(--mly-text-primary);
+  line-height:          1.4;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Semantic neon utility classes (3D viewport use only) ─────────────── */
+.mly-teal   { color: var(--mly-neon-teal); }
+.mly-purple { color: var(--mly-neon-purple); }
+.mly-pink   { color: var(--mly-neon-pink); }
+
+/* ── White panel utility ──────────────────────────────────────────────── */
+.mly-panel {
+  background:  var(--mly-bg-primary);
+  border-left: 1px solid var(--mly-border);
+}
+
+/* ── Segmented control track ─────────────────────────────────────────── */
+.mly-segmented {
+  background:    var(--mly-control-bg);
   border-radius: var(--mly-radius-md);
-  /* box-shadow removed — shadows banned except active segmented-control tab */
+  padding:       3px;
+  display:       inline-flex;
+  gap:           2px;
 }
 
-.mly-dark-chip {
-  background: var(--mly-surface-dark-glass);
-  border: 1px solid var(--mly-border-dark);
-  color: var(--mly-text-inverse);
-  border-radius: var(--mly-radius-pill);
-  backdrop-filter: blur(10px);
+.mly-seg-btn {
+  font-family:    var(--mly-font-family);
+  font-size:      12px;
+  font-weight:    500;
+  color:          var(--mly-text-tertiary);
+  border-radius:  6px;
+  padding:        5px 12px;
+  border:         none;
+  background:     transparent;
+  cursor:         pointer;
+  transition:     var(--mly-transition-fast);
 }
 
+.mly-seg-btn.active {
+  background:  var(--mly-control-active-bg);
+  color:       var(--mly-text-primary);
+  box-shadow:  var(--mly-shadow-tab);
+}
+
+/* ── Chip / environment toggle ────────────────────────────────────────── */
+.mly-chip {
+  font-family:    var(--mly-font-family);
+  font-size:      12px;
+  font-weight:    500;
+  border:         1px solid var(--mly-border);
+  border-radius:  var(--mly-radius-sm);
+  color:          var(--mly-text-tertiary);
+  padding:        4px 10px;
+  background:     transparent;
+  cursor:         pointer;
+  transition:     var(--mly-transition-fast);
+}
+
+.mly-chip.active {
+  border-color: var(--mly-text-primary);
+  color:        var(--mly-text-primary);
+}
+
+/* ── Primary action button — one per view, monochrome ────────────────── */
+.mly-btn-primary {
+  font-family:    var(--mly-font-family);
+  font-size:      13px;
+  font-weight:    600;
+  background:     var(--mly-text-primary);
+  color:          var(--mly-bg-primary);
+  border-radius:  var(--mly-radius-md);
+  border:         none;
+  padding:        10px 20px;
+  cursor:         pointer;
+  transition:     background var(--mly-transition-fast);
+}
+
+.mly-btn-primary:hover {
+  background: #333333;
+}
+
+/* ── Ghost / secondary button ────────────────────────────────────────── */
+.mly-btn-ghost {
+  font-family:  var(--mly-font-family);
+  font-size:    13px;
+  font-weight:  500;
+  background:   transparent;
+  color:        var(--mly-text-tertiary);
+  border:       none;
+  padding:      10px 16px;
+  cursor:       pointer;
+  transition:   color var(--mly-transition-fast);
+}
+
+.mly-btn-ghost:hover {
+  color: var(--mly-text-primary);
+}
+
+/* ── Panel colour swatch ──────────────────────────────────────────────
+   Used by treatment-registry.js initTreatmentControls() on all pages  */
+.as-colour-btn {
+  width:         22px;
+  height:        22px;
+  border-radius: 50%;
+  border:        2px solid transparent;
+  padding:       0;
+  cursor:        pointer;
+  flex-shrink:   0;
+  transition:    transform var(--mly-transition-fast), border-color var(--mly-transition-fast);
+}
+.as-colour-btn:hover  { transform: scale(1.18); }
+.as-colour-btn.active {
+  border-color: var(--mly-text-primary);
+  outline:      2px solid rgba(0, 0, 0, 0.15);
+  outline-offset: 2px;
+}
+
+/* ── Wizard / onboarding card ────────────────────────────────────────── */
+.mly-wizard-overlay {
+  background:     rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.mly-wizard-card {
+  background:    var(--mly-bg-primary);
+  border-radius: var(--mly-radius-lg);
+  padding:       32px;
+  max-width:     520px;
+  box-shadow:    var(--mly-shadow-modal);
+}

@@ -5,17 +5,23 @@
   (web, retail, remote) without dashboard-specific decoration.
 
   Satellites may layer their own .btn-* system on top for
-  context-specific enhancements. The .mly-btn-* classes remain
-  the canonical cross-satellite API.
+  context-specific enhancements (gradients, shadows, CTA states).
+  The .mly-btn-* classes remain the canonical cross-satellite API.
+
+  v1.2 "Studio Switch" spec:
+    - 4px border-radius (the "in-between" — not 0px aggressive, not pill-shape)
+    - 1px high-contrast border
+    - Subtle 10% vertical gradient on secondary (White → #F5F5F5)
+    - Primary: solid monochrome / teal CTA
 
   Load order: this file → satellite tokens.css → satellite buttons.css
 */
 
 /* ── Focus ring — all interactive elements ─── */
 :focus-visible {
-    outline: 2px solid #1A1A1A;   /* Monochrome — never a colour accent */
+    outline: 2px solid var(--mly-brand-accent);
     outline-offset: 3px;
-    border-radius: 6px;
+    border-radius: 4px;
 }
 
 /* ── Base ─────────────────────────────────── */
@@ -26,20 +32,22 @@
     gap: 0.5rem;
 
     padding: 0.75rem 1.625rem;
-    border-radius: var(--mly-radius-sm);   /* token: 4px */
+    border-radius: 4px;                     /* Studio Switch: 4px — the "in-between" */
 
-    font-family: var(--mly-font-family);
-    font-size: 0.9375rem;   /* 15px */
+    font-family: var(--mly-font-family), 'Inter', system-ui, sans-serif;
+    font-size: 0.9375rem;
     font-weight: 600;
     line-height: 1;
     text-decoration: none;
     white-space: nowrap;
+    letter-spacing: -0.01em;
 
     cursor: pointer;
     border: 1px solid transparent;
     background: none;
 
-    transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+    transition: background-color 0.15s ease, border-color 0.15s ease,
+                box-shadow 0.15s ease, opacity 0.15s ease;
 }
 
 .mly-btn svg,
@@ -50,39 +58,43 @@
 }
 
 /* ── PRIMARY ──────────────────────────────── */
-/* Solid black — never a colour accent. One per view maximum. */
+/* Solid. Used for confirm / save / measure actions. */
 .mly-btn-primary {
-    background: #1A1A1A;
+    background: var(--mly-brand-accent);
     color: #ffffff;
-    border-color: #1A1A1A;
+    border-color: var(--mly-brand-accent);
     font-weight: 700;
 }
 
 .mly-btn-primary:hover {
-    background: #333333;
-    border-color: #333333;
+    background: var(--mly-brand-accent-hover);
+    border-color: var(--mly-brand-accent-hover);
 }
 
-/* CTA variant — same monochrome style */
+/* CTA variant — Neon Teal for the "do it now" action */
 .mly-btn-primary.is-cta {
-    background: #1A1A1A;
-    border-color: #1A1A1A;
+    background: var(--mly-neon-teal, #00B8A9);
+    border-color: var(--mly-neon-teal, #00B8A9);
+    color: #ffffff;
 }
 
 .mly-btn-primary.is-cta:hover {
-    background: #333333;
-    border-color: #333333;
+    background: #009e91;
+    border-color: #009e91;
 }
 
 /* ── SECONDARY ────────────────────────────── */
+/* Tactile Studio Switch: subtle 10% gradient + 1px border */
 .mly-btn-secondary {
-    background: transparent;
-    border: 1px solid rgba(0, 0, 0, 0.20);
+    background: linear-gradient(180deg, #FFFFFF 0%, #F5F5F5 100%);
+    border: 1px solid rgba(0, 0, 0, 0.22);
     color: var(--mly-text-primary);
+    font-weight: 600;
 }
 
 .mly-btn-secondary:hover {
-    background: rgba(0, 0, 0, 0.04);
+    background: linear-gradient(180deg, #F5F5F5 0%, #EBEBEB 100%);
+    border-color: rgba(0, 0, 0, 0.32);
 }
 
 /* ── UTILITY (icon / low-priority) ─────────── */
@@ -93,21 +105,19 @@
 }
 
 .mly-btn-utility:hover {
-    background: rgba(26, 26, 26, 0.06);   /* --mly-text-primary at low opacity */
+    background: rgba(26, 23, 20, 0.06);
     color: var(--mly-text-primary);
 }
 
 /* ── DANGER ───────────────────────────────── */
-/* Destructive actions are monochrome — no red accents on interactive controls. */
-/* Copy must communicate the destructive intent; colour does not. */
 .mly-btn-danger {
-    background: transparent;
-    border: 1px solid rgba(0, 0, 0, 0.20);
-    color: var(--mly-text-secondary);
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: var(--mly-status-bad);
 }
 
 .mly-btn-danger:hover {
-    background: rgba(0, 0, 0, 0.04);
-    border-color: rgba(0, 0, 0, 0.35);
-    color: var(--mly-text-primary);
+    background: rgba(239, 68, 68, 0.18);
+    border-color: rgba(239, 68, 68, 0.55);
+    color: #ffffff;
 }

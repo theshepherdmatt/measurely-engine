@@ -19,3 +19,5 @@
 @import "./measurely-core.css";
 @import "./components/buttons.css";
 @import "./components/sliders.css";
+@import "./components/sidebar.css";
+@import "./components/sidebar-controls.css";

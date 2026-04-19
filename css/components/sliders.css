@@ -4,6 +4,13 @@
   SINGLE SOURCE OF TRUTH for all Measurely satellites.
   Uses --mly-* tokens from measurely-core.css — no satellite-specific values.
 
+  v1.2 Machined Knob Spec:
+    - 16px circular thumb (border-radius: 50%)
+    - background: var(--mly-neon-teal)
+    - 2px white inset border
+    - 4px soft shadow
+    - Semantic acoustic colour variants via data-acoustic attribute
+
   Satellites consume this via the engine/css/index.css barrel import.
   Do NOT copy these rules into satellite CSS — edit here to propagate everywhere.
 
@@ -21,58 +28,132 @@
     width: 100%;
     appearance: none;
     -webkit-appearance: none;
-    height: 3px;                          /* measurely-ui canonical: 3px, max 4px */
+    height: 6px;
     border-radius: var(--mly-radius-pill);
-    /* Prevent iOS/iPadOS from hijacking horizontal drag as vertical scroll.
-       The parent container stays scrollable when touch starts outside the slider. */
+    /* Prevent iOS/iPadOS from hijacking horizontal drag as vertical scroll */
     touch-action: none;
 
     background: linear-gradient(
         90deg,
-        #1A1A1A var(--fill, 50%),         /* Black fill — monochrome */
-        #E8E8E8 var(--fill, 50%)          /* Light grey empty track */
+        var(--mly-neon-teal, #00B8A9) var(--fill, 50%),
+        rgba(26, 23, 20, 0.14) var(--fill, 50%)
     );
 
     outline: none;
     cursor: pointer;
 }
 
+/* ── Machined Knob — WebKit ─────── */
 .measurely-slider::-webkit-slider-thumb {
     appearance: none;
     -webkit-appearance: none;
-    width: 14px;                          /* measurely-ui canonical: 14px, max 16px */
-    height: 14px;
-    border-radius: 50%;
+    width:  16px;
+    height: 16px;
+    border-radius: 50%;                         /* Circular Machined Knob */
 
-    background: #FFFFFF;
-    border: 2px solid #1A1A1A;           /* Black border thumb — no glow */
-    box-shadow: none;                     /* Decorative shadows banned */
+    background:  var(--mly-neon-teal, #00B8A9); /* Active teal fill */
+    border:      2px solid #ffffff;             /* 2px white inset border */
+    box-shadow:  0 2px 4px rgba(0, 0, 0, 0.30), /* 4px soft shadow */
+                 inset 0 1px 0 rgba(255, 255, 255, 0.30); /* subtle specular */
 
     cursor: grab;
-    transition: transform 0.1s ease;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 
 .measurely-slider:active::-webkit-slider-thumb {
     cursor: grabbing;
-    transform: scale(1.1);
-    box-shadow: none;
+    transform: scale(1.25);
+    box-shadow:
+        0 0 0 3px rgba(0, 184, 169, 0.28),
+        0 4px 8px rgba(0, 0, 0, 0.30);
 }
 
+/* ── Machined Knob — Firefox ─────── */
 .measurely-slider::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
+    width:  16px;
+    height: 16px;
     border-radius: 50%;
-    background: #FFFFFF;
-    border: 2px solid #1A1A1A;
-    box-shadow: none;
+    background:  var(--mly-neon-teal, #00B8A9);
+    border:      2px solid #ffffff;
+    box-shadow:  0 2px 4px rgba(0, 0, 0, 0.30),
+                 inset 0 1px 0 rgba(255, 255, 255, 0.30);
     cursor: grab;
-    transition: transform 0.1s ease;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 
 .measurely-slider:active::-moz-range-thumb {
     cursor: grabbing;
-    transform: scale(1.1);
-    box-shadow: none;
+    transform: scale(1.25);
+    box-shadow:
+        0 0 0 3px rgba(0, 184, 169, 0.28),
+        0 4px 8px rgba(0, 0, 0, 0.30);
+}
+
+/* ── Semantic Acoustic Colour Variants ───────────────
+   Set data-acoustic="sbir|bass|reflection" on the <input> element.
+   JS sets the --fill property; these override thumb colour only.
+   Track fill colour follows the thumb via the background gradient.
+*/
+
+/* SBIR / Active Filter — Neon Teal (default, explicit override) */
+.measurely-slider[data-acoustic="sbir"] {
+    background: linear-gradient(
+        90deg,
+        var(--mly-neon-teal, #00B8A9) var(--fill, 50%),
+        rgba(26, 23, 20, 0.14) var(--fill, 50%)
+    );
+}
+.measurely-slider[data-acoustic="sbir"]::-webkit-slider-thumb {
+    background: var(--mly-neon-teal, #00B8A9);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.30),
+                0 0 0 0px transparent;
+}
+.measurely-slider[data-acoustic="sbir"]:active::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px rgba(0, 184, 169, 0.28),
+                0 4px 8px rgba(0, 0, 0, 0.30);
+}
+.measurely-slider[data-acoustic="sbir"]::-moz-range-thumb {
+    background: var(--mly-neon-teal, #00B8A9);
+}
+
+/* Bass Modes — Neon Purple */
+.measurely-slider[data-acoustic="bass"] {
+    background: linear-gradient(
+        90deg,
+        var(--mly-neon-purple, #7C3AED) var(--fill, 50%),
+        rgba(26, 23, 20, 0.14) var(--fill, 50%)
+    );
+}
+.measurely-slider[data-acoustic="bass"]::-webkit-slider-thumb {
+    background: var(--mly-neon-purple, #7C3AED);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.30);
+}
+.measurely-slider[data-acoustic="bass"]:active::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28),
+                0 4px 8px rgba(0, 0, 0, 0.30);
+}
+.measurely-slider[data-acoustic="bass"]::-moz-range-thumb {
+    background: var(--mly-neon-purple, #7C3AED);
+}
+
+/* Reflections — Neon Pink */
+.measurely-slider[data-acoustic="reflection"] {
+    background: linear-gradient(
+        90deg,
+        var(--mly-neon-pink, #FF107A) var(--fill, 50%),
+        rgba(26, 23, 20, 0.14) var(--fill, 50%)
+    );
+}
+.measurely-slider[data-acoustic="reflection"]::-webkit-slider-thumb {
+    background: var(--mly-neon-pink, #FF107A);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.30);
+}
+.measurely-slider[data-acoustic="reflection"]:active::-webkit-slider-thumb {
+    box-shadow: 0 0 0 3px rgba(255, 16, 122, 0.28),
+                0 4px 8px rgba(0, 0, 0, 0.30);
+}
+.measurely-slider[data-acoustic="reflection"]::-moz-range-thumb {
+    background: var(--mly-neon-pink, #FF107A);
 }
 
 /* ── SELECT DROPDOWN ──────────────────────────────── */
@@ -80,7 +161,7 @@
 select.measurely-select {
     width: 100%;
     appearance: none;
-    background: var(--mly-bg-app);        /* Token — neutral #F7F7F7, no warm tint */
+    background: #f7f6f5;
     border: 1px solid rgba(0, 0, 0, 0.12);
     border-radius: var(--mly-radius-md);
     padding: 0.55rem 0.75rem;
@@ -96,14 +177,12 @@ select.measurely-select {
 /* Explicit option colors for browsers that honour them (Firefox, Chromium) */
 select.measurely-select option {
     background: #ffffff;
-    color: #1a1a1a;
+    color: #1a1714;
 }
 
 select.measurely-select:focus {
-    border-color: #1A1A1A;               /* Monochrome focus — no gold */
-    outline: 2px solid #1A1A1A;
-    outline-offset: 2px;
-    box-shadow: none;                    /* No glow */
+    border-color: var(--mly-neon-teal);
+    box-shadow: 0 0 0 3px rgba(0, 184, 169, 0.18);
 }
 
 /* ── TOGGLE SWITCH ────────────────────────────────── */
@@ -125,7 +204,7 @@ select.measurely-select:focus {
 .measurely-switch .slider {
     position: absolute;
     inset: 0;
-    background: rgba(26, 26, 26, 0.12);
+    background: rgba(26, 23, 20, 0.12);
     border: 1px solid rgba(0, 0, 0, 0.15);
     border-radius: var(--mly-radius-pill);
     cursor: pointer;
@@ -145,11 +224,11 @@ select.measurely-select:focus {
 }
 
 .measurely-switch input:checked + .slider {
-    background: #1A1A1A;                 /* Solid black track when on */
-    border-color: #1A1A1A;
+    background: rgba(0, 184, 169, 0.25);
+    border-color: var(--mly-neon-teal);
 }
 
 .measurely-switch input:checked + .slider::before {
     transform: translateX(20px);
-    background: #FFFFFF;                 /* White knob on black track */
+    background: var(--mly-neon-teal);
 }

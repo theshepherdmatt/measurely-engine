@@ -1,0 +1,211 @@
+/*
+  @measurely/engine — Sidebar Component
+  ─────────────────────────────────────
+  SINGLE SOURCE OF TRUTH for all Measurely sidebar card rendering.
+
+  Every HTML renderer (app.html, simulate.html, retail widget, etc.) gets this
+  file through engine/css/index.css. Local files must NOT re-define any class
+  listed here. To change the sidebar appearance: edit this file only.
+
+  Consumed by: MeasurelySidebar.initSidebar() in sidebar-engine.js
+  DOM structure rendered by the engine:
+
+    <aside id="analysisSidebarMount" class="analysis-sidebar-menu">
+      <button class="card glass-panel analysis-card-trigger" data-overlay="sbir">
+        <div class="card-header">
+          <h2 class="card-title">Peaks & Dips</h2>
+          <img class="card-icon" …>
+        </div>
+        <div class="score-readout">
+          <span id="peaksDipsScore"  class="score-value">7.2</span>
+          <span class="score-unit">Bass bumps</span>
+        </div>
+        <div class="perf-track">
+          <div id="peaksDipsTrack" class="perf-fill"></div>
+        </div>
+        <div id="peaksDipsDave" class="dave-quote-mini">…</div>
+      </button>
+      …
+    </aside>
+*/
+
+/* ═══════════════════════════════════════════════════════════════
+   LAYOUT — sidebar grid container
+   ═══════════════════════════════════════════════════════════════ */
+
+.analysis-sidebar-menu {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+/* Tablet: 2 columns */
+@media (max-width: 1024px) {
+  .analysis-sidebar-menu {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Mobile portrait: single column */
+@media (max-width: 640px) {
+  .analysis-sidebar-menu {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Wider landscape phones (≥668px): restore 3-col so 6 cards fit 2 rows */
+@media (min-width: 668px) and (max-width: 899px) and (orientation: landscape) {
+  .analysis-sidebar-menu {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CARD BUTTON — each metric is a <button> that triggers 3D overlay
+   ═══════════════════════════════════════════════════════════════ */
+
+.analysis-card-trigger {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  font-family: var(--mly-font-family);
+  color: var(--mly-text-primary);
+  /* Landscape compact: tighter padding on short screens */
+  padding: 1.25rem;
+  transition: box-shadow var(--mly-transition-fast), border-color var(--mly-transition-fast);
+}
+
+/* Hover: subtle lift — monochrome, no colour */
+.analysis-card-trigger:hover {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Active / focused overlay — black ring, no coloured glow */
+.analysis-card-trigger.active {
+  border-color: var(--mly-text-primary);
+  box-shadow:
+    0 0 0 1px var(--mly-text-primary),
+    0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* Landscape compact: tighter card padding on short screens */
+@media (max-width: 899px) and (orientation: landscape) {
+  .analysis-card-trigger {
+    padding: 0.85rem 1rem;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CARD HEADER — label + icon row
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Override cards.css .card-title within a sidebar trigger:
+   section label scale (10px, weight 600, 1px tracking) */
+.analysis-card-trigger .card-header {
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+}
+
+.analysis-card-trigger .card-title {
+  font-family: var(--mly-font-family);
+  font-size:   var(--mly-label-size);   /* 10px */
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--mly-text-label);         /* #AAAAAA */
+}
+
+/* Icon: monochrome, sized for compact card */
+.card-icon {
+  width: 16px;
+  height: 16px;
+  opacity: 0.45;
+  filter: brightness(0);
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SCORE READOUT — big number + sub-label
+   ═══════════════════════════════════════════════════════════════ */
+
+.score-readout {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 0;
+}
+
+/* The big score number inside a sidebar card */
+.analysis-card-trigger .score-value {
+  font-family: var(--mly-font-family);
+  font-size:   2.25rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -1px;
+  font-variant-numeric: tabular-nums;
+  color: var(--mly-text-primary);
+}
+
+/* Score status colours — applied by sidebar-engine.js */
+.analysis-card-trigger .score-value.metric-good { color: var(--mly-score-good); }
+.analysis-card-trigger .score-value.metric-ok   { color: var(--mly-score-ok); }
+.analysis-card-trigger .score-value.metric-poor { color: var(--mly-score-poor); }
+
+/* Sub-label: "Bass bumps", "Wall bounce", etc. */
+.score-unit {
+  font-family: var(--mly-font-family);
+  font-size:   10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--mly-text-label);
+  white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   PROGRESS TRACK — thin status bar under score
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Scoped to sidebar card — tighter margin than standalone perf-track */
+.analysis-card-trigger .perf-track {
+  margin: 8px 0 6px;
+}
+
+/* Status-aware fill colour — driven by sidebar-engine.js adding class to .score-value */
+.analysis-card-trigger:has(.metric-good) .perf-fill { background: var(--mly-score-good); }
+.analysis-card-trigger:has(.metric-ok)   .perf-fill { background: var(--mly-score-ok); }
+.analysis-card-trigger:has(.metric-poor) .perf-fill { background: var(--mly-score-poor); }
+
+/* ═══════════════════════════════════════════════════════════════
+   DAVE COMMENTARY — one-liner at card bottom
+   ═══════════════════════════════════════════════════════════════ */
+
+.dave-quote-mini {
+  margin-top: auto;
+  padding-top: 8px;
+  padding-left: 8px;
+  border-left: 2px solid var(--mly-border);
+  font-family: var(--mly-font-family);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--mly-text-tertiary);
+  font-style: italic;
+}
+
+/* Landscape: tighter Dave text so card stays compact */
+@media (max-width: 899px) and (orientation: landscape) {
+  .dave-quote-mini {
+    font-size: 10px;
+  }
+
+  .analysis-card-trigger .score-value {
+    font-size: 1.75rem;
+  }
+}

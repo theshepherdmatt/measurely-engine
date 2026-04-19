@@ -286,8 +286,11 @@ export function initRoom3D({
   let _listenStation = null;  // Group: sphere + rug + sofa + coffee table
   let _autoToe       = false; // Auto-toe disabled by default; use toe_in_deg from room data
   let _autoToeAngle  = 0;     // Last computed angle (radians) — readable via API
-  let _waveRings     = [];    // Expanding wave ring Lines, repopulated on rebuild
-  let _wavesEnabled  = false; // Off by default; toggled via api.setWaves()
+  let _waveRings       = [];    // Expanding wave ring Lines, repopulated on rebuild
+  let _wavesEnabled    = false; // Off by default; toggled via api.setWaves()
+  let _sbirFieldVisible = true; // SBIR heatmap field on by default; toggled via api.setSbirField()
+  let _cableGroupL   = null;  // Left  speaker → rack cable mesh (TubeGeometry)
+  let _cableGroupR   = null;  // Right speaker → rack cable mesh (TubeGeometry)
 
   // ── Room-geometry refs (for live resize without full rebuild) ─
   let _roomShell = null;  // LineSegments of the flat-ceiling wireframe box
@@ -374,7 +377,9 @@ function rebuild() {
       environment: { room_type: 'home', floor_material: 'hard',
                      furniture: { opt_area_rug: true,  opt_sofa: true,
                                   opt_coffee_table: false, opt_desk: false, opt_chair: false,
-                                  seating_type: 'sofa' },
+                                  seating_type: 'sofa',   opt_display: true, opt_mic: false,
+                                  opt_keyboard: false,    opt_client_seating: false,
+                                  client_seating_type: 'sofa', desk_width_m: 1.6 },
                      treatment: { wall_panel_mode: 'none',  side_panel_mode: 'none',
                                   bass_trap_mode: 'none',   ceiling_panel_mode: 'none' } }
     };
@@ -434,9 +439,17 @@ function rebuild() {
       opt_area_rug:     furn.opt_area_rug     ?? env.opt_area_rug     ?? data.opt_area_rug,
       opt_sofa:         furn.opt_sofa         ?? env.opt_sofa         ?? data.opt_sofa,
       opt_coffee_table: furn.opt_coffee_table ?? env.opt_coffee_table ?? data.opt_coffee_table,
+      opt_ottoman:      furn.opt_ottoman      ?? env.opt_ottoman      ?? data.opt_ottoman ?? false,
       opt_desk:         furn.opt_desk         ?? env.opt_desk         ?? data.opt_desk,
       opt_chair:        furn.opt_chair        ?? env.opt_chair        ?? data.opt_chair,
-      seating_type:     furn.seating_type     ?? env.seating_type     ?? data.seating_type ?? 'sofa',
+      seating_type:        furn.seating_type        ?? env.seating_type        ?? data.seating_type        ?? 'sofa',
+      sofa_width_m:        furn.sofa_width_m        ?? env.sofa_width_m        ?? data.sofa_width_m        ?? 2.1,
+      opt_display:         furn.opt_display         ?? env.opt_display         ?? data.opt_display         ?? true,
+      opt_mic:             furn.opt_mic             ?? env.opt_mic             ?? data.opt_mic             ?? false,
+      opt_keyboard:        furn.opt_keyboard        ?? env.opt_keyboard        ?? data.opt_keyboard        ?? false,
+      opt_client_seating:  furn.opt_client_seating  ?? env.opt_client_seating  ?? data.opt_client_seating  ?? false,
+      client_seating_type: furn.client_seating_type ?? env.client_seating_type ?? data.client_seating_type ?? 'sofa',
+      desk_width_m:        furn.desk_width_m        ?? env.desk_width_m        ?? data.desk_width_m        ?? 1.6,
 
       // TREATMENT: Digging into data.environment.treatment
       wall_panel_mode:    treat.wall_panel_mode    ?? env.wall_panel_mode    ?? "none",
@@ -444,14 +457,15 @@ function rebuild() {
       bass_trap_mode:     treat.bass_trap_mode     ?? env.bass_trap_mode     ?? "none",
       ceiling_panel_mode: treat.ceiling_panel_mode ?? env.ceiling_panel_mode ?? "none",
       panel_color:        data.panel_color ?? null,  // optional hex string e.g. '#c8a882'
-      embed_mode:         data.embed_mode  ?? false  // true = audiosilk embed; gates studio-specific visuals
     };
 
     // 2. DEFINE MISSING VARIABLES (Prevents the ReferenceError crash)
     const isLocked = (currentMode === "locked"); 
-    const isStudio    = (room.room_type === "studio");
-    const isEmbedMode = !!room.embed_mode;
+    const isStudio = (room.room_type === "studio");
     const offsetX  = room.listener_offset_m || 0;
+    // Raise all floor-based speakers + rack by rug thickness so they sit ON the rug,
+    // not flush with the floor beneath it. Zero in studio mode (no rug).
+    const rugRaise = (!isStudio && (room.opt_area_rug ?? true)) ? 0.02 : 0;
 
     // 3. MASTER SWITCHES
     VISIBILITY.furniture = { sofa: true, coffeeTable: true, rug: true, desk: true, chair: true };
@@ -707,6 +721,52 @@ function rebuild() {
 
     }
 
+  /* ------------------------------------------------------------------
+     CONE DRIVER RENDERER  (shared — called by all non-panel builders)
+     Returns an array of Line objects to add to a speaker group.
+
+     Woofer / midrange: outer surround → cone-edge ring → 6 radial spokes → dust cap
+     Tweeter:           faceplate rim → dome surround → dome cap (no spokes)
+
+     cx/cy  : driver centre in the speaker group's local XY space
+     faceZ  : Z position of the baffle face (slightly adds zOffset per layer)
+     outerR : full driver radius
+  ------------------------------------------------------------------ */
+  function _makeConeDriver(cx, cy, faceZ, outerR, isTweeter, color, opacity) {
+    const objs     = [];
+    const ringMat  = new THREE.LineBasicMaterial({ color, transparent: true, opacity: opacity * 0.65 });
+    const spokeMat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: opacity * 0.38 });
+
+    function _arc(r, zOff) {
+      const SEG = 32, pts = [];
+      for (let i = 0; i <= SEG; i++) {
+        const a = (i / SEG) * Math.PI * 2;
+        pts.push(new THREE.Vector3(cx + Math.cos(a) * r, cy + Math.sin(a) * r, faceZ + zOff));
+      }
+      return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), ringMat);
+    }
+
+    if (isTweeter) {
+      objs.push(_arc(outerR,        0.000));  // faceplate rim
+      objs.push(_arc(outerR * 0.52, 0.002));  // dome surround
+      objs.push(_arc(outerR * 0.20, 0.004));  // dome cap
+    } else {
+      objs.push(_arc(outerR,        0.000));  // outer surround ring
+      objs.push(_arc(outerR * 0.76, 0.003));  // cone outer edge
+      objs.push(_arc(outerR * 0.16, 0.007));  // dust cap
+      // 6 radial spokes from cone edge to dust cap
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const spokePoints = [
+          new THREE.Vector3(cx + Math.cos(a) * outerR * 0.76, cy + Math.sin(a) * outerR * 0.76, faceZ + 0.003),
+          new THREE.Vector3(cx + Math.cos(a) * outerR * 0.16, cy + Math.sin(a) * outerR * 0.16, faceZ + 0.007),
+        ];
+        objs.push(new THREE.Line(new THREE.BufferGeometry().setFromPoints(spokePoints), spokeMat));
+      }
+    }
+    return objs;
+  }
+
     function getSpeakerProfile(type) {
       switch (type) {
 
@@ -738,7 +798,8 @@ function rebuild() {
             d: 0.06,
             color: 0x1a1714,
             floorStand: true, // sits on floor, not tweeter-height positioned
-            tweeterPos: 0.50  // acoustic centre at mid-panel
+            tweeterPos: 0.50, // acoustic centre at mid-panel
+            isPanel: true
           };
 
         case "standmount":
@@ -820,14 +881,11 @@ function rebuild() {
 
     // ── Drivers on front face ──────────────────────────────────────────────
     const front = D / 2 + 0.002;
-    // woofer 1 (low)
-    grp.add(_ring(0, -H * 0.28, front, W * 0.20));
-    // woofer 2 (mid-low)
-    grp.add(_ring(0, -H * 0.08, front, W * 0.20));
-    // midrange
-    grp.add(_ring(0,  H * 0.22, front, W * 0.14));
-    // tweeter (small, near top)
-    grp.add(_ring(0,  H * 0.38, front, W * 0.06));
+    // Woofer 1 (low), Woofer 2 (mid-low), Midrange, Tweeter
+    _makeConeDriver(0, -H * 0.28, front, W * 0.20, false, color, opacity).forEach(o => grp.add(o));
+    _makeConeDriver(0, -H * 0.08, front, W * 0.20, false, color, opacity).forEach(o => grp.add(o));
+    _makeConeDriver(0,  H * 0.22, front, W * 0.14, false, color, opacity).forEach(o => grp.add(o));
+    _makeConeDriver(0,  H * 0.38, front, W * 0.06, true,  color, opacity).forEach(o => grp.add(o));
 
     return grp;
   }
@@ -870,8 +928,8 @@ function rebuild() {
 
     grp.add(_ebox(W, H, D));
     const front = D / 2 + 0.002;
-    grp.add(_ring(0, -H * 0.18, front, W * 0.28)); // woofer
-    grp.add(_ring(0,  H * 0.28, front, W * 0.08)); // tweeter
+    _makeConeDriver(0, -H * 0.18, front, W * 0.28, false, color, opacity).forEach(o => grp.add(o));
+    _makeConeDriver(0,  H * 0.28, front, W * 0.08, true,  color, opacity).forEach(o => grp.add(o));
 
     return grp;
   }
@@ -947,27 +1005,102 @@ function rebuild() {
     ];
     grp.add(edges(pv, BOX_PAIRS));
 
-    // ── Driver rings on the slanted front baffle ──
-    function baffleRing(cy, r) {
-      const t  = (cy - yB) / H;
-      const cz = hd_b + (hd_t - slant - hd_b) * t + 0.005;  // slightly proud of baffle
-      const pts = [];
-      for (let i = 0; i <= 24; i++) {
-        const a = (i / 24) * Math.PI * 2;
-        pts.push(new THREE.Vector3(Math.cos(a) * r, cy + Math.sin(a) * r, cz));
-      }
-      return new THREE.Line(
-        new THREE.BufferGeometry().setFromPoints(pts),
-        new THREE.LineBasicMaterial({ color, transparent: true, opacity: opacity * 0.65 })
-      );
+    // ── Driver cones on the slanted front baffle ──
+    // baffleZ() interpolates the baffle face Z at each driver height so cones
+    // sit correctly on the angled front face of the statement cabinet.
+    function baffleZ(cy) {
+      const t = (cy - yB) / H;
+      return hd_b + (hd_t - slant - hd_b) * t + 0.005;
     }
 
     [
-      { y: yB + H * 0.15, r: W * 0.17  },   // woofer 1
-      { y: yB + H * 0.35, r: W * 0.17  },   // woofer 2
-      { y: yB + H * 0.60, r: W * 0.12  },   // midrange
-      { y: yB + H * 0.78, r: W * 0.055 },   // tweeter
-    ].forEach(({ y, r }) => grp.add(baffleRing(y, r)));
+      { y: yB + H * 0.15, r: W * 0.17,  isTweeter: false },  // woofer 1
+      { y: yB + H * 0.35, r: W * 0.17,  isTweeter: false },  // woofer 2
+      { y: yB + H * 0.60, r: W * 0.12,  isTweeter: false },  // midrange
+      { y: yB + H * 0.78, r: W * 0.055, isTweeter: true  },  // tweeter
+    ].forEach(({ y, r, isTweeter }) => {
+      _makeConeDriver(0, y, baffleZ(y), r, isTweeter, color, opacity).forEach(o => grp.add(o));
+    });
+
+    return grp;
+  }
+
+/* ------------------------------------------
+   ELECTROSTATIC / PANEL SPEAKER BUILDER
+   Tall thin membrane panel: outer frame, horizontal braces, plinth,
+   rear transformer box. Dipole — no driver rings, no cabinet depth.
+------------------------------------------ */
+  function _buildElectrostaticSpeaker(W, H, D, color, opacity) {
+    const grp = new THREE.Group();
+    const edgeMat = useFatEdges
+      ? new THREE.MeshBasicMaterial({ color, transparent: true, opacity })
+      : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+    const dimMat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: opacity * 0.45 });
+    const T = EDGE_TUBE_T * 0.55;
+
+    function edges(verts, pairs) {
+      return _fatEdgeGroup(verts, pairs, T, edgeMat);
+    }
+    function dimEdges(verts, pairs) {
+      return _fatEdgeGroup(verts, pairs, T * 0.5, dimMat);
+    }
+
+    const yB = -H / 2;
+    const yT =  H / 2;
+    const hw = W / 2;
+    const hd = D / 2;
+
+    // ── Outer panel frame (the membrane boundary) ──
+    const BOX_PAIRS = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+    const frameVerts = [
+      new THREE.Vector3(-hw, yB, -hd), new THREE.Vector3( hw, yB, -hd),
+      new THREE.Vector3( hw, yB,  hd), new THREE.Vector3(-hw, yB,  hd),
+      new THREE.Vector3(-hw, yT, -hd), new THREE.Vector3( hw, yT, -hd),
+      new THREE.Vector3( hw, yT,  hd), new THREE.Vector3(-hw, yT,  hd),
+    ];
+    grp.add(edges(frameVerts, BOX_PAIRS));
+
+    // ── Horizontal braces across the membrane face (front) ──
+    const braceZ = hd + 0.003;
+    const braceFractions = [0.20, 0.40, 0.60, 0.80];
+    braceFractions.forEach(f => {
+      const by = yB + H * f;
+      const bv = [
+        new THREE.Vector3(-hw, by, braceZ), new THREE.Vector3(hw, by, braceZ),
+      ];
+      const bg = new THREE.BufferGeometry().setFromPoints(bv);
+      grp.add(new THREE.Line(bg, dimMat));
+    });
+
+    // ── Plinth ──
+    const plH  = 0.06;
+    const plHW = hw + 0.04;
+    const plHD = hd + 0.06;
+    const plY  = yB - plH;
+    const plVerts = [
+      new THREE.Vector3(-plHW, plY,      -plHD), new THREE.Vector3( plHW, plY,      -plHD),
+      new THREE.Vector3( plHW, plY,       plHD), new THREE.Vector3(-plHW, plY,       plHD),
+      new THREE.Vector3(-plHW, plY + plH,-plHD), new THREE.Vector3( plHW, plY + plH,-plHD),
+      new THREE.Vector3( plHW, plY + plH, plHD), new THREE.Vector3(-plHW, plY + plH, plHD),
+    ];
+    grp.add(dimEdges(plVerts, BOX_PAIRS));
+
+    // ── Rear transformer box (sits behind panel at the base) ──
+    const tbW = W * 0.35;
+    const tbH = H * 0.14;
+    const tbD = D * 2.2;
+    const tbHW = tbW / 2;
+    const tbHH = tbH / 2;
+    const tbHD = tbD / 2;
+    const tbY  = yB + tbH / 2;
+    const tbZ  = -hd - tbHD;
+    const tbVerts = [
+      new THREE.Vector3(-tbHW, tbY - tbHH, tbZ - tbHD), new THREE.Vector3( tbHW, tbY - tbHH, tbZ - tbHD),
+      new THREE.Vector3( tbHW, tbY - tbHH, tbZ + tbHD), new THREE.Vector3(-tbHW, tbY - tbHH, tbZ + tbHD),
+      new THREE.Vector3(-tbHW, tbY + tbHH, tbZ - tbHD), new THREE.Vector3( tbHW, tbY + tbHH, tbZ - tbHD),
+      new THREE.Vector3( tbHW, tbY + tbHH, tbZ + tbHD), new THREE.Vector3(-tbHW, tbY + tbHH, tbZ + tbHD),
+    ];
+    grp.add(dimEdges(tbVerts, BOX_PAIRS));
 
     return grp;
   }
@@ -978,6 +1111,7 @@ function rebuild() {
     // Reset speaker refs — will be set below when speakers are built
     _spkMeshL = null; _spkMeshR = null;
     _beamGeoL = null; _beamGeoR = null;
+    _cableGroupL = null; _cableGroupR = null;
 
     if (renderStage === "speakers" || renderStage === "furnishings") {
       const toeRad = (room.toe_in_deg || 0) * Math.PI / 180;
@@ -992,16 +1126,21 @@ function rebuild() {
 
         const speaker = profile.isStatement
           ? _buildStatementSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
-          : profile.detailed
-            ? _buildDetailedSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
-            : _buildStandmountSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity);
+          : profile.isPanel
+            ? _buildElectrostaticSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
+            : profile.detailed
+              ? _buildDetailedSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
+              : _buildStandmountSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity);
 
-        // X position — always based on speaker spacing
-        const x = offsetX + (side === "L" ? -1 : 1) * room.spk_spacing_m / 2;
+        // X position — for desk monitors use desk_width_m so speakers track the width slider;
+        // all other types use spk_spacing_m as usual.
+        const deskHalfW  = (room.desk_width_m ?? 1.6) / 2;
+        const onDeskMode = profile.onDesk && room.spk_placement !== 'stands';
+        const x = offsetX + (side === "L" ? -1 : 1) * (onDeskMode ? deskHalfW * 0.78 : room.spk_spacing_m / 2);
 
-        const deskZ_pos = isEmbedMode
-          ? -room.length_m / 2 + 0.45   // embed: desk flush against speaker wall
-          : -room.length_m / 2 + 0.20 * room.length_m; // main app: 20% from wall
+        // Z anchor for all desk-based placements
+        const deskBackZ  = -room.length_m / 2 + 0.05;
+        const deskZ_pos  = deskBackZ + 0.30; // ~30 cm from back edge = speaker sits on rear of desk
 
         let y, z;
         if (profile.onDesk && room.spk_placement === 'stands') {
@@ -1022,15 +1161,14 @@ function rebuild() {
           y = deskSurface + profile.h / 2;
           z = deskZ_pos - 0.15;
         } else if (profile.floorStand) {
-          // Floor-standing panels (electrostatics): bottom sits on floor, toe toward listener
-          y = baseY + profile.h / 2;
+          // Floor-standing panels / statement: bottom sits on rug surface
+          y = baseY + rugRaise + profile.h / 2;
           z = -room.length_m / 2 + room.spk_front_m;
         } else {
-          // Standmounts: always sit on a fixed standard stand so tweeter ~0.95 m.
-          // tweeter_height_m drives acoustic overlays only — not the visual position.
+          // Standmounts & floorstanders: tweeter at ~0.95 m above rug surface.
           const stdTweeterH = 0.95;
           const tweeterOffsetFromCenter = (profile.h / 2) - (profile.h * (profile.tweeterPos || 0.5));
-          y = baseY + stdTweeterH + tweeterOffsetFromCenter;
+          y = baseY + rugRaise + stdTweeterH + tweeterOffsetFromCenter;
           z = -room.length_m / 2 + room.spk_front_m;
         }
 
@@ -1160,11 +1298,7 @@ function rebuild() {
     Sphere + rug + sofa + coffee table anchored at the listen position.
   ------------------------------------------ */
 
-  // In embed mode, listener snaps to chair position; main app uses listener_front_m
-  const studioChairZ = (-room.length_m / 2 + 0.45) + 0.55;
-  const listenerZ = (isStudio && isEmbedMode)
-    ? studioChairZ
-    : -room.length_m / 2 + room.listener_front_m;
+  const listenerZ = -room.length_m / 2 + room.listener_front_m;
   const effectiveHeadHeight = isStudio
     ? 1.22  // seated ear height at a desk (~desk surface 0.75m + ~0.47m seated posture)
     : 0.82; // seated ear height on a sofa — sofa back tops at ~0.80m
@@ -1211,25 +1345,47 @@ function rebuild() {
      Sub sits to the right of the rack when enabled.
   ------------------------------------------ */
   if (!isStudio && (renderStage === 'speakers' || renderStage === 'furnishings')) {
-    const frontZ     = -room.length_m / 2 + room.spk_front_m;
     const floorY     = -room.height_m / 2;
 
-    // ── Hi-fi rack — small coffee table + stacked component boxes ─
+    // ── Hi-Fi rack — "High-End Stealth" aesthetic ──────────────────────────
+    // Table frame: dark charcoal wireframe (consistent with room cage).          
+    // Stacked components (amp, integrated, streamer, DAC): solid MeshStandardMaterial
+    // — reads as real black boxes under the ambient + point lighting.
     const rackW = 0.55, rackD = 0.38;
-    // Centre of rack sits rackD/2 + 5 cm gap from front wall so it clears the boundary
     const rackWallZ  = -room.length_m / 2 + rackD / 2 + 0.05;
     const legH  = 0.28, legT = 0.04;
     const topH  = 0.04;
-    const tableTopY = legH + topH / 2; // surface centre height above floor
+    const tableTopY = legH + topH / 2;
+
+    // Solid fill material for stacked electronics — near-black, brushed-metal look
+    const _compMat = new THREE.MeshStandardMaterial({
+      color:     0x111111,  // Near-black stealth
+      roughness: 0.45,
+      metalness: 0.45,
+    });
+    // Subtle edge highlight for component front-panels (slightly lighter)
+    const _compEdgeMat = new THREE.LineBasicMaterial({
+      color: 0x2e2e2e, transparent: true, opacity: 0.70,
+    });
+    function _stealthComp(w, h, d) {
+      const grp = new THREE.Group();
+      // Solid body
+      grp.add(new THREE.Mesh(new THREE.BoxGeometry(w, h, d), _compMat));
+      // Fine edge overlay so geometry reads clearly
+      grp.add(new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.BoxGeometry(w, h, d)), _compEdgeMat
+      ));
+      return grp;
+    }
 
     const rack = new THREE.Group();
 
-    // Table top
+    // Table top (wireframe, same as other furniture)
     const rTop = _ghostBox(rackW, topH, rackD);
     rTop.position.y = tableTopY;
     rack.add(rTop);
 
-    // 4 legs (same corner pattern as coffee table, scaled down)
+    // 4 legs
     const lx = rackW / 2 - 0.05, lz = rackD / 2 - 0.05;
     [[-lx, legH/2, -lz], [lx, legH/2, -lz],
      [-lx, legH/2,  lz], [lx, legH/2,  lz]].forEach(([px, py, pz]) => {
@@ -1238,58 +1394,115 @@ function rebuild() {
       rack.add(leg);
     });
 
-    // Stacked components on top of the table
+    // Stacked components — solid stealth fill
+    // amp (0.09 h), integrated (0.07 h), streamer (0.055 h), DAC (0.055 h)
     const compW = rackW - 0.06, compD = rackD - 0.06, compGap = 0.015;
-    const compHeights = [0.09, 0.07, 0.055, 0.055]; // amp, integrated, streamer, DAC
-    let curY = legH + topH;
+    const compHeights = [0.09, 0.07, 0.055, 0.055];
+    let _curCompY = legH + topH;
     compHeights.forEach(h => {
-      const comp = _ghostBox(compW, h, compD);
-      comp.position.y = curY + h / 2;
+      const comp = _stealthComp(compW, h, compD);
+      comp.position.y = _curCompY + h / 2;
       rack.add(comp);
-      curY += h + compGap;
+      _curCompY += h + compGap;
     });
 
-    rack.position.set(offsetX, floorY, rackWallZ);
+    rack.position.set(offsetX, floorY + rugRaise, rackWallZ);
     roomGroup.add(rack);
+
+    // ── Speaker cables ─────────────────────────────────────────────────────
+    // CatmullRomCurve3 cable from each speaker back → floor → Hi-Fi rack.
+    // Automatically rebuilt whenever rebuild() runs (roomGroup.clear() wipes old
+    // cables) so they track speaker moves from sliders and 3D drag, and reset
+    // correctly when the Reset button fires.
+    if (_spkMeshL && _spkMeshR) {
+      const _profile = getSpeakerProfile(room.speaker_type);
+      // Standmount: no floorStand, no onDesk, not a detailed/statement/panel build
+      const _isStandmount = !_profile.onDesk && !_profile.floorStand &&
+                            !_profile.detailed && !_profile.isStatement && !_profile.isPanel;
+
+      const _cblMat = new THREE.MeshBasicMaterial({
+        color:       0x1a1714,
+        transparent: true,
+        opacity:     0.78,
+        depthWrite:  false,
+      });
+
+      // Per-side binding post targets — L cable terminates left of rack centre,
+      // R cable right of rack centre, separated by ~28% of component width.
+      const _bpOffset    = (rackW - 0.06) * 0.28;  // ≈ 13.7 cm from centre
+      const _rackBaseZ   = rackWallZ - rackD / 2;   // rear face of rack
+      const _rackBaseY   = floorY + rugRaise + 0.40;
+      const _rackTargetL = new THREE.Vector3(offsetX - _bpOffset, _rackBaseY, _rackBaseZ);
+      const _rackTargetR = new THREE.Vector3(offsetX + _bpOffset, _rackBaseY, _rackBaseZ);
+
+      [['L', _spkMeshL], ['R', _spkMeshR]].forEach(([side, spkGrp]) => {
+        // Each cable uses its own rack target so they enter at different X positions
+        const _rackTarget = side === 'L' ? _rackTargetL : _rackTargetR;
+        const rearZ = spkGrp.position.z - _profile.d / 2;
+        const spkX  = spkGrp.position.x;
+
+        let cablePoints;
+        if (_isStandmount) {
+          // Standmount: cable exits binding posts at bottom-rear of cabinet,
+          // drops down the stand post to floor level, then runs to the rack.
+          const bindingY   = spkGrp.position.y - _profile.h * 0.35;  // near bottom of cabinet
+          const standBaseY = floorY + rugRaise + 0.025;               // just above rug surface
+          cablePoints = [
+            new THREE.Vector3(spkX, bindingY,   rearZ),               // binding post on cabinet back
+            new THREE.Vector3(spkX, standBaseY, rearZ + 0.05),        // base of stand (floor level)
+            new THREE.Vector3(spkX + (_rackTarget.x - spkX) * 0.28, floorY + 0.018, rearZ + (_rackTarget.z - rearZ) * 0.15),
+            new THREE.Vector3(spkX + (_rackTarget.x - spkX) * 0.68, floorY + 0.010, rearZ + (_rackTarget.z - rearZ) * 0.72),
+            _rackTarget.clone(),
+          ];
+        } else {
+          // Floorstanders / floor-panels: exit near base of cabinet above rug
+          const cableExitY = floorY + rugRaise + Math.min(_profile.h * 0.10, 0.13);
+          cablePoints = [
+            new THREE.Vector3(spkX, cableExitY, rearZ),
+            new THREE.Vector3(spkX + (_rackTarget.x - spkX) * 0.28, floorY + 0.018, rearZ + (_rackTarget.z - rearZ) * 0.15),
+            new THREE.Vector3(spkX + (_rackTarget.x - spkX) * 0.68, floorY + 0.010, rearZ + (_rackTarget.z - rearZ) * 0.72),
+            _rackTarget.clone(),
+          ];
+        }
+
+        const curve   = new THREE.CatmullRomCurve3(cablePoints);
+        const tubeGeo = new THREE.TubeGeometry(curve, 32, 0.007, 4, false);
+        const cable   = new THREE.Mesh(tubeGeo, _cblMat);
+        cable.userData.isSpeakerCable = true;
+        cable.renderOrder = 2;
+        roomGroup.add(cable);
+
+        if (side === 'L') _cableGroupL = cable;
+        else              _cableGroupR = cable;
+      });
+    }
 
     // ── Subwoofer (right of rack) ───────────────────────────────
     if (room.subwoofer) {
-      const profile    = getSpeakerProfile(room.speaker_type);
-      const subColor   = profile.color;
-      const subOpacity = Math.max(OP_OBJ, 0.80);
+      const subColor   = 0x111111;  // stealth black to match rack
+      const subOpacity = Math.max(OP_OBJ, 0.88);
       const subW = 0.38, subH = 0.36, subD = 0.38;
       const subGap = 0.06;
 
-      const subMat = useFatEdges
-        ? new THREE.MeshBasicMaterial({ color: subColor, transparent: true, opacity: subOpacity })
-        : new THREE.LineBasicMaterial({ color: subColor, transparent: true, opacity: subOpacity });
-
+      // Solid sub cabinet
+      const subBodyMat = new THREE.MeshStandardMaterial({
+        color: subColor, roughness: 0.5, metalness: 0.3,
+      });
+      const subEdgeMat = new THREE.LineBasicMaterial({
+        color: 0x2e2e2e, transparent: true, opacity: 0.65,
+      });
       const subGroup = new THREE.Group();
+      subGroup.add(new THREE.Mesh(new THREE.BoxGeometry(subW, subH, subD), subBodyMat));
+      subGroup.add(new THREE.LineSegments(
+        new THREE.EdgesGeometry(new THREE.BoxGeometry(subW, subH, subD)), subEdgeMat
+      ));
 
-      // Cabinet wireframe
-      if (useFatEdges) {
-        const hw = subW/2, hh = subH/2, hd = subD/2;
-        const v = [
-          new THREE.Vector3(-hw,-hh,-hd), new THREE.Vector3( hw,-hh,-hd),
-          new THREE.Vector3( hw,-hh, hd), new THREE.Vector3(-hw,-hh, hd),
-          new THREE.Vector3(-hw, hh,-hd), new THREE.Vector3( hw, hh,-hd),
-          new THREE.Vector3( hw, hh, hd), new THREE.Vector3(-hw, hh, hd),
-        ];
-        const pairs = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
-        subGroup.add(_fatEdgeGroup(v, pairs, EDGE_TUBE_T * 0.55, subMat));
-      } else {
-        subGroup.add(new THREE.LineSegments(
-          new THREE.EdgesGeometry(new THREE.BoxGeometry(subW, subH, subD)),
-          subMat
-        ));
-      }
-
-      // Driver ring on front face (faces listener, +z direction)
+      // Driver ring on front face (+Z = toward listener)
       const driverMat = new THREE.LineBasicMaterial({
-        color: subColor, transparent: true, opacity: subOpacity * 0.70
+        color: 0x444444, transparent: true, opacity: 0.60
       });
       const driverPts = [];
-      const driverR   = subW * 0.32; // ~12cm radius ≈ 24cm woofer
+      const driverR   = subW * 0.32;
       for (let i = 0; i <= 32; i++) {
         const a = (i / 32) * Math.PI * 2;
         driverPts.push(new THREE.Vector3(Math.cos(a) * driverR, Math.sin(a) * driverR, subD / 2 + 0.002));
@@ -1299,7 +1512,7 @@ function rebuild() {
       ));
 
       subGroup.position.set(
-        offsetX + rackW / 2 + subGap + subW / 2, // right of rack
+        offsetX + rackW / 2 + subGap + subW / 2,
         floorY + subH / 2,
         rackWallZ
       );
@@ -1315,7 +1528,7 @@ function rebuild() {
     const isListHighlit = highlightTarget === 'listener';
     const sphereColor   = isListHighlit ? 0x0f766e : colors.accent;
     const sphere = new THREE.Mesh(
-      new THREE.SphereGeometry(isListHighlit ? 0.22 : (isEmbedMode ? 0.10 : 0.18), 24, 24),
+      new THREE.SphereGeometry(isListHighlit ? 0.22 : 0.18, 24, 24),
       new THREE.MeshBasicMaterial({
         color:       sphereColor,
         wireframe:   true,
@@ -1323,21 +1536,26 @@ function rebuild() {
         opacity:     isListHighlit ? 0.95 : 0.55
       })
     );
-    // Home: shift sphere into seat. Lounge chair has head further back (reclined posture).
+    // Home: shift sphere into seat. Studio: shift sphere back to match reclined backrest.
     const _seatType = room.seating_type || 'sofa';
-    const _sphereZ  = isEmbedMode ? 0.30 : (isStudio ? 0 : (_seatType === 'lounge' ? 0.38 : 0.28));
+    const _sphereZ  = isStudio ? 0.20 : (_seatType === 'lounge' ? 0.38 : 0.28);
     const _sphereY  = isStudio ? effectiveHeadHeight : (_seatType === 'lounge' ? 1.00 : 0.96);
     sphere.position.set(0, _sphereY, _sphereZ);
     station.add(sphere);
 
-    // ── Rug (local coords: centred in front of sphere) ──
-    if (VISIBILITY.furniture.rug && room.opt_area_rug) {
+    // ── Rug ──
+    // Studio: small rug in station local coords (clamped from front wall).
+    // Hi-Fi: rug added to roomGroup in world coords (speaker-anchored, grows with listener).
+    if (isStudio && VISIBILITY.furniture.rug && room.opt_area_rug) {
       const rugW = room.width_m * 0.45, rugD = room.length_m * 0.35;
-      // _ghostBox gives the same line weight and material as all other furniture
       const rug = _ghostBox(rugW, 0.02, rugD);
-      rug.position.set(0, 0.01, -1.15);
+      const rugHalfD = rugD / 2;
+      const minLocalZ = (-room.length_m / 2) - listenerZ + rugHalfD + 0.06;
+      const rugLocalZ = Math.max(-0.80, minLocalZ);
+      rug.position.set(0, 0.01, rugLocalZ);
       station.add(rug);
     }
+
 
     // ── Seating (home mode only) — driven by room.seating_type ('sofa' | 'lounge') ──
     // In station-local coords: +Z is toward the back wall.
@@ -1346,18 +1564,28 @@ function rebuild() {
       const seatingStyle = room.seating_type || 'sofa';
 
       if (seatingStyle === 'sofa') {
-        // ── Three-seater sofa (2.1 m wide) ──────────────────────────────────
-        const base = _ghostBox(2.1, 0.4, 0.9);
+        // ── Sofa — width driven by room.sofa_width_m (1.4–2.8 m) ────────────
+        const sw = Math.max(1.4, Math.min(2.8, room.sofa_width_m ?? 2.1));
+        const halfArm = 0.1;
+
+        const base = _ghostBox(sw, 0.4, 0.9);
         base.position.y = 0.2;
         seatingGroup.add(base);
 
-        const back = _ghostBox(2.1, 0.5, 0.2);
+        const back = _ghostBox(sw, 0.5, 0.2);
         back.position.set(0, 0.55, 0.35);
         seatingGroup.add(back);
 
-        const lArm = _ghostBox(0.2, 0.35, 0.9); lArm.position.set(-0.95, 0.4, 0);
-        const rArm = _ghostBox(0.2, 0.35, 0.9); rArm.position.set( 0.95, 0.4, 0);
+        const lArm = _ghostBox(halfArm * 2, 0.35, 0.9); lArm.position.set(-(sw / 2 - halfArm), 0.4, 0);
+        const rArm = _ghostBox(halfArm * 2, 0.35, 0.9); rArm.position.set( (sw / 2 - halfArm), 0.4, 0);
         seatingGroup.add(lArm, rArm);
+
+        // ── Footstool (optional) — in front of sofa ──────────────────────────
+        if (room.opt_ottoman) {
+          const stool = _ghostBox(0.6, 0.36, 0.5);
+          stool.position.set(0, 0.18, -0.75);
+          seatingGroup.add(stool);
+        }
 
       } else {
         // ── Eames 670 Lounge Chair + 671 Ottoman ─────────────────────────────
@@ -1437,7 +1665,7 @@ function rebuild() {
     }
 
     // ── Coffee table — anchored to listener station, in front of sofa ──
-    if (VISIBILITY.furniture.coffeeTable && room.opt_coffee_table) {
+    if (VISIBILITY.furniture.coffeeTable && !isStudio && room.opt_coffee_table) {
       const ctGroup = new THREE.Group();
 
       const tTop = _ghostBox(1.0, 0.05, 0.6);
@@ -1456,60 +1684,200 @@ function rebuild() {
       station.add(ctGroup);
     }
 
-    // ── Studio: desk + chair — fixed at ~20% of room length from front wall ──
-    // Both placed in roomGroup so they scale with room length automatically.
-    if (isStudio && (!hasFocus || isEmbedMode)) {
-      const deskZ = isEmbedMode
-        ? -room.length_m / 2 + 0.45
-        : -room.length_m / 2 + 0.20 * room.length_m;
+    // ── Studio: desk + chair + display + mic + keyboard ──────────────────────
+    // Desk anchored to front wall (via spk_front_m) so monitors always land on it.
+    // Chair anchored to listenerZ — sticky to the listening position slider.
+    if (isStudio) {
+      const deskW   = room.desk_width_m ?? 1.6;
 
+      const deskD   = 0.85;  // depth
+      const halfW   = deskW / 2;
+      const spkFront = room.spk_front_m ?? 0.6;
+
+      // Desk back edge sits 5 cm from front wall; center is half-depth further.
+      // This puts the desk at the SAME Z as the speakers so monitors land on it.
+      const deskBackZ   = -room.length_m / 2 + 0.05;
+      const deskZ       = deskBackZ + deskD / 2;          // desk centre
+      const deskFrontZ  = deskBackZ + deskD;              // desk front edge
+
+      // Chair is at listening position — sticky to listener_front_m slider.
+      // For a normal studio layout the chair is comfortably behind the desk.
+      const chairZ = listenerZ;
+
+      // ── Desk ──
       const deskGroup = new THREE.Group();
-      const deskTop = _ghostBox(1.6, 0.05, 0.8);
-      deskTop.position.y = 0.75;
+      const deskTop = _ghostBox(deskW, 0.05, deskD);
+      deskTop.position.y = 0.775;
       deskGroup.add(deskTop);
-      [[-0.75, 0.375, -0.35], [0.75, 0.375, -0.35],
-       [-0.75, 0.375,  0.35], [0.75, 0.375,  0.35]]
-        .forEach(p => { const l = _ghostBox(0.04, 0.75, 0.04); l.position.set(...p); deskGroup.add(l); });
-
-      // Computer monitor, keyboard, mic — embed-mode only (Audiosilk demo)
-      if (isEmbedMode) {
-      const monBase = _ghostBox(0.22, 0.018, 0.16);  monBase.position.set(0, 0.784, -0.18); // base sits on desk (0.775 + 0.009)
-      const monNeck = _ghostBox(0.035, 0.12, 0.035); monNeck.position.set(0, 0.853, -0.18); // bottom of neck at top of base (0.793)
-      const monScr  = _ghostBox(0.52, 0.30, 0.025);  monScr.position.set(0, 1.063, -0.18); // bottom of screen at top of neck (0.913)
-      deskGroup.add(monScr, monNeck, monBase);
-
-      // Keyboard — thin slab in front-centre of desk
-      const kb = _ghostBox(0.42, 0.015, 0.14); kb.position.set(-0.08, 0.783, 0.10);
-      deskGroup.add(kb);
-
-      // Microphone — condenser on short gooseneck, right side clear of monitor
-      const micBase    = _ghostBox(0.11, 0.015, 0.11); micBase.position.set(0.28, 0.783, 0.10);
-      const micNeck    = _ghostBox(0.014, 0.18, 0.014); micNeck.position.set(0.28, 0.873, 0.10);
-      const micCapsule = _ghostBox(0.038, 0.10, 0.038); micCapsule.position.set(0.28, 0.963, 0.10);
-      deskGroup.add(micBase, micNeck, micCapsule);
-      } // end isEmbedMode
-
+      [[-halfW + 0.04, 0.375, -deskD / 2 + 0.04], [halfW - 0.04, 0.375, -deskD / 2 + 0.04],
+       [-halfW + 0.04, 0.375,  deskD / 2 - 0.04], [halfW - 0.04, 0.375,  deskD / 2 - 0.04]]
+        .forEach(p => { const l = _ghostBox(0.04, 0.775, 0.04); l.position.set(...p); deskGroup.add(l); });
       deskGroup.position.set(offsetX, -room.height_m / 2, deskZ);
       roomGroup.add(deskGroup);
 
-      // Office chair — just behind the desk (toward listener)
-      const chairZ = deskZ + 0.55;
+      // ── Display monitor (sits at back of desk, on a stand) ──
+      if (room.opt_display !== false) {
+        const dispGroup = new THREE.Group();
+        const standBase = _ghostBox(0.22, 0.04, 0.18);
+        standBase.position.y = 0.795;
+        dispGroup.add(standBase);
+        const standPole = _ghostBox(0.04, 0.22, 0.04);
+        standPole.position.set(0, 0.915, 0.02);
+        dispGroup.add(standPole);
+        const monitor = _ghostBox(Math.min(deskW * 0.70, 0.68), 0.38, 0.032);
+        monitor.position.set(0, 1.10, 0.01);
+        dispGroup.add(monitor);
+        // Positioned at back-centre of desk surface
+        dispGroup.position.set(offsetX, -room.height_m / 2, deskBackZ + 0.12);
+        roomGroup.add(dispGroup);
+      }
+
+      // ── Keyboard (thin slab on desk front edge) ──
+      if (room.opt_keyboard) {
+        const kb = _ghostBox(Math.min(deskW * 0.30, 0.44), 0.02, 0.16);
+        kb.position.set(offsetX, -room.height_m / 2 + 0.795, deskFrontZ - 0.12);
+        roomGroup.add(kb);
+      }
+
+      // ── Mic on boom stand (outside left edge of desk) ──
+      if (room.opt_mic) {
+        const micGroup = new THREE.Group();
+        const pole = _ghostBox(0.025, 1.55, 0.025);
+        pole.position.y = 0.775;
+        micGroup.add(pole);
+        const boom = _ghostBox(0.55, 0.02, 0.02);
+        boom.position.set(0.275, 1.50, 0);
+        micGroup.add(boom);
+        const capsule = _ghostBox(0.04, 0.13, 0.04);
+        capsule.position.set(0.55, 1.50, 0);
+        micGroup.add(capsule);
+        micGroup.position.set(offsetX - halfW - 0.1, -room.height_m / 2, deskZ);
+        roomGroup.add(micGroup);
+      }
+
+      // ── Office chair v1.2 — 5-star base, casters, armrests, backrest ──
       const chairGroup = new THREE.Group();
-      const s1 = _ghostBox(0.6, 0.04, 0.1); s1.position.y = 0.02;
-      const s2 = _ghostBox(0.1, 0.04, 0.6); s2.position.y = 0.02;
-      chairGroup.add(s1, s2);
-      const stem = _ghostBox(0.08, 0.4, 0.08); stem.position.y = 0.2; chairGroup.add(stem);
-      const seat = _ghostBox(0.5, 0.08, 0.5); seat.position.y = 0.45; chairGroup.add(seat);
-      const sup = _ghostBox(0.08, 0.4, 0.04);
-      sup.position.set(0, 0.65, 0.22); sup.rotation.x = -0.15; chairGroup.add(sup);
-      const bk = _ghostBox(0.45, 0.45, 0.05);
-      bk.position.set(0, 0.85, 0.28); chairGroup.add(bk);
+      const _chairStarMat = new THREE.LineBasicMaterial({ color: furnEdgeMat.color, transparent: false });
+      (function _chairStar() {
+        const pts = [];
+        for (let i = 0; i < 5; i++) {
+          const a = (i / 5) * Math.PI * 2;
+          pts.push(
+            new THREE.Vector3(0, 0.02, 0),
+            new THREE.Vector3(Math.sin(a) * 0.32, 0.02, Math.cos(a) * 0.32)
+          );
+        }
+        chairGroup.add(new THREE.LineSegments(
+          new THREE.BufferGeometry().setFromPoints(pts), _chairStarMat
+        ));
+      })();
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        const caster = _ghostBox(0.055, 0.055, 0.055);
+        caster.position.set(Math.sin(a) * 0.32, 0.028, Math.cos(a) * 0.32);
+        chairGroup.add(caster);
+      }
+      const chairStem = _ghostBox(0.07, 0.38, 0.07); chairStem.position.y = 0.21; chairGroup.add(chairStem);
+      const chairSeat = _ghostBox(0.50, 0.07, 0.48); chairSeat.position.y = 0.44; chairGroup.add(chairSeat);
+      // Backrest support pole — angled back; chairBk (panel) inherits the tilt
+      const chairSup = _ghostBox(0.06, 0.42, 0.05);
+      chairSup.position.set(0, 0.65, 0.20); chairSup.rotation.x = +0.32; // lean back away from desk
+      chairGroup.add(chairSup);
+      const chairLA = _ghostBox(0.06, 0.05, 0.24); chairLA.position.set(-0.27, 0.53, 0.0); chairGroup.add(chairLA);
+      const chairRA = _ghostBox(0.06, 0.05, 0.24); chairRA.position.set( 0.27, 0.53, 0.0); chairGroup.add(chairRA);
+      const chairBk = new THREE.Group();
+      chairBk.add(_ghostBox(0.44, 0.40, 0.06));
+      chairBk.position.set(0, 0.17, -0.05);
+      chairSup.add(chairBk);
       chairGroup.position.set(offsetX, -room.height_m / 2, chairZ);
+      // No whole-group tilt — feet and stem stay flat, only backrest angled
       roomGroup.add(chairGroup);
     }
 
     roomGroup.add(station);
     _listenStation = station; // stored for auto-toe
+  }
+
+  // ── Hi-Fi rug: world-space, speaker-anchored front, sofa-tracking rear ──
+  // Front edge sits just in front of the speakers; rear grows with the listener.
+  if (!isStudio && VISIBILITY.furniture.rug && room.opt_area_rug) {
+    const hL        = room.length_m / 2;
+    const hW        = room.width_m  / 2;
+    const spkZ      = -hL + (room.spk_front_m ?? 0.45);
+    const sofaZ     = listenerZ + 0.35;
+    const sofaRearZ = sofaZ + 0.50;
+
+    // Clamp all extents to room interior (5 cm margin from every wall)
+    const rugFrontZ  = Math.max(spkZ - 0.35,     -hL + 0.05);
+    const rugRearZ   = Math.min(sofaRearZ + 0.25,  hL - 0.05);
+    const rugDepth   = Math.max(0.6, rugRearZ - rugFrontZ);
+    const rugCenterZ = rugFrontZ + rugDepth / 2;
+
+    // Width: clamped so the rug never pierces side walls regardless of spacing
+    const rugWidthRaw = Math.max((room.spk_spacing_m ?? 2.0) * 1.50, room.width_m * 0.48);
+    const rugWidth    = Math.min(rugWidthRaw, room.width_m - 0.10);
+
+    // X centre: keep rug inside side walls even when listener offset is large
+    const rugCenterX = Math.max(-hW + rugWidth / 2 + 0.05,
+                         Math.min( hW - rugWidth / 2 - 0.05, offsetX));
+
+    const hiRug = _ghostBox(rugWidth, 0.02, rugDepth);
+    hiRug.position.set(rugCenterX, -room.height_m / 2 + 0.01, rugCenterZ);
+    roomGroup.add(hiRug);
+  }
+
+  /* ------------------------------------------
+     CLIENT SEATING — rear wall (home + studio)
+     Sofa or Eames lounge chair pushed against the back wall.
+     Rotated 180° so it faces the listener / speakers.
+  ------------------------------------------ */
+  if (room.opt_client_seating && isStudio) {
+    const clientGroup = new THREE.Group();
+    const clientStyle = room.client_seating_type || 'sofa';
+    const rearWallZ   = room.length_m / 2;
+
+    if (clientStyle === 'sofa') {
+      const sw = Math.max(1.4, Math.min(2.8, room.sofa_width_m ?? 2.1));
+      const halfArm = 0.1;
+      const csBase = _ghostBox(sw, 0.4, 0.9); csBase.position.y = 0.2; clientGroup.add(csBase);
+      const csBack = _ghostBox(sw, 0.5, 0.2); csBack.position.set(0, 0.55, -0.35); clientGroup.add(csBack);
+      const csLA = _ghostBox(halfArm * 2, 0.35, 0.9); csLA.position.set(-(sw / 2 - halfArm), 0.4, 0); clientGroup.add(csLA);
+      const csRA = _ghostBox(halfArm * 2, 0.35, 0.9); csRA.position.set( (sw / 2 - halfArm), 0.4, 0); clientGroup.add(csRA);
+    } else {
+      // Eames 670 lounge chair at rear — geometry mirrors primary seating
+      const csStarMat = new THREE.LineBasicMaterial({ color: furnEdgeMat.color, transparent: false, depthTest: true });
+      const _csStar = (radius, y) => {
+        const pts = [];
+        for (let i = 0; i < 5; i++) {
+          const a = (i / 5) * Math.PI * 2 + Math.PI / 10;
+          pts.push(new THREE.Vector3(0, y, 0), new THREE.Vector3(Math.sin(a) * radius, y, Math.cos(a) * radius));
+        }
+        return new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), csStarMat);
+      };
+      const csChair = new THREE.Group();
+      csChair.add(_csStar(0.30, 0.025));
+      const csCol = _ghostBox(0.045, 0.28, 0.045); csCol.position.y = 0.16; csChair.add(csCol);
+      const csSeat = _ghostBox(0.58, 0.09, 0.52); csSeat.rotation.x = -0.15; csSeat.position.set(0, 0.33, 0.12); csChair.add(csSeat);
+      // With parent rotation.y=PI, local -rotation.x leans top toward rear wall (correct)
+      const csChBk = _ghostBox(0.50, 0.52, 0.09); csChBk.rotation.x = -0.38; csChBk.position.set(0, 0.60, -0.22); csChair.add(csChBk);
+      const csHead = _ghostBox(0.42, 0.19, 0.09); csHead.rotation.x = -0.30; csHead.position.set(0, 0.88, -0.28); csChair.add(csHead);
+      const csLA2 = _ghostBox(0.07, 0.05, 0.42); csLA2.position.set(-0.31, 0.46, 0); csChair.add(csLA2);
+      const csRA2 = _ghostBox(0.07, 0.05, 0.42); csRA2.position.set( 0.31, 0.46, 0); csChair.add(csRA2);
+      // Ottoman (671) in front of chair (toward listeners, -Z in post-rotation space)
+      const csOtt = new THREE.Group();
+      csOtt.add(_csStar(0.22, 0.022));
+      const csOttCol = _ghostBox(0.04, 0.20, 0.04); csOttCol.position.y = 0.12; csOtt.add(csOttCol);
+      const csOttTop = _ghostBox(0.56, 0.09, 0.50); csOttTop.position.y = 0.26; csOtt.add(csOttTop);
+      // Ottoman sits toward the listener (local +Z → world -Z after PI rotation)
+      csOtt.position.set(0, 0, +0.75);
+      csChair.add(csOtt);
+      clientGroup.add(csChair);
+    }
+
+    // Rotate to face listener, place against rear wall
+    clientGroup.rotation.y = Math.PI;
+    clientGroup.position.set(offsetX, -room.height_m / 2, rearWallZ - 0.50);
+    roomGroup.add(clientGroup);
   }
 
   /* ------------------------------------------
@@ -1528,106 +1896,117 @@ function rebuild() {
   });
 
   // Helper: panel mesh + edge outline for embed mode
-  const _addPanel = (geo, pos, rot) => {
-    const mesh = new THREE.Mesh(geo, panelMat);
-    mesh.position.copy(pos);
-    if (rot) mesh.rotation.copy(rot);
-    roomGroup.add(mesh);
-    if (isEmbedMode) {
-      const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), furnEdgeMat);
-      edges.position.copy(pos);
-      if (rot) edges.rotation.copy(rot);
-      roomGroup.add(edges);
-    }
-  };
 
   // --- WALL PANELS (front & rear walls) ---
+  // Canonical geometry from treatment-registry.js — individual standard-size panels.
+  // Identical rendering on all pages regardless of embed_mode.
   if (room.wall_panel_mode !== "none") {
+    const wpGeo       = window.MeasurelyTreatment?.GEOMETRY?.wall_panel;
+    const wpW         = wpGeo?.panelWidth    ?? 0.60;
+    const wpH         = wpGeo?.panelHeight   ?? 1.20;
+    const wpGap       = wpGeo?.panelGap      ?? 0.04;
+    const wpMaxFrac   = wpGeo?.maxWidthFrac  ?? 0.80;
+    const wpThickness = wpGeo?.thickness     ?? 0.06;
 
-    if (isEmbedMode) {
-      // Audiosilk individual vertical panels: 0.58m wide × 1.16m tall × 0.01m deep
-      const AS_PW = 0.58, AS_PH = 1.16, AS_PD = 0.01, AS_GAP = 0.04;
-      const panelCount = Math.max(1, Math.min(5, Math.floor((room.width_m - 0.3) / (AS_PW + AS_GAP))));
-      const totalSpan  = panelCount * AS_PW + (panelCount - 1) * AS_GAP;
-      const panelY     = 0; // centered on wall height
+    const maxSpan     = room.width_m * wpMaxFrac;
+    const panelCount  = Math.max(1, Math.floor((maxSpan + wpGap) / (wpW + wpGap)));
+    const totalSpan   = panelCount * wpW + (panelCount - 1) * wpGap;
+    // Panels centred at tweeter/ear height — acoustically correct and stays fixed
+    // relative to the floor regardless of room height slider changes.
+    const floorInWorld = -room.height_m / 2;
+    const panelY       = floorInWorld + (room.tweeter_height_m ?? 0.95);
 
-      const addWallPanels = (wallZ, facingDir) => {
-        for (let i = 0; i < panelCount; i++) {
-          const px = offsetX - totalSpan / 2 + AS_PW / 2 + i * (AS_PW + AS_GAP);
-          _addPanel(
-            new THREE.BoxGeometry(AS_PW, AS_PH, AS_PD),
-            new THREE.Vector3(px, panelY, wallZ + facingDir * AS_PD / 2)
-          );
-        }
-      };
-
-      if (room.wall_panel_mode === "front" || room.wall_panel_mode === "both") {
-        addWallPanels(-room.length_m / 2, 1);
+    // panelH / panelCenterY can be overridden for client sofa sizing
+    const addWallPanels = (wallZ, facingDir, panelH = wpH, panelCenterY = panelY) => {
+      const geo = new THREE.BoxGeometry(wpW, panelH, wpThickness);
+      for (let i = 0; i < panelCount; i++) {
+        const px = offsetX - totalSpan / 2 + wpW / 2 + i * (wpW + wpGap);
+        const mesh = new THREE.Mesh(geo, panelMat);
+        mesh.position.set(px, panelCenterY, wallZ + facingDir * wpThickness / 2);
+        roomGroup.add(mesh);
       }
-      if (room.wall_panel_mode === "rear" || room.wall_panel_mode === "both") {
-        addWallPanels(room.length_m / 2, -1);
-      }
+    };
 
-    } else {
-      const panelW    = room.width_m * 0.55;
-      const panelH    = room.height_m * 0.5;
-      const thickness = 0.06;
-
-      if (room.wall_panel_mode === "front" || room.wall_panel_mode === "both") {
-        const frontPanel = new THREE.Mesh(new THREE.BoxGeometry(panelW, panelH, thickness), panelMat);
-        frontPanel.position.set(offsetX, 0, -room.length_m / 2 + thickness / 2);
-        roomGroup.add(frontPanel);
-      }
-
-      if (room.wall_panel_mode === "rear" || room.wall_panel_mode === "both") {
-        const rearPanel = new THREE.Mesh(new THREE.BoxGeometry(panelW, panelH, thickness), panelMat);
-        rearPanel.position.set(offsetX, 0, room.length_m / 2 - thickness / 2);
-        roomGroup.add(rearPanel);
-      }
+    if (room.wall_panel_mode === "front" || room.wall_panel_mode === "both") {
+      addWallPanels(-room.length_m / 2, 1);
+    }
+    if (room.wall_panel_mode === "rear" || room.wall_panel_mode === "both") {
+      // When a client sofa is at the rear wall, raise panels above the sofa back
+      // (sofa back top ≈ 0.80 m from floor; panels sit just above it).
+      const hasSofaAtRear = room.opt_client_seating && (room.client_seating_type || 'sofa') === 'sofa';
+      const rearH         = hasSofaAtRear ? 0.72 : wpH;
+      const floorInWorld  = -room.height_m / 2;
+      // Sofa back top in world Y: floorInWorld + 0.80. Panel centre = sofa_top + rearH/2 + 0.05 gap.
+      const rearCentreY   = hasSofaAtRear
+        ? floorInWorld + 0.80 + rearH / 2 + 0.05
+        : panelY;
+      addWallPanels(room.length_m / 2, -1, rearH, rearCentreY);
     }
   }
 
-  // --- BASS TRAPS (all four vertical corners) ---
-  // --- BASS TRAPS ---
+  // --- BASS TRAPS — right-angle triangular corner prisms ---
+  // Canonical geometry params from treatment-registry.js; fallback matches registry defaults.
   if (room.bass_trap_mode !== "none") {
 
-    const trapSize = 0.3;
-    const trapH    = room.height_m * 0.75;
-    const halfW    = room.width_m  / 2;
-    const halfL    = room.length_m / 2;
+    const trapLeg = window.MeasurelyTreatment?.GEOMETRY?.bass_trap?.legSize        ?? 0.3;
+    const trapHFr = window.MeasurelyTreatment?.GEOMETRY?.bass_trap?.heightFraction  ?? 0.75;
+    const halfW   = room.width_m  / 2;
+    const halfL   = room.length_m / 2;
 
-    const traps = [];
-
-    if (room.bass_trap_mode === "front" || room.bass_trap_mode === "all") {
-      traps.push(
-        [-halfW + trapSize / 2, -halfL + trapSize / 2], // front left
-        [ halfW - trapSize / 2, -halfL + trapSize / 2]  // front right
-      );
+    // Build a right-angle triangular prism: right angle at origin, legs along +X and +Z,
+    // height along +Y. Rotate Y per corner so legs always point toward room centre.
+    function _makeCornerTrapGeo(leg, height) {
+      const positions = new Float32Array([
+        0, 0, 0,        leg, 0, 0,        0, 0, leg,      // bottom face
+        0, height, 0,   leg, height, 0,   0, height, leg, // top face
+      ]);
+      const indices = [
+        0, 2, 1,              // bottom (facing down)
+        3, 4, 5,              // top (facing up)
+        0, 1, 4,  0, 4, 3,   // front face (z = 0)
+        0, 3, 5,  0, 5, 2,   // side face (x = 0)
+        1, 2, 5,  1, 5, 4,   // hypotenuse face
+      ];
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geo.setIndex(indices);
+      geo.computeVertexNormals();
+      return geo;
     }
 
-    if (room.bass_trap_mode === "rear" || room.bass_trap_mode === "all") {
-      traps.push(
-        [-halfW + trapSize / 2,  halfL - trapSize / 2], // rear left
-        [ halfW - trapSize / 2,  halfL - trapSize / 2]  // rear right
-      );
-    }
+    // Each corner: position = wall corner vertex; rotateY so legs point inward.
+    // front = z < 0, rear = z > 0
+    const cornerDefs = [
+      { cx: -halfW, cz: -halfL, rotY:  0             }, // front-left
+      { cx:  halfW, cz: -halfL, rotY: -Math.PI / 2   }, // front-right
+      { cx:  halfW, cz:  halfL, rotY:  Math.PI        }, // rear-right
+      { cx: -halfW, cz:  halfL, rotY:  Math.PI / 2   }, // rear-left
+    ];
 
-    traps.forEach(([cx, cz]) => {
-      // Use ceilingYAt to get the actual ceiling height at this corner
-      let localCeilH = trapH;
+    cornerDefs.forEach(({ cx, cz, rotY }) => {
+      const isFront = cz < 0;
+      if (room.bass_trap_mode === 'front' && !isFront) return;
+      if (room.bass_trap_mode === 'rear'  &&  isFront) return;
+
+      // Height: scale to sloped ceiling at this exact corner
+      const rawTrapH = room.height_m * trapHFr;
+      let localCeilH = rawTrapH;
       if (hasSlopedCeiling) {
-        const localCeilY = ceilingYAt(cx, cz);
-        const localHeight = localCeilY - floorY; // total height at this corner
-        localCeilH = localHeight * 0.75;
+        const localCeilY  = ceilingYAt(cx, cz);
+        const localHeight = localCeilY - floorY;
+        localCeilH = Math.max(0.1, localHeight * trapHFr);
       }
+      const maxSafeH = Math.max(0.1, hasSlopedCeiling
+        ? ceilingYAt(cx, cz) - floorY
+        : room.height_m);
+      localCeilH = Math.min(localCeilH, maxSafeH * 0.95); // 5% clearance from ceiling
 
-      const trap = new THREE.Mesh(
-        new THREE.BoxGeometry(trapSize, localCeilH, trapSize),
-        panelMat
-      );
-
-      trap.position.set(offsetX + cx, floorY + localCeilH / 2, cz);
-      roomGroup.add(trap);
+      const geo  = _makeCornerTrapGeo(trapLeg, localCeilH);
+      const mesh = new THREE.Mesh(geo, panelMat);
+      // Right-angle vertex sits exactly at the wall corner; no box-centre offset needed
+      mesh.position.set(offsetX + cx, floorY, cz);
+      mesh.rotation.y = rotY;
+      roomGroup.add(mesh);
     });
 
   }
@@ -1687,39 +2066,21 @@ function rebuild() {
       
       roomGroup.add(panelGroup);
 
-    } else if (isEmbedMode) {
-      // Audiosilk ceiling cloud: individual panels in landscape (1.16m along Z, 0.58m along X)
-      const AS_CW = 0.58, AS_CL = 1.16, AS_PD = 0.01, AS_GAP = 0.04;
-      const cols = Math.max(1, Math.min(3, Math.floor((cpW + AS_GAP) / (AS_CW + AS_GAP))));
-      const rows = Math.max(1, Math.min(3, Math.floor((cpL + AS_GAP) / (AS_CL + AS_GAP))));
-      const totalX = cols * AS_CW + (cols - 1) * AS_GAP;
-      const totalZ = rows * AS_CL + (rows - 1) * AS_GAP;
-      const ceilY  = room.height_m / 2 - AS_PD / 2;
-
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          const px = offsetX - totalX / 2 + AS_CW / 2 + c * (AS_CW + AS_GAP);
-          const pz = midZ    - totalZ / 2 + AS_CL / 2 + r * (AS_CL + AS_GAP);
-          _addPanel(
-            new THREE.BoxGeometry(AS_CW, AS_PD, AS_CL),
-            new THREE.Vector3(px, ceilY, pz)
-          );
-        }
-      }
-
     } else {
-      // Flat or Slanted roof: One single panel
+      // Flat ceiling: horizontal cloud + 4 corner suspension wires
+      const cloudY = room.height_m / 2 - thickness / 2;
+      const ceilTop = room.height_m / 2;
+
       const ceilPanel = new THREE.Mesh(
         new THREE.BoxGeometry(cpW, thickness, cpL),
         panelMat
       );
 
       if (isSlanted) {
-        // Position at actual centre height
+        // Slanted ceiling: tilt panel to follow the roof slope
         const panelCeilY = ceilingYAt(offsetX, midZ);
         ceilPanel.position.set(offsetX, panelCeilY - thickness / 2, midZ);
 
-        // Tilt to follow the roof slope
         const isZSlant = slantDir === "front_to_back" || slantDir === "back_to_front";
         const span = isZSlant ? room.length_m : room.width_m;
         const slopeAngle = Math.atan2(room.height_m - lowH, span);
@@ -1731,24 +2092,42 @@ function rebuild() {
           const sign = (slantDir === "left_to_right") ? 1 : -1;
           ceilPanel.rotation.z = sign * slopeAngle;
         }
+        roomGroup.add(ceilPanel);
+
       } else {
-        // Flat
-        ceilPanel.position.set(
-          offsetX,
-          room.height_m / 2 - thickness / 2,
-          midZ
-        );
+        // Flat ceiling: horizontal lock + 4 corner suspension wires
+        ceilPanel.rotation.x = 0; // explicitly horizontal — parallel to ceiling
+        ceilPanel.position.set(offsetX, cloudY, midZ);
+        roomGroup.add(ceilPanel);
+
+        const _wireMat = new THREE.LineBasicMaterial({
+          color: 0x999999,
+          transparent: true,
+          opacity: 0.50
+        });
+        const hW2 = cpW / 2;
+        const hL2 = cpL / 2;
+        [
+          [offsetX - hW2, midZ - hL2],
+          [offsetX + hW2, midZ - hL2],
+          [offsetX - hW2, midZ + hL2],
+          [offsetX + hW2, midZ + hL2],
+        ].forEach(([wx, wz]) => {
+          const wirePts = [
+            new THREE.Vector3(wx, cloudY + thickness / 2, wz),
+            new THREE.Vector3(wx, ceilTop, wz)
+          ];
+          roomGroup.add(new THREE.LineSegments(
+            new THREE.BufferGeometry().setFromPoints(wirePts),
+            _wireMat
+          ));
+        });
       }
-      roomGroup.add(ceilPanel);
     }
   }
 
   // --- SIDE PANELS ---
   if (room.side_panel_mode !== "none" || simulatePanels) {
-
-    const spH = room.height_m * 0.4;
-    const spL = 0.9;
-    const thickness = 0.06;
 
     const wallX = room.width_m / 2;
     const earY  = -(room.height_m / 2) + (room.tweeter_height_m ?? 0.9);
@@ -1769,9 +2148,7 @@ function rebuild() {
 
       }
 
-      const spkZ = isEmbedMode
-        ? -room.length_m / 2 + 0.45   // embed: actual desk position
-        : -room.length_m / 2 + room.spk_front_m;
+      const spkZ = -room.length_m / 2 + room.spk_front_m;
       const speakerPos = new THREE.Vector3(
         offsetX + side * room.spk_spacing_m / 2,
         earY,
@@ -1786,28 +2163,45 @@ function rebuild() {
 
       const bouncePoint = listenerPos.clone().add(dir.multiplyScalar(t));
 
-      if (isEmbedMode) {
-        // Audiosilk individual vertical panels: 0.58m wide (along Z) × 1.16m tall × 0.01m deep
-        const AS_PW = 0.58, AS_PH = 1.16, AS_PD = 0.01, AS_GAP = 0.04;
-        const panelCount = Math.max(1, Math.min(3, Math.floor((room.length_m * 0.4 + AS_GAP) / (AS_PW + AS_GAP))));
-        const totalSpan  = panelCount * AS_PW + (panelCount - 1) * AS_GAP;
-        const panelY     = 0; // centered on wall height
+      // Canonical individual panels from treatment-registry.js — same on all pages.
+      // Side panels are portrait orientation, centred on the first-reflection bounce point.
+      const spGeo       = window.MeasurelyTreatment?.GEOMETRY?.side_panel;
+      const spW         = spGeo?.panelWidth   ?? 0.60;
+      const spH_panel   = spGeo?.panelHeight  ?? 1.20;
+      const spGap       = spGeo?.panelGap     ?? 0.04;
+      const spThickness = spGeo?.thickness    ?? 0.06;
+      const spBaseLen   = spGeo?.length ?? 0.90;
+      // Scale count with room length (same pattern as front/rear scaling by width):
+      //   ≤4 m → 1 panel   |   ~6 m → 2 panels   |   ~9 m → 3 panels
+      const spLength    = Math.min(
+        spBaseLen * Math.max(1, room.length_m / 4.0),
+        room.length_m * 0.45          // never more than 45 % of the wall length
+      );
 
-        for (let i = 0; i < panelCount; i++) {
-          const pz = bouncePoint.z - totalSpan / 2 + AS_PW / 2 + i * (AS_PW + AS_GAP);
-          _addPanel(
-            new THREE.BoxGeometry(AS_PD, AS_PH, AS_PW),
-            new THREE.Vector3(side * (wallX - AS_PD / 2), panelY, pz)
-          );
-        }
+      // Panel count + centred span — same formula as the front/rear builder
+      const spCount     = Math.max(1, Math.floor((spLength + spGap) / (spW + spGap)));
+      const spTotalSpan = spCount * spW + (spCount - 1) * spGap;
+      // spGeo3 is the full-height geometry — may be replaced per-panel below if ceiling clips
+      const spGeo3Full = new THREE.BoxGeometry(spThickness, spH_panel, spW);
 
-      } else {
-        const panel = new THREE.Mesh(
-          new THREE.BoxGeometry(thickness, spH, spL),
-          panelMat
-        );
-        panel.position.set(side * (wallX - thickness / 2), bouncePoint.y, bouncePoint.z);
-        roomGroup.add(panel);
+      for (let i = 0; i < spCount; i++) {
+        const pz = bouncePoint.z - spTotalSpan / 2 + spW / 2 + i * (spW + spGap);
+
+        // Clamp panel top to ceiling at this exact wall + Z position.
+        // ceilingYAt() handles flat, slanted, and gabled profiles correctly.
+        const wallCeilY    = ceilingYAt(side * (wallX - spThickness / 2), pz);
+        const spFloor      = -room.height_m / 2;
+        const spCentreY    = spFloor + (room.tweeter_height_m ?? 0.95); // ear height from floor
+        const panelBot     = spCentreY - spH_panel / 2;                 // bottom of full-height panel
+        const panelTop     = Math.min(spCentreY + spH_panel / 2, wallCeilY - 0.04);
+        const effH         = Math.max(0.10, panelTop - panelBot);
+        const geo          = effH < spH_panel - 0.01
+          ? new THREE.BoxGeometry(spThickness, effH, spW)  // ceiling-clamped geometry
+          : spGeo3Full;                                     // full height — reuse shared geometry
+
+        const mesh = new THREE.Mesh(geo, panelMat);
+        mesh.position.set(side * (wallX - spThickness / 2), panelBot + effH / 2, pz);
+        roomGroup.add(mesh);
       }
     }
 
@@ -2007,19 +2401,49 @@ function rebuild() {
         const r = phase * ring.userData.waveMaxR;
         ring.scale.set(r, 1, r);
         ring.material.opacity = Math.max(0, (1 - phase) * 0.28);
+        // Lerp toward treatment-driven target color (cyan=treated, pink=untreated)
+        if (ring.userData.targetColor) {
+          ring.material.color.lerp(ring.userData.targetColor, 0.03);
+        }
       }
     }
 
-    // SBIR interference field — advance time uniform
+    // SBIR interference field — advance time uniform (frozen when prefers-reduced-motion)
     {
       const sbirMesh = roomGroup.children.find(o => o.userData?.isSbirField);
-      if (sbirMesh) sbirMesh.material.uniforms.uTime.value = performance.now() * 0.002;
+      if (sbirMesh?.material?.uniforms && !sbirMesh.material.uniforms.uReducedMotion?.value) {
+        sbirMesh.material.uniforms.uTime.value = performance.now() * 0.002;
+      }
     }
 
-    // Standing wave (bass modes) field — advance time uniform
+    // Resonance field — advance time uniform (frozen when prefers-reduced-motion)
     {
       const bwMesh = roomGroup.children.find(o => o.userData?.isBandwidthField);
-      if (bwMesh) bwMesh.material.uniforms.uTime.value = performance.now() * 0.001;
+      if (bwMesh?.material?.uniforms && !bwMesh.material.uniforms.uReducedMotion?.value) {
+        bwMesh.material.uniforms.uTime.value = performance.now() * 0.001;
+      }
+    }
+
+    // Side reflection wave field — advance time uniform
+    {
+      const sideField = roomGroup.children.find(o => o.userData?.isSideRefField);
+      if (sideField?.material?.uniforms && !sideField.material.uniforms.uReducedMotion?.value) {
+        sideField.material.uniforms.uTime.value = performance.now() * 0.002;
+      }
+    }
+
+    // Side reflection pings — advance time + lerp severity toward target (cyan→pink transition)
+    {
+      roomGroup.children
+        .filter(o => o.userData?.isSideRefPing)
+        .forEach(m => {
+          if (m.material?.uniforms) {
+            m.material.uniforms.uTime.value = performance.now() * 0.001;
+            const target  = m.userData.targetSeverity ?? 0;
+            const current = m.material.uniforms.uSeverity.value;
+            m.material.uniforms.uSeverity.value = current + (target - current) * 0.03;
+          }
+        });
     }
 
     // Smoothness field — advance shader time uniform
@@ -2329,7 +2753,7 @@ function rebuild() {
           room.length_m * 0.6
         ),
         new THREE.MeshBasicMaterial({
-          color: 0xd4950f,
+          color: 0x00B8A9,
           transparent: true,
           opacity: 0.08,
           side: THREE.DoubleSide,
@@ -2365,7 +2789,7 @@ function rebuild() {
           new THREE.Vector3(spkX,    fTweeterY, spkZ),
           new THREE.Vector3(bounceX, floorY,    bounceZ),
           new THREE.Vector3(offsetX, fEarY,     fListZ),
-          0xd4950f
+          0x00B8A9
         );
       }
     }
@@ -2375,18 +2799,28 @@ function rebuild() {
 
       const sbirDepth = Math.max(room.spk_front_m || 0.2, 0.2);
 
-      // Simulated improvement when traps enabled
-      const effectiveScore = simulatePanels
+      // Front wall panels and front/all bass traps absorb the reflection that causes SBIR
+      const hasFrontPanels = room.wall_panel_mode === 'front' || room.wall_panel_mode === 'both';
+      const hasBassTraps   = room.bass_trap_mode  === 'front' || room.bass_trap_mode  === 'all';
+      const sbirTreated    = simulatePanels || hasFrontPanels || hasBassTraps;
+      const sbirAbsorption = sbirTreated ? 0.75 : 0.0;
+
+      // Simulated improvement when front panels or bass traps enabled
+      const effectiveScore = sbirTreated
         ? Math.min(activeScore + 1.8, 10)
         : activeScore;
 
       const isSevere = effectiveScore < 5;
 
+      // Drive wave ring color: cyan = treated, pink = untreated (lerped in render loop)
+      const _sbirRingTarget = new THREE.Color(sbirTreated ? 0x00F5FF : 0xFF107A);
+      _waveRings.forEach(r => { r.userData.targetColor = _sbirRingTarget; });
+
       // ── Live SBIR interference field (ShaderMaterial) ─────────────────────
       // Two point sources per speaker (direct + front-wall mirror image).
       // The shader computes the exact wave interference at every pixel in the
       // horizontal plane at tweeter height — destructive bands = SBIR nulls.
-      const fieldColor = isSevere ? 0xff3b3b : 0x0f766e;
+      const fieldColor = isSevere ? 0xFF107A : 0x00B8A9;
       const tweeterY   = -room.height_m / 2 + (room.tweeter_height_m || 0.95);
       const frontWallZ = -room.length_m / 2;
       const isFocSBIR  = isFocused(OVERLAYS.SBIR);
@@ -2434,8 +2868,8 @@ function rebuild() {
       const wallGlow = new THREE.Mesh(
         new THREE.ShapeGeometry(_fwShape),
         new THREE.MeshBasicMaterial({
-          color: fieldColor, transparent: true,
-          opacity: isFocSBIR ? 0.10 : 0.05,
+          color: 0x00B8A9, transparent: true,
+          opacity: isFocSBIR ? 0.12 : 0.06,
           side: THREE.DoubleSide, depthWrite: false
         })
       );
@@ -2445,24 +2879,26 @@ function rebuild() {
       // Wave number k = π/(2d) gives first SBIR null at f0 = C/(4d)
       const sbirK = Math.PI / (2 * sbirDepth);
 
+      // Detect prefers-reduced-motion once at overlay build time
+      const _sbirReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
       const sbirMat = new THREE.ShaderMaterial({
         uniforms: {
-          uTime:    { value: 0 },
-          uK:       { value: sbirK },
-          uSpkL:    { value: new THREE.Vector2(offsetX - room.spk_spacing_m / 2, frontWallZ + sbirDepth) },
-          uSpkR:    { value: new THREE.Vector2(offsetX + room.spk_spacing_m / 2, frontWallZ + sbirDepth) },
-          uRoomW:   { value: room.width_m },
-          uRoomL:   { value: room.length_m },
-          uColor:      { value: new THREE.Color(fieldColor) },
-          uOpacity:    { value: isFocSBIR ? 0.55 : 0.20 },
-          uAbsorption: { value: simulatePanels ? 0.75 : 0.0 },
+          uTime:         { value: 0 },
+          uK:            { value: sbirK },
+          // Single centre-speaker source — clean concentric rings from one origin
+          uSpkC:         { value: new THREE.Vector2(offsetX, frontWallZ + sbirDepth) },
+          uRoomW:        { value: room.width_m },
+          uRoomL:        { value: room.length_m },
+          uOpacity:      { value: isFocSBIR ? 0.80 : 0.45 },
+          uAbsorption:   { value: sbirAbsorption },
+          uReducedMotion:{ value: _sbirReducedMotion ? 1.0 : 0.0 },
         },
         vertexShader: `
           uniform float uRoomW;
           uniform float uRoomL;
           varying vec2 vXZ;
           void main() {
-            // Map UV → world XZ (PlaneGeometry rotated -90° around X)
             vXZ = vec2(
               (uv.x - 0.5) * uRoomW,
               (0.5 - uv.y) * uRoomL
@@ -2471,29 +2907,36 @@ function rebuild() {
           }
         `,
         fragmentShader: `
-          #define PI 3.14159265359
           uniform float uTime;
           uniform float uK;
-          uniform vec2  uSpkL;
-          uniform vec2  uSpkR;
+          uniform vec2  uSpkC;
           uniform float uRoomL;
-          uniform vec3  uColor;
           uniform float uOpacity;
           uniform float uAbsorption;
+          uniform float uReducedMotion;
           varying vec2  vXZ;
+
           void main() {
             float wallZ = -uRoomL * 0.5;
-            // Mirror images behind the front wall (rigid reflection = +PI phase)
-            vec2 mirL = vec2(uSpkL.x, 2.0 * wallZ - uSpkL.y);
-            vec2 mirR = vec2(uSpkR.x, 2.0 * wallZ - uSpkR.y);
-            // Bass traps reduce reflected wave — absorption 0=none, 1=full
+            // Mirror image of speaker in front wall
+            vec2 mirC = vec2(uSpkC.x, 2.0 * wallZ - uSpkC.y);
+
+            float t    = uTime * (1.0 - uReducedMotion);
             float refl = 1.0 - uAbsorption;
-            float wL = sin(distance(vXZ, uSpkL) * uK - uTime)
-                     + refl * sin(distance(vXZ, mirL) * uK - uTime);
-            float wR = sin(distance(vXZ, uSpkR) * uK - uTime)
-                     + refl * sin(distance(vXZ, mirR) * uK - uTime);
-            float field = (wL + wR) * 0.25;
-            gl_FragColor = vec4(uColor, clamp(abs(field) * uOpacity, 0.0, 0.92));
+
+            // Single-source: direct wave + front-wall reflection
+            float direct    = sin(distance(vXZ, uSpkC) * uK - t);
+            float reflected = refl * sin(distance(vXZ, mirC) * uK - t);
+            float absField  = abs((direct + reflected) * 0.5);
+
+            // Grey base with Neon Pink (#FF107A) at high-pressure peaks
+            float fresnelBand = smoothstep(0.40, 0.75, absField);
+            vec3 greyBase   = vec3(0.30 + absField * 0.45);
+            vec3 neonPink   = vec3(1.0, 0.063, 0.478);
+            vec3 finalColor = mix(greyBase, neonPink, fresnelBand);
+
+            float opacity = clamp(absField * uOpacity * 2.2 + 0.06, 0.0, 0.88);
+            gl_FragColor = vec4(finalColor, opacity);
           }
         `,
         transparent: true,
@@ -2507,6 +2950,7 @@ function rebuild() {
       );
       sbirField.rotation.x = -Math.PI / 2;
       sbirField.position.set(0, tweeterY, 0);
+      sbirField.visible = _sbirFieldVisible;
       sbirField.userData.isSbirField = true;
       roomGroup.add(sbirField);
 
@@ -2519,7 +2963,7 @@ function rebuild() {
         const trapHeight = room.height_m * 0.9;
 
         const trapMaterial = new THREE.MeshBasicMaterial({
-          color: 0x22c55e,
+          color: 0x00B8A9,
           transparent: true,
           opacity: 0.30,
           depthWrite: false,
@@ -2610,7 +3054,7 @@ function rebuild() {
             speakerY,
             listenerZ
           ),
-          effectiveScore < 5 ? 0xff3e00 : 0x14b8a6
+          effectiveScore < 5 ? 0xFF107A : 0x00F5FF
         );
 
         // RIGHT speaker → front wall → listener
@@ -2630,7 +3074,7 @@ function rebuild() {
             speakerY,
             listenerZ
           ),
-          effectiveScore < 5 ? 0xff3e00 : 0x14b8a6
+          effectiveScore < 5 ? 0xFF107A : 0x00F5FF
         );
       }
     
@@ -2639,95 +3083,172 @@ function rebuild() {
     // ---- SIDE WALL REFLECTIONS ----
     if (overlayEnabled(OVERLAYS.SIDE_REFLECTIONS)) {
 
-      const sideGap = (room.width_m - room.spk_spacing_m) / 2;
-      const isTooClose = sideGap < 0.6;
+      const sideGap      = (room.width_m - room.spk_spacing_m) / 2;
+      const isTooClose   = sideGap < 0.6;
+      const hasSidePanels = room.side_panel_mode === 'both';
+      const sideAbsorption = (simulatePanels || hasSidePanels) ? 0.75 : 0.0;
+      // Ping rate: fast = uncontrolled reflections, slow = panels absorbing energy
+      const pingRate     = (simulatePanels || hasSidePanels) ? 0.9 : 2.8;
+      const pingSeverity = (!simulatePanels && !hasSidePanels && isTooClose) ? 1.0 : 0.0;
+      const isFocSide    = focusedOverlay === OVERLAYS.SIDE_REFLECTIONS;
 
       let effectiveScore = activeScore;
+      if (simulatePanels && isTooClose) effectiveScore = Math.min(activeScore + 2.0, 10);
+      if (hasSidePanels)                effectiveScore = Math.min(effectiveScore + 1.5, 10);
 
-      if (simulatePanels && isTooClose) {
-        effectiveScore = Math.min(activeScore + 2, 10);
-      }
+      const tweeterY = -room.height_m / 2 + room.tweeter_height_m;
+      const spkZ     = -room.length_m  / 2 + room.spk_front_m;
+      // Wave number based on speaker-to-wall gap — tighter gap = more rings
+      const sideK    = Math.PI / Math.max(sideGap, 0.3);
+      const _sideRM  = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-      const sideOffset = room.width_m / 2 - 0.05;
-      const panelWidth = room.length_m * 0.45;
-      const panelHeight = room.height_m * 0.6;
+      // ── Grey/Pink wave field — same scheme as SBIR ──────────
+      const sideMat = new THREE.ShaderMaterial({
+        uniforms: {
+          uTime:         { value: 0 },
+          uK:            { value: sideK },
+          // Centre speaker + mirror images across each side wall
+          uSpkC:         { value: new THREE.Vector2(offsetX, spkZ) },
+          uMirL:         { value: new THREE.Vector2(-room.width_m - offsetX, spkZ) },
+          uMirR:         { value: new THREE.Vector2( room.width_m - offsetX, spkZ) },
+          uRoomW:        { value: room.width_m },
+          uRoomL:        { value: room.length_m },
+          uOpacity:      { value: isFocSide ? 0.78 : 0.38 },
+          uRefl:         { value: 1.0 - sideAbsorption },
+          uReducedMotion:{ value: _sideRM ? 1.0 : 0.0 },
+        },
+        vertexShader: `
+          uniform float uRoomW;
+          uniform float uRoomL;
+          varying vec2 vXZ;
+          void main() {
+            vXZ = vec2(
+              (uv.x - 0.5) * uRoomW,
+              (0.5 - uv.y) * uRoomL
+            );
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform float uTime;
+          uniform float uK;
+          uniform vec2  uSpkC;
+          uniform vec2  uMirL;
+          uniform vec2  uMirR;
+          uniform float uOpacity;
+          uniform float uRefl;
+          uniform float uReducedMotion;
+          varying vec2  vXZ;
 
-      const speakerY = -room.height_m / 2 + room.tweeter_height_m;
-      const listenerPos = new THREE.Vector3(
-        offsetX,
-        speakerY,
-        -room.length_m / 2 + room.listener_front_m
+          void main() {
+            float t = uTime * (1.0 - uReducedMotion);
+            // Direct wave from speaker centre
+            float direct = sin(distance(vXZ, uSpkC) * uK - t);
+            // Reflected waves from left and right walls (mirror image method)
+            float reflL  = uRefl * sin(distance(vXZ, uMirL) * uK - t);
+            float reflR  = uRefl * sin(distance(vXZ, uMirR) * uK - t);
+            float absField = abs((direct + reflL + reflR) * 0.33);
+
+            // Grey base with Neon Pink (#FF107A) at high-interference peaks
+            float fresnelBand = smoothstep(0.40, 0.75, absField);
+            vec3 greyBase   = vec3(0.30 + absField * 0.45);
+            vec3 neonPink   = vec3(1.0, 0.063, 0.478);
+            vec3 finalColor = mix(greyBase, neonPink, fresnelBand);
+
+            float opacity = clamp(absField * uOpacity * 2.2 + 0.06, 0.0, 0.88);
+            gl_FragColor = vec4(finalColor, opacity);
+          }
+        `,
+        transparent: true,
+        depthWrite:  false,
+        side: THREE.DoubleSide,
+      });
+
+      const sideField = new THREE.Mesh(
+        new THREE.PlaneGeometry(room.width_m, room.length_m, 1, 1),
+        sideMat
       );
+      sideField.rotation.x = -Math.PI / 2;
+      sideField.position.set(0, tweeterY, 0);
+      sideField.userData.isSideRefField = true;
+      roomGroup.add(sideField);
 
-      const wallX = room.width_m / 2;
+      // ── Focused: paths + animated pings at first-reflection points ──
+      if (isFocused(OVERLAYS.SIDE_REFLECTIONS)) {
 
-      for (const side of [-1, 1]) {
+        const listenerPos = new THREE.Vector3(
+          offsetX, tweeterY,
+          -room.length_m / 2 + room.listener_front_m
+        );
+        const wallX = room.width_m / 2;
 
-        // -----------------------------
-        // REFLECTION RAY (only when focused)
-        // -----------------------------
-        if (isFocused(OVERLAYS.SIDE_REFLECTIONS)) {
+        for (const side of [-1, 1]) {
 
           const speakerPos = new THREE.Vector3(
             offsetX + side * room.spk_spacing_m / 2,
-            speakerY,
+            tweeterY,
             -room.length_m / 2 + room.spk_front_m
           );
 
-          // Mirror speaker across side wall
+          // Mirror speaker across nearest side wall → find bounce point
           const mirrorSpeaker = speakerPos.clone();
           mirrorSpeaker.x = side * wallX + (side * wallX - speakerPos.x);
 
-          // Ray from listener to mirrored speaker
           const dir = new THREE.Vector3().subVectors(mirrorSpeaker, listenerPos);
+          const tHit = (side * wallX - listenerPos.x) / dir.x;
+          const bouncePoint = listenerPos.clone().add(dir.multiplyScalar(tHit));
 
-          // Intersection with wall plane (x = ±wallX)
-          const t = (side * wallX - listenerPos.x) / dir.x;
-          const bouncePoint = listenerPos.clone().add(dir.multiplyScalar(t));
-
-          console.log("Bounce Z:", bouncePoint.z);
-
-          // -----------------------------
-          // ACOUSTIC PANEL SIMULATION
-          // -----------------------------
+          // Elliptical treatment panel at first-reflection point
           if (simulatePanels) {
-
-            const panelWidth = 0.9;
-            const panelHeight = 1.2;
-
-            // Elliptical first-reflection zone (more accurate than a rectangle)
             const ellipseShape = new THREE.Shape();
-            ellipseShape.absellipse(0, 0, panelWidth / 2, panelHeight / 2, 0, Math.PI * 2, false, 0);
+            ellipseShape.absellipse(0, 0, 0.45, 0.6, 0, Math.PI * 2, false, 0);
             const panel = new THREE.Mesh(
               new THREE.ShapeGeometry(ellipseShape, 40),
               new THREE.MeshBasicMaterial({
-                color: 0x22c55e,
-                transparent: true,
-                opacity: 0.28,
-                side: THREE.DoubleSide,
-                depthWrite: false
+                color: 0x22c55e, transparent: true, opacity: 0.28,
+                side: THREE.DoubleSide, depthWrite: false
               })
             );
-
             panel.rotation.y = Math.PI / 2;
-
-            panel.position.set(
-              side * (room.width_m / 2 - 0.01),
-              bouncePoint.y,
-              bouncePoint.z
-            );
-
+            panel.position.set(side * (wallX - 0.01), bouncePoint.y, bouncePoint.z);
             roomGroup.add(panel);
           }
 
-          // Draw reflection path — dimmed when side panel absorbs at bounce point
+          // Reflection path lines
           drawReflectionPath(
-            speakerPos,
-            bouncePoint,
-            listenerPos,
-            effectiveScore < 5 ? 0xff3e00 : 0x14b8a6,
-            simulatePanels ? 0.72 : 0
+            speakerPos, bouncePoint, listenerPos,
+            effectiveScore < 5 ? 0xFF107A : 0x00B8A9,
+            simulatePanels ? 0.72 : 0,
+            effectiveScore < 5 ? 0xFF107A : 0x00F5FF
           );
+
+          // Animated ping — fast pulse when no panels, slow when absorbed
+          const pingMat = new THREE.ShaderMaterial({
+            uniforms: {
+              uTime:     { value: 0 },
+              uRate:     { value: pingRate },
+              uSeverity: { value: 0.0 },  // always start cyan; lerped toward targetSeverity in render loop
+            },
+            vertexShader:   `void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+            fragmentShader: `
+              uniform float uTime;
+              uniform float uRate;
+              uniform float uSeverity;
+              void main() {
+                float pulse = 0.5 + 0.5 * sin(uTime * uRate);
+                vec3 cyan = vec3(0.0, 0.957, 1.0);   // --mly-teal-neon #00F5FF
+                vec3 pink = vec3(1.0, 0.063, 0.478);  // Neon Pink #FF107A
+                gl_FragColor = vec4(mix(cyan, pink, uSeverity), pulse * 0.92);
+              }
+            `,
+            transparent: true,
+            depthWrite:  false,
+          });
+          const ping = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), pingMat);
+          ping.position.copy(bouncePoint);
+          ping.userData.isSideRefPing = true;
+          ping.userData.targetSeverity = pingSeverity;
+          roomGroup.add(ping);
         }
       }
     }
@@ -2783,41 +3304,86 @@ function rebuild() {
       roomGroup.add(tableReflection);
     }
 
-    // ---- BANDWIDTH (ROOM MODE PRESSURE FIELD) ----
+    // ---- BANDWIDTH (ROOM MODE RESONANCE FIELD) ----
     if (overlayEnabled(OVERLAYS.BANDWIDTH)) {
 
-      const isFocBW   = focusedOverlay === OVERLAYS.BANDWIDTH;
-      
-      const bwModes = window.MeasurelyAcoustics?.computeRoomModes(room) || [];
-      const uBwModes = [];
-      // Select lowest 8 modes for bass pressure mapping
-      bwModes.slice(0, 8).forEach(m => {
-          const yFrac = 0; // floor plane → cos(r·π·0) = 1 for all r
-          const rWeight = Math.cos(m.r * Math.PI * yFrac);
-          uBwModes.push(new THREE.Vector3(m.p, m.q, Math.abs(rWeight)));
-      });
-      while (uBwModes.length < 8) uBwModes.push(new THREE.Vector3(0,0,0));
+      const isFocBW = focusedOverlay === OVERLAYS.BANDWIDTH;
+      const _bwReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-      // Standing-wave pressure shader — maps exact spatial pressure of the room's
-      // lowest resonant modes to visualise bass buildup accurately.
+      // Ceiling profile — re-derived here because renderAnalysisOverlays is a sibling
+      // of rebuild(), not nested inside it, so rebuild()'s const isGable etc. are out of scope.
+      const _bwIsSlanted = room.ceiling_type === 'slanted';
+      const _bwIsGable   = room.ceiling_type === 'gable';
+      const _bwSlantDir  = room.ceiling_slant_direction || 'left_to_right';
+      const _bwGableAxis = room.ceiling_gable_axis || 'depth';
+      const _bwFloorY    = -room.height_m / 2;
+      const _bwLowH      = (_bwIsSlanted || _bwIsGable)
+        ? Math.min(room.ceiling_height_secondary_m ?? room.height_m, room.height_m)
+        : room.height_m;
+      const _bwHighY     =  room.height_m / 2;
+      const _bwLowY      = _bwFloorY + _bwLowH;
+
+      // Predictive model: not a physical measurement
+      const bwModes = window.MeasurelyAcoustics?.computeRoomModes(room) || [];
+
+      // Speaker archetype determines low-frequency energy injection.
+      // Bookshelf rolls off ~55 Hz; floorstander ~30 Hz; statement ~20 Hz.
+      const speakerArchetype  = room.speaker_type || 'bookshelf';
+      const bassRolloffByType = { bookshelf: 55, floorstander: 30, statement: 20 };
+      const bassRolloffHz     = bassRolloffByType[speakerArchetype] ?? 55;
+
+      // Build 3D mode data — include height axis (r) for volumetric pressure field.
+      // Mode type weights: axial 1.0, tangential 0.7, oblique 0.4.
+      const modeTypeWeight = { axial: 1.0, tangential: 0.7, oblique: 0.4 };
+      const uBwModes = [];
+      bwModes.slice(0, 8).forEach(m => {
+        const typeWeight      = modeTypeWeight[m.type] ?? 1.0;
+        // Modes below speaker bass rolloff get reduced contribution — less energy injected
+        const bassEnergyScale = (m.freq_hz <= bassRolloffHz) ? 0.30 : 1.0;
+        uBwModes.push(new THREE.Vector4(m.p, m.q, m.r, typeWeight * bassEnergyScale));
+      });
+      while (uBwModes.length < 8) uBwModes.push(new THREE.Vector4(0, 0, 0, 0));
+
+      // Breathing rate derived from the dominant (lowest) mode frequency.
+      // Dividing by 40 maps acoustic Hz → a 2–4 second visual cycle.
+      const dominantModeFrequency = bwModes.length > 0 ? (bwModes[0].freq_hz ?? 80) : 80;
+      const visualOscillationRate = dominantModeFrequency / 40;
+
+      // Corner bass trap absorption level:
+      // all/simulatePanels = 0.85, front or rear only = 0.50, none = 0.0
+      const hasBassTrapsAll     = simulatePanels || room.bass_trap_mode === 'all';
+      const hasBassTrapsPartial = room.bass_trap_mode === 'front' || room.bass_trap_mode === 'rear';
+      const bwBassTraps = hasBassTrapsAll ? 0.85 : hasBassTrapsPartial ? 0.50 : 0.0;
+
+      // Ceiling clip uniforms — discard fragments that fall outside the actual room volume.
+      // Encoded: uSlantDir 0=left_to_right, 1=right_to_left, 2=front_to_back, 3=back_to_front
+      const bwSlantDirCode = { left_to_right: 0, right_to_left: 1, front_to_back: 2, back_to_front: 3 };
+
       const bwMat = new THREE.ShaderMaterial({
         uniforms: {
-          uTime:   { value: 0 },
-          uRoomW:  { value: room.width_m },
-          uRoomL:  { value: room.length_m },
-          uOpacity:{ value: isFocBW ? 0.90 : 0.45 },
-          uModes:  { value: uBwModes }
+          uTime:           { value: 0 },
+          uRoomW:          { value: room.width_m },
+          uRoomL:          { value: room.length_m },
+          uRoomH:          { value: room.height_m },
+          uOpacity:        { value: isFocBW ? 0.55 : 0.28 },
+          uModes:          { value: uBwModes },
+          uOscRate:        { value: visualOscillationRate },
+          uBassTraps:      { value: bwBassTraps },
+          uReducedMotion:  { value: _bwReducedMotion ? 1.0 : 0.0 },
+          // Ceiling profile — for gable and slanted rooms, discard above the slope
+          uIsGable:        { value: _bwIsGable   ? 1.0 : 0.0 },
+          uIsSlanted:      { value: _bwIsSlanted ? 1.0 : 0.0 },
+          uGableDepthAxis: { value: _bwGableAxis === 'depth' ? 1.0 : 0.0 },
+          uEavesY:         { value: _bwLowY  },   // lowest ceiling point (eave or slant low end)
+          uPeakY:          { value: _bwHighY },   // highest ceiling point (ridge or slant high end)
+          uSlantDir:       { value: bwSlantDirCode[_bwSlantDir] ?? 0 },
         },
         vertexShader: `
-          uniform float uRoomW;
-          uniform float uRoomL;
-          varying vec2 vXZ;
+          varying vec3 vWorldPos;
           void main() {
-            vXZ = vec2(
-              (uv.x - 0.5) * uRoomW,
-              (0.5 - uv.y) * uRoomL
-            );
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+            vWorldPos = worldPosition.xyz;
+            gl_Position = projectionMatrix * viewMatrix * worldPosition;
           }
         `,
         fragmentShader: `
@@ -2825,58 +3391,107 @@ function rebuild() {
           uniform float uTime;
           uniform float uRoomW;
           uniform float uRoomL;
+          uniform float uRoomH;
           uniform float uOpacity;
-          uniform vec3  uModes[8]; // p, q, weight
-          varying vec2 vXZ;
+          uniform float uOscRate;
+          uniform float uBassTraps;
+          uniform float uReducedMotion;
+          uniform vec4  uModes[8];
+          uniform float uIsGable;
+          uniform float uIsSlanted;
+          uniform float uGableDepthAxis;
+          uniform float uEavesY;
+          uniform float uPeakY;
+          uniform float uSlantDir;
+          varying vec3  vWorldPos;
 
           void main() {
-            float hW = uRoomW * 0.5;
-            float hL = uRoomL * 0.5;
+            // Clip fragments above the actual ceiling profile so the pressure field
+            // never breaks through a gabled or slanted roof surface.
+            if (uIsGable > 0.5) {
+              float halfW    = uRoomW * 0.5;
+              float halfL    = uRoomL * 0.5;
+              float distRatio = (uGableDepthAxis > 0.5)
+                ? abs(vWorldPos.x) / halfW   // gable ridge runs along Z (depth axis)
+                : abs(vWorldPos.z) / halfL;  // gable ridge runs along X (width axis)
+              float maxCeilingY = mix(uPeakY, uEavesY, distRatio);
+              if (vWorldPos.y > maxCeilingY) discard;
+            } else if (uIsSlanted > 0.5) {
+              float halfW = uRoomW * 0.5;
+              float halfL = uRoomL * 0.5;
+              float t;
+              if      (uSlantDir < 0.5) t = (vWorldPos.x + halfW) / uRoomW;          // left_to_right
+              else if (uSlantDir < 1.5) t = 1.0 - (vWorldPos.x + halfW) / uRoomW;   // right_to_left
+              else if (uSlantDir < 2.5) t = 1.0 - (vWorldPos.z + halfL) / uRoomL;   // front_to_back
+              else                      t = (vWorldPos.z + halfL) / uRoomL;          // back_to_front
+              float maxCeilingY = mix(uEavesY, uPeakY, t);
+              if (vWorldPos.y > maxCeilingY) discard;
+            }
 
-            float pressure = 0.0;
+            // Normalised position within room volume [0..1] on each axis
+            float nx = (vWorldPos.x + uRoomW * 0.5) / uRoomW;
+            float ny = (vWorldPos.y + uRoomH * 0.5) / uRoomH;
+            float nz = (vWorldPos.z + uRoomL * 0.5) / uRoomL;
+
+            float pressure    = 0.0;
             float totalWeight = 0.001;
 
             for (int i = 0; i < 8; i++) {
-                vec3 m = uModes[i];
-                if (m.z > 0.0) {
-                    float pL = cos(m.x * PI * (vXZ.y + hL) / uRoomL); // length = y locally
-                    float pW = cos(m.y * PI * (vXZ.x + hW) / uRoomW); // width = x locally
-                    pressure += m.z * pL * pW;
-                    totalWeight += m.z;
-                }
+              vec4 m = uModes[i];
+              if (m.w > 0.0) {
+                float pressureLength = cos(m.x * PI * nz);
+                float pressureWidth  = cos(m.y * PI * nx);
+                float pressureHeight = cos(m.z * PI * ny);
+                pressure    += m.w * abs(pressureLength * pressureWidth * pressureHeight);
+                totalWeight += m.w;
+              }
             }
 
             pressure /= totalWeight;
 
-            // Standing waves pulse in place — amplitude oscillates, nodes fixed
-            float pulse = 0.78 + 0.22 * cos(uTime * 1.6);
+            // Bass traps damp the standing wave energy — reduces overall pressure amplitude.
+            // 0.35 factor: full traps cut peak pressure by ~35%, visibly cooling corners.
+            pressure *= (1.0 - uBassTraps * 0.35);
 
-            float alpha = clamp(abs(pressure) * pulse * uOpacity, 0.0, 0.90);
-            gl_FragColor = vec4(0.95, 0.45, 0.05, alpha); // deep orange
+            // Resonance breathing: standing wave oscillates at dominant mode frequency.
+            // uOscRate = f_dominant / 40 gives a 2–4 second visual cycle.
+            // Frozen when prefers-reduced-motion is active.
+            float resonancePulse = 0.80 + 0.20 * cos(uTime * uOscRate * (1.0 - uReducedMotion));
+            pressure *= resonancePulse;
+
+            // Neon Purple (#7C3AED) → Neon Pink (#FF107A) at absolute pressure peaks.
+            // Bass traps shift the pink threshold higher — corners cool to purple,
+            // but very large or problematic rooms may still show pink at worst-case peaks.
+            vec3 neonPurple = vec3(0.486, 0.227, 0.929);
+            vec3 neonPink   = vec3(1.000, 0.063, 0.478);
+            vec3 voidColor  = vec3(0.020, 0.010, 0.050);
+
+            float pinkLow  = mix(0.65, 0.82, uBassTraps);
+            float pinkHigh = mix(1.00, 1.30, uBassTraps);
+
+            vec3 midColor   = mix(voidColor, neonPurple, smoothstep(0.20, 0.70, pressure));
+            vec3 finalColor = mix(midColor,  neonPink,   smoothstep(pinkLow, pinkHigh, pressure));
+
+            float opacity = clamp(pressure * uOpacity * 1.8 + 0.03, 0.0, 0.80);
+            gl_FragColor = vec4(finalColor, opacity);
           }
         `,
         transparent: true,
         depthWrite:  false,
-        side: THREE.DoubleSide,
+        // BackSide renders only the inner faces — the near wall becomes transparent,
+        // letting the camera see the pressure field on far walls, ceiling, and floor
+        // without the 6-face opacity stacking that made it look like a solid grey box.
+        side: THREE.BackSide,
       });
 
-      const bwPlane = new THREE.Mesh(
-        new THREE.PlaneGeometry(room.width_m, room.length_m, 1, 1),
+      // Full-room volume — BackSide makes the near wall invisible so the interior
+      // pressure field reads clearly through the wireframe cage.
+      const resonanceVolume = new THREE.Mesh(
+        new THREE.BoxGeometry(room.width_m, room.height_m, room.length_m),
         bwMat
       );
-      bwPlane.rotation.x = -Math.PI / 2;
-      bwPlane.position.y = -room.height_m / 2 + 0.02;
-      bwPlane.userData.isBandwidthField = true;
-      roomGroup.add(bwPlane);
-
-      // Subtle lower-wall glow — bass loads all boundaries, not just floor
-      roomGroup.add(new THREE.Mesh(
-        new THREE.BoxGeometry(room.width_m * 0.98, room.height_m * 0.28, room.length_m * 0.98),
-        new THREE.MeshBasicMaterial({
-          color: 0xd4950f, transparent: true,
-          opacity: isFocBW ? 0.14 : 0.06, depthWrite: false
-        })
-      )).position.y = -room.height_m / 2 + room.height_m * 0.14;
+      resonanceVolume.userData.isBandwidthField = true;
+      roomGroup.add(resonanceVolume);
     }
 
     // ---- BALANCE (STEREO SYMMETRY) ----
@@ -3406,6 +4021,13 @@ function rebuild() {
     setWaves(enabled) {
       _wavesEnabled = !!enabled;
       rebuild();
+    },
+
+    /** Toggle the SBIR interference heatmap field without hiding the ping/path geometry. */
+    setSbirField(enabled) {
+      _sbirFieldVisible = !!enabled;
+      const m = roomGroup.children.find(o => o.userData?.isSbirField);
+      if (m) m.visible = _sbirFieldVisible;
     },
 
     /** Reset camera to the default overview position and re-enable orbit controls. */
