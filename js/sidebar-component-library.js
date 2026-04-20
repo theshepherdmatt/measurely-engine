@@ -773,13 +773,13 @@
       floor_material: state.floor_material ?? 'hard',
     };
 
-    const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:8px;' });
+    const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:6px;' });
 
-    const header = _el('div', { class: 'demo-field-header' });
-    const lbl    = _el('span', { class: 'demo-field-label' }, 'Floor type');
-    const sub    = _el('span', { class: 'demo-field-sub' }, 'Major effect on brightness and reflections');
-    header.append(lbl, sub);
-    wrap.appendChild(header);
+    const lbl = _el('span', { class: 'demo-field-label' }, 'Floor type');
+    const sub = _el('p', {
+      style: 'margin:0;font-size:0.68rem;color:var(--mly-text-tertiary,#888);font-family:var(--mly-font-family);line-height:1.3;'
+    }, 'Carpet softens reflections; hard floors brighten the room.');
+    wrap.append(lbl, sub);
 
     const floorGroup = _btnGroup(
       [
