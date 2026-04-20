@@ -695,6 +695,17 @@
   margin-bottom: 2px;
 }
 
+/* Sub-text in a field header (right side of justify-content:space-between)
+   e.g. "Major effect on brightness and reflections" in the floor section */
+.demo-field-sub {
+  font-size: 0.72rem;
+  color: var(--mly-text-tertiary, #888);
+  font-family: var(--mly-font-family);
+  margin-top: 1px;
+  text-align: right;
+  line-height: 1.3;
+}
+
 /* Demo CTA bar (compat alias) */
 .demo-cta-bar  { margin: 0; padding: 12px 24px max(16px, env(safe-area-inset-bottom, 16px)); background: var(--mly-bg-primary, #FFFFFF); border-top: 1px solid var(--mly-text-primary, #1A1A1A); display: flex; flex-direction: row; align-items: center; gap: 10px; flex-shrink: 0; }
 .demo-cta-text { font-family: var(--mly-font-family); font-size: 0.65rem; color: var(--mly-text-secondary, #666); margin: 0; line-height: 1.3; flex: 1; }
