@@ -2107,25 +2107,28 @@ function rebuild() {
       panel.position.set(offsetX, cloudY, midZ);
       roomGroup.add(panel);
 
-      // Suspension wires: only on flat ceilings (clean vertical to a constant Y)
-      if (!isGable && !isSlanted) {
-        const wireMat = new THREE.LineBasicMaterial({ color: 0x999999, transparent: true, opacity: 0.55 });
-        const hW2 = cpW / 2, hL2 = cpL / 2;
-        [
-          [offsetX - hW2, midZ - hL2],
-          [offsetX + hW2, midZ - hL2],
-          [offsetX - hW2, midZ + hL2],
-          [offsetX + hW2, midZ + hL2],
-        ].forEach(([wx, wz]) => {
-          roomGroup.add(new THREE.LineSegments(
-            new THREE.BufferGeometry().setFromPoints([
-              new THREE.Vector3(wx, cloudY + thickness / 2, wz),
-              new THREE.Vector3(wx, ceilTop, wz),
-            ]),
-            wireMat
-          ));
-        });
-      }
+      // Suspension wires: 4 corner wires, vertical, length driven by ceilingYAt.
+      // Works for flat / slanted / gabled — ceilingYAt returns the correct ceiling Y
+      // at any (x,z), so wires automatically lengthen as ceiling height increases.
+      const wireMat = new THREE.LineBasicMaterial({ color: 0x999999, transparent: true, opacity: 0.55 });
+      const panelTopY = cloudY + thickness / 2;
+      const hW2 = cpW / 2, hL2 = cpL / 2;
+      [
+        [offsetX - hW2, midZ - hL2],
+        [offsetX + hW2, midZ - hL2],
+        [offsetX - hW2, midZ + hL2],
+        [offsetX + hW2, midZ + hL2],
+      ].forEach(([wx, wz]) => {
+        const wireTop = ceilingYAt(wx, wz);
+        if (wireTop <= panelTopY) return;  // defensive: skip if ceiling at/below panel
+        roomGroup.add(new THREE.LineSegments(
+          new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(wx, panelTopY, wz),
+            new THREE.Vector3(wx, wireTop,   wz),
+          ]),
+          wireMat
+        ));
+      });
     }
   }
 
