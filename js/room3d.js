@@ -2085,12 +2085,22 @@ function rebuild() {
 
     } else {
       // ── HANGING (cloud): always a single HORIZONTAL panel ────────────────
-      // A real baffle hangs level regardless of ceiling type.
-      // Use ceilingYAt at the cloud's centre as the drop reference.
-      const ceilRefY = (isGable || isSlanted)
-        ? ceilingYAt(offsetX, midZ)
-        : room.height_m / 2;
-      const cloudY = ceilRefY - dropGap - thickness / 2;
+      // Position is LISTENER-RELATIVE, not ceiling-relative.
+      // ITU-R BS.1116: seated ear height = 1.1m above floor.
+      // Primacoustic / GIK / RPG: cloud bottom 0.6m above ears = 1.7m above floor.
+      // Cloud centre = 1.7m + thickness/2 = 1.75m above floor.
+      //
+      // Ceiling-relative approaches (e.g. ceilTop - 0.4m) put the cloud at
+      // 3.5m in a 4m room — far too high to intercept ceiling reflections.
+      const SEATED_EAR_H = 1.10;   // m above floor (ITU-R BS.1116 standard)
+      const EAR_CLEARANCE = 0.60;  // m above ears to cloud bottom (GIK/RPG/Primacoustic)
+      const floorY  = -room.height_m / 2;
+      const ceilTop =  room.height_m / 2;
+      // Clamp: always keep at least 0.2m of clearance below the ceiling
+      const cloudY  = Math.min(
+        floorY + SEATED_EAR_H + EAR_CLEARANCE + thickness / 2,
+        ceilTop - 0.20 - thickness / 2
+      );
 
       const panel = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, cpL), panelMat);
       panel.rotation.set(0, 0, 0);   // always horizontal
@@ -2099,7 +2109,6 @@ function rebuild() {
 
       // Suspension wires: only on flat ceilings (clean vertical to a constant Y)
       if (!isGable && !isSlanted) {
-        const ceilTop = room.height_m / 2;
         const wireMat = new THREE.LineBasicMaterial({ color: 0x999999, transparent: true, opacity: 0.55 });
         const hW2 = cpW / 2, hL2 = cpL / 2;
         [
