@@ -56,7 +56,7 @@
   }
 
   // Builds a labelled slider field: label + value display + range input
-  function _sliderField({ label, id, min, max, step, value, unit = '', decimals = 1, ariaLabel }) {
+  function _sliderField({ label, id, min, max, step, value, unit = '', decimals = 1, ariaLabel, acoustic }) {
     const wrap  = _el('div', { class: 'demo-field' });
     const hdr   = _el('div', { class: 'demo-field-header' });
     const lbl   = _el('span', { class: 'demo-field-label' }, label);
@@ -68,6 +68,7 @@
       type: 'range', id, min: String(min), max: String(max),
       step: String(step), value: String(value),
       class: 'measurely-slider', 'aria-label': ariaLabel ?? label,
+      ...(acoustic ? { 'data-acoustic': acoustic } : {}),
     });
     _updateSliderFill(slider);
 
@@ -161,9 +162,11 @@
     let active = initial;
     const btns = {};
 
+    const _TOGGLE_IDS = { home: 'select-hifi', studio: 'select-studio' };
     const row = _el('div', { class: 'demo-btn-row' });
     for (const { key, label } of [{ key: 'home', label: 'Hi-Fi' }, { key: 'studio', label: 'Studio' }]) {
       const btn = _el('button', {
+        id: _TOGGLE_IDS[key],
         class: 'sbox-btn' + (key === active ? ' active' : ''),
         type: 'button',
       }, label);
@@ -247,9 +250,9 @@
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
 
     const defs = [
-      { label: 'Room width',  key: 'width_m',  min: 2.0, max: 8.0,  step: 0.1,  unit: 'm', decimals: 1, hl: 'wall_width'  },
-      { label: 'Room length', key: 'length_m', min: 2.5, max: 10.0, step: 0.1,  unit: 'm', decimals: 1, hl: 'wall_length' },
-      { label: 'Room height', key: 'height_m', min: 2.0, max: 4.0,  step: 0.05, unit: 'm', decimals: 1, hl: 'wall_height' },
+      { label: 'Room width',  key: 'width_m',  min: 2.0, max: 8.0,  step: 0.1,  unit: 'm', decimals: 1, hl: 'wall_width',  acoustic: 'sbir' },
+      { label: 'Room length', key: 'length_m', min: 2.5, max: 10.0, step: 0.1,  unit: 'm', decimals: 1, hl: 'wall_length', acoustic: 'sbir' },
+      { label: 'Room height', key: 'height_m', min: 2.0, max: 4.0,  step: 0.05, unit: 'm', decimals: 1, hl: 'wall_height', acoustic: 'sbir' },
     ];
 
     const sliders = {};
@@ -258,6 +261,7 @@
         label: def.label, id: 'scl-' + def.key,
         min: def.min, max: def.max, step: def.step,
         value: cur[def.key], unit: def.unit, decimals: def.decimals,
+        acoustic: def.acoustic,
       });
       _attachHighlight(slider, def.hl);
       slider.addEventListener('input', () => {
@@ -342,6 +346,7 @@
       label: 'Lowest ceiling height', id: 'scl-ceil-secondary',
       min: 1.5, max: 4.0, step: 0.05,
       value: cur.ceiling_height_secondary_m, unit: 'm', decimals: 1,
+      acoustic: 'sbir',
     });
     secWrap.style.display = 'none';
     _attachHighlight(secSlider, 'wall_height');
@@ -399,6 +404,7 @@
       tweeter_height_m:  state.tweeter_height_m  ?? 0.95,
       listener_offset_m: state.listener_offset_m ?? 0,
       subwoofer:         state.subwoofer         ?? false,
+      subwoofer_dual:    state.subwoofer_dual     ?? false,
     };
 
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
@@ -407,15 +413,12 @@
     const speakerHifiBlock   = _el('div', { style: 'display:flex;flex-direction:column;gap:8px;' });
     const speakerStudioBlock = _el('div', { style: 'display:none;flex-direction:column;gap:8px;' });
 
-    const hifiLabel = _el('span', { class: 'demo-sub-label' }, 'Hi-Fi');
-    speakerHifiBlock.appendChild(hifiLabel);
-
     const hifiGroup = _btnGroup(
       [
-        { key: 'standmount',   label: 'Standmount',    title: 'Bookshelf on stand' },
-        { key: 'floorstander', label: 'Floorstander',  title: 'Full-range tower' },
-        { key: 'statement',    label: 'Statement',     title: 'Flagship floor-standing speaker' },
-        { key: 'panel',        label: 'Electrostatic', title: 'Dipole panel / planar speaker' },
+        { key: 'standmount',   label: 'Standmount',   title: 'Bookshelf on stand' },
+        { key: 'floorstander', label: 'Floorstander', title: 'Full-range tower' },
+        { key: 'statement',    label: 'Statement',    title: 'Flagship floor-standing speaker' },
+        { key: 'panel',        label: 'Panel',        title: 'Dipole panel / planar speaker' },
       ],
       cur.speaker_type,
       key => {
@@ -426,9 +429,6 @@
     );
     speakerHifiBlock.appendChild(hifiGroup.row);
     wrap.appendChild(speakerHifiBlock);
-
-    const studioLabel = _el('span', { class: 'demo-sub-label' }, 'Studio');
-    speakerStudioBlock.appendChild(studioLabel);
 
     const studioGroup = _btnGroup(
       [
@@ -475,12 +475,12 @@
 
     // Sliders
     const sliderDefs = [
-      { key: 'spk_spacing_m',     label: 'Speaker spacing',    min: 1.0,  max: 4.0, step: 0.1,  unit: 'm', decimals: 1, hl: 'speakers' },
-      { key: 'tweeter_height_m',  label: 'Tweeter height',     min: 0.5,  max: 2.0, step: 0.05, unit: 'm', decimals: 2, hl: 'speakers' },
-      { key: 'toe_in_deg',        label: 'Toe-in angle',       min: 0,    max: 45,  step: 1,    unit: '°', decimals: 0, hl: 'speakers' },
-      { key: 'listener_front_m',  label: 'Listening position', min: 1.0,  max: 5.0, step: 0.1,  unit: 'm', decimals: 1, hl: 'listener' },
-      { key: 'listener_offset_m', label: 'Listener offset',    min: -2.0, max: 2.0, step: 0.05, unit: 'm', decimals: 2, hl: 'listener' },
-      { key: 'spk_front_m',       label: 'Speakers from wall', min: 0.1,  max: 1.5, step: 0.05, unit: 'm', decimals: 2, hl: 'speakers' },
+      { key: 'spk_spacing_m',     label: 'Speaker spacing',    min: 1.0,  max: 4.0, step: 0.1,  unit: 'm', decimals: 1, hl: 'speakers', acoustic: 'reflection' },
+      { key: 'tweeter_height_m',  label: 'Tweeter height',     min: 0.75, max: 1.15, step: 0.05, unit: 'm', decimals: 2, hl: 'speakers', acoustic: 'reflection' },
+      { key: 'toe_in_deg',        label: 'Toe-in angle',       min: 0,    max: 45,  step: 1,    unit: '°', decimals: 0, hl: 'speakers', acoustic: 'reflection' },
+      { key: 'listener_front_m',  label: 'Listening position', min: 1.0,  max: 5.0, step: 0.1,  unit: 'm', decimals: 1, hl: 'listener', acoustic: 'reflection' },
+      { key: 'listener_offset_m', label: 'Listener offset',    min: -2.0, max: 2.0, step: 0.05, unit: 'm', decimals: 2, hl: 'listener', acoustic: 'reflection' },
+      { key: 'spk_front_m',       label: 'Speakers from wall', min: 0.1,  max: 1.5, step: 0.05, unit: 'm', decimals: 2, hl: 'speakers', acoustic: 'reflection' },
     ];
 
     const sliders = {};
@@ -489,6 +489,7 @@
         label: def.label, id: 'scl-' + def.key,
         min: def.min, max: def.max, step: def.step,
         value: cur[def.key], unit: def.unit, decimals: def.decimals,
+        acoustic: def.acoustic,
       });
       _attachHighlight(slider, def.hl);
       slider.addEventListener('input', () => {
@@ -502,17 +503,23 @@
       wrap.appendChild(fw);
     }
 
-    // Subwoofer toggle
-    const subBtn = _toggleBtn('Subwoofer', cur.subwoofer, 'Bass extension below ~80 Hz from a separate source');
-    if (cur.subwoofer) subBtn.classList.add('active');
-    subBtn.addEventListener('click', () => {
-      cur.subwoofer = !cur.subwoofer;
-      subBtn.classList.toggle('active', cur.subwoofer);
-      onChange?.({ ...cur });
-    });
-    const subRow = _el('div', { class: 'demo-btn-row' });
-    subRow.appendChild(subBtn);
-    wrap.appendChild(subRow);
+    // Subwoofer mode: Off | Sub (single) | Dual subs
+    let _subMode = cur.subwoofer_dual ? 'dual' : (cur.subwoofer ? 'single' : 'none');
+    const subGroup = _btnGroup(
+      [
+        { key: 'none',   label: 'Off',       title: 'No subwoofer' },
+        { key: 'single', label: 'Sub',        title: 'Single subwoofer — right of rack' },
+        { key: 'dual',   label: 'Dual subs',  title: 'Dual subs flanking speakers (Harman placement)' },
+      ],
+      _subMode,
+      key => {
+        _subMode = key;
+        cur.subwoofer      = key !== 'none';
+        cur.subwoofer_dual = key === 'dual';
+        onChange?.({ ...cur });
+      }
+    );
+    wrap.appendChild(subGroup.row);
 
     mount.appendChild(wrap);
 
@@ -530,8 +537,10 @@
           val.textContent = parseFloat(state[k]).toFixed(def.decimals) + (def.unit === '°' ? '°' : ' ' + def.unit);
           _updateSliderFill(slider);
         }
-        cur.subwoofer = state.subwoofer ?? false;
-        subBtn.classList.toggle('active', cur.subwoofer);
+        cur.subwoofer      = state.subwoofer      ?? false;
+        cur.subwoofer_dual = state.subwoofer_dual  ?? false;
+        _subMode = cur.subwoofer_dual ? 'dual' : (cur.subwoofer ? 'single' : 'none');
+        subGroup.setActive(_subMode);
       },
       // Snap speaker type button and slider positions to a new set of values.
       // Called by the room-type toggle when switching Hi-Fi ↔ Studio.
@@ -550,8 +559,10 @@
           }
         }
         if (newState.subwoofer !== undefined) {
-          cur.subwoofer = newState.subwoofer;
-          subBtn.classList.toggle('active', cur.subwoofer);
+          cur.subwoofer      = newState.subwoofer;
+          cur.subwoofer_dual = newState.subwoofer_dual ?? false;
+          _subMode = cur.subwoofer_dual ? 'dual' : (cur.subwoofer ? 'single' : 'none');
+          subGroup.setActive(_subMode);
         }
       },
       setRoomType(rt) { _applySpkRoomType(rt); },
@@ -588,53 +599,51 @@
     // ─── Hi-Fi block ────────────────────────────────────────────────────────────
     const hifiBlock = _el('div', { style: 'display:flex;flex-direction:column;gap:10px;' });
 
-    // Seating type slider: Large Sofa → Compact Sofa → Eames Lounge Chair
-    const seatingHdr = _el('div', { class: 'demo-field-header' });
-    seatingHdr.append(_el('span', { class: 'demo-field-label' }, 'Seating'));
-    const seatingValEl = _el('span', { class: 'demo-field-value' }, 'Large Sofa');
-    seatingHdr.appendChild(seatingValEl);
-    const seatingSlider = _el('input', {
-      type: 'range', id: 'scl-seating', min: '0', max: '100', step: '1', value: '0',
-      class: 'measurely-slider', 'aria-label': 'Seating style',
-    });
-    _updateSliderFill(seatingSlider);
-    const ticks = _el('div', { class: 'demo-slider-ticks' });
-    ['Large Sofa', 'Compact', 'Eames Lounge'].forEach(t => ticks.appendChild(_el('span', {}, t)));
-    const seatingField = _el('div', { class: 'demo-field' });
-    seatingField.append(seatingHdr, seatingSlider, ticks);
-    hifiBlock.appendChild(seatingField);
+    // Hi-Fi seating: 3-button group  [Sofa] [Compact] [Lounge]
+    // sofa → sofa_width_m=2.8, compact → 1.4, lounge → null (Eames)
+    const _SEATING_MAP = {
+      sofa:    { seating_type: 'sofa',   opt_sofa: true,  sofa_width_m: 2.8  },
+      compact: { seating_type: 'sofa',   opt_sofa: true,  sofa_width_m: 1.4  },
+      lounge:  { seating_type: 'lounge', opt_sofa: true,  sofa_width_m: null },
+    };
+    let _curSeatingKey = (() => {
+      if (cur.seating_type === 'lounge') return 'lounge';
+      return (cur.sofa_width_m ?? 2.8) <= 1.4 ? 'compact' : 'sofa';
+    })();
 
-    // Hi-Fi toggle row: Rug | Coffee table | Footstool
-    const hifiToggleRow = _el('div', { class: 'demo-btn-row' });
+    const seatingGroup = _btnGroup(
+      [
+        { key: 'sofa',    label: 'Sofa'    },
+        { key: 'compact', label: 'Compact' },
+        { key: 'lounge',  label: 'Lounge'  },
+      ],
+      _curSeatingKey,
+      key => {
+        _curSeatingKey = key;
+        const vals = _SEATING_MAP[key];
+        Object.assign(cur, vals);
+        // Mirror ottoman visibility: lounge has built-in ottoman, hide button
+        footBtn.style.display   = key === 'lounge' ? 'none' : '';
+        coffeeBtn.style.display = key === 'lounge' ? 'none' : '';
+        if (key === 'lounge') {
+          cur.opt_coffee_table = false;
+          coffeeBtn.classList.remove('active');
+        }
+        onChange?.({ ...cur });
+      }
+    );
+    hifiBlock.appendChild(seatingGroup.row);
+
+
     const rugBtn    = _toggleBtn('Rug',          cur.opt_area_rug);
     const coffeeBtn = _toggleBtn('Coffee table', cur.opt_coffee_table);
     const footBtn   = _toggleBtn('Footstool',    cur.opt_ottoman);
 
-    function _applySeating(val) {
-      _updateSliderFill(seatingSlider);
-      const isLounge = val > 66;
-      if (!isLounge) {
-        const t = val / 66;
-        cur.seating_type = 'sofa';
-        cur.opt_sofa     = true;                          // slider = seating visible
-        cur.sofa_width_m = parseFloat((2.8 - t * 1.4).toFixed(2));
-        seatingValEl.textContent = val <= 22 ? 'Large Sofa' : val <= 44 ? 'Standard Sofa' : 'Compact Sofa';
-        footBtn.style.display   = '';
-        coffeeBtn.style.display = '';
-      } else {
-        cur.seating_type     = 'lounge';
-        cur.opt_sofa         = true;                      // Eames is also seating
-        cur.sofa_width_m     = null;
-        cur.opt_coffee_table = false;
-        coffeeBtn.classList.remove('active');
-        seatingValEl.textContent = 'Eames Lounge';
-        footBtn.style.display    = 'none';                // ottoman is built-in on Eames
-        coffeeBtn.style.display  = 'none';
-      }
+    // Apply initial lounge state if applicable
+    if (_curSeatingKey === 'lounge') {
+      footBtn.style.display   = 'none';
+      coffeeBtn.style.display = 'none';
     }
-    // Apply once on render so initial state matches slider position
-    _applySeating(parseInt(seatingSlider.value));
-    seatingSlider.addEventListener('input', () => { _applySeating(parseInt(seatingSlider.value)); onChange?.({ ...cur }); });
 
     rugBtn.addEventListener('click', () => { cur.opt_area_rug = !cur.opt_area_rug; rugBtn.classList.toggle('active', cur.opt_area_rug); onChange?.({ ...cur }); });
     coffeeBtn.addEventListener('click', () => { cur.opt_coffee_table = !cur.opt_coffee_table; coffeeBtn.classList.toggle('active', cur.opt_coffee_table); onChange?.({ ...cur }); });
@@ -642,13 +651,13 @@
     if (cur.opt_area_rug)     rugBtn.classList.add('active');
     if (cur.opt_coffee_table) coffeeBtn.classList.add('active');
     if (cur.opt_ottoman)      footBtn.classList.add('active');
+    const hifiToggleRow = _el('div', { class: 'demo-btn-row' });
     hifiToggleRow.append(rugBtn, coffeeBtn, footBtn);
     hifiBlock.appendChild(hifiToggleRow);
     wrap.appendChild(hifiBlock);
 
     // ─── Studio block ───────────────────────────────────────────────────────────
     const studioBlock = _el('div', { style: 'display:none;flex-direction:column;gap:10px;' });
-    studioBlock.appendChild(_el('span', { class: 'demo-sub-label' }, 'Desk setup'));
 
     // Desk width slider
     const deskHdr = _el('div', { class: 'demo-field-header' });
@@ -657,7 +666,7 @@
     deskHdr.appendChild(deskValEl);
     const deskSlider = _el('input', {
       type: 'range', id: 'scl-desk-width', min: '1.0', max: '2.2', step: '0.1',
-      value: String(cur.desk_width_m), class: 'measurely-slider', 'aria-label': 'Desk width',
+      value: String(cur.desk_width_m), class: 'measurely-slider', 'aria-label': 'Desk width', 'data-acoustic': 'bass',
     });
     _updateSliderFill(deskSlider);
     const deskTicks = _el('div', { class: 'demo-slider-ticks' });
@@ -736,8 +745,11 @@
     return {
       setRoomType(rt) { _applyRoomType(rt); },
       reset() {
-        seatingSlider.value  = '0';
-        _applySeating(0);
+        _curSeatingKey = 'sofa';
+        seatingGroup.setActive('sofa');
+        Object.assign(cur, _SEATING_MAP['sofa']);
+        footBtn.style.display   = '';
+        coffeeBtn.style.display = '';
         cur.opt_area_rug        = state.opt_area_rug        ?? true;
         cur.opt_coffee_table    = state.opt_coffee_table    ?? true;
         cur.opt_ottoman         = state.opt_ottoman          ?? false;
@@ -776,10 +788,7 @@
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:6px;' });
 
     const lbl = _el('span', { class: 'demo-field-label' }, 'Floor type');
-    const sub = _el('p', {
-      style: 'margin:0;font-size:0.68rem;color:var(--mly-text-tertiary,#888);font-family:var(--mly-font-family);line-height:1.3;'
-    }, 'Carpet softens reflections; hard floors brighten the room.');
-    wrap.append(lbl, sub);
+    wrap.append(lbl);
 
     const floorGroup = _btnGroup(
       [
