@@ -30,13 +30,13 @@
     -webkit-appearance: none;
     height: 6px;
     border-radius: var(--mly-radius-pill);
-    /* Prevent iOS/iPadOS from hijacking horizontal drag as vertical scroll */
     touch-action: none;
 
+    /* Monochrome default — teal reserved for [data-acoustic] semantic variants */
     background: linear-gradient(
         90deg,
-        var(--mly-neon-teal, #00B8A9) var(--fill, 50%),
-        rgba(26, 23, 20, 0.14) var(--fill, 50%)
+        var(--mly-text-primary, #1A1A1A) var(--fill, 50%),
+        rgba(26, 23, 20, 0.14)          var(--fill, 50%)
     );
 
     outline: none;
@@ -49,12 +49,12 @@
     -webkit-appearance: none;
     width:  16px;
     height: 16px;
-    border-radius: 50%;                         /* Circular Machined Knob */
+    border-radius: 50%;
 
-    background:  var(--mly-neon-teal, #00B8A9); /* Active teal fill */
-    border:      2px solid #ffffff;             /* 2px white inset border */
-    box-shadow:  0 2px 4px rgba(0, 0, 0, 0.30), /* 4px soft shadow */
-                 inset 0 1px 0 rgba(255, 255, 255, 0.30); /* subtle specular */
+    background:  var(--mly-text-primary, #1A1A1A); /* Monochrome default */
+    border:      2px solid #ffffff;
+    box-shadow:  0 2px 4px rgba(0, 0, 0, 0.30),
+                 inset 0 1px 0 rgba(255, 255, 255, 0.30);
 
     cursor: grab;
     transition: transform 0.1s ease, box-shadow 0.1s ease;
@@ -64,7 +64,7 @@
     cursor: grabbing;
     transform: scale(1.25);
     box-shadow:
-        0 0 0 3px rgba(0, 184, 169, 0.28),
+        0 0 0 3px rgba(26, 23, 20, 0.18),
         0 4px 8px rgba(0, 0, 0, 0.30);
 }
 
@@ -73,7 +73,7 @@
     width:  16px;
     height: 16px;
     border-radius: 50%;
-    background:  var(--mly-neon-teal, #00B8A9);
+    background:  var(--mly-text-primary, #1A1A1A); /* Monochrome default */
     border:      2px solid #ffffff;
     box-shadow:  0 2px 4px rgba(0, 0, 0, 0.30),
                  inset 0 1px 0 rgba(255, 255, 255, 0.30);
@@ -85,7 +85,7 @@
     cursor: grabbing;
     transform: scale(1.25);
     box-shadow:
-        0 0 0 3px rgba(0, 184, 169, 0.28),
+        0 0 0 3px rgba(26, 23, 20, 0.18),
         0 4px 8px rgba(0, 0, 0, 0.30);
 }
 
@@ -224,11 +224,11 @@ select.measurely-select:focus {
 }
 
 .measurely-switch input:checked + .slider {
-    background: rgba(0, 184, 169, 0.25);
-    border-color: var(--mly-neon-teal);
+    background: rgba(26, 23, 20, 0.15);
+    border-color: var(--mly-text-primary, #1A1A1A);
 }
 
 .measurely-switch input:checked + .slider::before {
     transform: translateX(20px);
-    background: var(--mly-neon-teal);
+    background: var(--mly-text-primary, #1A1A1A);
 }
