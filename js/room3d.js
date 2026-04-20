@@ -2028,114 +2028,114 @@ function rebuild() {
     const spkZ = -room.length_m / 2 + (room.spk_front_m ?? 0.45);
     const midZ = (spkZ + listenerZ) / 2;
 
+    // Hanging vs flush — hoisted above all three ceiling-type branches
+    const isFlush = room.ceiling_panel_mode === 'flush';
+    const dropGap = isFlush ? 0 : 0.25;  // metres below ceiling surface
+
+    // Re-usable wire material (only instantiated when hanging)
+    const _wireMat = isFlush ? null : new THREE.LineBasicMaterial({
+      color: 0x999999, transparent: true, opacity: 0.55
+    });
+
+    // Helper: add 4 vertical corner wires from panelTopY up to ceilingFn(x,z)
+    const addWires = (panelTopY, hW2, hL2, ceilingFn) => {
+      if (isFlush) return;
+      [
+        [offsetX - hW2, midZ - hL2],
+        [offsetX + hW2, midZ - hL2],
+        [offsetX - hW2, midZ + hL2],
+        [offsetX + hW2, midZ + hL2],
+      ].forEach(([wx, wz]) => {
+        roomGroup.add(new THREE.LineSegments(
+          new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(wx, panelTopY, wz),
+            new THREE.Vector3(wx, ceilingFn(wx, wz), wz),
+          ]),
+          _wireMat
+        ));
+      });
+    };
+
     if (isGable) {
-      // Gabled roof: Two panels, one on each pitched side
+      // Gabled roof: two panels on each pitched face, dropped by dropGap
       const panelGroup = new THREE.Group();
-      
+
       if (gableAxis === "depth") {
-        // Ridge runs front-to-back, slope is Left/Right (X axis)
         const slopeAngle = Math.atan2(room.height_m - lowH, room.width_m / 2);
-        const halfWidth = cpW / 2;
-        
-        // Left panel
+        const halfWidth  = cpW / 2;
+
+        const leftX    = offsetX - halfWidth / 2;
+        const leftCeilY = ceilingYAt(leftX, midZ);
         const leftPanel = new THREE.Mesh(new THREE.BoxGeometry(halfWidth - 0.05, thickness, cpL), panelMat);
-        const leftX = offsetX - halfWidth / 2;
-        leftPanel.position.set(leftX, ceilingYAt(leftX, midZ) - thickness / 2, midZ);
+        leftPanel.position.set(leftX, leftCeilY - thickness / 2 - dropGap, midZ);
         leftPanel.rotation.z = slopeAngle;
         panelGroup.add(leftPanel);
 
-        // Right panel
+        const rightX    = offsetX + halfWidth / 2;
+        const rightCeilY = ceilingYAt(rightX, midZ);
         const rightPanel = new THREE.Mesh(new THREE.BoxGeometry(halfWidth - 0.05, thickness, cpL), panelMat);
-        const rightX = offsetX + halfWidth / 2;
-        rightPanel.position.set(rightX, ceilingYAt(rightX, midZ) - thickness / 2, midZ);
+        rightPanel.position.set(rightX, rightCeilY - thickness / 2 - dropGap, midZ);
         rightPanel.rotation.z = -slopeAngle;
         panelGroup.add(rightPanel);
 
       } else {
-        // Ridge runs left-to-right, slope is Front/Back (Z axis)
         const slopeAngle = Math.atan2(room.height_m - lowH, room.length_m / 2);
         const halfLength = cpL / 2;
 
-        // Front panel (towards speakers, -z)
+        const frontZ    = midZ - halfLength / 2;
+        const frontCeilY = ceilingYAt(offsetX, frontZ);
         const frontPanel = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, halfLength - 0.05), panelMat);
-        const frontZ = midZ - halfLength / 2;
-        frontPanel.position.set(offsetX, ceilingYAt(offsetX, frontZ) - thickness / 2, frontZ);
+        frontPanel.position.set(offsetX, frontCeilY - thickness / 2 - dropGap, frontZ);
         frontPanel.rotation.x = -slopeAngle;
         panelGroup.add(frontPanel);
 
-        // Back panel (towards listener, +z)
-        const backPanel = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, halfLength - 0.05), panelMat);
-        const backZ = midZ + halfLength / 2;
-        backPanel.position.set(offsetX, ceilingYAt(offsetX, backZ) - thickness / 2, backZ);
+        const backZ     = midZ + halfLength / 2;
+        const backCeilY  = ceilingYAt(offsetX, backZ);
+        const backPanel  = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, halfLength - 0.05), panelMat);
+        backPanel.position.set(offsetX, backCeilY - thickness / 2 - dropGap, backZ);
         backPanel.rotation.x = slopeAngle;
         panelGroup.add(backPanel);
       }
-      
+
       roomGroup.add(panelGroup);
 
     } else {
-      const ceilTop = room.height_m / 2;
-      const isFlush = room.ceiling_panel_mode === 'flush';
-
-      // Hanging: drop 0.25m below ceiling so the corner wires are visible.
-      // Flush: sit right against the ceiling — no wires.
-      const dropGap = isFlush ? 0 : 0.25;
-      const cloudY  = ceilTop - dropGap - thickness / 2;
-
       const ceilPanel = new THREE.Mesh(
         new THREE.BoxGeometry(cpW, thickness, cpL),
         panelMat
       );
 
       if (isSlanted) {
-        // Slanted ceiling: tilt panel to follow the roof slope
+        // Slanted ceiling: tilt panel to follow slope, drop by dropGap,
+        // then add vertical corner wires to the actual ceiling surface above.
         const panelCeilY = ceilingYAt(offsetX, midZ);
-        ceilPanel.position.set(offsetX, panelCeilY - thickness / 2, midZ);
+        const panelTopY  = panelCeilY - dropGap;
+        ceilPanel.position.set(offsetX, panelTopY - thickness / 2, midZ);
 
-        const isZSlant = slantDir === "front_to_back" || slantDir === "back_to_front";
-        const span = isZSlant ? room.length_m : room.width_m;
+        const isZSlant   = slantDir === "front_to_back" || slantDir === "back_to_front";
+        const span       = isZSlant ? room.length_m : room.width_m;
         const slopeAngle = Math.atan2(room.height_m - lowH, span);
 
         if (isZSlant) {
-          const sign = (slantDir === "back_to_front") ? -1 : 1;
-          ceilPanel.rotation.x = sign * slopeAngle;
+          ceilPanel.rotation.x = (slantDir === "back_to_front" ? -1 : 1) * slopeAngle;
         } else {
-          const sign = (slantDir === "left_to_right") ? 1 : -1;
-          ceilPanel.rotation.z = sign * slopeAngle;
+          ceilPanel.rotation.z = (slantDir === "left_to_right" ? 1 : -1) * slopeAngle;
         }
         roomGroup.add(ceilPanel);
 
+        // Vertical wires: real cables are always plumb even on angled ceilings
+        addWires(panelTopY, cpW / 2, cpL / 2, ceilingYAt);
+
       } else {
-        // Flat ceiling: position the cloud panel
+        // Flat ceiling: drop panel, add 4 corner wires to flat ceiling
+        const ceilTop = room.height_m / 2;
+        const cloudY  = ceilTop - dropGap - thickness / 2;
+
         ceilPanel.rotation.x = 0;
         ceilPanel.position.set(offsetX, cloudY, midZ);
         roomGroup.add(ceilPanel);
 
-        // Hanging mode only: 4 corner suspension wires to ceiling
-        if (!isFlush) {
-          const _wireMat = new THREE.LineBasicMaterial({
-            color: 0x999999,
-            transparent: true,
-            opacity: 0.55
-          });
-          const hW2 = cpW / 2;
-          const hL2 = cpL / 2;
-          [
-            [offsetX - hW2, midZ - hL2],
-            [offsetX + hW2, midZ - hL2],
-            [offsetX - hW2, midZ + hL2],
-            [offsetX + hW2, midZ + hL2],
-          ].forEach(([wx, wz]) => {
-            const wirePts = [
-              new THREE.Vector3(wx, cloudY + thickness / 2, wz),
-              new THREE.Vector3(wx, ceilTop, wz)
-            ];
-            roomGroup.add(new THREE.LineSegments(
-              new THREE.BufferGeometry().setFromPoints(wirePts),
-              _wireMat
-            ));
-          });
-        }
+        addWires(cloudY + thickness / 2, cpW / 2, cpL / 2, () => ceilTop);
       }
     }
   }
