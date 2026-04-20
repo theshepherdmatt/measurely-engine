@@ -42,6 +42,19 @@
     slider.style.setProperty('--fill', pct + '%');
   }
 
+  // Wires a teal glow on the related 3D object while a slider is being moved.
+  // Uses window.room3D lazily so init order doesn't matter.
+  let _hlTimer;
+  function _attachHighlight(slider, hlTarget) {
+    if (!hlTarget) return;
+    const on  = () => { clearTimeout(_hlTimer); window.room3D?.highlight?.(hlTarget); };
+    const off = () => { clearTimeout(_hlTimer); _hlTimer = setTimeout(() => window.room3D?.highlight?.(null), 80); };
+    slider.addEventListener('focus',     on);
+    slider.addEventListener('input',     on);
+    slider.addEventListener('blur',      off);
+    slider.addEventListener('pointerup', off);
+  }
+
   // Builds a labelled slider field: label + value display + range input
   function _sliderField({ label, id, min, max, step, value, unit = '', decimals = 1, ariaLabel }) {
     const wrap  = _el('div', { class: 'demo-field' });
@@ -234,9 +247,9 @@
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
 
     const defs = [
-      { label: 'Room width',  key: 'width_m',  min: 2.0, max: 8.0,  step: 0.1,  unit: 'm', decimals: 1 },
-      { label: 'Room length', key: 'length_m', min: 2.5, max: 10.0, step: 0.1,  unit: 'm', decimals: 1 },
-      { label: 'Room height', key: 'height_m', min: 2.0, max: 4.0,  step: 0.05, unit: 'm', decimals: 1 },
+      { label: 'Room width',  key: 'width_m',  min: 2.0, max: 8.0,  step: 0.1,  unit: 'm', decimals: 1, hl: 'wall_width'  },
+      { label: 'Room length', key: 'length_m', min: 2.5, max: 10.0, step: 0.1,  unit: 'm', decimals: 1, hl: 'wall_length' },
+      { label: 'Room height', key: 'height_m', min: 2.0, max: 4.0,  step: 0.05, unit: 'm', decimals: 1, hl: 'wall_height' },
     ];
 
     const sliders = {};
@@ -246,6 +259,7 @@
         min: def.min, max: def.max, step: def.step,
         value: cur[def.key], unit: def.unit, decimals: def.decimals,
       });
+      _attachHighlight(slider, def.hl);
       slider.addEventListener('input', () => {
         const v = parseFloat(slider.value);
         cur[def.key] = v;
@@ -330,6 +344,7 @@
       value: cur.ceiling_height_secondary_m, unit: 'm', decimals: 1,
     });
     secWrap.style.display = 'none';
+    _attachHighlight(secSlider, 'wall_height');
     secSlider.addEventListener('input', () => {
       const v = parseFloat(secSlider.value);
       cur.ceiling_height_secondary_m = v;
@@ -457,10 +472,10 @@
 
     // Sliders
     const sliderDefs = [
-      { key: 'spk_spacing_m',    label: 'Speaker spacing',      min: 1.0, max: 4.0, step: 0.1,  unit: 'm', decimals: 1 },
-      { key: 'toe_in_deg',       label: 'Toe-in angle',         min: 0,   max: 45,  step: 1,    unit: '°', decimals: 0 },
-      { key: 'listener_front_m', label: 'Listening position',   min: 1.0, max: 5.0, step: 0.1,  unit: 'm', decimals: 1 },
-      { key: 'spk_front_m',      label: 'Speakers from wall',   min: 0.1, max: 1.5, step: 0.05, unit: 'm', decimals: 2 },
+      { key: 'spk_spacing_m',    label: 'Speaker spacing',      min: 1.0, max: 4.0, step: 0.1,  unit: 'm', decimals: 1, hl: 'speakers' },
+      { key: 'toe_in_deg',       label: 'Toe-in angle',         min: 0,   max: 45,  step: 1,    unit: '°', decimals: 0, hl: 'speakers' },
+      { key: 'listener_front_m', label: 'Listening position',   min: 1.0, max: 5.0, step: 0.1,  unit: 'm', decimals: 1, hl: 'listener' },
+      { key: 'spk_front_m',      label: 'Speakers from wall',   min: 0.1, max: 1.5, step: 0.05, unit: 'm', decimals: 2, hl: 'speakers' },
     ];
 
     const sliders = {};
@@ -470,6 +485,7 @@
         min: def.min, max: def.max, step: def.step,
         value: cur[def.key], unit: def.unit, decimals: def.decimals,
       });
+      _attachHighlight(slider, def.hl);
       slider.addEventListener('input', () => {
         const v = parseFloat(slider.value);
         cur[def.key] = v;
