@@ -2029,8 +2029,10 @@ function rebuild() {
     const midZ = (spkZ + listenerZ) / 2;
 
     // Hanging vs flush — hoisted above all three ceiling-type branches
+    // Industry standard (GIK/RPG/Primacoustic/AES): 300–460mm air gap.
+    // 0.40m (400mm / 16") sits at the midpoint of that range.
     const isFlush = room.ceiling_panel_mode === 'flush';
-    const dropGap = isFlush ? 0 : 0.25;  // metres below ceiling surface
+    const dropGap = isFlush ? 0 : 0.40;  // metres below ceiling surface
 
     // Re-usable wire material (only instantiated when hanging)
     const _wireMat = isFlush ? null : new THREE.LineBasicMaterial({
