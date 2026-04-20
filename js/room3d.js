@@ -2023,7 +2023,7 @@ function rebuild() {
 
     const cpW       = Math.min(room.spk_spacing_m * 1.6, room.width_m * 0.8);
     const cpL       = room.length_m * 0.28;
-    const thickness = 0.06;
+    const thickness = 0.10;  // 100mm (4") — industry standard for listening room clouds (GIK 244, Primacoustic London 16)
 
     const spkZ = -room.length_m / 2 + (room.spk_front_m ?? 0.45);
     const midZ = (spkZ + listenerZ) / 2;
