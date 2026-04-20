@@ -676,6 +676,25 @@
 }
 .treat-swatch-row { margin-top: 16px; }
 
+/* Slider tick labels — spaced evenly below the track */
+.demo-slider-ticks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  padding: 0 1px;
+  font-family: var(--mly-font-family);
+  font-size: 0.60rem;
+  color: var(--mly-text-tertiary, #888);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Give the slider track vertical room so the 16px thumb doesn't clip */
+.demo-field .measurely-slider {
+  margin-top: 4px;
+  margin-bottom: 2px;
+}
+
 /* Demo CTA bar (compat alias) */
 .demo-cta-bar  { margin: 0; padding: 12px 24px max(16px, env(safe-area-inset-bottom, 16px)); background: var(--mly-bg-primary, #FFFFFF); border-top: 1px solid var(--mly-text-primary, #1A1A1A); display: flex; flex-direction: row; align-items: center; gap: 10px; flex-shrink: 0; }
 .demo-cta-text { font-family: var(--mly-font-family); font-size: 0.65rem; color: var(--mly-text-secondary, #666); margin: 0; line-height: 1.3; flex: 1; }
