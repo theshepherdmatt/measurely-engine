@@ -763,7 +763,48 @@
     };
   }
 
-  // ── Section 6 — Treatment ─────────────────────────────────────────────────
+  // ── Section 6 — Floor ─────────────────────────────────────────────────────
+
+  function renderFloorSection(mountId, { state = {}, onChange } = {}) {
+    const mount = _mount(mountId);
+    if (!mount) return null;
+
+    const cur = {
+      floor_material: state.floor_material ?? 'hard',
+    };
+
+    const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:8px;' });
+
+    const header = _el('div', { class: 'demo-field-header' });
+    const lbl    = _el('span', { class: 'demo-field-label' }, 'Floor type');
+    const sub    = _el('span', { class: 'demo-field-sub' }, 'Major effect on brightness and reflections');
+    header.append(lbl, sub);
+    wrap.appendChild(header);
+
+    const floorGroup = _btnGroup(
+      [
+        { key: 'hard',   label: 'Hard floor' },
+        { key: 'carpet', label: 'Carpet' },
+      ],
+      cur.floor_material,
+      key => {
+        cur.floor_material = key;
+        onChange?.({ ...cur });
+      }
+    );
+    wrap.appendChild(floorGroup.row);
+    mount.appendChild(wrap);
+
+    return {
+      setRoomType(rt) {}, // no-op for floor
+      reset() {
+        cur.floor_material = state.floor_material ?? 'hard';
+        floorGroup.setActive(cur.floor_material);
+      },
+    };
+  }
+
+  // ── Section 7 — Treatment ─────────────────────────────────────────────────
   // Delegates to treatment-registry.js; wraps its API for consistency.
 
   function renderTreatmentSection(mountId, { types, state, defaultColour, onTreatmentChange, onColourChange } = {}) {
@@ -780,7 +821,7 @@
     return api;
   }
 
-  // ── Section 7 — Wave Toggle ───────────────────────────────────────────────
+  // ── Section 8 — Wave Toggle ───────────────────────────────────────────────
 
   function renderWaveToggle(mountId, { checked = true, label = 'Sound waves', onChange } = {}) {
     const mount = _mount(mountId);
@@ -820,6 +861,7 @@
     renderCeilingSection,
     renderSpeakersSection,
     renderFurnitureSection,
+    renderFloorSection,
     renderTreatmentSection,
     renderWaveToggle,
   };
