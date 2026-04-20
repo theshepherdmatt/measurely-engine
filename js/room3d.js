@@ -1671,8 +1671,12 @@ function rebuild() {
         seatingGroup.add(eamesOttoman);
       }
 
-      // Both sit +0.35 m behind listener (toward back wall)
-      seatingGroup.position.set(0, 0, 0.35);
+      // Both sit behind the listener — clamp so the sofa back never breaches the back wall.
+      // Sofa's furthest geometry point is 0.80m behind the seating group origin.
+      // Cap: group Z ≤ (back_wall_world - listenerZ - 0.80m - 0.05m clearance)
+      const _sofaBackExtent = 0.80;  // base back face + back panel back face
+      const _sofaMaxLocalZ  = (room.length_m / 2) - listenerZ - _sofaBackExtent - 0.05;
+      seatingGroup.position.set(0, 0, Math.min(0.35, Math.max(0, _sofaMaxLocalZ)));
       station.add(seatingGroup);
     }
 
