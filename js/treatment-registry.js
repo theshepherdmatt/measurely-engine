@@ -92,9 +92,11 @@
       id:          'ceiling_panel',
       stateKey:    'ceiling_panel_mode',
       label:       'Ceiling cloud',
-      description: 'Overhead absorber — wire-suspended on flat, slope-mounted on angled ceilings',
-      modes:       ['none', 'cloud'],
+      description: 'Overhead absorber — hanging (wire-suspended) or flush (ceiling-mounted)',
+      modes:       ['none', 'cloud', 'flush'],
       defaultMode: 'cloud',
+      // Display aliases: raw mode key → human label shown in button
+      modeLabels:  { cloud: 'hanging', flush: 'flush' },
       geometry:    GEOMETRY.ceiling_panel,
     },
   };
@@ -177,7 +179,8 @@
         const cur = treatState[def.stateKey];
         const isOn = cur !== 'none';
         btn.classList.toggle('active', isOn);
-        btn.textContent = isOn ? `${def.label} \u00b7 ${cur}` : def.label;
+        const displayMode = (def.modeLabels?.[cur]) ?? cur;
+        btn.textContent = isOn ? `${def.label} \u00b7 ${displayMode}` : def.label;
       };
 
       btn.addEventListener('click', () => {

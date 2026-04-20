@@ -2019,7 +2019,7 @@ function rebuild() {
   }
 
   // --- CEILING PANELS ---
-  if (room.ceiling_panel_mode === "cloud") {
+  if (room.ceiling_panel_mode === "cloud" || room.ceiling_panel_mode === "flush") {
 
     const cpW       = Math.min(room.spk_spacing_m * 1.6, room.width_m * 0.8);
     const cpL       = room.length_m * 0.28;
@@ -2074,9 +2074,13 @@ function rebuild() {
       roomGroup.add(panelGroup);
 
     } else {
-      // Flat ceiling: horizontal cloud + 4 corner suspension wires
-      const cloudY = room.height_m / 2 - thickness / 2;
       const ceilTop = room.height_m / 2;
+      const isFlush = room.ceiling_panel_mode === 'flush';
+
+      // Hanging: drop 0.25m below ceiling so the corner wires are visible.
+      // Flush: sit right against the ceiling — no wires.
+      const dropGap = isFlush ? 0 : 0.25;
+      const cloudY  = ceilTop - dropGap - thickness / 2;
 
       const ceilPanel = new THREE.Mesh(
         new THREE.BoxGeometry(cpW, thickness, cpL),
@@ -2102,33 +2106,36 @@ function rebuild() {
         roomGroup.add(ceilPanel);
 
       } else {
-        // Flat ceiling: horizontal lock + 4 corner suspension wires
-        ceilPanel.rotation.x = 0; // explicitly horizontal — parallel to ceiling
+        // Flat ceiling: position the cloud panel
+        ceilPanel.rotation.x = 0;
         ceilPanel.position.set(offsetX, cloudY, midZ);
         roomGroup.add(ceilPanel);
 
-        const _wireMat = new THREE.LineBasicMaterial({
-          color: 0x999999,
-          transparent: true,
-          opacity: 0.50
-        });
-        const hW2 = cpW / 2;
-        const hL2 = cpL / 2;
-        [
-          [offsetX - hW2, midZ - hL2],
-          [offsetX + hW2, midZ - hL2],
-          [offsetX - hW2, midZ + hL2],
-          [offsetX + hW2, midZ + hL2],
-        ].forEach(([wx, wz]) => {
-          const wirePts = [
-            new THREE.Vector3(wx, cloudY + thickness / 2, wz),
-            new THREE.Vector3(wx, ceilTop, wz)
-          ];
-          roomGroup.add(new THREE.LineSegments(
-            new THREE.BufferGeometry().setFromPoints(wirePts),
-            _wireMat
-          ));
-        });
+        // Hanging mode only: 4 corner suspension wires to ceiling
+        if (!isFlush) {
+          const _wireMat = new THREE.LineBasicMaterial({
+            color: 0x999999,
+            transparent: true,
+            opacity: 0.55
+          });
+          const hW2 = cpW / 2;
+          const hL2 = cpL / 2;
+          [
+            [offsetX - hW2, midZ - hL2],
+            [offsetX + hW2, midZ - hL2],
+            [offsetX - hW2, midZ + hL2],
+            [offsetX + hW2, midZ + hL2],
+          ].forEach(([wx, wz]) => {
+            const wirePts = [
+              new THREE.Vector3(wx, cloudY + thickness / 2, wz),
+              new THREE.Vector3(wx, ceilTop, wz)
+            ];
+            roomGroup.add(new THREE.LineSegments(
+              new THREE.BufferGeometry().setFromPoints(wirePts),
+              _wireMat
+            ));
+          });
+        }
       }
     }
   }
