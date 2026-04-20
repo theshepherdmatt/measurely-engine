@@ -2093,7 +2093,7 @@ function rebuild() {
       // Ceiling-relative approaches (e.g. ceilTop - 0.4m) put the cloud at
       // 3.5m in a 4m room — far too high to intercept ceiling reflections.
       const SEATED_EAR_H = 1.10;   // m above floor (ITU-R BS.1116 standard)
-      const EAR_CLEARANCE = 0.60;  // m above ears to cloud bottom (GIK/RPG/Primacoustic)
+      const EAR_CLEARANCE = 0.90;  // m above ears to cloud bottom — upper end of GIK/RPG range (2.0m above floor)
       const floorY  = -room.height_m / 2;
       const ceilTop =  room.height_m / 2;
       // Clamp: always keep at least 0.2m of clearance below the ceiling
