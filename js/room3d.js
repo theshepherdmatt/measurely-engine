@@ -457,6 +457,9 @@ function rebuild() {
       bass_trap_mode:     treat.bass_trap_mode     ?? env.bass_trap_mode     ?? "none",
       ceiling_panel_mode: treat.ceiling_panel_mode ?? env.ceiling_panel_mode ?? "none",
       panel_color:        data.panel_color ?? null,  // optional hex string e.g. '#c8a882'
+
+      // FLOOR: read from env (data.environment.floor_material) with hard fallback
+      floor_material: env.floor_material ?? data.floor_material ?? 'hard',
     };
 
     // 2. DEFINE MISSING VARIABLES (Prevents the ReferenceError crash)
@@ -646,12 +649,16 @@ function rebuild() {
 
     // Unit plane: scale.x = width, scale.y = length (plane local-Y maps to world-Z
     // after the -90° X rotation). Stored for live resize.
+    // floor_material drives the visual — hard floor = cool off-white reflective surface,
+    // carpet = dark charcoal grey, fully matte. Neutral grey avoids colour casts under
+    // the scene's high ambient+point lighting and reads immediately as carpet.
+    const isCarpet = room.floor_material === 'carpet';
     const floorMat = new THREE.MeshStandardMaterial({
-      color: 0xf0ede8,
-      roughness: 0.2,
-      metalness: 0.4,
+      color:     isCarpet ? 0x3a3a3a : 0xe8e3da,   // dark charcoal grey vs. cool off-white
+      roughness: isCarpet ? 0.97     : 0.18,        // fully matte vs. slightly reflective
+      metalness: isCarpet ? 0.00     : 0.30,        // no sheen vs. polished tile
       transparent: true,
-      opacity: 0.6,
+      opacity:   isCarpet ? 0.85     : 0.72,        // carpet reads solid, hard floor subtle
       depthWrite: false
     });
     const floor = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1), floorMat);

@@ -674,6 +674,7 @@
   outline: 2px solid rgba(0,0,0,.15);
   outline-offset: 2px;
 }
+.treat-swatch-row { margin-top: 16px; }
 
 /* Demo CTA bar (compat alias) */
 .demo-cta-bar  { margin: 0; padding: 12px 24px max(16px, env(safe-area-inset-bottom, 16px)); background: var(--mly-bg-primary, #FFFFFF); border-top: 1px solid var(--mly-text-primary, #1A1A1A); display: flex; flex-direction: row; align-items: center; gap: 10px; flex-shrink: 0; }
