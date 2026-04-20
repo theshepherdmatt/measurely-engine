@@ -390,12 +390,15 @@
     if (!mount) return null;
 
     const cur = {
-      speaker_type:     state.speaker_type     ?? 'floorstander',
-      spk_placement:    state.spk_placement    ?? null,
-      spk_spacing_m:    state.spk_spacing_m    ?? 2.0,
-      spk_front_m:      state.spk_front_m      ?? 0.45,
-      toe_in_deg:       state.toe_in_deg       ?? 12,
-      listener_front_m: state.listener_front_m ?? 2.8,
+      speaker_type:      state.speaker_type      ?? 'floorstander',
+      spk_placement:     state.spk_placement     ?? null,
+      spk_spacing_m:     state.spk_spacing_m     ?? 2.0,
+      spk_front_m:       state.spk_front_m       ?? 0.45,
+      toe_in_deg:        state.toe_in_deg        ?? 12,
+      listener_front_m:  state.listener_front_m  ?? 2.8,
+      tweeter_height_m:  state.tweeter_height_m  ?? 0.95,
+      listener_offset_m: state.listener_offset_m ?? 0,
+      subwoofer:         state.subwoofer         ?? false,
     };
 
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
@@ -472,10 +475,12 @@
 
     // Sliders
     const sliderDefs = [
-      { key: 'spk_spacing_m',    label: 'Speaker spacing',      min: 1.0, max: 4.0, step: 0.1,  unit: 'm', decimals: 1, hl: 'speakers' },
-      { key: 'toe_in_deg',       label: 'Toe-in angle',         min: 0,   max: 45,  step: 1,    unit: '°', decimals: 0, hl: 'speakers' },
-      { key: 'listener_front_m', label: 'Listening position',   min: 1.0, max: 5.0, step: 0.1,  unit: 'm', decimals: 1, hl: 'listener' },
-      { key: 'spk_front_m',      label: 'Speakers from wall',   min: 0.1, max: 1.5, step: 0.05, unit: 'm', decimals: 2, hl: 'speakers' },
+      { key: 'spk_spacing_m',     label: 'Speaker spacing',    min: 1.0,  max: 4.0, step: 0.1,  unit: 'm', decimals: 1, hl: 'speakers' },
+      { key: 'tweeter_height_m',  label: 'Tweeter height',     min: 0.5,  max: 2.0, step: 0.05, unit: 'm', decimals: 2, hl: 'speakers' },
+      { key: 'toe_in_deg',        label: 'Toe-in angle',       min: 0,    max: 45,  step: 1,    unit: '°', decimals: 0, hl: 'speakers' },
+      { key: 'listener_front_m',  label: 'Listening position', min: 1.0,  max: 5.0, step: 0.1,  unit: 'm', decimals: 1, hl: 'listener' },
+      { key: 'listener_offset_m', label: 'Listener offset',    min: -2.0, max: 2.0, step: 0.05, unit: 'm', decimals: 2, hl: 'listener' },
+      { key: 'spk_front_m',       label: 'Speakers from wall', min: 0.1,  max: 1.5, step: 0.05, unit: 'm', decimals: 2, hl: 'speakers' },
     ];
 
     const sliders = {};
@@ -497,6 +502,18 @@
       wrap.appendChild(fw);
     }
 
+    // Subwoofer toggle
+    const subBtn = _toggleBtn('Subwoofer', cur.subwoofer, 'Bass extension below ~80 Hz from a separate source');
+    if (cur.subwoofer) subBtn.classList.add('active');
+    subBtn.addEventListener('click', () => {
+      cur.subwoofer = !cur.subwoofer;
+      subBtn.classList.toggle('active', cur.subwoofer);
+      onChange?.({ ...cur });
+    });
+    const subRow = _el('div', { class: 'demo-btn-row' });
+    subRow.appendChild(subBtn);
+    wrap.appendChild(subRow);
+
     mount.appendChild(wrap);
 
     return {
@@ -513,6 +530,8 @@
           val.textContent = parseFloat(state[k]).toFixed(def.decimals) + (def.unit === '°' ? '°' : ' ' + def.unit);
           _updateSliderFill(slider);
         }
+        cur.subwoofer = state.subwoofer ?? false;
+        subBtn.classList.toggle('active', cur.subwoofer);
       },
       // Snap speaker type button and slider positions to a new set of values.
       // Called by the room-type toggle when switching Hi-Fi ↔ Studio.
@@ -529,6 +548,10 @@
             val.textContent = parseFloat(v).toFixed(def.decimals) + (def.unit === '°' ? '°' : ' ' + def.unit);
             _updateSliderFill(slider);
           }
+        }
+        if (newState.subwoofer !== undefined) {
+          cur.subwoofer = newState.subwoofer;
+          subBtn.classList.toggle('active', cur.subwoofer);
         }
       },
       setRoomType(rt) { _applySpkRoomType(rt); },
