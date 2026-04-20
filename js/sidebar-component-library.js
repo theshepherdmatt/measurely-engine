@@ -616,21 +616,26 @@
       if (!isLounge) {
         const t = val / 66;
         cur.seating_type = 'sofa';
+        cur.opt_sofa     = true;                          // slider = seating visible
         cur.sofa_width_m = parseFloat((2.8 - t * 1.4).toFixed(2));
         seatingValEl.textContent = val <= 22 ? 'Large Sofa' : val <= 44 ? 'Standard Sofa' : 'Compact Sofa';
-        footBtn.style.display   = '';      // footstool available with sofa
+        footBtn.style.display   = '';
         coffeeBtn.style.display = '';
       } else {
         cur.seating_type     = 'lounge';
+        cur.opt_sofa         = true;                      // Eames is also seating
         cur.sofa_width_m     = null;
         cur.opt_coffee_table = false;
         coffeeBtn.classList.remove('active');
         seatingValEl.textContent = 'Eames Lounge';
-        footBtn.style.display    = 'none'; // Eames ottoman is built-in
+        footBtn.style.display    = 'none';                // ottoman is built-in on Eames
         coffeeBtn.style.display  = 'none';
       }
     }
+    // Apply once on render so initial state matches slider position
+    _applySeating(parseInt(seatingSlider.value));
     seatingSlider.addEventListener('input', () => { _applySeating(parseInt(seatingSlider.value)); onChange?.({ ...cur }); });
+
     rugBtn.addEventListener('click', () => { cur.opt_area_rug = !cur.opt_area_rug; rugBtn.classList.toggle('active', cur.opt_area_rug); onChange?.({ ...cur }); });
     coffeeBtn.addEventListener('click', () => { cur.opt_coffee_table = !cur.opt_coffee_table; coffeeBtn.classList.toggle('active', cur.opt_coffee_table); onChange?.({ ...cur }); });
     footBtn.addEventListener('click', () => { cur.opt_ottoman = !cur.opt_ottoman; footBtn.classList.toggle('active', cur.opt_ottoman); onChange?.({ ...cur }); });
