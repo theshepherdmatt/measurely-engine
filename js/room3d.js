@@ -431,7 +431,12 @@ function rebuild() {
       spk_front_m:      setup.spk_front_m,
       tweeter_height_m: setup.tweeter_height_m,
       toe_in_deg:       setup.toe_in_deg,
-      listener_front_m: setup.listener_front_m,
+      // Clamp listener_front_m so the listener never leaves the room.
+      // Max = room length - 0.2m clearance from back wall.
+      listener_front_m: Math.min(
+        setup.listener_front_m ?? 2.8,
+        (geo.length_m ?? 4) - 0.20
+      ),
       listener_offset_m: setup.listener_offset_m,
       subwoofer:         setup.subwoofer,
 
