@@ -107,11 +107,11 @@
   // ═══════════════════════════════════════════════════════════════
 
   const PANEL_COLOURS = [
-    { id: 'black',   hex: '#1A1714', label: 'Matte Black' },
-    { id: 'grey',    hex: '#8a8a8a', label: 'Mid Grey'    },
-    { id: 'white',   hex: '#FFFFFF', label: 'Pure White'  },
-    { id: 'teal',    hex: '#00B8A9', label: 'Teal'        },
-    { id: 'natural', hex: '#c8a882', label: 'Natural'     },
+    { id: 'black',      hex: '#1A1714', label: 'Matte Black' },
+    { id: 'anthracite', hex: '#3D3D3D', label: 'Anthracite'  },
+    { id: 'concrete',   hex: '#AEAAA5', label: 'Concrete'    },
+    { id: 'white',      hex: '#FFFFFF', label: 'Pure White'  },
+    { id: 'slate',      hex: '#546E7A', label: 'Slate'       },
   ];
 
   const DEFAULT_COLOUR = PANEL_COLOURS[0].hex; // Matte Black
@@ -157,49 +157,90 @@
       treatState[def.stateKey] = state[def.stateKey] ?? 'none';
     });
 
-    // ── Toggle buttons ────────────────────────────────────────────
-    const btnRow = document.createElement('div');
-    btnRow.className = 'demo-btn-row';
+    // ── Treatment rows: dot toggle + mode pills ───────────────────
+    const list = document.createElement('div');
+    list.className = 'treat-list';
 
-    const buttons = {};
+    const buttons = {};  // kept for reset() compatibility — maps key → { row, pills, cur }
 
     types.forEach(key => {
       const def = TREATMENT_TYPES[key];
       if (!def) return;
 
-      const isActive = treatState[def.stateKey] !== 'none';
-      const btn = document.createElement('button');
-      btn.className  = 'sbox-btn' + (isActive ? ' active' : '');
-      btn.dataset.treatKey = key;
-      btn.textContent = def.label;
-      btn.title       = def.description;
-      btn.type        = 'button';
+      const nonNoneModes = def.modes.filter(m => m !== 'none');
 
-      const updateBtn = () => {
-        const cur = treatState[def.stateKey];
-        const isOn = cur !== 'none';
-        btn.classList.toggle('active', isOn);
-        const displayMode = (def.modeLabels?.[cur]) ?? cur;
-        btn.textContent = isOn ? `${def.label} \u00b7 ${displayMode}` : def.label;
+      // Row container
+      const row = document.createElement('div');
+      row.className = 'treat-row';
+
+      // Head: dot + label + current-mode label
+      const head = document.createElement('button');
+      head.className = 'treat-head';
+      head.type      = 'button';
+      head.title     = def.description;
+
+      const dot  = document.createElement('span');
+      dot.className = 'treat-dot';
+
+      const name = document.createElement('span');
+      name.className  = 'treat-name';
+      name.textContent = def.label;
+
+      const cur = document.createElement('span');
+      cur.className = 'treat-current';
+
+      head.append(dot, name, cur);
+
+      // Mode pills (only show when active)
+      const pillsRow = document.createElement('div');
+      pillsRow.className = 'treat-pills';
+
+      const pillMap = {};
+      nonNoneModes.forEach(mode => {
+        const pill = document.createElement('button');
+        pill.className  = 'treat-pill';
+        pill.type       = 'button';
+        pill.textContent = def.modeLabels?.[mode] ?? mode;
+        pill.addEventListener('click', e => {
+          e.stopPropagation();
+          treatState[def.stateKey] = mode;
+          sync();
+          onTreatmentChange?.({ ...treatState });
+        });
+        pillMap[mode] = pill;
+        pillsRow.appendChild(pill);
+      });
+
+      row.append(head, pillsRow);
+
+      const sync = () => {
+        const val   = treatState[def.stateKey];
+        const isOn  = val !== 'none';
+        row.classList.toggle('on', isOn);
+        cur.textContent = isOn ? (def.modeLabels?.[val] ?? val) : '';
+        Object.entries(pillMap).forEach(([m, p]) => p.classList.toggle('active', m === val));
       };
 
-      btn.addEventListener('click', () => {
-        const modes   = def.modes; // e.g. ['none','front','rear','both']
-        const cur     = treatState[def.stateKey];
-        const idx     = modes.indexOf(cur);
-        const next    = modes[(idx + 1) % modes.length];
-        treatState[def.stateKey] = next;
-        updateBtn();
+      // Head click: toggle on (defaultMode) / off (none)
+      head.addEventListener('click', () => {
+        const isOn = treatState[def.stateKey] !== 'none';
+        treatState[def.stateKey] = isOn ? 'none' : def.defaultMode;
+        sync();
         onTreatmentChange?.({ ...treatState });
       });
 
-      updateBtn();
+      sync();
 
-      buttons[key] = btn;
-      btnRow.appendChild(btn);
+      // Store ref for reset()
+      buttons[key] = { row, sync, stateKey: def.stateKey };
+      list.appendChild(row);
     });
 
-    mount.appendChild(btnRow);
+    const panelsLabel = document.createElement('span');
+    panelsLabel.className = 'demo-sub-label';
+    panelsLabel.textContent = 'Panels';
+    mount.appendChild(panelsLabel);
+    mount.appendChild(list);
 
     // ── Colour swatches ───────────────────────────────────────────
     let activeColour = defaultColour;
@@ -230,6 +271,10 @@
         swatchRow.appendChild(btn);
       });
 
+      const colourLabel = document.createElement('span');
+      colourLabel.className = 'demo-sub-label';
+      colourLabel.textContent = 'Colour';
+      mount.appendChild(colourLabel);
       mount.appendChild(swatchRow);
     }
 
@@ -240,13 +285,10 @@
 
       reset() {
         types.forEach(key => {
-          const def = TREATMENT_TYPES[key];
-          if (!def) return;
-          treatState[def.stateKey] = 'none';
-          if (buttons[key]) {
-            buttons[key].classList.remove('active');
-            buttons[key].textContent = def.label;
-          }
+          const ref = buttons[key];
+          if (!ref) return;
+          treatState[ref.stateKey] = 'none';
+          ref.sync();
         });
         onTreatmentChange?.({ ...treatState });
       },

@@ -110,6 +110,119 @@
     return btn;
   }
 
+  // ── Icon-grid helpers ──────────────────────────────────────────────────────
+  // BASE_PATH resolves relative to the page, not this script file.
+  const _ICON_BASE = 'icons/';
+
+  // Grid styles shared by both helpers
+  const _GRID_CSS = 'display:grid;gap:8px;';
+  const _CELL_BASE = [
+    'display:flex;flex-direction:column;align-items:center;justify-content:center;',
+    'gap:4px;padding:7px 4px 5px;border:none;border-radius:6px;cursor:pointer;',
+    'background:rgba(0,0,0,0.04);transition:background 0.15s,transform 0.1s;',
+    'font-size:8px;font-family:var(--mly-font,\'DM Sans\',sans-serif);',
+    'letter-spacing:0.08em;text-transform:uppercase;font-weight:600;color:#71717a;',
+  ].join('');
+  const _CELL_ACTIVE_BG  = 'var(--mly-teal,#0d9488)';
+  const _CELL_ACTIVE_COL = '#ffffff';
+  const _MASK_INACTIVE   = 'rgba(113,113,122,0.7)'; // zinc-500
+  const _MASK_ACTIVE     = '#ffffff';
+
+  // Build a single icon-grid cell (button)
+  function _iconCell(iconFile, label, active) {
+    const btn  = document.createElement('button');
+    btn.type   = 'button';
+    btn.title  = label;
+    btn.style.cssText = _CELL_BASE;
+    _iconCellApply(btn, active);
+
+    // Mask element — the SVG colour is driven by background-color on the mask div
+    const mask = document.createElement('div');
+    mask.style.cssText = [
+      'width:26px;height:26px;',
+      '-webkit-mask-image:url(' + _ICON_BASE + iconFile + ');',
+      'mask-image:url(' + _ICON_BASE + iconFile + ');',
+      '-webkit-mask-size:contain;mask-size:contain;',
+      '-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;',
+      '-webkit-mask-position:center;mask-position:center;',
+      'background-color:' + (active ? _MASK_ACTIVE : _MASK_INACTIVE) + ';',
+      'transition:background-color 0.15s;',
+    ].join('');
+    btn._iconMask = mask;
+
+    const lbl = document.createElement('span');
+    lbl.textContent = label;
+    lbl._isIconLabel = true;
+
+    btn.appendChild(mask);
+    btn.appendChild(lbl);
+    return btn;
+  }
+
+  function _iconCellApply(btn, active) {
+    btn.style.background = active ? _CELL_ACTIVE_BG : 'rgba(0,0,0,0.04)';
+    btn.style.color      = active ? _CELL_ACTIVE_COL : '#71717a';
+    if (btn._iconMask) {
+      btn._iconMask.style.backgroundColor = active ? _MASK_ACTIVE : _MASK_INACTIVE;
+    }
+  }
+
+  // Multi-toggle icon grid (each button independently on/off)
+  // items: [{ key, icon, label, active }]
+  // returns { grid, states, setActive(key, bool) }
+  function _iconGridToggle(items, cols, onChange) {
+    const grid = document.createElement('div');
+    grid.style.cssText = _GRID_CSS + 'grid-template-columns:repeat(' + cols + ',1fr);';
+    const states = {};
+    const btns   = {};
+    for (const item of items) {
+      const btn = _iconCell(item.icon, item.label, !!item.active);
+      states[item.key] = !!item.active;
+      btns[item.key]   = btn;
+      btn.addEventListener('click', () => {
+        states[item.key] = !states[item.key];
+        _iconCellApply(btn, states[item.key]);
+        onChange?.(item.key, states[item.key]);
+      });
+      grid.appendChild(btn);
+    }
+    return {
+      grid,
+      states,
+      setActive(key, bool) {
+        states[key] = bool;
+        _iconCellApply(btns[key], bool);
+      },
+    };
+  }
+
+  // Single-select icon grid (radio behaviour)
+  // items: [{ key, icon, label }], activeKey
+  // returns { grid, setActive(key) }
+  function _iconGridSelect(items, activeKey, cols, onChange) {
+    const grid = document.createElement('div');
+    grid.style.cssText = _GRID_CSS + 'grid-template-columns:repeat(' + cols + ',1fr);';
+    let _cur = activeKey;
+    const btns = {};
+    for (const item of items) {
+      const btn = _iconCell(item.icon, item.label, item.key === activeKey);
+      btns[item.key] = btn;
+      btn.addEventListener('click', () => {
+        _cur = item.key;
+        Object.keys(btns).forEach(k => _iconCellApply(btns[k], k === _cur));
+        onChange?.(item.key);
+      });
+      grid.appendChild(btn);
+    }
+    return {
+      grid,
+      setActive(key) {
+        _cur = key;
+        Object.keys(btns).forEach(k => _iconCellApply(btns[k], k === _cur));
+      },
+    };
+  }
+
   // ── Section 0 — Room Type Toggle (Hi-Fi / Studio) ────────────────────────
   // Canonical source of truth for home vs studio defaults.
   // Both demo.html and onboarding.html consume this function.
@@ -167,7 +280,7 @@
     for (const { key, label } of [{ key: 'home', label: 'Hi-Fi' }, { key: 'studio', label: 'Studio' }]) {
       const btn = _el('button', {
         id: _TOGGLE_IDS[key],
-        class: 'sbox-btn' + (key === active ? ' active' : ''),
+        class: 'room-sel-btn' + (key === active ? ' active' : ''),
         type: 'button',
       }, label);
       btn.addEventListener('click', () => {
@@ -304,7 +417,7 @@
 
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:10px;' });
 
-    // Ceiling type selector
+    // Ceiling type selector — Slate Highlight buttons
     const typeGroup = _btnGroup(
       [{ key: 'flat', label: 'Flat' }, { key: 'slanted', label: 'Slanted' }, { key: 'gable', label: 'Gabled' }],
       cur.ceiling_type,
@@ -314,6 +427,10 @@
         onChange?.({ ...cur });
       }
     );
+    // Replace the sbox-btn class with room-sel-btn on the emitted buttons
+    typeGroup.row.querySelectorAll('.sbox-btn').forEach(function(b) {
+      b.className = b.className.replace('sbox-btn', 'room-sel-btn');
+    });
     wrap.appendChild(typeGroup.row);
 
     // Slant direction (shown when slanted)
@@ -387,12 +504,12 @@
       },
     };
   }
-
   // ── Section 4 — Speakers ──────────────────────────────────────────────────
 
   function renderSpeakersSection(mountId, { state = {}, roomType = 'home', onChange } = {}) {
     const mount = _mount(mountId);
     if (!mount) return null;
+
 
     const cur = {
       speaker_type:      state.speaker_type      ?? 'floorstander',
@@ -404,12 +521,13 @@
       tweeter_height_m:  state.tweeter_height_m  ?? 0.95,
       listener_offset_m: state.listener_offset_m ?? 0,
       subwoofer:         state.subwoofer         ?? false,
-      subwoofer_dual:    state.subwoofer_dual     ?? false,
+      subwoofer_dual:    state.subwoofer_dual    ?? false,
     };
 
-    const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
+    // Root wrapper — children manage their own top margins
+    const wrap = _el('div', { style: 'display:flex;flex-direction:column;' });
 
-    // Speaker type — split into mode-aware blocks that toggle with room type
+    // ── BLOCK A: Hardware Profile ─────────────────────────────────────────────
     const speakerHifiBlock   = _el('div', { style: 'display:flex;flex-direction:column;gap:8px;' });
     const speakerStudioBlock = _el('div', { style: 'display:none;flex-direction:column;gap:8px;' });
 
@@ -421,157 +539,177 @@
         { key: 'panel',        label: 'Panel',        title: 'Dipole panel / planar speaker' },
       ],
       cur.speaker_type,
-      key => {
-        cur.speaker_type = key;
-        studioGroup.setActive(null);
-        onChange?.({ ...cur });
-      }
+      function(key) { cur.speaker_type = key; studioGroup.setActive(null); onChange && onChange({ ...cur }); }
     );
     speakerHifiBlock.appendChild(hifiGroup.row);
     wrap.appendChild(speakerHifiBlock);
 
     const studioGroup = _btnGroup(
-      [
-        { key: 'monitor', label: 'Monitor', title: 'Near-field studio monitor' },
-      ],
+      [{ key: 'monitor', label: 'Monitor', title: 'Near-field studio monitor' }],
       cur.speaker_type === 'monitor' ? 'monitor' : null,
-      key => {
-        cur.speaker_type = key;
-        hifiGroup.setActive(null);
-        onChange?.({ ...cur });
-      }
+      function(key) { cur.speaker_type = key; hifiGroup.setActive(null); onChange && onChange({ ...cur }); }
+    );
+
+    const placementGroup = _btnGroup(
+      [
+        { key: 'stands',      label: 'Stands'      },
+        { key: 'desk_stands', label: 'Desk stands' },
+        { key: 'desk',        label: 'On desk'     },
+      ],
+      cur.spk_placement ?? 'desk',
+      function(key) { cur.spk_placement = key; onChange && onChange({ ...cur }); }
     );
     speakerStudioBlock.appendChild(studioGroup.row);
+    speakerStudioBlock.appendChild(placementGroup.row);
     wrap.appendChild(speakerStudioBlock);
 
     function _applySpkRoomType(rt) {
       speakerHifiBlock.style.display   = rt === 'studio' ? 'none' : 'flex';
       speakerStudioBlock.style.display = rt === 'studio' ? 'flex' : 'none';
     }
-
-    // Combined setActive helper used by reset()
     function _setTypeActive(key) {
-      const isStudio = key === 'monitor';
+      var isStudio = key === 'monitor';
       hifiGroup.setActive(isStudio ? null : key);
       studioGroup.setActive(isStudio ? key : null);
     }
-
-    const typeGroup = { setActive: _setTypeActive };
-
-    // Apply initial room type visibility
+    var typeGroup = { setActive: _setTypeActive };
     _applySpkRoomType(roomType);
 
-    // Placement — studio only; lives inside speakerStudioBlock so it hides with it
-    const placementGroup = _btnGroup(
-      [
-        { key: 'stands',      label: 'Stands'     },
-        { key: 'desk_stands', label: 'Desk stands' },
-        { key: 'desk',        label: 'On desk'     },
-      ],
-      cur.spk_placement ?? 'desk',
-      key => { cur.spk_placement = key; onChange?.({ ...cur }); }
-    );
-    speakerStudioBlock.appendChild(placementGroup.row);
-
-    // Sliders
-    const sliderDefs = [
-      { key: 'spk_spacing_m',     label: 'Speaker spacing',    min: 1.0,  max: 4.0, step: 0.1,  unit: 'm', decimals: 1, hl: 'speakers', acoustic: 'reflection' },
-      { key: 'tweeter_height_m',  label: 'Tweeter height',     min: 0.75, max: 1.15, step: 0.05, unit: 'm', decimals: 2, hl: 'speakers', acoustic: 'reflection' },
-      { key: 'toe_in_deg',        label: 'Toe-in angle',       min: 0,    max: 45,  step: 1,    unit: '°', decimals: 0, hl: 'speakers', acoustic: 'reflection' },
-      { key: 'listener_front_m',  label: 'Listening position', min: 1.0,  max: 5.0, step: 0.1,  unit: 'm', decimals: 1, hl: 'listener', acoustic: 'reflection' },
-      { key: 'listener_offset_m', label: 'Listener offset',    min: -2.0, max: 2.0, step: 0.05, unit: 'm', decimals: 2, hl: 'listener', acoustic: 'reflection' },
-      { key: 'spk_front_m',       label: 'Speakers from wall', min: 0.1,  max: 1.5, step: 0.05, unit: 'm', decimals: 2, hl: 'speakers', acoustic: 'reflection' },
+    // ── BLOCK B: Speaker Placement — 24 px gap after Block A ─────────────────
+    var blockBDefs = [
+      { key: 'spk_front_m',      label: 'Speakers from wall', min: 0.1,  max: 1.5,  step: 0.05, unit: 'm', decimals: 2, hl: 'speakers', acoustic: 'sbir'       },
+      { key: 'spk_spacing_m',    label: 'Speaker spacing',    min: 1.0,  max: 4.0,  step: 0.1,  unit: 'm', decimals: 1, hl: 'speakers', acoustic: 'reflection' },
+      { key: 'toe_in_deg',       label: 'Toe-in angle',       min: 0,    max: 45,   step: 1,    unit: '\u00b0',decimals: 0, hl: 'speakers', acoustic: 'reflection' },
+      { key: 'tweeter_height_m', label: 'Tweeter height',     min: 0.75, max: 1.15, step: 0.05, unit: 'm', decimals: 2, hl: 'speakers', acoustic: 'reflection' },
     ];
 
-    const sliders = {};
-    for (const def of sliderDefs) {
-      const { wrap: fw, slider, val } = _sliderField({
-        label: def.label, id: 'scl-' + def.key,
-        min: def.min, max: def.max, step: def.step,
-        value: cur[def.key], unit: def.unit, decimals: def.decimals,
-        acoustic: def.acoustic,
-      });
-      _attachHighlight(slider, def.hl);
-      slider.addEventListener('input', () => {
-        const v = parseFloat(slider.value);
-        cur[def.key] = v;
-        val.textContent = v.toFixed(def.decimals) + (def.unit === '°' ? '°' : ' ' + def.unit);
-        _updateSliderFill(slider);
-        onChange?.({ ...cur });
-      });
-      sliders[def.key] = { slider, val, def };
-      wrap.appendChild(fw);
+    // ── BLOCK C: Listener Placement — 24 px gap after Block B ────────────────
+    var blockCDefs = [
+      { key: 'listener_front_m',  label: 'Listening position', min: 1.0,  max: 5.0,  step: 0.1,  unit: 'm', decimals: 1, hl: 'listener', acoustic: 'reflection' },
+      { key: 'listener_offset_m', label: 'Listener offset',    min: -2.0, max: 2.0,  step: 0.05, unit: 'm', decimals: 2, hl: 'listener', acoustic: 'reflection' },
+    ];
+
+    var sliders = {};
+    var blockDefs = [[blockBDefs, 24], [blockCDefs, 24]];
+
+    for (var bi = 0; bi < blockDefs.length; bi++) {
+      var defs = blockDefs[bi][0];
+      var topGap = blockDefs[bi][1];
+      var block = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;margin-top:' + topGap + 'px;' });
+      for (var di = 0; di < defs.length; di++) {
+        (function(def) {
+          var sf = _sliderField({
+            label: def.label, id: 'scl-' + def.key,
+            min: def.min, max: def.max, step: def.step,
+            value: cur[def.key], unit: def.unit, decimals: def.decimals,
+            acoustic: def.acoustic,
+          });
+          _attachHighlight(sf.slider, def.hl);
+          sf.slider.addEventListener('input', function() {
+            var v = parseFloat(sf.slider.value);
+            cur[def.key] = v;
+            sf.val.textContent = v.toFixed(def.decimals) + (def.unit === '\u00b0' ? '\u00b0' : ' ' + def.unit);
+            _updateSliderFill(sf.slider);
+            onChange && onChange({ ...cur });
+          });
+          sliders[def.key] = { slider: sf.slider, val: sf.val, def: def };
+          block.appendChild(sf.wrap);
+        })(defs[di]);
+      }
+      wrap.appendChild(block);
     }
 
-    // Subwoofer mode: Off | Sub (single) | Dual subs
-    let _subMode = cur.subwoofer_dual ? 'dual' : (cur.subwoofer ? 'single' : 'none');
-    const subGroup = _btnGroup(
-      [
-        { key: 'none',   label: 'Off',       title: 'No subwoofer' },
-        { key: 'single', label: 'Sub',        title: 'Single subwoofer — right of rack' },
-        { key: 'dual',   label: 'Dual subs',  title: 'Dual subs flanking speakers (Harman placement)' },
-      ],
-      _subMode,
-      key => {
-        _subMode = key;
-        cur.subwoofer      = key !== 'none';
-        cur.subwoofer_dual = key === 'dual';
-        onChange?.({ ...cur });
-      }
-    );
-    wrap.appendChild(subGroup.row);
+    // ── LOW FREQUENCY sub-section — 24 px gap after Block C ─────────────────
+    var lfSection = _el('div', { style: 'margin-top:24px;' });
+    var lfLabel   = _el('span', {
+      class: 'demo-group-label',
+      style: 'display:block;margin-bottom:10px;',
+    }, 'Low Frequency');
+    lfSection.appendChild(lfLabel);
+
+    var _subMode = cur.subwoofer_dual ? 'dual' : (cur.subwoofer ? 'single' : 'none');
+    var lfRow    = _el('div', { class: 'demo-btn-row', style: 'gap:6px;' });
+    var subBtns  = {};
+    var subOpts  = [
+      { key: 'none',   label: 'Off',      title: 'No subwoofer' },
+      { key: 'single', label: 'Sub',       title: 'Single subwoofer \u2014 right of rack' },
+      { key: 'dual',   label: 'Dual subs', title: 'Dual subs flanking speakers (Harman placement)' },
+    ];
+    for (var si = 0; si < subOpts.length; si++) {
+      (function(opt) {
+        var btn = _el('button', {
+          class: 'spk-sub-btn' + (opt.key === _subMode ? ' active' : ''),
+          type: 'button', title: opt.title,
+        }, opt.label);
+        btn.addEventListener('click', function() {
+          Object.values(subBtns).forEach(function(b) { b.classList.remove('active'); });
+          btn.classList.add('active');
+          _subMode = opt.key;
+          cur.subwoofer      = opt.key !== 'none';
+          cur.subwoofer_dual = opt.key === 'dual';
+          onChange && onChange({ ...cur });
+        });
+        subBtns[opt.key] = btn;
+        lfRow.appendChild(btn);
+      })(subOpts[si]);
+    }
+    lfSection.appendChild(lfRow);
+    wrap.appendChild(lfSection);
 
     mount.appendChild(wrap);
 
     return {
-      reset() {
+      reset: function() {
         typeGroup.setActive(state.speaker_type ?? 'floorstander');
         cur.speaker_type = state.speaker_type ?? 'floorstander';
         if (placementGroup && state.spk_placement) {
           placementGroup.setActive(state.spk_placement);
           cur.spk_placement = state.spk_placement;
         }
-        for (const [k, { slider, val, def }] of Object.entries(sliders)) {
-          slider.value = String(state[k]);
+        Object.entries(sliders).forEach(function(entry) {
+          var k = entry[0], s = entry[1];
+          s.slider.value = String(state[k]);
           cur[k] = state[k];
-          val.textContent = parseFloat(state[k]).toFixed(def.decimals) + (def.unit === '°' ? '°' : ' ' + def.unit);
-          _updateSliderFill(slider);
-        }
+          s.val.textContent = parseFloat(state[k]).toFixed(s.def.decimals) + (s.def.unit === '\u00b0' ? '\u00b0' : ' ' + s.def.unit);
+          _updateSliderFill(s.slider);
+        });
         cur.subwoofer      = state.subwoofer      ?? false;
         cur.subwoofer_dual = state.subwoofer_dual  ?? false;
         _subMode = cur.subwoofer_dual ? 'dual' : (cur.subwoofer ? 'single' : 'none');
-        subGroup.setActive(_subMode);
+        Object.values(subBtns).forEach(function(b) { b.classList.remove('active'); });
+        if (subBtns[_subMode]) subBtns[_subMode].classList.add('active');
       },
-      // Snap speaker type button and slider positions to a new set of values.
-      // Called by the room-type toggle when switching Hi-Fi ↔ Studio.
-      setValues(newState) {
+      setValues: function(newState) {
         if (newState.speaker_type) {
           _setTypeActive(newState.speaker_type);
           cur.speaker_type = newState.speaker_type;
         }
-        for (const [k, { slider, val, def }] of Object.entries(sliders)) {
+        Object.entries(sliders).forEach(function(entry) {
+          var k = entry[0], s = entry[1];
           if (newState[k] !== undefined) {
-            const v = newState[k];
-            slider.value = String(v);
+            var v = newState[k];
+            s.slider.value = String(v);
             cur[k] = v;
-            val.textContent = parseFloat(v).toFixed(def.decimals) + (def.unit === '°' ? '°' : ' ' + def.unit);
-            _updateSliderFill(slider);
+            s.val.textContent = parseFloat(v).toFixed(s.def.decimals) + (s.def.unit === '\u00b0' ? '\u00b0' : ' ' + s.def.unit);
+            _updateSliderFill(s.slider);
           }
-        }
+        });
         if (newState.subwoofer !== undefined) {
           cur.subwoofer      = newState.subwoofer;
           cur.subwoofer_dual = newState.subwoofer_dual ?? false;
           _subMode = cur.subwoofer_dual ? 'dual' : (cur.subwoofer ? 'single' : 'none');
-          subGroup.setActive(_subMode);
+          Object.values(subBtns).forEach(function(b) { b.classList.remove('active'); });
+          if (subBtns[_subMode]) subBtns[_subMode].classList.add('active');
         }
       },
-      setRoomType(rt) { _applySpkRoomType(rt); },
+      setRoomType: function(rt) { _applySpkRoomType(rt); },
     };
   }
 
   // ── Section 5 — Seating & Furniture ──────────────────────────────────────
   // roomType: 'home' | 'studio'  — controls which sub-block is visible.
   // Exposes setRoomType(rt) so the room-type toggle can update the view.
+
 
   function renderFurnitureSection(mountId, { state = {}, roomType = 'home', onChange } = {}) {
     const mount = _mount(mountId);
@@ -622,12 +760,12 @@
         _curSeatingKey = key;
         const vals = _SEATING_MAP[key];
         Object.assign(cur, vals);
-        // Mirror ottoman visibility: lounge has built-in ottoman, hide button
-        footBtn.style.display   = key === 'lounge' ? 'none' : '';
-        coffeeBtn.style.display = key === 'lounge' ? 'none' : '';
+        // Lounge mode: suppress ottoman + coffee table icon cells
         if (key === 'lounge') {
           cur.opt_coffee_table = false;
-          coffeeBtn.classList.remove('active');
+          cur.opt_ottoman      = false;
+          hifiGrid.setActive('opt_coffee_table', false);
+          hifiGrid.setActive('opt_ottoman',      false);
         }
         onChange?.({ ...cur });
       }
@@ -635,26 +773,35 @@
     hifiBlock.appendChild(seatingGroup.row);
 
 
-    const rugBtn    = _toggleBtn('Rug',          cur.opt_area_rug);
-    const coffeeBtn = _toggleBtn('Coffee table', cur.opt_coffee_table);
-    const footBtn   = _toggleBtn('Footstool',    cur.opt_ottoman);
-
-    // Apply initial lounge state if applicable
+    // Hi-Fi furniture icon grid (3-col: Rug | Table | Stool)
+    const hifiGrid = _iconGridToggle(
+      [
+        { key: 'opt_area_rug',     icon: 'rug.svg',   label: 'Rug',   active: cur.opt_area_rug },
+        { key: 'opt_coffee_table', icon: 'table.svg',  label: 'Table', active: cur.opt_coffee_table },
+        { key: 'opt_ottoman',      icon: 'chair.svg',  label: 'Stool', active: cur.opt_ottoman },
+      ],
+      3,
+      (key, val) => {
+        // Lounge mode blocks ottoman + coffee table
+        if (_curSeatingKey === 'lounge' && (key === 'opt_ottoman' || key === 'opt_coffee_table')) {
+          hifiGrid.setActive(key, false);
+          cur[key] = false;
+        } else {
+          cur[key] = val;
+        }
+        onChange?.({ ...cur });
+      }
+    );
+    // Suppress cells that don't apply in initial lounge mode
     if (_curSeatingKey === 'lounge') {
-      footBtn.style.display   = 'none';
-      coffeeBtn.style.display = 'none';
+      hifiGrid.setActive('opt_ottoman',      false);
+      hifiGrid.setActive('opt_coffee_table', false);
+      cur.opt_ottoman      = false;
+      cur.opt_coffee_table = false;
     }
-
-    rugBtn.addEventListener('click', () => { cur.opt_area_rug = !cur.opt_area_rug; rugBtn.classList.toggle('active', cur.opt_area_rug); onChange?.({ ...cur }); });
-    coffeeBtn.addEventListener('click', () => { cur.opt_coffee_table = !cur.opt_coffee_table; coffeeBtn.classList.toggle('active', cur.opt_coffee_table); onChange?.({ ...cur }); });
-    footBtn.addEventListener('click', () => { cur.opt_ottoman = !cur.opt_ottoman; footBtn.classList.toggle('active', cur.opt_ottoman); onChange?.({ ...cur }); });
-    if (cur.opt_area_rug)     rugBtn.classList.add('active');
-    if (cur.opt_coffee_table) coffeeBtn.classList.add('active');
-    if (cur.opt_ottoman)      footBtn.classList.add('active');
-    const hifiToggleRow = _el('div', { class: 'demo-btn-row' });
-    hifiToggleRow.append(rugBtn, coffeeBtn, footBtn);
-    hifiBlock.appendChild(hifiToggleRow);
+    hifiBlock.appendChild(hifiGrid.grid);
     wrap.appendChild(hifiBlock);
+
 
     // ─── Studio block ───────────────────────────────────────────────────────────
     const studioBlock = _el('div', { style: 'display:none;flex-direction:column;gap:10px;' });
@@ -681,22 +828,24 @@
       onChange?.({ ...cur });
     });
 
-    const studioToggleRow = _el('div', { class: 'demo-btn-row' });
-    const displayBtn  = _toggleBtn('Display',   cur.opt_display);
-    const micBtn      = _toggleBtn('Mic stand', cur.opt_mic);
-    const keyboardBtn = _toggleBtn('Keyboard',  cur.opt_keyboard);
-    const studioRugBtn = _toggleBtn('Rug',      cur.opt_area_rug);
-    if (cur.opt_display)  displayBtn.classList.add('active');
-    if (cur.opt_mic)      micBtn.classList.add('active');
-    if (cur.opt_keyboard) keyboardBtn.classList.add('active');
-    if (cur.opt_area_rug) studioRugBtn.classList.add('active');
-    displayBtn.addEventListener('click', () => { cur.opt_display = !cur.opt_display; displayBtn.classList.toggle('active', cur.opt_display); onChange?.({ ...cur }); });
-    micBtn.addEventListener('click', () => { cur.opt_mic = !cur.opt_mic; micBtn.classList.toggle('active', cur.opt_mic); onChange?.({ ...cur }); });
-    keyboardBtn.addEventListener('click', () => { cur.opt_keyboard = !cur.opt_keyboard; keyboardBtn.classList.toggle('active', cur.opt_keyboard); onChange?.({ ...cur }); });
-    studioRugBtn.addEventListener('click', () => { cur.opt_area_rug = !cur.opt_area_rug; studioRugBtn.classList.toggle('active', cur.opt_area_rug); onChange?.({ ...cur }); });
-    studioToggleRow.append(displayBtn, micBtn, keyboardBtn, studioRugBtn);
-    studioBlock.appendChild(studioToggleRow);
+    // Studio furniture icon grid (3-col: Display | Mic | Keys | Rug | Sub)
+    const studioGrid = _iconGridToggle(
+      [
+        { key: 'opt_display',  icon: 'lounge-chair.svg', label: 'Display', active: cur.opt_display },
+        { key: 'opt_mic',      icon: 'mountain.svg',      label: 'Mic',     active: cur.opt_mic },
+        { key: 'opt_keyboard', icon: 'wave-square.svg',   label: 'Keys',    active: cur.opt_keyboard },
+        { key: 'opt_area_rug', icon: 'rug.svg',           label: 'Rug',     active: cur.opt_area_rug },
+        { key: 'opt_sub',      icon: 'subspeaker.svg',    label: 'Sub',     active: cur.opt_sub ?? false },
+      ],
+      3,
+      (key, val) => {
+        cur[key] = val;
+        onChange?.({ ...cur });
+      }
+    );
+    studioBlock.appendChild(studioGrid.grid);
     wrap.appendChild(studioBlock);
+
 
     // ─── Client seating sub-section (studio mode only) ──────────────────────
     const clientDivider = _el('hr', { style: 'display:none;border:none;border-top:1px solid var(--mly-border,rgba(0,0,0,.1));margin:4px 0;' });
@@ -748,28 +897,25 @@
         _curSeatingKey = 'sofa';
         seatingGroup.setActive('sofa');
         Object.assign(cur, _SEATING_MAP['sofa']);
-        footBtn.style.display   = '';
-        coffeeBtn.style.display = '';
         cur.opt_area_rug        = state.opt_area_rug        ?? true;
         cur.opt_coffee_table    = state.opt_coffee_table    ?? true;
-        cur.opt_ottoman         = state.opt_ottoman          ?? false;
+        cur.opt_ottoman         = state.opt_ottoman         ?? false;
         cur.opt_display         = state.opt_display         ?? true;
         cur.opt_mic             = state.opt_mic             ?? false;
         cur.opt_keyboard        = state.opt_keyboard        ?? false;
         cur.opt_client_seating  = state.opt_client_seating  ?? false;
         cur.client_seating_type = state.client_seating_type ?? 'sofa';
-        rugBtn.classList.toggle('active',        cur.opt_area_rug);
-        coffeeBtn.classList.toggle('active',     cur.opt_coffee_table);
-        footBtn.classList.toggle('active',       cur.opt_ottoman);
-        studioRugBtn.classList.toggle('active',  cur.opt_area_rug);
-        displayBtn.classList.toggle('active',    cur.opt_display);
-        micBtn.classList.toggle('active',        cur.opt_mic);
-        keyboardBtn.classList.toggle('active',   cur.opt_keyboard);
+        // Restore icon grid states
+        hifiGrid.setActive('opt_area_rug',     cur.opt_area_rug);
+        hifiGrid.setActive('opt_coffee_table', cur.opt_coffee_table);
+        hifiGrid.setActive('opt_ottoman',      cur.opt_ottoman);
+        studioGrid.setActive('opt_display',    cur.opt_display);
+        studioGrid.setActive('opt_mic',        cur.opt_mic);
+        studioGrid.setActive('opt_keyboard',   cur.opt_keyboard);
+        studioGrid.setActive('opt_area_rug',   cur.opt_area_rug);
         clientToggleBtn.classList.toggle('active', cur.opt_client_seating);
         clientToggleBtn.textContent = cur.opt_client_seating ? 'On' : 'Off';
         clientTypeRow.style.display = cur.opt_client_seating ? '' : 'none';
-        footBtn.style.display   = 'none';
-        coffeeBtn.style.display = '';
         _applyRoomType(currentRoomType);
       },
     };
@@ -787,28 +933,28 @@
 
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:6px;' });
 
-    const lbl = _el('span', { class: 'demo-field-label' }, 'Floor type');
-    wrap.append(lbl);
-
-    const floorGroup = _btnGroup(
+    // 2-column icon-select grid for floor type
+    // Hard floor: use arrow-down (floor plank feel); Carpet: wave-square
+    const floorGrid = _iconGridSelect(
       [
-        { key: 'hard',   label: 'Hard floor' },
-        { key: 'carpet', label: 'Carpet' },
+        { key: 'hard',   icon: 'arrow-down.svg',    label: 'Hard' },
+        { key: 'carpet', icon: 'wave-square.svg',    label: 'Carpet' },
       ],
       cur.floor_material,
+      2,
       key => {
         cur.floor_material = key;
         onChange?.({ ...cur });
       }
     );
-    wrap.appendChild(floorGroup.row);
+    wrap.appendChild(floorGrid.grid);
     mount.appendChild(wrap);
 
     return {
       setRoomType(rt) {}, // no-op for floor
       reset() {
         cur.floor_material = state.floor_material ?? 'hard';
-        floorGroup.setActive(cur.floor_material);
+        floorGrid.setActive(cur.floor_material);
       },
     };
   }
