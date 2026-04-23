@@ -1,0 +1,6 @@
+﻿name            = "measurely-engine"
+main            = "worker.js"
+compatibility_date = "2025-04-01"
+
+# Workers runs in ES-module mode; Wrangler's bundler (esbuild) converts the
+# CommonJS engine modules automatically ΓÇö no extra build step needed.

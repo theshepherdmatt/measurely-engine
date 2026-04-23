@@ -1,4 +1,4 @@
-{
+﻿{
   "name": "@measurely/engine",
   "version": "1.0.0",
   "description": "Measurely acoustic analysis engine and 3D room visualizer",
@@ -14,6 +14,10 @@
     "./engine/analyse": "./js/engine/analyse.js",
     "./engine/score": "./js/engine/score.js",
     "./engine/signal-integrity": "./js/engine/signalIntegrityCard.js"
+  },
+  "scripts": {
+    "deploy": "npx wrangler deploy",
+    "dev":    "npx wrangler dev"
   },
   "keywords": ["acoustics", "room-acoustics", "audio-analysis", "three.js", "measurement"],
   "license": "SEE LICENSE IN LICENSE.md"
