@@ -241,9 +241,9 @@
   border-color: rgba(0, 0, 0, 0.22);
 }
 .mly-sbox-btn.active {
-  background: var(--mly-text-primary, #1A1A1A);
-  border-color: var(--mly-text-primary, #1A1A1A);
-  color: var(--mly-bg-primary, #FFFFFF);
+  background: rgba(0, 184, 169, 0.12);
+  border-color: var(--mly-teal, #00B8A9);
+  color: var(--mly-teal, #00B8A9);
 }
 
 /* Reset / ghost variant */
@@ -280,11 +280,11 @@
   background: var(--mly-bg-recessed, #F5F5F5);
   border-color: rgba(0, 0, 0, 0.22);
 }
-/* Active: monochrome fill — same pattern as demo.html's sbox-btn.active */
+/* Active: teal fill */
 .mly-overlay-btn.active {
-  background: var(--mly-text-primary, #1A1A1A);
-  border-color: var(--mly-text-primary, #1A1A1A);
-  color: var(--mly-bg-primary, #FFFFFF);
+  background: rgba(0, 184, 169, 0.12);
+  border-color: var(--mly-teal, #00B8A9);
+  color: var(--mly-teal, #00B8A9);
   font-weight: 700;
 }
 /* Semantic Neon — Bass Modes → Purple */
@@ -571,14 +571,14 @@
 .demo-btn-row    { display: flex; gap: 5px; flex-wrap: wrap; }
 .sbox-btn        { display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px; border-radius: var(--mly-radius-sm, 4px); font-size: 0.76rem; font-weight: 600; font-family: var(--mly-font-family); cursor: pointer; border: 1px solid var(--mly-border, #E8E8E8); background: var(--mly-bg-primary, #FFFFFF); color: var(--mly-text-primary, #1A1A1A); transition: background var(--mly-transition-fast, 150ms ease), border-color var(--mly-transition-fast, 150ms ease), color var(--mly-transition-fast, 150ms ease); white-space: nowrap; }
 .sbox-btn:hover  { background: var(--mly-bg-recessed, #F5F5F5); border-color: rgba(0, 0, 0, 0.22); }
-.sbox-btn.active { background: var(--mly-text-primary, #1A1A1A); border-color: var(--mly-text-primary, #1A1A1A); color: var(--mly-bg-primary, #FFFFFF); }
+.sbox-btn.active { background: rgba(0, 184, 169, 0.12); border-color: var(--mly-teal, #00B8A9); color: var(--mly-teal, #00B8A9); }
 .sbox-btn.sbox-reset { color: var(--mly-text-tertiary, #888); }
 .sbox-btn.sbox-reset:hover { background: var(--mly-bg-recessed, #F5F5F5); color: var(--mly-text-primary, #1A1A1A); }
 
 /* Overlay buttons — alias matches demo.html overlay-btn style */
 .overlay-btn        { padding: 5px 10px; border-radius: var(--mly-radius-sm, 4px); font-size: 0.73rem; font-weight: 600; font-family: var(--mly-font-family); cursor: pointer; border: 1px solid var(--mly-border, #E8E8E8); background: var(--mly-bg-primary, #FFFFFF); color: var(--mly-text-primary, #1A1A1A); transition: background var(--mly-transition-fast, 150ms ease), border-color var(--mly-transition-fast, 150ms ease), color var(--mly-transition-fast, 150ms ease); white-space: nowrap; }
 .overlay-btn:hover  { background: var(--mly-bg-recessed, #F5F5F5); border-color: rgba(0, 0, 0, 0.22); }
-.overlay-btn.active { background: var(--mly-text-primary, #1A1A1A); border-color: var(--mly-text-primary, #1A1A1A); color: var(--mly-bg-primary, #FFFFFF); font-weight: 700; }
+.overlay-btn.active { background: rgba(0, 184, 169, 0.12); border-color: var(--mly-teal, #00B8A9); color: var(--mly-teal, #00B8A9); font-weight: 700; }
 .overlay-btn[data-overlay="bandwidth"].active       { background: rgba(124,58,237,.12); border-color: #7C3AED; color: #7C3AED; }
 .overlay-btn[data-overlay="side_reflections"].active { background: rgba(255,16,122,.10); border-color: #FF107A; color: #FF107A; }
 
@@ -734,9 +734,9 @@
 }
 .treat-pill:hover { background: var(--mly-bg-recessed, #F5F5F5); border-color: rgba(0,0,0,.2); }
 .treat-pill.active {
-  background: var(--mly-text-primary, #1A1A1A);
-  border-color: var(--mly-text-primary, #1A1A1A);
-  color: var(--mly-bg-primary, #fff);
+  background: rgba(0, 184, 169, 0.12);
+  border-color: var(--mly-teal, #00B8A9);
+  color: var(--mly-teal, #00B8A9);
 }
 
 /* Colour swatch (override measurely-core size for control panels) */
