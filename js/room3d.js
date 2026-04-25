@@ -1359,10 +1359,12 @@ export function initRoom3D({
           for (let ri = 0; ri < NUM_RINGS; ri++) {
             const amp = ringAmps[ri];
             // Colour: cyan (HSL 0.50) at full energy → magenta (HSL 0.83) at deep null
+            // Lightness 0.42 (down from 0.55) so the rings read against the
+            // cream canvas background — light cyan-on-cream was barely visible.
             const ringColor = new THREE.Color().setHSL(
               0.50 + (1 - amp) * 0.33,   // 0.50=cyan → 0.83=magenta
               0.90,
-              0.55
+              0.42
             );
             const ringMat = new THREE.LineBasicMaterial({
               color: ringColor,
@@ -2644,9 +2646,11 @@ export function initRoom3D({
         const phase = (_wt / WAVE_CYCLE + ring.userData.wavePhase) % 1.0;
         const r = phase * ring.userData.waveMaxR;
         ring.scale.set(r, 1, r);
-        // Peak opacity = base 0.28 × waveAmp — REW nulls produce dimmer rings.
+        // Peak opacity = base 0.48 × waveAmp — REW nulls produce dimmer rings.
         // waveAmp is 1.0 in simulation mode (no REW data) so no visual regression.
-        const _peakOp = 0.28 * (ring.userData.waveAmp ?? 1.0);
+        // Bumped from 0.28 → 0.48 along with the darker HSL lightness so the
+        // rings read clearly against the cream canvas backdrop.
+        const _peakOp = 0.48 * (ring.userData.waveAmp ?? 1.0);
         ring.material.opacity = Math.max(0, (1 - phase) * _peakOp);
         // Lerp toward treatment-driven target color (cyan=treated, pink=untreated)
         // Only override colour in simulation mode — REW data already set colour on build.
