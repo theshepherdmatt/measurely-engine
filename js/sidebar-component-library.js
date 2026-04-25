@@ -617,9 +617,9 @@
     // ── LOW FREQUENCY sub-section — 24 px gap after Block C ─────────────────
     var lfSection = _el('div', { style: 'margin-top:24px;' });
     var lfLabel   = _el('span', {
-      class: 'demo-group-label',
-      style: 'display:block;margin-bottom:10px;',
-    }, 'Low Frequency');
+      class: 'demo-field-label',
+      style: 'display:block;margin-bottom:6px;',
+    }, 'Subs');
     lfSection.appendChild(lfLabel);
 
     var _subMode = cur.subwoofer_dual ? 'dual' : (cur.subwoofer ? 'single' : 'none');
