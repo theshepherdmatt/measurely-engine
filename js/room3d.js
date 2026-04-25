@@ -1455,15 +1455,19 @@ export function initRoom3D({
       const topH = 0.045;
       const tableTopY = legH + topH / 2;
 
-      // Solid fill material for stacked electronics — near-black, brushed-metal look
+      // Solid fill material for stacked electronics — charcoal, brushed-metal look.
+      // Lightened from 0x111111 (near-black) to 0x2a2a2a so the four components
+      // read as a stack of separate boxes against the cream canvas instead of
+      // dissolving into a single dark blob.
       const _compMat = new THREE.MeshStandardMaterial({
-        color: 0x111111,  // Near-black stealth
+        color: 0x2a2a2a,  // Medium charcoal — visible component separation
         roughness: 0.45,
         metalness: 0.45,
       });
-      // Subtle edge highlight for component front-panels (slightly lighter)
+      // Edge highlight — bumped from 0x2e2e2e → 0x666666 so the gaps between
+      // stacked components are legible.
       const _compEdgeMat = new THREE.LineBasicMaterial({
-        color: 0x2e2e2e, transparent: true, opacity: 0.70,
+        color: 0x666666, transparent: true, opacity: 0.70,
       });
       function _stealthComp(w, h, d) {
         const grp = new THREE.Group();
