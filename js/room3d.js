@@ -1306,9 +1306,11 @@ export function initRoom3D({
         );
         beam.computeLineDistances();
         beam.userData.isSpeakerBeam = true;
-        // Suppress projection beams when any diagnostic overlay is active —
-        // the SBIR/reflection tubes carry the visual load and the beams become clutter.
-        beam.visible = (focusedOverlay === null);
+        // Beam shows the speaker's aim axis — most useful when adjusting
+        // toe-in. Always visible: previously suppressed when any overlay
+        // was focused, but that hid the beams from the SETUP tab too once
+        // the user had ever picked an overlay (focusedOverlay persists
+        // across tab switches).
 
         speaker.add(beam);
         roomGroup.add(spkGroup);
