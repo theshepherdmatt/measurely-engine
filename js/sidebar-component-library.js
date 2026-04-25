@@ -118,15 +118,15 @@
   const _GRID_CSS = 'display:grid;gap:8px;';
   const _CELL_BASE = [
     'display:flex;flex-direction:column;align-items:center;justify-content:center;',
-    'gap:4px;padding:7px 4px 5px;border:none;border-radius:6px;cursor:pointer;',
-    'background:rgba(0,0,0,0.04);transition:background 0.15s,transform 0.1s;',
+    'gap:4px;padding:7px 4px 5px;border:1px solid transparent;border-radius:6px;cursor:pointer;',
+    'background:var(--scl-cell-bg,rgba(0,0,0,0.04));transition:background 0.15s,border-color 0.15s,transform 0.1s;',
     'font-size:8px;font-family:var(--mly-font,\'DM Sans\',sans-serif);',
-    'letter-spacing:0.08em;text-transform:uppercase;font-weight:600;color:#71717a;',
+    'letter-spacing:0.08em;text-transform:uppercase;font-weight:600;color:var(--scl-cell-col,#71717a);',
   ].join('');
-  const _CELL_ACTIVE_BG  = 'var(--mly-teal,#0d9488)';
-  const _CELL_ACTIVE_COL = '#ffffff';
-  const _MASK_INACTIVE   = 'rgba(113,113,122,0.7)'; // zinc-500
-  const _MASK_ACTIVE     = '#ffffff';
+  const _CELL_ACTIVE_BG  = 'var(--scl-cell-active-bg,var(--mly-teal,#0d9488))';
+  const _CELL_ACTIVE_COL = 'var(--scl-cell-active-col,#ffffff)';
+  const _MASK_INACTIVE   = 'var(--scl-mask-i,rgba(113,113,122,0.7))';
+  const _MASK_ACTIVE     = 'var(--scl-mask-a,#ffffff)';
 
   // Build a single icon-grid cell (button)
   function _iconCell(iconFile, label, active) {
@@ -160,8 +160,9 @@
   }
 
   function _iconCellApply(btn, active) {
-    btn.style.background = active ? _CELL_ACTIVE_BG : 'rgba(0,0,0,0.04)';
-    btn.style.color      = active ? _CELL_ACTIVE_COL : '#71717a';
+    btn.style.background  = active ? _CELL_ACTIVE_BG  : 'var(--scl-cell-bg,rgba(0,0,0,0.04))';
+    btn.style.color       = active ? _CELL_ACTIVE_COL : 'var(--scl-cell-col,#71717a)';
+    btn.style.borderColor = active ? 'var(--scl-cell-active-border,transparent)' : 'transparent';
     if (btn._iconMask) {
       btn._iconMask.style.backgroundColor = active ? _MASK_ACTIVE : _MASK_INACTIVE;
     }
@@ -272,39 +273,33 @@
     const mount = _mount(mountId);
     if (!mount) return null;
 
-    let active = initial;
-    const btns = {};
-
     const _TOGGLE_IDS = { home: 'select-hifi', studio: 'select-studio' };
-    const row = _el('div', { class: 'demo-btn-row' });
-    for (const { key, label } of [{ key: 'home', label: 'Hi-Fi' }, { key: 'studio', label: 'Studio' }]) {
-      const btn = _el('button', {
-        id: _TOGGLE_IDS[key],
-        class: 'room-sel-btn' + (key === active ? ' active' : ''),
-        type: 'button',
-      }, label);
-      btn.addEventListener('click', () => {
-        if (active === key) return;
-        Object.values(btns).forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        active = key;
-        onChange?.(key, { ..._ROOM_TYPE_DEFAULTS[key] });
-      });
-      btns[key] = btn;
-      row.appendChild(btn);
-    }
 
-    mount.appendChild(row);
+    const gridResult = _iconGridSelect(
+      [
+        { key: 'home',   icon: 'hifi.svg',   label: 'Hi-Fi'  },
+        { key: 'studio', icon: 'studio.svg',  label: 'Studio' },
+      ],
+      initial,
+      2,
+      key => {
+        // Stamp the legacy IDs onto the buttons so existing JS selectors still work
+        onChange?.(key, { ..._ROOM_TYPE_DEFAULTS[key] });
+      }
+    );
+
+    // Stamp legacy IDs so existing workstation.js selectors keep working
+    const cells = gridResult.grid.children;
+    if (cells[0]) cells[0].id = _TOGGLE_IDS.home;
+    if (cells[1]) cells[1].id = _TOGGLE_IDS.studio;
+
+    mount.appendChild(gridResult.grid);
 
     return {
-      setActive(key) {
-        Object.values(btns).forEach(b => b.classList.remove('active'));
-        btns[key]?.classList.add('active');
-        active = key;
-      },
-      getActive()      { return active; },
+      setActive(key)   { gridResult.setActive(key); },
+      getActive()      { return initial; },
       getDefaults(key) { return { ..._ROOM_TYPE_DEFAULTS[key] }; },
-      reset()          { this.setActive(initial); },
+      reset()          { gridResult.setActive(initial); },
     };
   }
 
@@ -737,7 +732,7 @@
     // ─── Hi-Fi block ────────────────────────────────────────────────────────────
     const hifiBlock = _el('div', { style: 'display:flex;flex-direction:column;gap:10px;' });
 
-    // Hi-Fi seating: 3-button group  [Sofa] [Compact] [Lounge]
+    // Hi-Fi seating: 3-icon grid  [Sofa] [Compact] [Lounge]
     // sofa → sofa_width_m=2.8, compact → 1.4, lounge → null (Eames)
     const _SEATING_MAP = {
       sofa:    { seating_type: 'sofa',   opt_sofa: true,  sofa_width_m: 2.8  },
@@ -749,13 +744,14 @@
       return (cur.sofa_width_m ?? 2.8) <= 1.4 ? 'compact' : 'sofa';
     })();
 
-    const seatingGroup = _btnGroup(
+    const seatingGroup = _iconGridSelect(
       [
-        { key: 'sofa',    label: 'Sofa'    },
-        { key: 'compact', label: 'Compact' },
-        { key: 'lounge',  label: 'Lounge'  },
+        { key: 'sofa',    icon: 'sofa.svg',        label: 'Sofa'    },
+        { key: 'compact', icon: 'chair.svg',        label: 'Compact' },
+        { key: 'lounge',  icon: 'lounge-chair.svg', label: 'Lounge'  },
       ],
       _curSeatingKey,
+      3,
       key => {
         _curSeatingKey = key;
         const vals = _SEATING_MAP[key];
@@ -770,15 +766,15 @@
         onChange?.({ ...cur });
       }
     );
-    hifiBlock.appendChild(seatingGroup.row);
+    hifiBlock.appendChild(seatingGroup.grid);
 
 
     // Hi-Fi furniture icon grid (3-col: Rug | Table | Stool)
     const hifiGrid = _iconGridToggle(
       [
-        { key: 'opt_area_rug',     icon: 'rug.svg',   label: 'Rug',   active: cur.opt_area_rug },
-        { key: 'opt_coffee_table', icon: 'table.svg',  label: 'Table', active: cur.opt_coffee_table },
-        { key: 'opt_ottoman',      icon: 'chair.svg',  label: 'Stool', active: cur.opt_ottoman },
+        { key: 'opt_area_rug',     icon: 'rug.svg',        label: 'Rug',   active: cur.opt_area_rug },
+        { key: 'opt_coffee_table', icon: 'coffee-table.svg', label: 'Table', active: cur.opt_coffee_table },
+        { key: 'opt_ottoman',      icon: 'foot-stool.svg', label: 'Stool', active: cur.opt_ottoman },
       ],
       3,
       (key, val) => {
@@ -831,8 +827,8 @@
     // Studio furniture icon grid (3-col: Display | Mic | Keys | Rug | Sub)
     const studioGrid = _iconGridToggle(
       [
-        { key: 'opt_display',  icon: 'lounge-chair.svg', label: 'Display', active: cur.opt_display },
-        { key: 'opt_mic',      icon: 'mountain.svg',      label: 'Mic',     active: cur.opt_mic },
+        { key: 'opt_display',  icon: 'monitor.svg',    label: 'Display', active: cur.opt_display },
+        { key: 'opt_mic',      icon: 'mic.svg',         label: 'Mic',     active: cur.opt_mic },
         { key: 'opt_keyboard', icon: 'wave-square.svg',   label: 'Keys',    active: cur.opt_keyboard },
         { key: 'opt_area_rug', icon: 'rug.svg',           label: 'Rug',     active: cur.opt_area_rug },
         { key: 'opt_sub',      icon: 'subspeaker.svg',    label: 'Sub',     active: cur.opt_sub ?? false },
@@ -934,11 +930,10 @@
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:6px;' });
 
     // 2-column icon-select grid for floor type
-    // Hard floor: use arrow-down (floor plank feel); Carpet: wave-square
     const floorGrid = _iconGridSelect(
       [
-        { key: 'hard',   icon: 'arrow-down.svg',    label: 'Hard' },
-        { key: 'carpet', icon: 'wave-square.svg',    label: 'Carpet' },
+        { key: 'hard',   icon: 'mountain.svg',    label: 'Hard' },
+        { key: 'carpet', icon: 'wave-square.svg',  label: 'Carpet' },
       ],
       cur.floor_material,
       2,
