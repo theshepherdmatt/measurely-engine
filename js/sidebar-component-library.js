@@ -784,6 +784,16 @@
           cur[key] = false;
         } else {
           cur[key] = val;
+          // Coffee Table and Ottoman are mutually exclusive — you can't
+          // realistically have both in front of the listener. Turning
+          // one ON forces the other OFF.
+          if (val && key === 'opt_coffee_table' && cur.opt_ottoman) {
+            cur.opt_ottoman = false;
+            hifiGrid.setActive('opt_ottoman', false);
+          } else if (val && key === 'opt_ottoman' && cur.opt_coffee_table) {
+            cur.opt_coffee_table = false;
+            hifiGrid.setActive('opt_coffee_table', false);
+          }
         }
         onChange?.({ ...cur });
       }
