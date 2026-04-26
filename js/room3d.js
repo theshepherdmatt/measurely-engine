@@ -1978,7 +1978,19 @@ export function initRoom3D({
       const rugCenterX = Math.max(-hW + rugWidth / 2 + 0.05,
         Math.min(hW - rugWidth / 2 - 0.05, offsetX));
 
-      const hiRug = _ghostBox(rugWidth, 0.02, rugDepth);
+      // Solid warm-brown fill instead of the standard furniture wireframe so
+      // the rug reads as fabric on the floor, not just another wire box.
+      // Low-roughness MeshStandard so it picks up subtle ambient + point
+      // light variation as the camera orbits.
+      const rugGeo = new THREE.BoxGeometry(rugWidth, 0.02, rugDepth);
+      const rugMat = new THREE.MeshStandardMaterial({
+        color:       0x8B6F47,   // Warm walnut — natural acoustic rug colour
+        roughness:   0.92,       // Matte fabric
+        metalness:   0.0,
+        transparent: true,
+        opacity:     0.78,
+      });
+      const hiRug = new THREE.Mesh(rugGeo, rugMat);
       hiRug.position.set(rugCenterX, -room.height_m / 2 + 0.01, rugCenterZ);
       roomGroup.add(hiRug);
     }
