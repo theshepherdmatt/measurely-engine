@@ -167,7 +167,10 @@
       const def = TREATMENT_TYPES[key];
       if (!def) return;
 
-      const nonNoneModes = def.modes.filter(m => m !== 'none');
+      // Render every mode as a pill — including 'none' (shown as "off")
+      // so users have an explicit way to disable, not just the cryptic
+      // header-click toggle.
+      const allModes = def.modes;
 
       // Row container
       const row = document.createElement('div');
@@ -196,11 +199,11 @@
       pillsRow.className = 'treat-pills';
 
       const pillMap = {};
-      nonNoneModes.forEach(mode => {
+      allModes.forEach(mode => {
         const pill = document.createElement('button');
-        pill.className  = 'treat-pill';
+        pill.className  = 'treat-pill' + (mode === 'none' ? ' treat-pill-off' : '');
         pill.type       = 'button';
-        pill.textContent = def.modeLabels?.[mode] ?? mode;
+        pill.textContent = mode === 'none' ? 'off' : (def.modeLabels?.[mode] ?? mode);
         pill.addEventListener('click', e => {
           e.stopPropagation();
           treatState[def.stateKey] = mode;
