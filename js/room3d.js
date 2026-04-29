@@ -218,7 +218,7 @@ export function initRoom3D({
 
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setClearColor(0xf0ede8, 1); // Warm off-white — matches site light theme
+  renderer.setClearColor(0xc8c8c8, 1); // Light grey — neutral studio-cyc backdrop
   renderer.domElement.style.touchAction = 'none'; // prevent iOS/iPad scroll hijack
   container.appendChild(renderer.domElement);
 
@@ -692,14 +692,13 @@ export function initRoom3D({
 
     // Unit plane: scale.x = width, scale.y = length (plane local-Y maps to world-Z
     // after the -90° X rotation). Stored for live resize.
-    // floor_material drives the visual — hard floor = cool off-white reflective surface,
-    // carpet = dark charcoal grey, fully matte. Neutral grey avoids colour casts under
-    // the scene's high ambient+point lighting and reads immediately as carpet.
+    // floor_material drives the visual — hard floor = neutral cool grey matte surface,
+    // carpet = darker charcoal, fully matte. No warm/cream tones — engine spec forbids them.
     const isCarpet = room.floor_material === 'carpet';
     const floorMat = new THREE.MeshStandardMaterial({
-      color: isCarpet ? 0x3a3a3a : 0xe8e3da,   // dark charcoal grey vs. cool off-white
-      roughness: isCarpet ? 0.97 : 0.18,        // fully matte vs. slightly reflective
-      metalness: isCarpet ? 0.00 : 0.30,        // no sheen vs. polished tile
+      color: isCarpet ? 0x3a3a3a : 0x8a8a8a,   // dark charcoal vs. neutral cool grey
+      roughness: isCarpet ? 0.97 : 0.85,        // both matte — no metallic specular
+      metalness: 0.0,                           // zero metalness on both — kills warm specular tint
       transparent: true,
       opacity: isCarpet ? 0.85 : 0.72,        // carpet reads solid, hard floor subtle
       depthWrite: false
@@ -719,7 +718,7 @@ export function initRoom3D({
       // setRoomWidth/Length can update scale.x / scale.z without rebuilding.
       // Fewer divisions on mobile so lines are further apart and more legible.
       const gridDivisions = isTablet ? 10 : 20;
-      const grid = new THREE.GridHelper(1, gridDivisions, colors.room, 0xd0cbc4);
+      const grid = new THREE.GridHelper(1, gridDivisions, colors.room, 0x707070);
       grid.scale.set(room.width_m, 1, room.length_m);
       grid.position.y = -room.height_m / 2;
 
@@ -1699,9 +1698,17 @@ export function initRoom3D({
       // ── Rug ──
       // Studio: small rug in station local coords (clamped from front wall).
       // Hi-Fi: rug added to roomGroup in world coords (speaker-anchored, grows with listener).
+      // Dark fill slab + edge outline so the rug is visible as an actual rug, not a hollow box.
       if (isStudio && VISIBILITY.furniture.rug && room.opt_area_rug) {
         const rugW = room.width_m * 0.45, rugD = room.length_m * 0.35;
         const rug = _ghostBox(rugW, 0.02, rugD);
+        const rugFill = new THREE.Mesh(
+          new THREE.PlaneGeometry(rugW, rugD),
+          new THREE.MeshBasicMaterial({ color: 0x2a2a2a, transparent: true, opacity: 0.85, depthWrite: false })
+        );
+        rugFill.rotation.x = -Math.PI / 2;
+        rugFill.position.y = 0.011;
+        rug.add(rugFill);
         const rugHalfD = rugD / 2;
         const minLocalZ = (-room.length_m / 2) - listenerZ + rugHalfD + 0.06;
         const rugLocalZ = Math.max(-0.80, minLocalZ);
@@ -1978,17 +1985,15 @@ export function initRoom3D({
       const rugCenterX = Math.max(-hW + rugWidth / 2 + 0.05,
         Math.min(hW - rugWidth / 2 - 0.05, offsetX));
 
-      // Solid warm-brown fill instead of the standard furniture wireframe so
-      // the rug reads as fabric on the floor, not just another wire box.
-      // Low-roughness MeshStandard so it picks up subtle ambient + point
-      // light variation as the camera orbits.
+      // Dark monochrome fabric fill — engine spec forbids warm/cream tones in the scene.
+      // Reads as a textile slab against the matte grey floor without any warm cast.
       const rugGeo = new THREE.BoxGeometry(rugWidth, 0.02, rugDepth);
       const rugMat = new THREE.MeshStandardMaterial({
-        color:       0x8B6F47,   // Warm walnut — natural acoustic rug colour
-        roughness:   0.92,       // Matte fabric
+        color:       0x2a2a2a,   // Dark charcoal fabric
+        roughness:   0.95,       // Fully matte
         metalness:   0.0,
         transparent: true,
-        opacity:     0.78,
+        opacity:     0.88,
       });
       const hiRug = new THREE.Mesh(rugGeo, rugMat);
       hiRug.position.set(rugCenterX, -room.height_m / 2 + 0.01, rugCenterZ);
