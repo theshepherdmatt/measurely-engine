@@ -747,7 +747,7 @@
     const seatingGroup = _iconGridSelect(
       [
         { key: 'sofa',    icon: 'sofa.svg',        label: 'Sofa'    },
-        { key: 'compact', icon: 'chair.svg',        label: 'Compact' },
+        { key: 'compact', icon: 'chair.svg',        label: 'Chair'   },
         { key: 'lounge',  icon: 'lounge-chair.svg', label: 'Lounge'  },
       ],
       _curSeatingKey,
