@@ -285,6 +285,80 @@ function computeSignalIntegrity(ir) {
 }
 
 // ---------------------------------------------------------------------------
+// 8. RE-SCORE FROM MAGNITUDE
+// ---------------------------------------------------------------------------
+
+/**
+ * Re-compute the six pillar scores from a (possibly attenuated) frequency
+ * response, without re-running FFT or signal-integrity checks.
+ *
+ * Predictive model: not a physical measurement.
+ *
+ * Used by treatments.js to predict score impact when treatments are
+ * toggled — the IR doesn't change, but the magnitude curve does, so we
+ * re-derive the four frequency-domain scores (bandwidth, balance,
+ * peaks_dips, smoothness) and pass through reflections + clarity from the
+ * untouched impulse-response data.
+ *
+ * Depends on signal_math.js being loaded (uses bandwidth3db, modes,
+ * smoothness, bandMean).
+ *
+ * @param {number[]} freq           - frequency array (Hz)
+ * @param {number[]} mag            - magnitude array (dB) — possibly attenuated
+ * @param {object}   [options]
+ * @param {number[]} [options.refs=[]]              - reflection times (ms) from original IR
+ * @param {boolean}  [options.hasCoffeeTable=false]
+ * @param {boolean}  [options.isStudio=false]       - studio → flat target curve, hi-fi → Harman
+ * @returns {{ bandwidth:number, balance:number, peaks_dips:number,
+ *            smoothness:number, reflections:number, clarity:number }}
+ */
+function reScoreFromMagnitude(freq, mag, options = {}) {
+    const SM = (typeof MeasurelySignalMath !== 'undefined') ? MeasurelySignalMath
+             : (typeof module !== 'undefined') ? require('./signal_math.js') : null;
+    if (!SM) {
+        throw new Error('reScoreFromMagnitude: signal_math.js not loaded');
+    }
+
+    const refs           = Array.isArray(options.refs) ? options.refs : [];
+    const hasCoffeeTable = !!options.hasCoffeeTable;
+    const isStudio       = !!options.isStudio;
+
+    // Bandwidth
+    const bw = SM.bandwidth3db(freq, mag);
+
+    // Modes (peaks/dips below 1 kHz, matches analyse.js filter)
+    const modeList = SM.modes(freq, mag).filter(m => m.freq_hz <= 1000);
+
+    // Smoothness — std-dev of residuals from a moving average
+    const sm = SM.smoothness(freq, mag);
+
+    // Balance — band means with optional Harman target tilt for hi-fi rooms
+    const bands = {
+        bass_20_200:    SM.bandMean(freq, mag,    20,   200),
+        mid_200_2k:     SM.bandMean(freq, mag,   200,  2000),
+        treble_2k_10k:  SM.bandMean(freq, mag,  2000, 10000),
+        air_10k_20k:    SM.bandMean(freq, mag, 10000, 20000),
+    };
+
+    const target = isStudio ? null : (centreHz) => {
+        let offset = 0;
+        if (centreHz < 80)       offset = 3.0;
+        else if (centreHz < 400) offset = 3.0 - (Math.log10(centreHz / 80) / Math.log10(400 / 80)) * 3.0;
+        if (centreHz > 2000)     offset -= Math.log2(centreHz / 2000) * 1.0;
+        return offset;
+    };
+
+    return {
+        bandwidth:   scoreBandwidth(bw.lo, bw.hi),
+        balance:     scoreBalance(bands, target),
+        peaks_dips:  scoreModes(modeList),
+        smoothness:  scoreSmooth(sm),
+        reflections: scoreRef(refs),
+        clarity:     scoreClarity(refs, sm, hasCoffeeTable),
+    };
+}
+
+// ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
 
@@ -292,12 +366,12 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         scoreBandwidth, scoreBalance, scoreModes,
         scoreSmooth, scoreRef, scoreClarity,
-        computeSignalIntegrity, linmap,
+        computeSignalIntegrity, reScoreFromMagnitude, linmap,
     };
 } else if (typeof window !== 'undefined') {
     window.MeasurelyScore = {
         scoreBandwidth, scoreBalance, scoreModes,
         scoreSmooth, scoreRef, scoreClarity,
-        computeSignalIntegrity, linmap,
+        computeSignalIntegrity, reScoreFromMagnitude, linmap,
     };
 }
