@@ -218,7 +218,7 @@ export function initRoom3D({
 
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setClearColor(0xc8c8c8, 1); // Light grey — neutral studio-cyc backdrop
+  renderer.setClearColor(0x000000, 0); // Transparent — host page CSS controls background
   renderer.domElement.style.touchAction = 'none'; // prevent iOS/iPad scroll hijack
   container.appendChild(renderer.domElement);
 
@@ -261,6 +261,23 @@ export function initRoom3D({
     const h = container.clientHeight;
     if (!w || !h) return;
     camera.aspect = w / h;
+
+    // Portrait viewport (mobile) — zoom in (the canvas is full-bleed
+    // under the glass sheet, so most of the room would otherwise be
+    // hidden) and shift the rendered slice down within the virtual
+    // frame, which raises the room into the upper visible band above
+    // the sheet. Desktop and landscape unaffected.
+    if (h > w) {
+      const zoom = 1.55;
+      const fw = w * zoom;
+      const fh = h * zoom;
+      const ox = (fw - w) / 2;
+      const oy = (fh - h) / 2 + h * 0.32;
+      camera.setViewOffset(fw, fh, ox, oy, w, h);
+    } else {
+      camera.clearViewOffset();
+    }
+
     camera.updateProjectionMatrix();
     renderer.setSize(w, h);
   }

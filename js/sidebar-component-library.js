@@ -626,9 +626,8 @@
     var lfRow    = _el('div', { class: 'demo-btn-row', style: 'gap:6px;' });
     var subBtns  = {};
     var subOpts  = [
-      { key: 'none',   label: 'Off',      title: 'No subwoofer' },
-      { key: 'single', label: 'Sub',       title: 'Single subwoofer \u2014 right of rack' },
-      { key: 'dual',   label: 'Dual subs', title: 'Dual subs flanking speakers (Harman placement)' },
+      { key: 'none',   label: 'Off', title: 'No subwoofer' },
+      { key: 'single', label: 'Sub', title: 'Single subwoofer \u2014 right of rack' },
     ];
     for (var si = 0; si < subOpts.length; si++) {
       (function(opt) {
