@@ -218,7 +218,7 @@ export function initRoom3D({
 
   renderer.setSize(container.clientWidth, container.clientHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setClearColor(0x000000, 0); // Transparent — host page CSS controls background
+  renderer.setClearColor(0xc8c8c8, 1); // Light grey — neutral studio-cyc backdrop
   renderer.domElement.style.touchAction = 'none'; // prevent iOS/iPad scroll hijack
   container.appendChild(renderer.domElement);
 
