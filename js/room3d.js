@@ -307,17 +307,20 @@ export function initRoom3D({
     if (!w || !h) return;
     camera.aspect = w / h;
 
-    // Portrait viewport (mobile) — zoom in (the canvas is full-bleed
-    // under the glass sheet, so most of the room would otherwise be
-    // hidden) and shift the rendered slice down within the virtual
-    // frame, which raises the room into the upper visible band above
-    // the sheet. Desktop and landscape unaffected.
+    // Portrait viewport (mobile) — pull camera back so the full room
+    // (including ceiling) is visible, then shift the rendered slice
+    // slightly down within the virtual frame to raise the room a touch
+    // above centre, leaving breathing room for the bottom sheet at
+    // peek (~92px) + the 48px tab bar. Tightened 2026-05-05 from
+    // zoom 1.55 / oy +32% to zoom 1.30 / oy +10% so the room stops
+    // feeling cropped at the ceiling and pressed against the top
+    // edge. Desktop and landscape unaffected.
     if (h > w) {
-      const zoom = 1.55;
+      const zoom = 1.30;
       const fw = w * zoom;
       const fh = h * zoom;
       const ox = (fw - w) / 2;
-      const oy = (fh - h) / 2 + h * 0.32;
+      const oy = (fh - h) / 2 + h * 0.10;
       camera.setViewOffset(fw, fh, ox, oy, w, h);
     } else {
       camera.clearViewOffset();
