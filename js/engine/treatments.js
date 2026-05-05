@@ -33,11 +33,20 @@
 // Treatment profiles — conservative absorption model
 // ---------------------------------------------------------------------------
 //
-// absorptionDb is the dB amount by which deviations from the local band
-// baseline are shrunk toward the baseline. Both peaks (positive deviation)
-// and dips (negative deviation) shrink — physically, panel absorption
-// reduces the reflected wave magnitude, which lowers peak heights and
-// fills nulls.
+// absorptionDb is the per-band attenuation a panel applies to deviations
+// from the local band mean. The shrink is MULTIPLICATIVE in the linear
+// (pressure) domain: shrinkFactor = 10^(absorptionDb / 20). A −3 dB band
+// scales each deviation by ≈0.71, a −2 dB band by ≈0.79.
+//
+// Both peaks (positive deviation) and dips (negative deviation) shrink
+// proportionally — physically, broadband absorption reduces reflected-wave
+// magnitude, which lowers constructive peaks AND fills destructive nulls.
+//
+// History: an earlier version used a SUBTRACTIVE shrink (|dev| − shrinkDb).
+// That snapped any deviation smaller than shrinkDb to exactly zero, which
+// flattened sections of the curve into plateaus and surfaced as new modes
+// at band boundaries. The multiplicative model is continuous and physically
+// correct (energy absorption ↔ dB attenuation of reflected level).
 //
 // scoreBoosts apply directly to time-domain scores. primary effect = +1.5;
 // secondary = +0.9 (60% of primary, per spec). They stack additively across
@@ -105,11 +114,12 @@ function _round1(v) {
  *
  * Predictive model: not a physical measurement.
  *
- * Within the band, compute the band's mean as a baseline, then shrink
- * each sample's deviation from the baseline toward zero by |absorptionDb|.
- * Peaks become smaller, dips become shallower, mean is preserved — which
- * is what a broadband absorber does in the room (it reduces reflection
- * magnitude, collapsing both constructive peaks and destructive nulls).
+ * Computes the band's mean from the current (already partially treated)
+ * mag, then shrinks each sample's deviation from that mean by a factor
+ * of 10^(absorptionDb / 20). Peaks shrink toward the mean and dips fill
+ * toward the mean by the same proportion — physically, a broadband
+ * absorber reduces reflected-wave magnitude, lowering peaks and filling
+ * nulls. Band mean is preserved.
  */
 function _applyAbsorptionBand(freq, mag, band) {
     const indices = [];
@@ -122,13 +132,66 @@ function _applyAbsorptionBand(freq, mag, band) {
     }
     if (indices.length === 0) return;
 
-    const baseline = sum / indices.length;
-    const shrinkDb = Math.abs(band.absorptionDb);
+    const bandMean     = sum / indices.length;
+    // 10^(absorptionDb / 20) — same exponent as a voltage/pressure ratio.
+    // absorptionDb is negative (energy loss): −3 dB ≈ 0.708×, −2 dB ≈ 0.794×.
+    const shrinkFactor = Math.pow(10, band.absorptionDb / 20);
 
     for (const i of indices) {
-        const dev    = mag[i] - baseline;
-        const newDev = Math.sign(dev) * Math.max(0, Math.abs(dev) - shrinkDb);
-        mag[i] = baseline + newDev;
+        mag[i] = bandMean + (mag[i] - bandMean) * shrinkFactor;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Regression test (run with `node engine/js/engine/treatments.js`)
+//
+// Guards the bug that bit us: applying any treatment to a synthetic
+// measurement with both peaks AND dips must make scoreModes() rise (or
+// stay equal), never fall. The earlier subtractive shrink + PPO-48
+// scoring path made it fall — toggling Bass Traps on the demo dropped
+// peaks_dips from 5 to 2.
+// ---------------------------------------------------------------------------
+if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module) {
+    /* eslint-disable */
+    const SM = require('./signal_math.js');
+    const SC = require('./score.js');
+    global.MeasurelySignalMath = SM;
+    global.MeasurelyScore      = SC;
+
+    // Synthesise directly at PPO 12 (the resolution scoring uses) — narrow
+    // single-bin spikes that survive log-binning and the modes() moving-avg.
+    const ppo = 12;
+    const f = [], m = [];
+    for (let i = 0; ; i++) {
+        const fi = 20 * Math.pow(2, i / ppo);
+        if (fi > 20000) break;
+        f.push(fi);
+        m.push(0);
+    }
+    for (let i = 0; i < f.length; i++) {
+        const fi = f[i];
+        if (Math.abs(fi - 50)  < 3)  m[i] += 8;   // bass-mode peak
+        if (Math.abs(fi - 90)  < 5)  m[i] -= 10;  // SBIR null — this is the dip that must NOT deepen
+        if (Math.abs(fi - 250) < 8)  m[i] += 7;   // mid-mode peak
+    }
+    const analysis = { freq: f, mag: m, reflections_ms: [1.5, 4.0, 8.0] };
+    const baseline = SC.reScoreFromMagnitude(f, m, { refs: analysis.reflections_ms });
+
+    let failures = 0;
+    for (const key of Object.keys(TREATMENT_PROFILES)) {
+        const r = applyTreatments(analysis, [key]);
+        const drop = r.peaks_dips < baseline.peaks_dips;
+        const tag  = drop ? 'FAIL' : 'pass';
+        console.log(`[${tag}] ${key.padEnd(15)} pd: ${baseline.peaks_dips} → ${r.peaks_dips}` +
+                    `  sm: ${baseline.smoothness} → ${r.smoothness}` +
+                    `  ov: ${baseline.bandwidth ? '' : ''}${r.overall}`);
+        if (drop) failures++;
+    }
+    if (failures > 0) {
+        console.error(`\n${failures} regression(s) — peaks_dips dropped after a treatment`);
+        process.exit(1);
+    } else {
+        console.log('\nAll treatments raise (or hold) peaks_dips ✓');
     }
 }
 

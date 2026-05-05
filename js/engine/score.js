@@ -323,21 +323,31 @@ function reScoreFromMagnitude(freq, mag, options = {}) {
     const hasCoffeeTable = !!options.hasCoffeeTable;
     const isStudio       = !!options.isStudio;
 
+    // Re-bin the (possibly attenuated) UI-resolution mag down to PPO 12, the
+    // resolution analyse.js scores at. Without this step modes() detects every
+    // narrow ripple in the PPO-48 cached mag as a separate room mode and the
+    // peaks_dips score collapses (regression caught when bass-trap toggling
+    // dropped peaks_dips from 5 → 2 instead of lifting it).
+    const PPO_RAW = 12;
+    const rawBins = SM.logBins(freq, mag, 20, 20000, PPO_RAW);
+    const fRaw    = rawBins.f;
+    const mRaw    = rawBins.m;
+
     // Bandwidth
-    const bw = SM.bandwidth3db(freq, mag);
+    const bw = SM.bandwidth3db(fRaw, mRaw);
 
     // Modes (peaks/dips below 1 kHz, matches analyse.js filter)
-    const modeList = SM.modes(freq, mag).filter(m => m.freq_hz <= 1000);
+    const modeList = SM.modes(fRaw, mRaw).filter(m => m.freq_hz <= 1000);
 
     // Smoothness — std-dev of residuals from a moving average
-    const sm = SM.smoothness(freq, mag);
+    const sm = SM.smoothness(fRaw, mRaw);
 
     // Balance — band means with optional Harman target tilt for hi-fi rooms
     const bands = {
-        bass_20_200:    SM.bandMean(freq, mag,    20,   200),
-        mid_200_2k:     SM.bandMean(freq, mag,   200,  2000),
-        treble_2k_10k:  SM.bandMean(freq, mag,  2000, 10000),
-        air_10k_20k:    SM.bandMean(freq, mag, 10000, 20000),
+        bass_20_200:    SM.bandMean(fRaw, mRaw,    20,   200),
+        mid_200_2k:     SM.bandMean(fRaw, mRaw,   200,  2000),
+        treble_2k_10k:  SM.bandMean(fRaw, mRaw,  2000, 10000),
+        air_10k_20k:    SM.bandMean(fRaw, mRaw, 10000, 20000),
     };
 
     const target = isStudio ? null : (centreHz) => {
