@@ -213,7 +213,10 @@ function analyse(ir, fs, freq, mag, room = {}, options = {}) {
         scores.clarity     = Math.round(Math.max(0, scores.clarity     - 1.0) * 10) / 10;
     }
 
-    // overall is computed from the (potentially penalised) per-metric scores
+    // overall is computed from the (potentially penalised) per-metric scores.
+    // NaN metrics are excluded from the mean — when an upstream guard returns
+    // NaN (no reflections, no modes, no smoothness data), that pillar drops
+    // out of the average rather than dragging it down with a fake zero.
     const baseScores = Object.values(scores).filter(s => isFinite(s));
     const baseOverall = baseScores.length > 0
         ? baseScores.reduce((a, b) => a + b, 0) / baseScores.length

@@ -123,8 +123,7 @@ function scoreBalance(bands, target = null) {
  * @returns {number} 0–10 score
  */
 function scoreModes(modeList) {
-    if (modeList === null || modeList === undefined) return NaN;
-    if (modeList.length === 0) return 10.0;
+    if (!modeList || modeList.length === 0) return NaN;
 
     let maxDev;
     try {
@@ -194,6 +193,8 @@ function scoreRef(refs) {
  * @returns {number} 0–10 score
  */
 function scoreClarity(refs, smoothnessStd, hasCoffeeTable = false) {
+    if (!refs || refs.length === 0 || !isFinite(smoothnessStd)) return NaN;
+
     let score = 10.0;
 
     if (refs && refs.length > 0) {
