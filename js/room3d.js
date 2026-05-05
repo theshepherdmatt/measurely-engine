@@ -24,6 +24,51 @@ export const DEFAULT_CAMERA = {
   target: { x: 0, y: 0, z: 0 }
 };
 
+/* ----------------------------------------------------------
+   OVERLAY COLOUR PALETTE
+   Single source of truth for every colour rendered by an
+   acoustic-overlay mesh in this engine. Consumers (the legend
+   chips in app.html, future overlays, the test harness) MUST
+   import and reuse these tokens — duplicating a hex literal
+   anywhere overlay-related re-introduces the legend/scene
+   drift bug we fixed when this palette was introduced.
+
+   Non-overlay UI (room shell, furniture base colours, lighting,
+   setup-wizard highlights, treatment panel default colours,
+   greyscale shader bases) intentionally keeps its own literals
+   — those aren't legend-tracked.
+---------------------------------------------------------- */
+export const OVERLAY_COLOURS = {
+  // Pressure / problem indicators
+  PRESSURE_PEAK:     '#FF107A',  // neon pink — pressure hot-spots
+  RESONANCE_PURPLE:  '#7C3AED',  // bass-mode standing waves (shader literal)
+  RESONANCE_VOID:    '#0A0A32',  // zero-pressure deep (shader literal)
+
+  // Direct / clean indicators
+  DIRECT_SIGNAL:     '#00B8A9',  // teal — direct path
+  SWEET_SPOT_TEAL:   '#0d9488',  // sweet-spot / centred
+  TREATED_CYAN:      '#00F5FF',  // cyan — treated-state / SBIR ring
+
+  // Severity / wall reflections
+  REFLECTION_ORANGE: '#FF6B35',  // worst-wall reflection path
+
+  // Smoothness gradient
+  SMOOTH_TEAL:       '#0f766e',  // smooth baseline
+  SMOOTH_AMBER:      '#d97706',  // rough
+  SMOOTH_RED:        '#ff3b3b',  // very rough / off-axis / problem path
+
+  // Other accents
+  REAR_AMBER:        '#f59e0b',  // rear-energy slab + animation lerp anchor
+  CEILING_INDIGO:    '#6366f1',  // ceiling reflection (no cloud)
+};
+
+// Numeric mirror — Three.js takes hex numbers (0x...) for material colours.
+// Generated once at module load so the palette object stays the source of
+// truth (edit a hex above, both forms update).
+const OC = Object.fromEntries(
+  Object.entries(OVERLAY_COLOURS).map(([k, v]) => [k, parseInt(v.slice(1), 16)])
+);
+
 export function initRoom3D({
   mountId,
   getRoomData,
@@ -2409,7 +2454,7 @@ export function initRoom3D({
 
       const roughness = THREE.MathUtils.clamp(smoothnessStd / 5, 0, 1);
       const isRough = roughness > 0.55;
-      const fieldColor = roughness > 0.8 ? 0xff3b3b : isRough ? 0xd97706 : 0x0f766e;
+      const fieldColor = roughness > 0.8 ? OC.SMOOTH_RED : isRough ? OC.SMOOTH_AMBER : OC.SMOOTH_TEAL;
       const isFocSM = isFocused(OVERLAYS.SMOOTHNESS);
 
       // Populate uModes from real room mode data — vec4(p, q, weight, phase_offset)
@@ -2501,7 +2546,7 @@ export function initRoom3D({
               const nodePlane = new THREE.Mesh(
                 new THREE.PlaneGeometry(room.width_m * 0.9, room.height_m * 0.8),
                 new THREE.MeshBasicMaterial({
-                  color: 0xff3b3b, transparent: true,
+                  color: OC.SMOOTH_RED, transparent: true,
                   opacity: 0.06, side: THREE.DoubleSide, depthWrite: false,
                 })
               );
@@ -2574,8 +2619,8 @@ export function initRoom3D({
       const syncT  = (nowMs % HEARTBEAT_MS) / 1000; // 0 → 2.0 s, resets every 2 s
 
       // Colour target from activeScore: pink → amber → cyan
-      const _colPink  = new THREE.Color(0xFF107A);
-      const _colAmber = new THREE.Color(0xF59E0B);
+      const _colPink  = new THREE.Color(OC.PRESSURE_PEAK);
+      const _colAmber = new THREE.Color(OC.REAR_AMBER);
       const _colCyan  = new THREE.Color(0x00FFFF);
       const scoreFrac = Math.min(Math.max((activeScore - 3) / 7, 0), 1);
       const targetPingColor = scoreFrac < 0.5
@@ -3129,7 +3174,7 @@ export function initRoom3D({
           room.length_m * 0.6
         ),
         new THREE.MeshBasicMaterial({
-          color: 0x00B8A9,
+          color: OC.DIRECT_SIGNAL,
           transparent: true,
           opacity: 0.08,
           side: THREE.DoubleSide,
@@ -3165,7 +3210,7 @@ export function initRoom3D({
           new THREE.Vector3(spkX, fTweeterY, spkZ),
           new THREE.Vector3(bounceX, floorY, bounceZ),
           new THREE.Vector3(offsetX, fEarY, fListZ),
-          0x00B8A9
+          OC.DIRECT_SIGNAL
         );
       }
     }
@@ -3194,14 +3239,14 @@ export function initRoom3D({
       const isSevere = effectiveScore < 5;
 
       // Drive wave ring color: cyan = treated, pink = untreated (lerped in render loop)
-      const _sbirRingTarget = new THREE.Color(sbirTreated ? 0x00F5FF : 0xFF107A);
+      const _sbirRingTarget = new THREE.Color(sbirTreated ? OC.TREATED_CYAN : OC.PRESSURE_PEAK);
       _waveRings.forEach(r => { r.userData.targetColor = _sbirRingTarget; });
 
       // ── Live SBIR interference field (ShaderMaterial) ─────────────────────
       // Two point sources per speaker (direct + front-wall mirror image).
       // The shader computes the exact wave interference at every pixel in the
       // horizontal plane at tweeter height — destructive bands = SBIR nulls.
-      const fieldColor = isSevere ? 0xFF107A : 0x00B8A9;
+      const fieldColor = isSevere ? OC.PRESSURE_PEAK : OC.DIRECT_SIGNAL;
       const tweeterY = -room.height_m / 2 + (room.tweeter_height_m || 0.95);
       const frontWallZ = -room.length_m / 2;
       const isFocSBIR = isFocused(OVERLAYS.SBIR);
@@ -3249,7 +3294,7 @@ export function initRoom3D({
       const wallGlow = new THREE.Mesh(
         new THREE.ShapeGeometry(_fwShape),
         new THREE.MeshBasicMaterial({
-          color: 0x00B8A9, transparent: true,
+          color: OC.DIRECT_SIGNAL, transparent: true,
           opacity: isFocSBIR ? 0.12 : 0.06,
           side: THREE.DoubleSide, depthWrite: false
         })
@@ -3364,7 +3409,7 @@ export function initRoom3D({
         const trapHeight = room.height_m * 0.9;
 
         const trapMaterial = new THREE.MeshBasicMaterial({
-          color: 0x00B8A9,
+          color: OC.DIRECT_SIGNAL,
           transparent: true,
           opacity: 0.30,
           depthWrite: false,
@@ -3432,7 +3477,7 @@ export function initRoom3D({
           );
         }
 
-        const beamColor = effectiveScore < 5 ? 0xFF107A : 0x00FFFF;
+        const beamColor = effectiveScore < 5 ? OC.PRESSURE_PEAK : 0x00FFFF;
 
         const centreXL = offsetX - room.spk_spacing_m / 2;
         const centreXR = offsetX + room.spk_spacing_m / 2;
@@ -3647,7 +3692,7 @@ export function initRoom3D({
 
           // ── Reflection path lines ───────────────────────────────────────
           // Worst wall gets full brightness + red hotspot; other wall is 60% opacity.
-          const _pathColor = effectiveScore < 5 ? 0xFF107A : (isWorstWall ? 0xFF6B35 : 0x00B8A9);
+          const _pathColor = effectiveScore < 5 ? OC.PRESSURE_PEAK : (isWorstWall ? OC.REFLECTION_ORANGE : OC.DIRECT_SIGNAL);
           drawReflectionPath(
             speakerPos, bouncePoint, listenerPos,
             _pathColor,
@@ -3709,7 +3754,7 @@ export function initRoom3D({
           rearDepth
         ),
         new THREE.MeshBasicMaterial({
-          color: 0xf59e0b,
+          color: OC.REAR_AMBER,
           transparent: true,
           opacity: 0.05,
           depthWrite: false
@@ -3730,7 +3775,7 @@ export function initRoom3D({
       const tableReflection = new THREE.Mesh(
         new THREE.BoxGeometry(1.1, 0.15, 0.7),
         new THREE.MeshBasicMaterial({
-          color: 0x0d9488,
+          color: OC.SWEET_SPOT_TEAL,
           transparent: true,
           opacity: 0.12,
           depthWrite: false
@@ -3990,14 +4035,14 @@ export function initRoom3D({
 
       // 2. Stereo triangle: L→listener, R→listener, L→R base
       [[spkL, lstn], [spkR, lstn], [spkL, spkR]].forEach(([a, b]) => {
-        _addReflectionTube(a, b, 0x0d9488, alpha);
+        _addReflectionTube(a, b, OC.SWEET_SPOT_TEAL, alpha);
       });
 
       // 3. Sweet spot ring on floor (±15 cm ideal zone)
       const sweetRing = new THREE.Mesh(
         new THREE.TorusGeometry(0.15, 0.012, 6, 48),
         new THREE.MeshBasicMaterial({
-          color: 0x0d9488, transparent: true,
+          color: OC.SWEET_SPOT_TEAL, transparent: true,
           opacity: isFocBal ? 0.75 : 0.2, depthWrite: false
         })
       );
@@ -4006,7 +4051,7 @@ export function initRoom3D({
       roomGroup.add(sweetRing);
 
       // 4. Actual listener position marker (pulses, red if off-axis)
-      const markerColor = isBad ? 0xff3b3b : 0x0d9488;
+      const markerColor = isBad ? OC.SMOOTH_RED : OC.SWEET_SPOT_TEAL;
       const markerRing = new THREE.Mesh(
         new THREE.TorusGeometry(0.08, 0.016, 6, 32),
         new THREE.MeshBasicMaterial({
@@ -4047,19 +4092,19 @@ export function initRoom3D({
           speakerY,
           -room.length_m / 2 + room.spk_front_m
         );
-        _addReflectionTube(spkPos, listenerPos, 0x0d9488, isFocCl ? 0.80 : 0.18);
+        _addReflectionTube(spkPos, listenerPos, OC.SWEET_SPOT_TEAL, isFocCl ? 0.80 : 0.18);
       });
 
       // 2. Listener bubble
       roomGroup.add(Object.assign(new THREE.Mesh(
         new THREE.SphereGeometry(clarityR, 24, 16),
-        new THREE.MeshBasicMaterial({ color: 0x0d9488, transparent: true, opacity: isFocCl ? 0.28 : 0.05, depthWrite: false })
+        new THREE.MeshBasicMaterial({ color: OC.SWEET_SPOT_TEAL, transparent: true, opacity: isFocCl ? 0.28 : 0.05, depthWrite: false })
       ), { position: listenerPos.clone() }));
 
       // Foot ring on floor
       const footRing = new THREE.Mesh(
         new THREE.TorusGeometry(clarityR * 0.55, 0.012, 6, 48),
-        new THREE.MeshBasicMaterial({ color: 0x0d9488, transparent: true, opacity: isFocCl ? 0.55 : 0.1, depthWrite: false })
+        new THREE.MeshBasicMaterial({ color: OC.SWEET_SPOT_TEAL, transparent: true, opacity: isFocCl ? 0.55 : 0.1, depthWrite: false })
       );
       footRing.rotation.x = Math.PI / 2;
       footRing.position.set(listenerPos.x, floorY + 0.01, listenerPos.z);
@@ -4078,7 +4123,7 @@ export function initRoom3D({
         const reflPath = spkPos.distanceTo(bounce) + bounce.distanceTo(listenerPos);
         const directPath = spkPos.distanceTo(listenerPos);
         const hitsBubble = (reflPath - directPath) / 343 * 1000 < 15; // red if delay < 15 ms
-        drawReflectionPath(spkPos, bounce, listenerPos, hitsBubble ? 0xff3b3b : 0x0d9488);
+        drawReflectionPath(spkPos, bounce, listenerPos, hitsBubble ? OC.SMOOTH_RED : OC.SWEET_SPOT_TEAL);
 
         if (isFocCl) {
           const dist = spkPos.distanceTo(bounce) + bounce.distanceTo(listenerPos);
@@ -4102,7 +4147,7 @@ export function initRoom3D({
           ceilY,
           (spkPos.z + listenerPos.z) / 2
         );
-        drawReflectionPath(spkPos, ceilBounce, listenerPos, _cloudMitigatesCeil ? 0x0d9488 : 0x6366f1);
+        drawReflectionPath(spkPos, ceilBounce, listenerPos, _cloudMitigatesCeil ? OC.SWEET_SPOT_TEAL : OC.CEILING_INDIGO);
 
         if (isFocCl) {
           const dist = spkPos.distanceTo(ceilBounce) + ceilBounce.distanceTo(listenerPos);
@@ -4256,6 +4301,18 @@ export function initRoom3D({
       rebuild();
     },
 
+    /**
+     * focusIssue — sets the active diagnostic overlay state.
+     *
+     * NOTE: The name is historical and misleading. This function does NOT
+     * move the camera. It only updates the overlay rendering state by
+     * clearing activeOverlays, adding the requested id, and triggering a
+     * rebuild(). For camera movement use focusOn(stepKey).
+     *
+     * @param {string|null} id     Overlay key from OVERLAYS, or null to clear all
+     * @param {number}      score  Severity score (0–10) — drives some overlays' colour intensity
+     * @param {number}      std    Smoothness std-dev — only consumed when id === SMOOTHNESS
+     */
     focusIssue(id, score = 10, std = 0) {
       console.log("[Room3D] 🎯 focusIssue()", id, "score =", score, "std =", std);
 
