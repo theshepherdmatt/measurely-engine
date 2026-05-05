@@ -2450,12 +2450,15 @@ export function initRoom3D({
     _applyAutoToe();
 
     // ---- SMOOTHNESS (Room Modal Standing Wave Field) ----
-    if (overlayEnabled(OVERLAYS.SMOOTHNESS)) {
+    if (overlayEnabled(OVERLAYS.SMOOTHNESS)) try {
 
       const roughness = THREE.MathUtils.clamp(smoothnessStd / 5, 0, 1);
       const isRough = roughness > 0.55;
       const fieldColor = roughness > 0.8 ? OC.SMOOTH_RED : isRough ? OC.SMOOTH_AMBER : OC.SMOOTH_TEAL;
-      const isFocSM = isFocused(OVERLAYS.SMOOTHNESS);
+      // The smoothness block lives in rebuild() rather than renderAnalysisOverlays(),
+      // so the local isFocused() helper used by other overlays isn't in scope here.
+      // Match the inline pattern used by the bandwidth/side-reflections blocks.
+      const isFocSM = focusedOverlay === OVERLAYS.SMOOTHNESS;
 
       // Populate uModes from real room mode data — vec4(p, q, weight, phase_offset)
       // Axial weighted 1.0, tangential 0.7, oblique 0.4 (Kuttruff energy weighting).
@@ -2565,6 +2568,8 @@ export function initRoom3D({
           }
         });
       }
+    } catch (err) {
+      console.error("[Room3D] Overlay 'smoothness' failed to render", err);
     }
 
 
@@ -3167,7 +3172,7 @@ export function initRoom3D({
     if (
       overlayEnabled(OVERLAYS.FLOOR_REFLECTION) &&
       room.floor_material === "hard"
-    ) {
+    ) try {
       const floorOverlay = new THREE.Mesh(
         new THREE.PlaneGeometry(
           room.width_m * 0.9,
@@ -3213,10 +3218,12 @@ export function initRoom3D({
           OC.DIRECT_SIGNAL
         );
       }
+    } catch (err) {
+      console.error("[Room3D] Overlay 'floor_reflection' failed to render", err);
     }
 
     // ---- SBIR ----
-    if (overlayEnabled(OVERLAYS.SBIR)) {
+    if (overlayEnabled(OVERLAYS.SBIR)) try {
 
       const sbirDepth = Math.max(room.spk_front_m || 0.2, 0.2);
 
@@ -3501,10 +3508,12 @@ export function initRoom3D({
         );
       }
 
+    } catch (err) {
+      console.error("[Room3D] Overlay 'sbir' failed to render", err);
     }
 
     // ---- SIDE WALL REFLECTIONS ----
-    if (overlayEnabled(OVERLAYS.SIDE_REFLECTIONS)) {
+    if (overlayEnabled(OVERLAYS.SIDE_REFLECTIONS)) try {
 
       const sideGap = (room.width_m - room.spk_spacing_m) / 2;
       const isTooClose = sideGap < 0.6;
@@ -3738,10 +3747,12 @@ export function initRoom3D({
           roomGroup.add(ping);
         }
       }
+    } catch (err) {
+      console.error("[Room3D] Overlay 'side_reflections' failed to render", err);
     }
 
     // ---- REAR WALL ENERGY ----
-    if (overlayEnabled(OVERLAYS.REAR_ENERGY)) {
+    if (overlayEnabled(OVERLAYS.REAR_ENERGY)) try {
       const rearDepth = Math.max(
         room.length_m - room.listener_front_m,
         0.4
@@ -3768,10 +3779,12 @@ export function initRoom3D({
       );
 
       roomGroup.add(rearZone);
+    } catch (err) {
+      console.error("[Room3D] Overlay 'rear_energy' failed to render", err);
     }
 
     // ---- COFFEE TABLE ----
-    if (overlayEnabled(OVERLAYS.COFFEE_TABLE)) {
+    if (overlayEnabled(OVERLAYS.COFFEE_TABLE)) try {
       const tableReflection = new THREE.Mesh(
         new THREE.BoxGeometry(1.1, 0.15, 0.7),
         new THREE.MeshBasicMaterial({
@@ -3789,10 +3802,12 @@ export function initRoom3D({
       );
 
       roomGroup.add(tableReflection);
+    } catch (err) {
+      console.error("[Room3D] Overlay 'coffee_table' failed to render", err);
     }
 
     // ---- BANDWIDTH (ROOM MODE RESONANCE FIELD) ----
-    if (overlayEnabled(OVERLAYS.BANDWIDTH)) {
+    if (overlayEnabled(OVERLAYS.BANDWIDTH)) try {
 
       const isFocBW = focusedOverlay === OVERLAYS.BANDWIDTH;
       const _bwReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -4007,10 +4022,12 @@ export function initRoom3D({
       );
       resonanceVolume.userData.isBandwidthField = true;
       roomGroup.add(resonanceVolume);
+    } catch (err) {
+      console.error("[Room3D] Overlay 'bandwidth' failed to render", err);
     }
 
     // ---- BALANCE (STEREO SYMMETRY) ----
-    if (overlayEnabled(OVERLAYS.BALANCE)) {
+    if (overlayEnabled(OVERLAYS.BALANCE)) try {
 
       const halfW = room.width_m / 2;
       const halfL = room.length_m / 2;
@@ -4071,10 +4088,12 @@ export function initRoom3D({
         lbl.position.set(offsetX + offset, floorY + 0.6, lstnZ);
         roomGroup.add(lbl);
       }
+    } catch (err) {
+      console.error("[Room3D] Overlay 'balance' failed to render", err);
     }
 
     // ---- CLARITY (EARLY REFLECTION WINDOW) ----
-    if (overlayEnabled(OVERLAYS.CLARITY)) {
+    if (overlayEnabled(OVERLAYS.CLARITY)) try {
 
       const floorY = -room.height_m / 2;
       const ceilY = room.height_m / 2;
@@ -4095,11 +4114,15 @@ export function initRoom3D({
         _addReflectionTube(spkPos, listenerPos, OC.SWEET_SPOT_TEAL, isFocCl ? 0.80 : 0.18);
       });
 
-      // 2. Listener bubble
-      roomGroup.add(Object.assign(new THREE.Mesh(
+      // 2. Listener bubble — Three.js Object3D.position is a Vector3 with
+      // getter/setter property descriptors; Object.assign cannot reassign onto
+      // it. Use .position.copy(vec3) instead.
+      const clarityBubble = new THREE.Mesh(
         new THREE.SphereGeometry(clarityR, 24, 16),
         new THREE.MeshBasicMaterial({ color: OC.SWEET_SPOT_TEAL, transparent: true, opacity: isFocCl ? 0.28 : 0.05, depthWrite: false })
-      ), { position: listenerPos.clone() }));
+      );
+      clarityBubble.position.copy(listenerPos);
+      roomGroup.add(clarityBubble);
 
       // Foot ring on floor
       const footRing = new THREE.Mesh(
@@ -4157,6 +4180,8 @@ export function initRoom3D({
           roomGroup.add(lbl);
         }
       });
+    } catch (err) {
+      console.error("[Room3D] Overlay 'clarity' failed to render", err);
     }
 
   }
