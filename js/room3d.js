@@ -318,18 +318,19 @@ export function initRoom3D({
 
     // Portrait viewport (mobile) — pull camera back so the full room
     // (including ceiling) is visible, then shift the rendered slice
-    // slightly down within the virtual frame to raise the room a touch
-    // above centre, leaving breathing room for the bottom sheet at
-    // peek (~92px) + the 48px tab bar. Tightened 2026-05-05 from
-    // zoom 1.55 / oy +32% to zoom 1.30 / oy +10% so the room stops
-    // feeling cropped at the ceiling and pressed against the top
-    // edge. Desktop and landscape unaffected.
+    // down within the virtual frame to raise the room a touch above
+    // centre, leaving breathing room for the bottom sheet at peek
+    // (~92px) + the 48px tab bar. Recalibrated 2026-05-05 from
+    // zoom 1.30 / oy +10% to zoom 1.45 / oy +17% — the prior pass
+    // pulled the framing too far down (~80px of empty grey above
+    // the ceiling) and pressed the front edge against the sheet
+    // peek. Desktop and landscape unaffected.
     if (h > w) {
-      const zoom = 1.30;
+      const zoom = 1.45;
       const fw = w * zoom;
       const fh = h * zoom;
       const ox = (fw - w) / 2;
-      const oy = (fh - h) / 2 + h * 0.10;
+      const oy = (fh - h) / 2 + h * 0.17;
       camera.setViewOffset(fw, fh, ox, oy, w, h);
     } else if (_mqPhoneLandscape && _mqPhoneLandscape.matches) {
       // Landscape phone — the panoramic shape can hold more of the room
