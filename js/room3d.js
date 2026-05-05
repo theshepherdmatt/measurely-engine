@@ -4222,14 +4222,16 @@ export function initRoom3D({
   animate();
 
   // ── Cloud data reactivity ────────────────────────────────────────────────
-  // pullRoom() in sync.js dispatches this event after writing to localStorage.
-  // auth.js also dispatches it when seeding a new user's default layout.
-  // Using { once: true } so a single login never fires duplicate rebuilds.
+  // pullRoom() / loadRoomById() in sync.js dispatch this after writing to
+  // localStorage; auth.js also dispatches it when seeding a new user's
+  // default layout. Listener is *persistent* (no { once: true }) so the
+  // engine re-renders every time a different saved room is loaded — the
+  // multi-room "My Rooms" panel relies on this.
   // _freshRoomOverride lets us bypass a stale local roomState in the caller.
   window.addEventListener('measurely:data-ready', function _onCloudRoom(e) {
     if (e.detail?.room) _freshRoomOverride = e.detail.room;
     rebuild();
-  }, { once: true });
+  });
 
   /* ------------------------------------------
      PUBLIC API
