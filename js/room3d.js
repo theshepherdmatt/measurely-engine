@@ -301,6 +301,15 @@ export function initRoom3D({
   /* ------------------------------------------
      RESIZE HANDLING
   ------------------------------------------ */
+  // Phone-landscape viewport check — gated on viewport width, not
+  // canvas width, so the camera config does not re-zoom when the
+  // edge-arrow drawers slide in/out (drawers are translateX overlays
+  // that don't resize the canvas, but we cross-check viewport here
+  // for safety so the user gets a stable framing in landscape).
+  const _mqPhoneLandscape = (typeof window !== 'undefined' && window.matchMedia)
+    ? window.matchMedia('(orientation: landscape) and (max-width: 899px)')
+    : null;
+
   function _onContainerResize() {
     const w = container.clientWidth;
     const h = container.clientHeight;
@@ -321,6 +330,21 @@ export function initRoom3D({
       const fh = h * zoom;
       const ox = (fw - w) / 2;
       const oy = (fh - h) / 2 + h * 0.10;
+      camera.setViewOffset(fw, fh, ox, oy, w, h);
+    } else if (_mqPhoneLandscape && _mqPhoneLandscape.matches) {
+      // Landscape phone — the panoramic shape can hold more of the room
+      // than the default desktop framing leaves visible. Crop the central
+      // slice of a 1.18x virtual frame so the room fills ~75% of the
+      // canvas with comfortable margins, instead of sitting as a small
+      // object in a sea of grey. Vertical offset stays centred (oy at
+      // exact mid-frame); horizontal stays centred so the room remains
+      // dead-centre with drawers closed. Drawer overlays don't resize
+      // the canvas, so this framing holds steady when a drawer opens.
+      const zoom = 1.18;
+      const fw = w * zoom;
+      const fh = h * zoom;
+      const ox = (fw - w) / 2;
+      const oy = (fh - h) / 2;
       camera.setViewOffset(fw, fh, ox, oy, w, h);
     } else {
       camera.clearViewOffset();
