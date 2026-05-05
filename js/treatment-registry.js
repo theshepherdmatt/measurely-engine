@@ -239,10 +239,8 @@
       list.appendChild(row);
     });
 
-    const panelsLabel = document.createElement('span');
-    panelsLabel.className = 'demo-sub-label';
-    panelsLabel.textContent = 'Panels';
-    mount.appendChild(panelsLabel);
+    // "Panels" sub-label dropped — redundant with the section header
+    // already rendered by the satellite. Treatment list mounts directly.
     mount.appendChild(list);
 
     // ── Colour swatches ───────────────────────────────────────────
@@ -274,9 +272,12 @@
         swatchRow.appendChild(btn);
       });
 
+      // Inline scope-explicit label: lighter type than a section header,
+      // attached visually to the swatch row above so colour reads as part
+      // of the Treatment block — not a sibling section.
       const colourLabel = document.createElement('span');
-      colourLabel.className = 'demo-sub-label';
-      colourLabel.textContent = 'Colour';
+      colourLabel.className = 'treat-colour-label';
+      colourLabel.textContent = 'Panel colour — applies to all panels';
       mount.appendChild(colourLabel);
       mount.appendChild(swatchRow);
     }
