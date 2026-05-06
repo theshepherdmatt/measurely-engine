@@ -89,6 +89,18 @@
   /* ── 10. Brand action tokens — used by components/buttons.css ─────────── */
   --mly-brand-accent:           #1A1A1A;   /* monochrome primary CTA */
   --mly-brand-accent-hover:     #333333;   /* primary hover */
+
+  /* ── 11. Cross-satellite back-compat aliases (v1 → v2) ──────────────────
+     Provide stable names for tokens consumed by satellites still on v1
+     naming. Safe to remove once all satellites are on v2. */
+  --mly-bg-app:                 var(--mly-bg-recessed);
+  --mly-surface-glass:          rgba(255, 255, 255, 0.95);
+  --mly-status-good:            var(--mly-score-good);
+  --mly-status-warn:            var(--mly-score-ok);
+  --mly-status-bad:             var(--mly-score-poor);
+
+  /* Pill radius — used by sliders.css */
+  --mly-radius-pill:            999px;
 }
 
 
