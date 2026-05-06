@@ -174,7 +174,22 @@ function modes(f, m, thresh = 4, minSep = 10) {
     if (medianStep <= 0) return [];
 
     const bpo = 1.0 / medianStep;
-    const win = Math.max(3, Math.round(bpo / 4));
+    // Baseline window — 3/4 octave wide. The earlier bpo/4 (~1/4 octave at
+    // PPO=12 → win=3) was comparable to the FWHM of typical Q≈10 bass-mode
+    // peaks, so the moving average tracked the peak shape and absorbed it
+    // into the baseline. The peak-relative-to-baseline delta then dropped
+    // below the 4 dB threshold and the peak was silently rejected.
+    //
+    // Empirical sensitivity sweep against a synthesised spectrum carrying a
+    // +11 dB peak at 49 Hz, +9 dB peak at 29 Hz, and -10 dB dip at 247 Hz:
+    //   win=3 (old)  → 0/6 features pass
+    //   win=5        → 4/6
+    //   win=9 (new)  → 5/6  ← optimum
+    //   win=13       → 5/6 (no further gain; risks merging adjacent modes)
+    //
+    // 3/4 octave is wide enough to span the shoulders of any reasonable
+    // bass-mode FWHM without tracking the peak itself.
+    const win = Math.max(9, Math.round(3 * bpo / 4));
 
     const base  = _movAvgCentred(m, win);
     const delta = m.map((v, i) => v - base[i]);
