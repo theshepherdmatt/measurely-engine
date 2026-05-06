@@ -2931,18 +2931,69 @@ export function initRoom3D({
       }
     }
 
-    // Side reflection pings — advance time + lerp severity toward target (cyan→pink transition)
+    // Reflections behavioural simulation — drive pulse position/opacity,
+    // wall flash glow, and listener halo from the cycle clock. Geometry
+    // and event schedules are baked at rebuild time; this block only
+    // mutates position/opacity. Reduced-motion freezes the simulation:
+    // pulses hide, wall flashes show static at half their event strength
+    // so the user still sees which surfaces reflect strongly.
     {
-      roomGroup.children
-        .filter(o => o.userData?.isSideRefPing)
-        .forEach(m => {
-          if (m.material?.uniforms) {
-            m.material.uniforms.uTime.value = performance.now() * 0.001;
-            const target = m.userData.targetSeverity ?? 0;
-            const current = m.material.uniforms.uSeverity.value;
-            m.material.uniforms.uSeverity.value = current + (target - current) * 0.03;
+      const REFL_CYCLE_S = 6.0;
+      const reducedRefl = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const cycleTime   = reducedRefl ? 0 : (performance.now() / 1000) % REFL_CYCLE_S;
+
+      roomGroup.children.forEach(obj => {
+        const ud = obj.userData;
+        if (!ud) return;
+
+        if (ud.isReflectionPulse) {
+          const d = ud.isReflectionPulse;
+          if (reducedRefl) { obj.visible = false; return; }
+          const t = (cycleTime - d.start) / (d.end - d.start);
+          if (t < 0 || t > 1) { obj.visible = false; return; }
+          obj.visible = true;
+          obj.position.lerpVectors(d.from, d.to, t);
+          // Opacity envelope: fade in over first 20% of travel, hold,
+          // fade out over last 20%.
+          const env = t < 0.2 ? t / 0.2
+                    : t > 0.8 ? (1 - t) / 0.2
+                    :           1;
+          obj.material.opacity = d.strength * env;
+
+        } else if (ud.isReflectionFlash) {
+          const d = ud.isReflectionFlash;
+          if (reducedRefl) {
+            obj.material.opacity = d.surfaceStrength * 0.4;
+            return;
           }
-        });
+          let intensity = 0;
+          for (const ev of d.events) {
+            const dt = cycleTime - ev.start;
+            if (dt >= 0 && dt < ev.duration) {
+              const t = dt / ev.duration;
+              // Asymmetric envelope: fast attack (peak at 30% of flash
+              // duration), slower decay — reads like a real flash.
+              const env = t < 0.3 ? t / 0.3 : (1 - t) / 0.7;
+              const v = ev.strength * env;
+              if (v > intensity) intensity = v;
+            }
+          }
+          obj.material.opacity = intensity * 0.6;
+
+        } else if (ud.isReflectionHalo) {
+          const d = ud.isReflectionHalo;
+          if (reducedRefl) { obj.material.opacity = 0; return; }
+          let intensity = 0;
+          for (const ev of d.events) {
+            const dt = cycleTime - ev.hitTime;
+            if (dt >= 0 && dt < 0.4) {
+              const v = ev.strength * (1 - dt / 0.4);
+              if (v > intensity) intensity = v;
+            }
+          }
+          obj.material.opacity = intensity * 0.7;
+        }
+      });
     }
 
     // Smoothness field — advance shader time uniform
@@ -3687,92 +3738,109 @@ export function initRoom3D({
       console.error("[Room3D] Overlay 'sbir' failed to render", err);
     }
 
-    // ---- SIDE WALL REFLECTIONS ----
+    // ---- REFLECTIONS ----
+    // Behavioural simulation: speakers fire pulses → walls flash on impact
+    // (intensity = treatment-driven reflection strength) → return pulses
+    // travel to listener → listener halo lights up. Cycle repeats.
+    //
+    // The score still comes from the actual measurement (scoreRef etc.).
+    // This visual teaches HOW the room behaves and how treatment helps.
+    // First-order bounce geometry comes from MeasurelyImageSource; the
+    // existing wave-field shader plane stays as the measured-energy
+    // evidence layer underneath the simulation.
     if (overlayEnabled(OVERLAYS.SIDE_REFLECTIONS)) try {
-
-      const sideGap = (room.width_m - room.spk_spacing_m) / 2;
-      const isTooClose = sideGap < 0.6;
-      const sideMode      = room.side_panel_mode;
-      const hasSidePanels = sideMode !== 'none';
-      // Per-side absorption — left/right walls treated independently
-      const hasCeilingCloud = room.ceiling_panel_mode !== 'none';
-      const _cloudBonus     = hasCeilingCloud ? 0.15 : 0.0;
-      // Front/rear panels reduce overall room energy, giving a small side-reflection bonus
-      const _wallBonus = simulatePanels ? 0 : Math.min(
-        (room.wall_panel_mode === 'front' || room.wall_panel_mode === 'both' ? 0.10 : 0) +
-        (room.wall_panel_mode === 'rear'  || room.wall_panel_mode === 'both' ? 0.08 : 0), 0.16);
-      const absL = Math.min((simulatePanels || sideMode === 'both' || sideMode === 'left')  ? 0.75 + _cloudBonus + _wallBonus : _cloudBonus + _wallBonus, 0.85);
-      const absR = Math.min((simulatePanels || sideMode === 'both' || sideMode === 'right') ? 0.75 + _cloudBonus + _wallBonus : _cloudBonus + _wallBonus, 0.85);
 
       const isFocSide = focusedOverlay === OVERLAYS.SIDE_REFLECTIONS;
 
-      // ── REW 2–8 kHz energy → reflection severity scale ──────────────────
-      // _sideRefEnergy: mean dBFS in the reflection-audibility band.
-      // _sideRefScale:  0.25 (dead room) … 1.0 (harsh room) — multiplied into
-      //                 shader opacity and per-wall mirror coefficients in
-      //                 Class A (where it reflects real measured energy).
+      // ── Treatment-driven reflection strength per surface ────────────────
+      // TREATED   = 0.20: soft pulse, dim flash → "treatment dampens this"
+      // UNTREATED = 0.85: bright pulse, strong flash → "this surface reflects"
+      // Simulation toggle force-treats every surface so the user can preview.
+      const TREATED   = 0.20;
+      const UNTREATED = 0.85;
+
+      const sideMode = room.side_panel_mode    || 'none';
+      const wallMode = room.wall_panel_mode    || 'none';
+      const ceilMode = room.ceiling_panel_mode || 'none';
+      const floorMat = room.floor_material     || 'hard';
+
+      // Floor has no dedicated treatment field today — carpet vs hard floor
+      // is the only honest signal we can read. Flagged for product follow-up.
+      const surfaceTreated = simulatePanels
+        ? { floor: true, ceiling: true, left: true, right: true, front: true, back: true }
+        : {
+            floor:   floorMat === 'carpet',
+            ceiling: ceilMode !== 'none',
+            left:    sideMode === 'left'  || sideMode === 'both',
+            right:   sideMode === 'right' || sideMode === 'both',
+            front:   wallMode === 'front' || wallMode === 'both',
+            back:    wallMode === 'rear'  || wallMode === 'both',
+          };
+      const surfaceStrength = {};
+      for (const k of ['floor','ceiling','left','right','front','back']) {
+        surfaceStrength[k] = surfaceTreated[k] ? TREATED : UNTREATED;
+      }
+
+      // ── Measurement context ─────────────────────────────────────────────
+      const hasMeasurement = !!_measurement;
       const _sideRefEnergy = _rewBandEnergy(2000, 8000, -20);
       const _sideRefScale  = Math.max(0.25, Math.min(1.0, (_sideRefEnergy + 60) / 54));
+      // Pre-measurement: simulation runs at 0.7× opacity to read as scaffolding.
+      const SIM_SCALE = hasMeasurement ? 1.0 : 0.7;
 
-      // ── Measurement-aware classification ─────────────────────────────────
-      // Three classes mirroring SBIR / Bass Modes / Smoothness:
-      //   A — confirmed: measurement loaded AND meaningful 2-8 kHz energy
-      //   B — predicted-not-confirmed: measurement loaded but band is quiet
-      //                                (well-damped / soft-furnished room)
-      //   C — pre-measurement: no measurement context yet
-      // Class A threshold: _sideRefEnergy > -30 dBFS. The default fallback is
-      // -20, so _rewFreqs absence → B; rooms with measured energy below -30
-      // (well-damped) also fall into B to avoid claiming a confirmed
-      // problem when the room actually doesn't have one.
-      const hasMeasurement = !!_measurement;
-      const reflectionsMs  = (hasMeasurement && Array.isArray(_measurement.reflectionsMs))
-        ? _measurement.reflectionsMs
-        : [];
-      const reflEarlyCount = reflectionsMs.filter(t => isFinite(t) && t <= 5.0).length;
+      const halfW = room.width_m  / 2;
+      const halfL = room.length_m / 2;
+      const halfH = room.height_m / 2;
+      const tweeterY = -halfH + room.tweeter_height_m;
 
-      const isClassA = hasMeasurement && !!_rewFreqs && _sideRefEnergy > -30;
-      const isClassB = hasMeasurement && !isClassA;
-      const isClassC = !hasMeasurement;
+      const listenerPos = new THREE.Vector3(
+        offsetX, tweeterY,
+        -halfL + room.listener_front_m
+      );
+      const speakerPositions = [
+        new THREE.Vector3(offsetX - room.spk_spacing_m / 2, tweeterY, -halfL + room.spk_front_m),
+        new THREE.Vector3(offsetX + room.spk_spacing_m / 2, tweeterY, -halfL + room.spk_front_m),
+      ];
 
-      // Class-driven field/mirror scale:
-      //   A — measured _sideRefScale (existing severity behaviour, 0.25-1.0)
-      //   B — 0.35 (receded; measurement loaded but band is quiet)
-      //   C — 0.50 (uniform mid-low scaffolding)
-      const _classRefScale = isClassA ? _sideRefScale : (isClassB ? 0.35 : 0.50);
+      // ── Image-source first-order bounces (per speaker × per surface) ─────
+      const IS = window.MeasurelyImageSource;
+      if (!IS) throw new Error('MeasurelyImageSource not loaded — check script order.');
+      const roomDims = { w: room.width_m, l: room.length_m, h: room.height_m };
+      const allBounces = [];
+      speakerPositions.forEach((s, idx) => {
+        const bounces = IS.firstOrderBounces(
+          { x: s.x, y: s.y, z: s.z },
+          { x: listenerPos.x, y: listenerPos.y, z: listenerPos.z },
+          roomDims
+        );
+        for (const b of bounces) {
+          allBounces.push({ speakerIdx: idx, ...b });
+        }
+      });
 
-      // Ping rate: fast = uncontrolled reflections, slow when panels absorbing
-      // energy. B/C are receded so users see scaffolding pulse, not action.
-      const _baseRate = (simulatePanels || sideMode === 'both') ? 0.9
-                      : (sideMode !== 'none')                  ? 1.8
-                      :                                          2.8;
-      const pingRate  = isClassA ? _baseRate
-                      : isClassB ? _baseRate * 0.5
-                      :            _baseRate * 0.35;
-
-      const tweeterY = -room.height_m / 2 + room.tweeter_height_m;
-      const spkZ = -room.length_m / 2 + room.spk_front_m;
-      // Wave number based on speaker-to-wall gap — tighter gap = more rings
-      const sideK = Math.PI / Math.max(sideGap, 0.3);
+      // ── Existing wave-field shader plane (measured-energy evidence) ─────
+      // Survives from the prior migration as the "pink bloom" layer beneath
+      // the simulation. Opacity follows measurement: full _sideRefScale when
+      // confirmed, 0.40 fallback pre-measurement.
+      const sideGap = (room.width_m - room.spk_spacing_m) / 2;
+      const sideK   = Math.PI / Math.max(sideGap, 0.3);
       const _sideRM = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const fieldScale = hasMeasurement ? _sideRefScale : 0.40;
+      const absL = surfaceTreated.left  ? 0.75 : 0.10;
+      const absR = surfaceTreated.right ? 0.75 : 0.10;
 
-      // ── Grey/Pink wave field — same scheme as SBIR ──────────
-      // uOpacity and mirror coefficients scaled by class:
-      //   Class A → measured _sideRefScale (full severity bandwidth)
-      //   Class B → 0.35 (well-damped or absorptive room)
-      //   Class C → 0.50 (predicted scaffolding, intensity unknown)
       const sideMat = new THREE.ShaderMaterial({
         uniforms: {
           uTime: { value: 0 },
           uK: { value: sideK },
-          // Centre speaker + mirror images across each side wall
-          uSpkC: { value: new THREE.Vector2(offsetX, spkZ) },
-          uMirL: { value: new THREE.Vector2(-room.width_m - offsetX, spkZ) },
-          uMirR: { value: new THREE.Vector2(room.width_m - offsetX, spkZ) },
+          uSpkC: { value: new THREE.Vector2(offsetX, -halfL + room.spk_front_m) },
+          uMirL: { value: new THREE.Vector2(-room.width_m - offsetX, -halfL + room.spk_front_m) },
+          uMirR: { value: new THREE.Vector2(room.width_m - offsetX, -halfL + room.spk_front_m) },
           uRoomW: { value: room.width_m },
           uRoomL: { value: room.length_m },
-          uOpacity: { value: (isFocSide ? 0.78 : 0.38) * _classRefScale },
-          uReflL:   { value: (1.0 - absL) * _classRefScale },
-          uReflR:   { value: (1.0 - absR) * _classRefScale },
+          uOpacity: { value: (isFocSide ? 0.78 : 0.38) * fieldScale },
+          uReflL:   { value: (1.0 - absL) * fieldScale },
+          uReflR:   { value: (1.0 - absR) * fieldScale },
           uReducedMotion: { value: _sideRM ? 1.0 : 0.0 },
         },
         vertexShader: `
@@ -3801,14 +3869,11 @@ export function initRoom3D({
 
           void main() {
             float t = uTime * (1.0 - uReducedMotion);
-            // Direct wave from speaker centre
             float direct = sin(distance(vXZ, uSpkC) * uK - t);
-            // Reflected waves — per-side coefficient so each wall cools independently
             float reflL  = uReflL * sin(distance(vXZ, uMirL) * uK - t);
             float reflR  = uReflR * sin(distance(vXZ, uMirR) * uK - t);
             float absField = abs((direct + reflL + reflR) * 0.33);
 
-            // Grey base with Neon Pink (#FF107A) at high-interference peaks
             float fresnelBand = smoothstep(0.40, 0.75, absField);
             vec3 greyBase   = vec3(0.30 + absField * 0.45);
             vec3 neonPink   = vec3(1.0, 0.063, 0.478);
@@ -3822,7 +3887,6 @@ export function initRoom3D({
         depthWrite: false,
         side: THREE.DoubleSide,
       });
-
       const sideField = new THREE.Mesh(
         new THREE.PlaneGeometry(room.width_m, room.length_m, 1, 1),
         sideMat
@@ -3832,159 +3896,172 @@ export function initRoom3D({
       sideField.userData.isSideRefField = true;
       roomGroup.add(sideField);
 
-      // ── Class-aware label at room centre / listener position ─────────────
-      // Suppressed in focused mode (worst-wall label takes over) and during
-      // setup. Mirrors the SBIR class-label pattern.
-      if (currentMode !== 'setup' && !focusedOverlay) {
-        let labelText, labelColor;
-        if (isClassA) {
-          // reflectionsMs surfaces measured early-arrival count; falls back
-          // to 0 if the analysis returned no reflections array.
-          const noun = reflEarlyCount === 1 ? 'reflection' : 'reflections';
-          labelText  = `${reflEarlyCount} ${noun} in first 5 ms`;
-          labelColor = '#9ca3af';
-        } else if (isClassB) {
-          labelText  = 'Side-wall energy low — room is well-damped';
-          labelColor = '#6b7280';
-        } else {
-          labelText  = 'Predicted reflection zones — no measurement loaded';
-          labelColor = '#6b7280';
-        }
-        const lbl = _makeLabelSprite(labelText, labelColor);
-        // Anchor near listener, slightly elevated above the floor heat-map
-        lbl.position.set(
-          offsetX,
-          tweeterY + 0.45,
-          -room.length_m / 2 + room.listener_front_m + 0.3
-        );
-        roomGroup.add(lbl);
+      // ── Cycle scheduling ─────────────────────────────────────────────────
+      // Each bounce gets a staggered start so the user sees a rolling
+      // sequence rather than a simultaneous burst. Pulse → flash → return
+      // → listener-hit timeline lives entirely within CYCLE_S.
+      const CYCLE_S    = 6.0;
+      const OUT_DUR    = 0.5;
+      const FLASH_DUR  = 0.15;
+      const RETURN_DUR = 0.5;
+      const TAIL_S     = 0.25;        // listener halo tail beyond final hit
+      const eventCount = allBounces.length;
+      const lastEventDur = OUT_DUR + FLASH_DUR + RETURN_DUR + TAIL_S;
+      const staggerWindow = Math.max(CYCLE_S - lastEventDur, 0);
+      const stagger = eventCount > 1 ? Math.min(0.4, staggerWindow / (eventCount - 1)) : 0;
 
-        // Class C scene badge — explicit pre-measurement indicator (matches
-        // SBIR / Bass Modes / Smoothness pre-measurement badge pattern).
-        if (isClassC) {
-          const badge = _makeLabelSprite('Predicted only — upload a measurement to confirm', '#6b7280');
-          badge.position.set(0, -room.height_m / 2 + room.height_m * 0.85, 0);
+      const flashEventsBySurface = {
+        floor: [], ceiling: [], left: [], right: [], front: [], back: [],
+      };
+      const haloEvents = [];
+      allBounces.forEach((b, i) => {
+        const eventStart = i * stagger;
+        b.outStart    = eventStart;
+        b.outEnd      = eventStart + OUT_DUR;
+        b.flashStart  = b.outEnd;
+        b.flashEnd    = b.flashStart + FLASH_DUR;
+        b.returnStart = b.flashEnd;
+        b.returnEnd   = b.returnStart + RETURN_DUR;
+        b.strength    = surfaceStrength[b.surface] * SIM_SCALE;
+        flashEventsBySurface[b.surface].push({
+          start: b.flashStart, duration: FLASH_DUR, strength: b.strength,
+        });
+        haloEvents.push({ hitTime: b.returnEnd, strength: b.strength });
+      });
+
+      // ── Wall flash planes (one per surface that has any events) ──────────
+      // Additive blending so a flash reads as glow rather than solid colour.
+      // Treated surfaces use cyan; untreated use pink — mirrors the
+      // outgoing/return pulse colour scheme.
+      const surfaceMeta = {
+        floor:   { pos: [0, -halfH + 0.02, 0],  rot: ['x', -Math.PI / 2], w: room.width_m,  h: room.length_m },
+        ceiling: { pos: [0,  halfH - 0.02, 0],  rot: ['x',  Math.PI / 2], w: room.width_m,  h: room.length_m },
+        front:   { pos: [0, 0, -halfL + 0.02],  rot: null,                 w: room.width_m,  h: room.height_m },
+        back:    { pos: [0, 0,  halfL - 0.02],  rot: ['y',  Math.PI],      w: room.width_m,  h: room.height_m },
+        left:    { pos: [-halfW + 0.02, 0, 0],  rot: ['y',  Math.PI / 2],  w: room.length_m, h: room.height_m },
+        right:   { pos: [ halfW - 0.02, 0, 0],  rot: ['y', -Math.PI / 2],  w: room.length_m, h: room.height_m },
+      };
+      for (const [surf, meta] of Object.entries(surfaceMeta)) {
+        const events = flashEventsBySurface[surf];
+        if (!events.length) continue;
+        const flash = new THREE.Mesh(
+          new THREE.PlaneGeometry(meta.w * 0.92, meta.h * 0.92),
+          new THREE.MeshBasicMaterial({
+            color: surfaceTreated[surf] ? OC.TREATED_CYAN : OC.PRESSURE_PEAK,
+            transparent: true,
+            opacity: 0,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            side: THREE.DoubleSide,
+          })
+        );
+        flash.position.set(...meta.pos);
+        if (meta.rot) flash.rotation[meta.rot[0]] = meta.rot[1];
+        flash.userData.isReflectionFlash = { events, surfaceStrength: surfaceStrength[surf] };
+        roomGroup.add(flash);
+      }
+
+      // ── Pulse spheres (outgoing teal + return pink, per bounce) ──────────
+      // Each pulse is its own material because opacity animates per-instance.
+      // SphereGeometry is cloned per-pulse so rebuild() disposal can free
+      // each independently without leaking shared geometry references.
+      const PULSE_RADIUS = 0.06;
+      const pulseGeomTemplate = new THREE.SphereGeometry(PULSE_RADIUS, 12, 8);
+      for (const b of allBounces) {
+        const startPos  = speakerPositions[b.speakerIdx];
+        const bouncePos = new THREE.Vector3(b.bouncePoint.x, b.bouncePoint.y, b.bouncePoint.z);
+
+        // Outgoing — teal, speaker → bounce point
+        const outPulse = new THREE.Mesh(
+          pulseGeomTemplate.clone(),
+          new THREE.MeshBasicMaterial({
+            color: OC.DIRECT_SIGNAL, transparent: true, opacity: 0,
+            depthWrite: false,
+          })
+        );
+        outPulse.position.copy(startPos);
+        outPulse.visible = false;
+        outPulse.userData.isReflectionPulse = {
+          from: startPos.clone(),
+          to: bouncePos.clone(),
+          start: b.outStart,
+          end: b.outEnd,
+          strength: b.strength,
+        };
+        roomGroup.add(outPulse);
+
+        // Return — pink, bounce point → listener
+        const retPulse = new THREE.Mesh(
+          pulseGeomTemplate.clone(),
+          new THREE.MeshBasicMaterial({
+            color: OC.PRESSURE_PEAK, transparent: true, opacity: 0,
+            depthWrite: false,
+          })
+        );
+        retPulse.position.copy(bouncePos);
+        retPulse.visible = false;
+        retPulse.userData.isReflectionPulse = {
+          from: bouncePos.clone(),
+          to: listenerPos.clone(),
+          start: b.returnStart,
+          end: b.returnEnd,
+          strength: b.strength,
+        };
+        roomGroup.add(retPulse);
+      }
+      // The template geometry is no longer referenced by any mesh — clones
+      // own their copies — so dispose it now to keep the overlay leak-free.
+      pulseGeomTemplate.dispose();
+
+      // ── Listener halo (pulses pink as return pulses arrive) ──────────────
+      const halo = new THREE.Mesh(
+        new THREE.SphereGeometry(0.18, 16, 12),
+        new THREE.MeshBasicMaterial({
+          color: OC.PRESSURE_PEAK,
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        })
+      );
+      halo.position.copy(listenerPos);
+      halo.userData.isReflectionHalo = { events: haloEvents };
+      roomGroup.add(halo);
+
+      // ── Honest labelling ─────────────────────────────────────────────────
+      // Persistent "Behavioural simulation" header tells the user this is a
+      // teaching visualisation. Sub-line: pre-measurement asks for upload;
+      // post-measurement surfaces the measured 2-8 kHz energy value.
+      if (currentMode !== 'setup' && !focusedOverlay) {
+        const labelX = offsetX;
+        const labelZ = -halfL + room.listener_front_m + 0.4;
+        const yTop   = tweeterY + 0.85;
+        const yMid   = tweeterY + 0.55;
+
+        const header = _makeLabelSprite('Behavioural simulation', '#9ca3af');
+        header.position.set(labelX, yTop, labelZ);
+        roomGroup.add(header);
+
+        if (hasMeasurement) {
+          const sub = _makeLabelSprite(
+            `Reflection energy: ${_sideRefEnergy.toFixed(0)} dBFS · measured`,
+            '#9ca3af'
+          );
+          sub.position.set(labelX, yMid, labelZ);
+          roomGroup.add(sub);
+        } else {
+          const sub = _makeLabelSprite('Upload a measurement for accurate scoring', '#6b7280');
+          sub.position.set(labelX, yMid, labelZ);
+          roomGroup.add(sub);
+          // Pre-measurement scene badge — matches SBIR / Bass Modes /
+          // Smoothness pattern, sits high in the room so it doesn't compete
+          // with the simulation animation.
+          const badge = _makeLabelSprite('Driven by your geometry + treatment', '#6b7280');
+          badge.position.set(0, -halfH + room.height_m * 0.85, 0);
           roomGroup.add(badge);
         }
       }
 
-      // ── Bounce points + ellipses + pings + worst-wall label ──────────────
-      // Treatment ellipses render outside focus when Class A is meaningful
-      // (_sideRefScale > 0.6); pings + worst-wall label stay focused-only.
-      // Bounce-path lines removed entirely — they were predicted geometry
-      // masquerading as measurement attribution.
-      const trapMeaningful   = isClassA && _sideRefScale > 0.6;
-      const renderEllipses   = isFocSide || trapMeaningful;
-      const renderPings      = isFocSide;          // animation-heavy → focused only
-      const renderWorstLabel = isFocSide && isClassA;
-
-      if (renderEllipses || renderPings || renderWorstLabel) {
-
-        const listenerPos = new THREE.Vector3(
-          offsetX, tweeterY,
-          -room.length_m / 2 + room.listener_front_m
-        );
-        const wallX = room.width_m / 2;
-
-        // Worst-wall picker: hybrid measured × geometric — answers "given
-        // these wall absorptions, which side is contributing most to the
-        // measured energy?" Geometric weighting is honest scaffolding, not
-        // a fake measurement claim. Only used to position the focused label.
-        let _worstSide = null;
-        if (renderWorstLabel) {
-          const _lstnOff   = room.listener_offset_m || 0;
-          const _halfW     = room.width_m * 0.5;
-          const _leftBias  = 1.0 + _lstnOff / Math.max(_halfW, 0.1);
-          const _rightBias = 1.0 - _lstnOff / Math.max(_halfW, 0.1);
-          const _leftSev   = _sideRefScale * Math.max(0.1, _leftBias)  * (1 - absL);
-          const _rightSev  = _sideRefScale * Math.max(0.1, _rightBias) * (1 - absR);
-          _worstSide = _leftSev >= _rightSev ? -1 : 1;
-        }
-
-        for (const side of [-1, 1]) {
-          const speakerPos = new THREE.Vector3(
-            offsetX + side * room.spk_spacing_m / 2,
-            tweeterY,
-            -room.length_m / 2 + room.spk_front_m
-          );
-          // Mirror speaker across nearest side wall → first-reflection point
-          const mirrorSpeaker = speakerPos.clone();
-          mirrorSpeaker.x = side * wallX + (side * wallX - speakerPos.x);
-          const dir         = new THREE.Vector3().subVectors(mirrorSpeaker, listenerPos);
-          const tHit        = (side * wallX - listenerPos.x) / dir.x;
-          const bouncePoint = listenerPos.clone().add(dir.multiplyScalar(tHit));
-
-          const thisSideHasPanel = simulatePanels
-            || sideMode === 'both'
-            || (side === -1 && sideMode === 'left')
-            || (side ===  1 && sideMode === 'right');
-
-          // Treatment ellipse at first-reflection point — preview only,
-          // gated by class+focus per the trap-preview rules above.
-          if (renderEllipses && thisSideHasPanel) {
-            const ellipseShape = new THREE.Shape();
-            ellipseShape.absellipse(0, 0, 0.45, 0.6, 0, Math.PI * 2, false, 0);
-            const panel = new THREE.Mesh(
-              new THREE.ShapeGeometry(ellipseShape, 40),
-              new THREE.MeshBasicMaterial({
-                color: 0x22c55e, transparent: true, opacity: 0.28,
-                side: THREE.DoubleSide, depthWrite: false
-              })
-            );
-            panel.rotation.y = Math.PI / 2;
-            panel.position.set(side * (wallX - 0.01), bouncePoint.y, bouncePoint.z);
-            roomGroup.add(panel);
-          }
-
-          // Worst-wall label — focused mode + Class A only. B/C suppress
-          // because there's no confirmed problem to point at.
-          if (renderWorstLabel && side === _worstSide) {
-            const _lbl = _makeLabelSprite(
-              `Most energy (${_sideRefEnergy.toFixed(0)} dBFS avg)`
-            );
-            _lbl.position.set(side * (wallX - 0.15), tweeterY + 0.55, bouncePoint.z);
-            roomGroup.add(_lbl);
-          }
-
-          // Animated ping at bounce point — focused only. uOpacity baked in
-          // at creation time (the render loop only mutates uTime + uSeverity).
-          if (renderPings) {
-            const pingOpacity = isClassA ? 0.92 : isClassB ? 0.55 : 0.35;
-            const pingMat = new THREE.ShaderMaterial({
-              uniforms: {
-                uTime: { value: 0 },
-                uRate: { value: pingRate },
-                uSeverity: { value: 0.0 },     // start cyan; lerped to target in render loop
-                uOpacity:  { value: pingOpacity },
-              },
-              vertexShader: `void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-              fragmentShader: `
-                uniform float uTime;
-                uniform float uRate;
-                uniform float uSeverity;
-                uniform float uOpacity;
-                void main() {
-                  float pulse = 0.5 + 0.5 * sin(uTime * uRate);
-                  vec3 cyan = vec3(0.0, 0.957, 1.0);   // --mly-teal-neon #00F5FF
-                  vec3 pink = vec3(1.0, 0.063, 0.478);  // Neon Pink #FF107A
-                  gl_FragColor = vec4(mix(cyan, pink, uSeverity), pulse * uOpacity);
-                }
-              `,
-              transparent: true,
-              depthWrite: false,
-            });
-            const ping = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), pingMat);
-            ping.position.copy(bouncePoint);
-            ping.userData.isSideRefPing = true;
-            // Class A: existing severity logic. B/C: neutral cyan — no
-            // measured problem to flag at this bounce point.
-            ping.userData.targetSeverity = isClassA
-              ? (thisSideHasPanel ? 0.0 : (isTooClose ? 1.0 : 0.0))
-              : 0.0;
-            roomGroup.add(ping);
-          }
-        }
-      }
     } catch (err) {
       console.error("[Room3D] Overlay 'side_reflections' failed to render", err);
     }
