@@ -40,9 +40,17 @@ export const DEFAULT_CAMERA = {
 ---------------------------------------------------------- */
 export const OVERLAY_COLOURS = {
   // Pressure / problem indicators
-  PRESSURE_PEAK:     '#FF107A',  // neon pink — pressure hot-spots
-  RESONANCE_PURPLE:  '#7C3AED',  // bass-mode standing waves (shader literal)
+  PRESSURE_PEAK:     '#FF107A',  // neon pink — pressure hot-spots (SBIR overlay only;
+                                 // bass-modes dropped this class in the severity migration)
+  RESONANCE_PURPLE:  '#7C3AED',  // bass-mode standing waves (legacy — retained for
+                                 // any non-bandwidth caller; bass-modes now uses MODE_*)
   RESONANCE_VOID:    '#0A0A32',  // zero-pressure deep (shader literal)
+
+  // Bass-mode severity gradient — colours confirmed modes by measured |delta_db|
+  MODE_MILD:         '#fbbf24',  // amber — 3-5 dB peak
+  MODE_MODERATE:     '#f97316',  // orange — 5-8 dB peak
+  MODE_SEVERE:       '#ef4444',  // red — 8+ dB peak
+  MODE_PREDICTED:    '#475569',  // muted blue-grey — geometry-only / unconfirmed scaffolding
 
   // Direct / clean indicators
   DIRECT_SIGNAL:     '#00B8A9',  // teal — direct path
@@ -4032,25 +4040,61 @@ export function initRoom3D({
 
       // Confidence multiplier — drives shader weight per mode.
       //   confirmed   1.00  full intensity for measurement-backed modes
-      //   unconfirmed 0.45  predicted by geometry but not seen in the IR
-      //   predicted   0.65  pre-measurement uniform treatment (no Tier-2 data)
+      //   unconfirmed 0.32  predicted by geometry but not seen in the IR
+      //                     (was 0.45 before the palette restraint pass — dimmer so
+      //                      predicted-only modes recede as visual context, not
+      //                      compete with confirmed modes for attention)
+      //   predicted   0.50  pre-measurement uniform treatment (no Tier-2 data;
+      //                     theoretical scaffolding, not confident diagnosis)
       const confidenceMul = (m) =>
         m.confidence === 'confirmed'   ? 1.00 :
-        m.confidence === 'unconfirmed' ? 0.45 :
-                                         0.65;
+        m.confidence === 'unconfirmed' ? 0.32 :
+                                         0.50;
+
+      // Per-mode colour — confirmed modes use a severity gradient driven by
+      // |delta_db|; everything else (unconfirmed, predicted) uses the muted
+      // blue-grey scaffolding tone. Severity bands match the spec:
+      //   |Δ| ≥ 8 dB  → MODE_SEVERE (red)
+      //   |Δ| ≥ 5 dB  → MODE_MODERATE (orange)
+      //   else        → MODE_MILD (amber)
+      // Dips count by absolute delta — a -8 dB null is as serious as +8 dB peak.
+      const _hex2vec = (hex) => new THREE.Vector3(
+        ((hex >> 16) & 0xff) / 255,
+        ((hex >>  8) & 0xff) / 255,
+        ( hex        & 0xff) / 255,
+      );
+      const _COL_MILD      = _hex2vec(OC.MODE_MILD);
+      const _COL_MODERATE  = _hex2vec(OC.MODE_MODERATE);
+      const _COL_SEVERE    = _hex2vec(OC.MODE_SEVERE);
+      const _COL_PREDICTED = _hex2vec(OC.MODE_PREDICTED);
+      const _severityColor = (deltaDb) => {
+        const a = Math.abs(deltaDb || 0);
+        if (a >= 8) return _COL_SEVERE;
+        if (a >= 5) return _COL_MODERATE;
+        return _COL_MILD;
+      };
 
       // Build 3D mode data — include height axis (r) for volumetric pressure field.
       // Mode type weights: axial 1.0, tangential 0.7, oblique 0.4.
       const modeTypeWeight = { axial: 1.0, tangential: 0.7, oblique: 0.4 };
       const uBwModes = [];
+      const uBwModeColors = [];
       annotatedModes.forEach(m => {
         const typeWeight = modeTypeWeight[m.type] ?? 1.0;
         // Modes below speaker bass rolloff get reduced contribution — less energy injected
         const bassEnergyScale = (m.freq_hz <= bassRolloffHz) ? 0.30 : 1.0;
         const conf = confidenceMul(m);
         uBwModes.push(new THREE.Vector4(m.p, m.q, m.r, typeWeight * bassEnergyScale * conf));
+        uBwModeColors.push(
+          m.confidence === 'confirmed'
+            ? _severityColor(m.measured?.delta_db)
+            : _COL_PREDICTED
+        );
       });
-      while (uBwModes.length < 8) uBwModes.push(new THREE.Vector4(0, 0, 0, 0));
+      while (uBwModes.length < 8) {
+        uBwModes.push(new THREE.Vector4(0, 0, 0, 0));
+        uBwModeColors.push(_COL_PREDICTED);  // never read (w === 0) but keep array length
+      }
 
       // Breathing rate derived from the dominant (lowest) mode frequency.
       // Dividing by 40 maps acoustic Hz → a 2–4 second visual cycle.
@@ -4089,6 +4133,7 @@ export function initRoom3D({
           uRoomH: { value: room.height_m },
           uOpacity: { value: isFocBW ? 0.55 : 0.28 },
           uModes: { value: uBwModes },
+          uModeColors: { value: uBwModeColors },
           uOscRate: { value: visualOscillationRate },
           uBassTrapsF: { value: bwBassTrapsF },
           uBassTrapsR: { value: bwBassTrapsR },
@@ -4123,6 +4168,7 @@ export function initRoom3D({
           uniform float uBtSide;
           uniform float uReducedMotion;
           uniform vec4  uModes[8];
+          uniform vec3  uModeColors[8];
           uniform float uIsGable;
           uniform float uIsSlanted;
           uniform float uGableDepthAxis;
@@ -4159,8 +4205,14 @@ export function initRoom3D({
             float ny = (vWorldPos.y + uRoomH * 0.5) / uRoomH;
             float nz = (vWorldPos.z + uRoomL * 0.5) / uRoomL;
 
-            float pressure    = 0.0;
-            float totalWeight = 0.001;
+            float pressure       = 0.0;
+            float totalWeight    = 0.001;
+            // Per-mode colour blend — each mode contributes its severity colour
+            // (or muted blue-grey if unconfirmed/predicted) weighted by its local
+            // pressure contribution. So a fragment dominated by a severe-red mode
+            // reads red even when an adjacent mild-amber mode is also present.
+            vec3  weightedColor  = vec3(0.0);
+            float colorWeightSum = 0.0001;
 
             for (int i = 0; i < 8; i++) {
               vec4 m = uModes[i];
@@ -4168,12 +4220,16 @@ export function initRoom3D({
                 float pressureLength = cos(m.x * PI * nz);
                 float pressureWidth  = cos(m.y * PI * nx);
                 float pressureHeight = cos(m.z * PI * ny);
-                pressure    += m.w * abs(pressureLength * pressureWidth * pressureHeight);
-                totalWeight += m.w;
+                float modePress = m.w * abs(pressureLength * pressureWidth * pressureHeight);
+                pressure       += modePress;
+                totalWeight    += m.w;
+                weightedColor  += uModeColors[i] * modePress;
+                colorWeightSum += modePress;
               }
             }
 
-            pressure /= totalWeight;
+            pressure      /= totalWeight;
+            weightedColor /= colorWeightSum;
 
             // Spatially blend absorption based on proximity to each wall.
             // nz: 0=front wall (speakers), 1=rear wall. nx: 0=left wall, 1=right wall.
@@ -4196,17 +4252,14 @@ export function initRoom3D({
             float resonancePulse = 0.80 + 0.20 * cos(uTime * uOscRate * (1.0 - uReducedMotion));
             pressure *= resonancePulse;
 
-            // Neon Purple (#7C3AED) → Neon Pink (#FF107A) at absolute pressure peaks.
-            // localTraps shifts the pink threshold — treated corners cool to purple/void.
-            vec3 neonPurple = vec3(0.486, 0.227, 0.929);
-            vec3 neonPink   = vec3(1.000, 0.063, 0.478);
+            // Severity-coloured blend — the per-mode colour mix replaces the old
+            // purple→pink hot-spot bloom. Pressure peaks no longer get a distinct
+            // hot-spot tint (the mode-plane geometry already communicates spatial
+            // pattern); instead, peaks just fade fully into the mode's own colour.
+            // Treated corners (high localTraps) still cool because pressure was
+            // attenuated above, dropping fragments back toward the void tone.
             vec3 voidColor  = vec3(0.020, 0.010, 0.050);
-
-            float pinkLow  = mix(0.65, 0.82, localTraps);
-            float pinkHigh = mix(1.00, 1.30, localTraps);
-
-            vec3 midColor   = mix(voidColor, neonPurple, smoothstep(0.20, 0.70, pressure));
-            vec3 finalColor = mix(midColor,  neonPink,   smoothstep(pinkLow, pinkHigh, pressure));
+            vec3 finalColor = mix(voidColor, weightedColor, smoothstep(0.20, 0.70, pressure));
 
             float opacity = clamp(pressure * uOpacity * 1.8 + 0.03, 0.0, 0.80);
             gl_FragColor = vec4(finalColor, opacity);
@@ -4237,21 +4290,25 @@ export function initRoom3D({
         const _bwListenerZ = -room.length_m / 2 + room.listener_front_m;
 
         if (hasMeasuredModes) {
-          // Confirmed modes — purple labels stacked centrally above floor
+          // Confirmed modes — neutral white labels so they read cleanly against
+          // any severity colour behind them. The mode plane itself carries the
+          // severity signal; tinting the label by severity would just clutter.
           const _confirmed = annotatedModes.filter(m => m.confidence === 'confirmed');
           _confirmed.slice(0, 5).forEach((m, i) => {
             const f  = Math.round(m.measured.freq_hz);
             const dB = m.measured.delta_db;
             const sign = dB >= 0 ? '+' : '';
             const lbl = _makeLabelSprite(`${f} Hz · ${sign}${dB.toFixed(1)} dB`,
-                                         OVERLAY_COLOURS.RESONANCE_PURPLE);
+                                         '#f8fafc');
             lbl.position.set(0, _bwFloorY + 0.45 + i * 0.20, 0);
             roomGroup.add(lbl);
           });
 
           // Non-modal peaks — amber labels stacked above listener position.
-          // Distinct from the purple modal labels: same overlay, different
-          // semantic ("we measured this but it's not a textbook room mode").
+          // Distinct from the white modal labels by colour AND position: amber
+          // floats above the listener, severity-coloured planes sit at mode
+          // antinodes. Semantic: "we measured this but it's not a textbook
+          // room mode."
           nonModalPeaks.slice(0, 4).forEach((m, i) => {
             const f  = Math.round(m.freq_hz);
             const dB = m.delta_db ?? 0;
@@ -4264,9 +4321,11 @@ export function initRoom3D({
             roomGroup.add(lbl);
           });
         } else {
-          // Pre-measurement: single badge to make the predicted-only state explicit.
+          // Pre-measurement: single badge to make the predicted-only state
+          // explicit. Muted slate keeps the badge legible without competing
+          // with the cool blue-grey scaffolding behind it.
           const lbl = _makeLabelSprite('Predicted — no measurement loaded',
-                                       OVERLAY_COLOURS.RESONANCE_PURPLE);
+                                       '#94a3b8');
           lbl.position.set(0, _bwFloorY + 0.45, 0);
           roomGroup.add(lbl);
         }
