@@ -37,6 +37,13 @@ function linmap(x, x0, x1, y0, y1) {
  * Score the low-frequency extension and high-frequency reach of the response.
  * Equivalent to score.py score_bandwidth(lo, hi).
  *
+ * Combines slo and shi as a weighted min (0.7 worse end + 0.3 better end)
+ * rather than a straight average. Bandwidth is bottlenecked by whichever
+ * end is worse — a speaker that hits 25 Hz but rolls off at 1.3 kHz is
+ * not "moderate", it is severely band-limited. The previous (slo+shi)/2
+ * masked catastrophic rolloffs behind a mid-grade score whenever the
+ * other end was healthy.
+ *
  * @param {number|null} lo - lower −3 dB frequency (Hz)
  * @param {number|null} hi - upper −3 dB frequency (Hz)
  * @returns {number} 0–10 score
@@ -61,7 +68,9 @@ function scoreBandwidth(lo, hi) {
     else if (hi > 12000) shi = 4 + (hi - 12000) / 2000 * 2;
     else                 shi = Math.max(1, hi / 12000 * 4);
 
-    return Math.round((slo + shi) / 2 * 10) / 10;
+    const worse  = Math.min(slo, shi);
+    const better = Math.max(slo, shi);
+    return Math.round((worse * 0.7 + better * 0.3) * 10) / 10;
 }
 
 // ---------------------------------------------------------------------------

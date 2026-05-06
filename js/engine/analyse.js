@@ -64,10 +64,11 @@ function assessValidity(ir, fs) {
     // Use a loop instead of Math.max(...absIr) — spreading large typed arrays
     // blows the call stack on 48kHz/96kHz files (>65k elements).
     let peak = 0;
+    let peakIdx = 0;
     const absIr = new Float32Array(ir.length);
     for (let i = 0; i < ir.length; i++) {
         absIr[i] = Math.abs(ir[i]);
-        if (absIr[i] > peak) peak = absIr[i];
+        if (absIr[i] > peak) { peak = absIr[i]; peakIdx = i; }
     }
 
     if (peak < 1e-4) return { valid: false, reason: 'no_signal_detected' };
@@ -82,6 +83,24 @@ function assessValidity(ir, fs) {
 
     const snr = 20.0 * Math.log10(peak / noise);
     if (snr < 10.0) return { valid: false, reason: 'insufficient_snr' };
+
+    // IR-shape check: a real impulse response packs the bulk of its energy
+    // into the first ~100 ms after the main transient. Music, vocal
+    // recordings, and undeconvolved sweep recordings have roughly stationary
+    // energy across the clip and fail this ratio. Threshold 0.50 is
+    // conservative — legitimate REW IRs typically run 0.85–0.95.
+    const windowSamples = Math.round(0.1 * fs);
+    const windowEnd     = Math.min(ir.length, peakIdx + windowSamples);
+    let energyWindow = 0;
+    let energyTotal  = 0;
+    for (let i = 0; i < ir.length; i++) {
+        const sq = ir[i] * ir[i];
+        energyTotal += sq;
+        if (i >= peakIdx && i < windowEnd) energyWindow += sq;
+    }
+    if (energyTotal > 0 && (energyWindow / energyTotal) < 0.50) {
+        return { valid: false, reason: 'not_an_impulse_response' };
+    }
 
     return { valid: true, reason: null };
 }
