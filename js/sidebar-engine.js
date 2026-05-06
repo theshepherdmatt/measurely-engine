@@ -70,7 +70,7 @@
       label:    'Balance',
       unit:     'Bass to treble',
       icon:     'icons/balance-scale.svg',
-      overlay:  'balance',
+      overlay:  null,
     },
 
     smoothness: {

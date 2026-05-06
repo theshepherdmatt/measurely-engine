@@ -109,7 +109,6 @@ export function initRoom3D({
     COFFEE_TABLE: "coffee_table",
     BANDWIDTH: "bandwidth",
     CLARITY: "clarity",
-    BALANCE: "balance",
     SMOOTHNESS: "smoothness"
 
   };
@@ -2952,16 +2951,6 @@ export function initRoom3D({
       if (smMesh) smMesh.material.uniforms.uTime.value = performance.now() * 0.001;
     }
 
-    // Balance marker — gentle pulse
-    {
-      const _bt = performance.now() * 0.002;
-      scene.traverse(obj => {
-        if (obj.userData?.isBalanceMarker) {
-          obj.scale.setScalar(1 + 0.18 * Math.sin(_bt));
-        }
-      });
-    }
-
     roomGroup.scale.set(scale, scale, scale);
     if (flyAnim) flyAnim.tick(performance.now());
     controls.update();
@@ -4420,72 +4409,6 @@ export function initRoom3D({
       }
     } catch (err) {
       console.error("[Room3D] Overlay 'bandwidth' failed to render", err);
-    }
-
-    // ---- BALANCE (STEREO SYMMETRY) ----
-    if (overlayEnabled(OVERLAYS.BALANCE)) try {
-
-      const halfW = room.width_m / 2;
-      const halfL = room.length_m / 2;
-      const floorY = -room.height_m / 2;
-      const spkY = floorY + room.tweeter_height_m;
-      const lstnZ = -halfL + room.listener_front_m;
-      const offset = room.listener_offset_m || 0;
-      const isBad = Math.abs(offset) > 0.15;
-      const isFocBal = isFocused(OVERLAYS.BALANCE);
-
-      const spkL = new THREE.Vector3(offsetX - room.spk_spacing_m / 2, spkY, -halfL + room.spk_front_m);
-      const spkR = new THREE.Vector3(offsetX + room.spk_spacing_m / 2, spkY, -halfL + room.spk_front_m);
-      const lstn = new THREE.Vector3(offsetX + offset, spkY, lstnZ);
-      const alpha = isFocBal ? 0.75 : 0.12;
-
-      // 1. Centre axis tube along the floor
-      _addReflectionTube(
-        new THREE.Vector3(0, floorY + 0.01, -halfL + 0.15),
-        new THREE.Vector3(0, floorY + 0.01, halfL - 0.15),
-        0xffffff, isFocBal ? 0.65 : 0.18
-      );
-
-      // 2. Stereo triangle: L→listener, R→listener, L→R base
-      [[spkL, lstn], [spkR, lstn], [spkL, spkR]].forEach(([a, b]) => {
-        _addReflectionTube(a, b, OC.SWEET_SPOT_TEAL, alpha);
-      });
-
-      // 3. Sweet spot ring on floor (±15 cm ideal zone)
-      const sweetRing = new THREE.Mesh(
-        new THREE.TorusGeometry(0.15, 0.012, 6, 48),
-        new THREE.MeshBasicMaterial({
-          color: OC.SWEET_SPOT_TEAL, transparent: true,
-          opacity: isFocBal ? 0.75 : 0.2, depthWrite: false
-        })
-      );
-      sweetRing.rotation.x = Math.PI / 2;
-      sweetRing.position.set(offsetX, floorY + 0.01, lstnZ);
-      roomGroup.add(sweetRing);
-
-      // 4. Actual listener position marker (pulses, red if off-axis)
-      const markerColor = isBad ? OC.SMOOTH_RED : OC.SWEET_SPOT_TEAL;
-      const markerRing = new THREE.Mesh(
-        new THREE.TorusGeometry(0.08, 0.016, 6, 32),
-        new THREE.MeshBasicMaterial({
-          color: markerColor, transparent: true,
-          opacity: isFocBal ? 0.9 : 0.35, depthWrite: false
-        })
-      );
-      markerRing.rotation.x = Math.PI / 2;
-      markerRing.position.set(offsetX + offset, floorY + 0.01, lstnZ);
-      markerRing.userData.isBalanceMarker = true;
-      roomGroup.add(markerRing);
-
-      // 5. Focused: offset label
-      if (isFocBal) {
-        const cm = Math.round(Math.abs(offset) * 100);
-        const lbl = _makeLabelSprite(cm > 5 ? `${cm} cm off-axis` : 'Centred ✓');
-        lbl.position.set(offsetX + offset, floorY + 0.6, lstnZ);
-        roomGroup.add(lbl);
-      }
-    } catch (err) {
-      console.error("[Room3D] Overlay 'balance' failed to render", err);
     }
 
     // ---- CLARITY (EARLY REFLECTION WINDOW) ----
