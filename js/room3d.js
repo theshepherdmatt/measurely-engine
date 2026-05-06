@@ -968,7 +968,11 @@ export function initRoom3D({
             d: 0.42,
             color: 0x2a2a28,
             tweeterPos: 0.805, // tweeter at ~0.95 m when cabinet bottom sits on floor
-            detailed: true
+            detailed: true,
+            // Built-in plinth height inside _buildDetailedSpeaker. The cabinet
+            // y-position adds this so the plinth sits ON the rug (not piercing
+            // through it down to the floor). Match _buildDetailedSpeaker's pH.
+            plinthH: 0.035,
           };
 
         case "statement":
@@ -979,7 +983,8 @@ export function initRoom3D({
             color: 0x2a2a28,
             tweeterPos: 0.82,
             floorStand: true,   // floor-standing flagship — bottom sits on floor
-            isStatement: true
+            isStatement: true,
+            plinthH: 0.04,      // matches _buildStatementSpeaker pH
           };
 
         case "panel":
@@ -990,7 +995,8 @@ export function initRoom3D({
             color: 0x1a1714,
             floorStand: true, // sits on floor, not tweeter-height positioned
             tweeterPos: 0.50, // acoustic centre at mid-panel
-            isPanel: true
+            isPanel: true,
+            plinthH: 0.06,    // matches _buildElectrostaticSpeaker plH
           };
 
         case "standmount":
@@ -1352,15 +1358,17 @@ export function initRoom3D({
           y = deskSurface + profile.h / 2;
           z = deskZ_pos - 0.15;
         } else if (profile.floorStand) {
-          // Floor-standing panels / statement: bottom sits on rug surface
-          y = baseY + rugRaise + profile.h / 2;
+          // Floor-standing panels / statement: plinth bottom sits on rug
+          // surface, cabinet bottom sits on top of plinth.
+          y = baseY + rugRaise + (profile.plinthH ?? 0) + profile.h / 2;
           z = -room.length_m / 2 + room.spk_front_m;
         } else {
           // Standmounts & floorstanders: cabinet stays fixed, only beam moves.
-          // Floorstanders: bottom on floor. Standmounts: fixed 0.64 m stand height.
+          // Floorstanders: built-in plinth sits on rug. Standmounts: fixed
+          // 0.64 m external stand (post + base plate) — no plinth.
           const isFloorstander = profile.detailed; // detailed build = floorstander
           if (isFloorstander) {
-            y = baseY + rugRaise + profile.h / 2;   // floor-standing, always grounded
+            y = baseY + rugRaise + (profile.plinthH ?? 0) + profile.h / 2;
           } else {
             const fixedStandH = 0.64;               // standard 24" stand
             y = baseY + rugRaise + fixedStandH + profile.h / 2;
@@ -1431,9 +1439,11 @@ export function initRoom3D({
         spkGroup.rotation.y = (side === "L" ? 1 : -1) * toeRad;
 
         // --- BEAMS ---
-        // Beam is in speaker-local space. We want its world Y = floor + tweeter_height_m.
-        // Compute the local offset: beamLocalY = target_world_Y - spkGroup.world_Y
-        const targetBeamWorldY = baseY + rugRaise + (room.tweeter_height_m || 0.95);
+        // Beam is in speaker-local space. We want its world Y at tweeter
+        // height above the rug surface (or above the rug + plinth on floor-
+        // standing speakers, so the beam stays aligned with the cabinet's
+        // tweeter after the plinth-aware lift).
+        const targetBeamWorldY = baseY + rugRaise + (profile.plinthH ?? 0) + (room.tweeter_height_m || 0.95);
         const beamLocalY = targetBeamWorldY - y;  // y is spkGroup world Y
         const beamGeo = new THREE.BufferGeometry().setFromPoints([
           new THREE.Vector3(0, beamLocalY, 0),
@@ -1701,8 +1711,12 @@ export function initRoom3D({
               _rackTarget.clone(),
             ];
           } else {
-            // Floorstanders / floor-panels: exit near base of cabinet above rug
-            const cableExitY = floorY + rugRaise + Math.min(_profile.h * 0.10, 0.13);
+            // Floorstanders / floor-panels: exit near base of cabinet above
+            // the plinth. Anchor to spkGrp.position.y so the exit follows the
+            // plinth-aware lift; floor-running points stay at rug top + small
+            // offset (they drape on the rug, not on the plinth).
+            const cabinetBottomY = spkGrp.position.y - _profile.h / 2;
+            const cableExitY = cabinetBottomY + Math.min(_profile.h * 0.10, 0.13);
             cablePoints = [
               new THREE.Vector3(spkX, cableExitY, rearZ),
               new THREE.Vector3(spkX + (_rackTarget.x - spkX) * 0.28, floorY + rugRaise + 0.018, rearZ + (_rackTarget.z - rearZ) * 0.15),
