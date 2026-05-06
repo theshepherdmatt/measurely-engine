@@ -22,7 +22,6 @@
  *
  * Used by:
  *   - room3d.js Reflections overlay (animated speaker→wall→listener pulses)
- *   - planned: Clarity overlay for first-arrival timing
  */
 
 'use strict';

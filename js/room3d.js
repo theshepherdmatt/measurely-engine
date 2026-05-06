@@ -420,7 +420,6 @@ export function initRoom3D({
   // Null = no measurement loaded. No overlay consumes this yet; this is
   // plumbing only. See setMeasurementContext / getMeasurementContext below.
   let _measurement = null;
-  let _measurementUpdateCount = 0;
   let _cableGroupL = null;  // Left  speaker → rack cable mesh (TubeGeometry)
   let _cableGroupR = null;  // Right speaker → rack cable mesh (TubeGeometry)
 
@@ -4748,17 +4747,11 @@ export function initRoom3D({
      *
      * Foundation for measurement-driven overlays. Stores a defensively-
      * copied snapshot of the fields overlay renderers need so consumers
-     * can't mutate engine-owned state. No overlay reads _measurement yet
-     * — this is plumbing only. Diagnostic logs are intentional and stay
-     * until follow-up consumer work is verified.
+     * can't mutate engine-owned state.
      */
     setMeasurementContext(analysis) {
-      _measurementUpdateCount++;
-
       if (analysis == null) {
         _measurement = null;
-        console.log('[room3d] Measurement update #' + _measurementUpdateCount + ' (cleared)');
-        console.log('[room3d] Measurement context updated:', _measurement);
         return;
       }
 
@@ -4792,9 +4785,6 @@ export function initRoom3D({
         signalIntegrity,
         timestamp:      Date.now(),
       };
-
-      console.log('[room3d] Measurement update #' + _measurementUpdateCount);
-      console.log('[room3d] Measurement context updated:', _measurement);
     },
 
     /**
