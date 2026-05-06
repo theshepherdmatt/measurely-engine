@@ -2615,11 +2615,70 @@ export function initRoom3D({
       smField.userData.isSmoothnessField = true;
       roomGroup.add(smField);
 
-      // Focused: show axial mode pressure-node planes with frequencies from computeRoomModes()
+      // Focused: show axial mode pressure-node planes with measurement-aware labels.
       if (isFocSM) {
+        // ── Measurement correlation for label honesty ────────────────────
+        // Mirrors the Bass Modes migration: cross-reference predicted
+        // node-plane frequencies against analysis.modes within ±5%.
+        // Confirmed nodes get a measured "{Hz} · ±{dB}" label at full
+        // opacity; unconfirmed nodes dim out and drop their label. The
+        // volumetric field colour above stays driven by smoothnessStd —
+        // this only changes how individual node planes are labelled.
+        const FREQ_TOL = 0.05;
+        const hasMeasuredModes = !!(_measurement?.modes?.length);
+        const measuredModes = hasMeasuredModes ? _measurement.modes.slice() : [];
+        const usedMeasuredIdx = new Set();
+        const matchPredicted = (predFreqHz) => {
+          if (!hasMeasuredModes) return null;
+          let bestIdx = -1, bestDist = Infinity;
+          for (let i = 0; i < measuredModes.length; i++) {
+            if (usedMeasuredIdx.has(i)) continue;
+            const m = measuredModes[i];
+            if (!isFinite(m?.freq_hz)) continue;
+            const dist = Math.abs(m.freq_hz - predFreqHz) / Math.max(predFreqHz, 1);
+            if (dist <= FREQ_TOL && dist < bestDist) {
+              bestDist = dist;
+              bestIdx = i;
+            }
+          }
+          if (bestIdx >= 0) {
+            usedMeasuredIdx.add(bestIdx);
+            return measuredModes[bestIdx];
+          }
+          return null;
+        };
+
         const axialModes = smRawModes.filter(m => m.type === 'axial').slice(0, 5);
         axialModes.forEach(m => {
-          const freqHz = Math.round(m.freq_hz);
+          const matched = matchPredicted(m.freq_hz);
+          const isConfirmed = matched != null;
+
+          // Plane opacity:
+          //   confirmed                  → 0.06 (full intensity, current)
+          //   unconfirmed (post-measure) → 0.03 (half — receded)
+          //   pre-measurement            → 0.06 (predicted-only, unchanged)
+          const planeOpacity = isConfirmed
+            ? 0.06
+            : hasMeasuredModes
+              ? 0.03
+              : 0.06;
+
+          // Label visibility + text + colour:
+          //   confirmed                  → "{Hz} · ±{dB} dB" in default grey
+          //   unconfirmed (post-measure) → no label (visually receded)
+          //   pre-measurement            → predicted "{Hz}" in muted grey
+          let labelText = null;
+          let labelColor = '#9ca3af';
+          if (isConfirmed) {
+            const f  = Math.round(matched.freq_hz);
+            const dB = matched.delta_db ?? 0;
+            const sign = dB >= 0 ? '+' : '';
+            labelText = `${f} Hz · ${sign}${dB.toFixed(1)} dB`;
+          } else if (!hasMeasuredModes) {
+            labelText = `${Math.round(m.freq_hz)} Hz`;
+            labelColor = '#6b7280';
+          }
+
           if (m.p > 0) {
             // Length-axis mode: nodes along Z
             for (let k = 0; k < m.p; k++) {
@@ -2628,23 +2687,36 @@ export function initRoom3D({
                 new THREE.PlaneGeometry(room.width_m * 0.9, room.height_m * 0.8),
                 new THREE.MeshBasicMaterial({
                   color: OC.SMOOTH_RED, transparent: true,
-                  opacity: 0.06, side: THREE.DoubleSide, depthWrite: false,
+                  opacity: planeOpacity, side: THREE.DoubleSide, depthWrite: false,
                 })
               );
               nodePlane.position.set(0, 0, nodeZ);
               roomGroup.add(nodePlane);
-              const lbl = _makeLabelSprite(`${freqHz} Hz`);
-              lbl.position.set(room.width_m * 0.38, -room.height_m / 2 + room.height_m * 0.55, nodeZ);
-              roomGroup.add(lbl);
+              if (labelText) {
+                const lbl = _makeLabelSprite(labelText, labelColor);
+                lbl.position.set(room.width_m * 0.38, -room.height_m / 2 + room.height_m * 0.55, nodeZ);
+                roomGroup.add(lbl);
+              }
             }
           } else if (m.q > 0) {
-            // Width-axis mode: label only (node along X)
-            const nodeX = (2 * 0 + 1) * room.width_m / (2 * m.q) - room.width_m / 2;
-            const lbl = _makeLabelSprite(`${freqHz} Hz`);
-            lbl.position.set(nodeX, -room.height_m / 2 + room.height_m * 0.75, 0);
-            roomGroup.add(lbl);
+            // Width-axis mode: label only (node along X). No plane in the
+            // existing renderer; preserved here.
+            if (labelText) {
+              const nodeX = (2 * 0 + 1) * room.width_m / (2 * m.q) - room.width_m / 2;
+              const lbl = _makeLabelSprite(labelText, labelColor);
+              lbl.position.set(nodeX, -room.height_m / 2 + room.height_m * 0.75, 0);
+              roomGroup.add(lbl);
+            }
           }
         });
+
+        // Pre-measurement badge — explicit indicator that node positions
+        // are theoretical, not derived from a real measurement.
+        if (!hasMeasuredModes) {
+          const lbl = _makeLabelSprite('Predicted node positions — no measurement loaded', '#6b7280');
+          lbl.position.set(0, -room.height_m / 2 + room.height_m * 0.85, 0);
+          roomGroup.add(lbl);
+        }
       }
     } catch (err) {
       console.error("[Room3D] Overlay 'smoothness' failed to render", err);
