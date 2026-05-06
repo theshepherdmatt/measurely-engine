@@ -1389,7 +1389,9 @@ export function initRoom3D({
 
         // Stand for monitors on floor stands
         if (profile.onDesk && room.spk_placement === 'stands') {
-          const standHeight = (y - profile.h / 2) - baseY;
+          // Stand spans rug-top → cabinet-bottom; subtract rugRaise so the
+          // post sits ON the rug instead of piercing it down to the floor.
+          const standHeight = (y - profile.h / 2) - baseY - rugRaise;
           const standMat = new THREE.LineBasicMaterial({
             color: spkColor, transparent: true, opacity: spkOpacity * 0.65
           });
@@ -1407,7 +1409,9 @@ export function initRoom3D({
 
         // Stand for standmounts: thin post + base plate
         if (!profile.onDesk && !profile.floorStand && !profile.detailed) {
-          const standHeight = (y - profile.h / 2) - baseY;
+          // Stand spans rug-top → cabinet-bottom; subtract rugRaise so the
+          // post sits ON the rug instead of piercing it down to the floor.
+          const standHeight = (y - profile.h / 2) - baseY - rugRaise;
           const standMat = new THREE.LineBasicMaterial({
             color: spkColor, transparent: true, opacity: spkOpacity * 0.65
           });
@@ -1691,9 +1695,9 @@ export function initRoom3D({
             const standBaseY = floorY + rugRaise + 0.025;               // just above rug surface
             cablePoints = [
               new THREE.Vector3(spkX, bindingY, rearZ),               // binding post on cabinet back
-              new THREE.Vector3(spkX, standBaseY, rearZ + 0.05),        // base of stand (floor level)
-              new THREE.Vector3(spkX + (_rackTarget.x - spkX) * 0.28, floorY + 0.018, rearZ + (_rackTarget.z - rearZ) * 0.15),
-              new THREE.Vector3(spkX + (_rackTarget.x - spkX) * 0.68, floorY + 0.010, rearZ + (_rackTarget.z - rearZ) * 0.72),
+              new THREE.Vector3(spkX, standBaseY, rearZ + 0.05),        // base of stand (rug top when active)
+              new THREE.Vector3(spkX + (_rackTarget.x - spkX) * 0.28, floorY + rugRaise + 0.018, rearZ + (_rackTarget.z - rearZ) * 0.15),
+              new THREE.Vector3(spkX + (_rackTarget.x - spkX) * 0.68, floorY + rugRaise + 0.010, rearZ + (_rackTarget.z - rearZ) * 0.72),
               _rackTarget.clone(),
             ];
           } else {
@@ -1701,8 +1705,8 @@ export function initRoom3D({
             const cableExitY = floorY + rugRaise + Math.min(_profile.h * 0.10, 0.13);
             cablePoints = [
               new THREE.Vector3(spkX, cableExitY, rearZ),
-              new THREE.Vector3(spkX + (_rackTarget.x - spkX) * 0.28, floorY + 0.018, rearZ + (_rackTarget.z - rearZ) * 0.15),
-              new THREE.Vector3(spkX + (_rackTarget.x - spkX) * 0.68, floorY + 0.010, rearZ + (_rackTarget.z - rearZ) * 0.72),
+              new THREE.Vector3(spkX + (_rackTarget.x - spkX) * 0.28, floorY + rugRaise + 0.018, rearZ + (_rackTarget.z - rearZ) * 0.15),
+              new THREE.Vector3(spkX + (_rackTarget.x - spkX) * 0.68, floorY + rugRaise + 0.010, rearZ + (_rackTarget.z - rearZ) * 0.72),
               _rackTarget.clone(),
             ];
           }
@@ -1764,11 +1768,12 @@ export function initRoom3D({
 
         function _addSubCable(fromX, fromZ, toTarget) {
           const fY = -room.height_m / 2;
-          const exitY = fY + subH * 0.12;
+          // Sub body lifts by rugRaise so its cable exit + run-points lift to match.
+          const exitY = fY + rugRaise + subH * 0.12;
           const pts = [
             new THREE.Vector3(fromX, exitY, fromZ - subD / 2),
-            new THREE.Vector3(fromX + (toTarget.x - fromX) * 0.25, fY + 0.016, fromZ + (toTarget.z - fromZ) * 0.18),
-            new THREE.Vector3(fromX + (toTarget.x - fromX) * 0.65, fY + 0.010, fromZ + (toTarget.z - fromZ) * 0.70),
+            new THREE.Vector3(fromX + (toTarget.x - fromX) * 0.25, fY + rugRaise + 0.016, fromZ + (toTarget.z - fromZ) * 0.18),
+            new THREE.Vector3(fromX + (toTarget.x - fromX) * 0.65, fY + rugRaise + 0.010, fromZ + (toTarget.z - fromZ) * 0.70),
             toTarget.clone(),
           ];
           const cable = new THREE.Mesh(
@@ -1786,7 +1791,7 @@ export function initRoom3D({
         if (!room.subwoofer_dual) {
           // Single sub — right of rack
           const sg = _buildSub();
-          sg.position.set(offsetX + rackW / 2 + 0.06 + subW / 2, floorY + subH / 2, rackWallZ);
+          sg.position.set(offsetX + rackW / 2 + 0.06 + subW / 2, floorY + rugRaise + subH / 2, rackWallZ);
           roomGroup.add(sg);
           _addSubCable(sg.position.x, sg.position.z, _ampTarget);
         } else {
@@ -1798,7 +1803,7 @@ export function initRoom3D({
 
           [['L', -(hW - subW / 2 - cm)], ['R', (hW - subW / 2 - cm)]].forEach(([side, sx]) => {
             const sg = _buildSub();
-            sg.position.set(sx, floorY + subH / 2, sideSubZ);
+            sg.position.set(sx, floorY + rugRaise + subH / 2, sideSubZ);
             sg.rotation.y = side === 'L' ? -Math.PI / 2 : Math.PI / 2;
             roomGroup.add(sg);
 
