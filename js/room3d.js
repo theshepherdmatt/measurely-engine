@@ -3387,8 +3387,12 @@ export function initRoom3D({
     if (overlayEnabled(OVERLAYS.SBIR)) try {
 
       const sbirDepth = Math.max(room.spk_front_m || 0.2, 0.2);
+      const isFocSBIR = isFocused(OVERLAYS.SBIR);
 
-      // Front wall panels and front/all bass traps are the primary SBIR fixes
+      // Front wall panels and front/all bass traps are the primary SBIR fixes —
+      // they still drive the wave-ring colour state, but no longer the score
+      // (the +1.8 hardcoded bonus was a UI heuristic that lied; treatment
+      // effects now emerge from the measurement itself via class B recession).
       const hasFrontPanels = room.wall_panel_mode === 'front' || room.wall_panel_mode === 'both';
       const hasBassTraps   = room.bass_trap_mode  === 'front' || room.bass_trap_mode  === 'all';
       const sbirTreated    = simulatePanels || hasFrontPanels || hasBassTraps;
@@ -3399,25 +3403,72 @@ export function initRoom3D({
         (room.side_panel_mode !== 'none' ? 0.06 : 0), 0.22);
       const sbirAbsorption = Math.min(sbirTreated ? 0.75 : _sbirBonus, 0.80);
 
-      // Simulated improvement when front panels or bass traps enabled
-      const effectiveScore = sbirTreated
-        ? Math.min(activeScore + 1.8, 10)
-        : activeScore;
-
-      const isSevere = effectiveScore < 5;
-
       // Drive wave ring color: cyan = treated, pink = untreated (lerped in render loop)
       const _sbirRingTarget = new THREE.Color(sbirTreated ? OC.TREATED_CYAN : OC.PRESSURE_PEAK);
       _waveRings.forEach(r => { r.userData.targetColor = _sbirRingTarget; });
+
+      // ── Measurement-aware classification ─────────────────────────────────
+      // Predicted null lives at f = c / 4d. Real rooms shift it within ±15%
+      // depending on damping, geometry detail, and treatment. Three classes:
+      //   A — confirmed: measurement shows a significant null near predicted Hz
+      //   B — predicted-not-confirmed: measurement loaded but no null detected
+      //   C — pre-measurement: no measurement yet, predicted scaffolding only
+      const predictedNullHz = 343 / (4 * sbirDepth);
+      const hasMeasurement  = !!(_rewFreqs && _rewMags && _rewFreqs.length > 0);
+
+      let measuredNullHz = null;
+      let depthDb = null;
+      let hasSignificantNull = false;
+
+      if (hasMeasurement) {
+        const winLo = predictedNullHz * 0.85;
+        const winHi = predictedNullHz * 1.15;
+        let minIdx = -1, minMag = Infinity;
+        let sumMag = 0, count = 0;
+        for (let i = 0; i < _rewFreqs.length; i++) {
+          const f = _rewFreqs[i];
+          if (f < winLo) continue;
+          if (f > winHi) break;
+          const m = _rewMags[i];
+          if (!isFinite(m)) continue;
+          sumMag += m;
+          count++;
+          if (m < minMag) { minMag = m; minIdx = i; }
+        }
+        if (count > 0 && minIdx >= 0) {
+          const localMean = sumMag / count;
+          const depth = minMag - localMean;     // negative = dip below local mean
+          if (depth <= -3) {
+            hasSignificantNull = true;
+            measuredNullHz = _rewFreqs[minIdx];
+            depthDb = depth;
+          }
+        }
+      }
+
+      const isClassA = hasMeasurement &&  hasSignificantNull;  // confirmed
+      const isClassB = hasMeasurement && !hasSignificantNull;  // predicted, not measured
+      const isClassC = !hasMeasurement;                        // pre-measurement
+
+      // Field opacity scale by class:
+      //   A — drive by measured depth (-60 dB → 1.0, 0 dB → 0.1) — existing severity behaviour
+      //   B — receded; predicted null didn't show up in the measurement
+      //   C — uniform mid-low; predicted-only, intensity unknown
+      let _sbirNullScale;
+      if (isClassA) {
+        _sbirNullScale = Math.max(0.1, Math.min(1.0, (-depthDb) / 60));
+      } else if (isClassB) {
+        _sbirNullScale = 0.35;
+      } else {
+        _sbirNullScale = 0.50;
+      }
 
       // ── Live SBIR interference field (ShaderMaterial) ─────────────────────
       // Two point sources per speaker (direct + front-wall mirror image).
       // The shader computes the exact wave interference at every pixel in the
       // horizontal plane at tweeter height — destructive bands = SBIR nulls.
-      const fieldColor = isSevere ? OC.PRESSURE_PEAK : OC.DIRECT_SIGNAL;
       const tweeterY = -room.height_m / 2 + (room.tweeter_height_m || 0.95);
       const frontWallZ = -room.length_m / 2;
-      const isFocSBIR = isFocused(OVERLAYS.SBIR);
 
       // Front wall glow — shaped to follow the ceiling profile
       const _fwHalfW = room.width_m / 2;
@@ -3475,24 +3526,6 @@ export function initRoom3D({
 
       // Detect prefers-reduced-motion once at overlay build time
       const _sbirReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-      // ── REW null depth: scale SBIR severity by measured magnitude ────────────
-      // Sample the REW mags array at the geometric null frequency (c / 4d).
-      // Deep measured null → scale stays at 1.0 (full shader intensity).
-      // Shallow/treated null → scale reduces opacity so the shader reflects reality.
-      // Falls back to 1.0 (full severity) when no REW data is present.
-      let _sbirNullScale = 1.0;
-      if (_rewFreqs && _rewMags && _rewFreqs.length > 0) {
-        const _nullHz = 343 / (4 * sbirDepth);
-        let _lo = 0, _hi = _rewFreqs.length - 1;
-        while (_lo < _hi) {
-          const _mid = (_lo + _hi) >> 1;
-          if (_rewFreqs[_mid] < _nullHz) _lo = _mid + 1; else _hi = _mid;
-        }
-        // dBFS at null: -60 → scale 1.0 (severe), 0 → scale 0.1 (still visible)
-        const _nullDB = _rewMags[_lo] ?? 0;
-        _sbirNullScale = Math.max(0.1, Math.min(1.0, (-_nullDB) / 60));
-      }
 
       const sbirMat = new THREE.ShaderMaterial({
         uniforms: {
@@ -3571,8 +3604,15 @@ export function initRoom3D({
       // Only shown when simulatePanels is active — the main room renderer already draws
       // real trap geometry when bass_trap_mode !== 'none', so these would double up.
       // Front corners (speaker wall, z = -length/2) are the SBIR-relevant corners.
+      //
+      // Class gate: outside focused mode, only render when Class A AND the
+      // measured null is meaningful (≤ -8 dB). Class B (no measured null)
+      // and Class C (pre-measurement) suppress the preview — no problem
+      // identified, so don't suggest a fix. Focused mode renders for all
+      // classes since the user explicitly asked to see treatment options.
       // ------------------------------------------
-      if (simulatePanels) {
+      const trapMeaningful = isClassA && depthDb <= -8;
+      if (simulatePanels && (trapMeaningful || isFocSBIR)) {
         const trapSize   = 0.35;
         const trapHeight = room.height_m * 0.9;
 
@@ -3613,60 +3653,45 @@ export function initRoom3D({
         });
       }
 
-      if (isFocused(OVERLAYS.SBIR)) {
+      // ── Class-aware label at front-wall midpoint ─────────────────────────
+      // Suppressed in focused mode to keep the focused view uncluttered, and
+      // when wall labels are off (we share the renderWallLabels gate).
+      // Class A renders two stacked sprites so predicted+measured+depth all
+      // fit inside the 256px label canvas; B and C are short enough for one.
+      if (currentMode !== 'setup' && !focusedOverlay) {
+        const labelX = offsetX;
+        const labelZ = frontWallZ + 0.15;
+        const yTop   = tweeterY + 0.55;
+        const yBot   = tweeterY + 0.30;
 
-        const speakerY  = -room.height_m / 2 + room.tweeter_height_m;
-        const listenerZ = -room.length_m  / 2 + room.listener_front_m;
-        const wallZ     = -room.length_m  / 2;
-
-        // --- Toe-aware baffle origin ---
-        // spkGroup.rotation.y = ±toeRad (L=+, R=-).
-        // Speaker local +Z = forward (toward listener).
-        // World-space forward = (-sin(toeY), 0, cos(toeY)) per Three.js Y-rotation convention.
-        // Baffle world pos = spkCentre + forward * halfDepth.
-        //
-        // Inline depth table — getSpeakerProfile() is scoped inside rebuild(), not here.
-        const _CABINET_DEPTH = { floorstander: 0.42, statement: 0.50, panel: 0.06, standmount: 0.25, monitor: 0.24 };
-        const halfDepth  = (_CABINET_DEPTH[room.speaker_type] ?? 0.28) / 2;
-        const toeRad     = (room.toe_in_deg || 0) * Math.PI / 180;
-        const spkCentreZ = wallZ + room.spk_front_m;
-
-        // Helper: compute baffle world position for a given speaker side.
-        // toeSign: L=+1, R=-1 (matches spkGroup.rotation.y = side === 'L' ? +toeRad : -toeRad)
-        function _bafflePos(centreX, toeSign) {
-          const rotY = toeSign * toeRad;
-          // Three.js Y-rotation: forward world = (-sin(rotY), 0, cos(rotY))
-          const fwdX = -Math.sin(rotY);
-          const fwdZ =  Math.cos(rotY);
-          return new THREE.Vector3(
-            centreX + fwdX * halfDepth,
-            speakerY,
-            spkCentreZ + fwdZ * halfDepth
-          );
+        if (isClassA) {
+          const fp = Math.round(predictedNullHz);
+          const fm = Math.round(measuredNullHz);
+          const dB = depthDb.toFixed(1);
+          const top = _makeLabelSprite(`Predicted ${fp} Hz · measured ${fm} Hz`, '#9ca3af');
+          top.position.set(labelX, yTop, labelZ);
+          roomGroup.add(top);
+          const bot = _makeLabelSprite(`${dB} dB`, '#9ca3af');
+          bot.position.set(labelX, yBot, labelZ);
+          roomGroup.add(bot);
+        } else if (isClassB) {
+          const lbl = _makeLabelSprite(`Predicted ${Math.round(predictedNullHz)} Hz · not measured`, '#6b7280');
+          lbl.position.set(labelX, (yTop + yBot) / 2, labelZ);
+          roomGroup.add(lbl);
+        } else {
+          const lbl = _makeLabelSprite(`Predicted ${Math.round(predictedNullHz)} Hz — no measurement loaded`, '#6b7280');
+          lbl.position.set(labelX, (yTop + yBot) / 2, labelZ);
+          roomGroup.add(lbl);
         }
 
-        const beamColor = effectiveScore < 5 ? OC.PRESSURE_PEAK : 0x00FFFF;
-
-        const centreXL = offsetX - room.spk_spacing_m / 2;
-        const centreXR = offsetX + room.spk_spacing_m / 2;
-
-        // LEFT speaker front baffle → front wall → listener
-        drawReflectionPath(
-          _bafflePos(centreXL, +1),
-          new THREE.Vector3(centreXL, speakerY, wallZ),
-          new THREE.Vector3(offsetX,  speakerY, listenerZ),
-          beamColor,
-          sbirAbsorption          // ping absorption from treatment state
-        );
-
-        // RIGHT speaker front baffle → front wall → listener
-        drawReflectionPath(
-          _bafflePos(centreXR, -1),
-          new THREE.Vector3(centreXR, speakerY, wallZ),
-          new THREE.Vector3(offsetX,  speakerY, listenerZ),
-          beamColor,
-          sbirAbsorption          // ping absorption from treatment state
-        );
+        // Class C scene badge — single explicit indicator that the field is
+        // theoretical (matches the Bass Modes / Smoothness pre-measurement
+        // badge pattern). Hidden in Classes A and B.
+        if (isClassC) {
+          const badge = _makeLabelSprite('Predicted only — upload a measurement to confirm', '#6b7280');
+          badge.position.set(0, -room.height_m / 2 + room.height_m * 0.85, 0);
+          roomGroup.add(badge);
+        }
       }
 
     } catch (err) {
