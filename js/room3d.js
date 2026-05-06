@@ -3187,7 +3187,7 @@ export function initRoom3D({
     Hidden when focusedOverlay is active (they clutter
     the focused view and the room shell is dimmed anyway).
   ------------------------------------------ */
-  function _makeLabelSprite(text) {
+  function _makeLabelSprite(text, color = '#9ca3af') {
     const W = 256, H = 56;
     const canvas = document.createElement('canvas');
     canvas.width = W;
@@ -3195,7 +3195,7 @@ export function initRoom3D({
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, W, H);
     ctx.font = 'bold 22px system-ui, sans-serif';
-    ctx.fillStyle = '#9ca3af';
+    ctx.fillStyle = color;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(text, W / 2, H / 2);
@@ -3909,21 +3909,74 @@ export function initRoom3D({
       // Predictive model: not a physical measurement
       const bwModes = window.MeasurelyAcoustics?.computeRoomModes(room) || [];
 
+      // ── Measurement correlation ──────────────────────────────────────────
+      // _measurement is the closure variable populated by setMeasurementContext.
+      // When a measurement is loaded, cross-reference predicted modes against
+      // analysis.modes (measured peaks/dips) within a ±5% frequency tolerance.
+      // Confirmed modes render at full shader weight; unconfirmed dim out;
+      // unmatched measured peaks ≤ 1 kHz surface as 'non-modal' labels.
+      const FREQ_TOL = 0.05;
+      const hasMeasuredModes = !!(_measurement?.modes?.length);
+      const measuredModes = hasMeasuredModes ? _measurement.modes.slice() : [];
+      const usedMeasuredIdx = new Set();
+
+      const annotatedModes = bwModes.slice(0, 8).map(p => {
+        if (!hasMeasuredModes) return { ...p, confidence: 'predicted', measured: null };
+        let bestIdx = -1, bestDist = Infinity;
+        for (let i = 0; i < measuredModes.length; i++) {
+          if (usedMeasuredIdx.has(i)) continue;
+          const m = measuredModes[i];
+          if (!isFinite(m?.freq_hz)) continue;
+          const dist = Math.abs(m.freq_hz - p.freq_hz) / Math.max(p.freq_hz, 1);
+          if (dist <= FREQ_TOL && dist < bestDist) {
+            bestDist = dist;
+            bestIdx = i;
+          }
+        }
+        if (bestIdx >= 0) {
+          usedMeasuredIdx.add(bestIdx);
+          return { ...p, confidence: 'confirmed', measured: measuredModes[bestIdx] };
+        }
+        return { ...p, confidence: 'unconfirmed', measured: null };
+      });
+
+      // Non-modal: measured peaks ≤ 1 kHz with no matching predicted mode.
+      // Dips are skipped here — they're SBIR / cancellation artefacts, not
+      // resonances, and live in other overlays.
+      const nonModalPeaks = hasMeasuredModes
+        ? measuredModes.filter((m, i) =>
+            !usedMeasuredIdx.has(i) &&
+            m?.type === 'peak' &&
+            isFinite(m?.freq_hz) &&
+            m.freq_hz > 0 && m.freq_hz <= 1000
+          )
+        : [];
+
       // Speaker archetype determines low-frequency energy injection.
       // Bookshelf rolls off ~55 Hz; floorstander ~30 Hz; statement ~20 Hz.
       const speakerArchetype = room.speaker_type || 'bookshelf';
       const bassRolloffByType = { bookshelf: 55, floorstander: 30, statement: 20 };
       const bassRolloffHz = bassRolloffByType[speakerArchetype] ?? 55;
 
+      // Confidence multiplier — drives shader weight per mode.
+      //   confirmed   1.00  full intensity for measurement-backed modes
+      //   unconfirmed 0.45  predicted by geometry but not seen in the IR
+      //   predicted   0.65  pre-measurement uniform treatment (no Tier-2 data)
+      const confidenceMul = (m) =>
+        m.confidence === 'confirmed'   ? 1.00 :
+        m.confidence === 'unconfirmed' ? 0.45 :
+                                         0.65;
+
       // Build 3D mode data — include height axis (r) for volumetric pressure field.
       // Mode type weights: axial 1.0, tangential 0.7, oblique 0.4.
       const modeTypeWeight = { axial: 1.0, tangential: 0.7, oblique: 0.4 };
       const uBwModes = [];
-      bwModes.slice(0, 8).forEach(m => {
+      annotatedModes.forEach(m => {
         const typeWeight = modeTypeWeight[m.type] ?? 1.0;
         // Modes below speaker bass rolloff get reduced contribution — less energy injected
         const bassEnergyScale = (m.freq_hz <= bassRolloffHz) ? 0.30 : 1.0;
-        uBwModes.push(new THREE.Vector4(m.p, m.q, m.r, typeWeight * bassEnergyScale));
+        const conf = confidenceMul(m);
+        uBwModes.push(new THREE.Vector4(m.p, m.q, m.r, typeWeight * bassEnergyScale * conf));
       });
       while (uBwModes.length < 8) uBwModes.push(new THREE.Vector4(0, 0, 0, 0));
 
@@ -4103,6 +4156,49 @@ export function initRoom3D({
       );
       resonanceVolume.userData.isBandwidthField = true;
       roomGroup.add(resonanceVolume);
+
+      // ── Focused-mode annotations ─────────────────────────────────────────
+      // Labels only appear in focused state to avoid cluttering the
+      // background/at-a-glance view. All sprites are added to roomGroup so
+      // rebuild()'s traverse-and-dispose pass cleans them up automatically.
+      if (isFocBW) {
+        const _bwListenerZ = -room.length_m / 2 + room.listener_front_m;
+
+        if (hasMeasuredModes) {
+          // Confirmed modes — purple labels stacked centrally above floor
+          const _confirmed = annotatedModes.filter(m => m.confidence === 'confirmed');
+          _confirmed.slice(0, 5).forEach((m, i) => {
+            const f  = Math.round(m.measured.freq_hz);
+            const dB = m.measured.delta_db;
+            const sign = dB >= 0 ? '+' : '';
+            const lbl = _makeLabelSprite(`${f} Hz · ${sign}${dB.toFixed(1)} dB`,
+                                         OVERLAY_COLOURS.RESONANCE_PURPLE);
+            lbl.position.set(0, _bwFloorY + 0.45 + i * 0.20, 0);
+            roomGroup.add(lbl);
+          });
+
+          // Non-modal peaks — amber labels stacked above listener position.
+          // Distinct from the purple modal labels: same overlay, different
+          // semantic ("we measured this but it's not a textbook room mode").
+          nonModalPeaks.slice(0, 4).forEach((m, i) => {
+            const f  = Math.round(m.freq_hz);
+            const dB = m.delta_db ?? 0;
+            const sign = dB >= 0 ? '+' : '';
+            const lbl = _makeLabelSprite(
+              `${f} Hz · ${sign}${dB.toFixed(1)} dB · non-modal`,
+              OVERLAY_COLOURS.REAR_AMBER
+            );
+            lbl.position.set(0, _bwFloorY + 1.30 + i * 0.20, _bwListenerZ);
+            roomGroup.add(lbl);
+          });
+        } else {
+          // Pre-measurement: single badge to make the predicted-only state explicit.
+          const lbl = _makeLabelSprite('Predicted — no measurement loaded',
+                                       OVERLAY_COLOURS.RESONANCE_PURPLE);
+          lbl.position.set(0, _bwFloorY + 0.45, 0);
+          roomGroup.add(lbl);
+        }
+      }
     } catch (err) {
       console.error("[Room3D] Overlay 'bandwidth' failed to render", err);
     }
