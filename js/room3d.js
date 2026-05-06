@@ -1965,9 +1965,13 @@ export function initRoom3D({
         // Both sit behind the listener — clamp so the sofa back never breaches the back wall.
         // Sofa's furthest geometry point is 0.80m behind the seating group origin.
         // Cap: group Z ≤ (back_wall_world - listenerZ - 0.80m - 0.05m clearance)
+        // Y = rugRaise so the sofa/lounge sits ON the rug when the rug is active
+        // — speakers, stands, and rack already lift via rugRaise; this matches.
+        // The hi-fi rug always overlaps the seating area (rear edge clamps to
+        // sofaRearZ + 0.25), so the lift applies whenever rug is on.
         const _sofaBackExtent = 0.80;  // base back face + back panel back face
         const _sofaMaxLocalZ = (room.length_m / 2) - listenerZ - _sofaBackExtent - 0.05;
-        seatingGroup.position.set(0, 0, Math.min(0.35, Math.max(0, _sofaMaxLocalZ)));
+        seatingGroup.position.set(0, rugRaise, Math.min(0.35, Math.max(0, _sofaMaxLocalZ)));
         station.add(seatingGroup);
       }
 
@@ -1987,7 +1991,11 @@ export function initRoom3D({
         });
 
         // -0.9 m in front of the listener (toward speakers)
-        ctGroup.position.set(0, 0, -0.9);
+        // Y = rugRaise so the coffee table sits ON the rug, matching the
+        // sofa lift and the speaker/stand/rack rugRaise pattern. The hi-fi
+        // rug always extends to ~spk_front - 0.35, well past the coffee
+        // table's footprint at -0.9, so the lift applies whenever rug is on.
+        ctGroup.position.set(0, rugRaise, -0.9);
         station.add(ctGroup);
       }
 
