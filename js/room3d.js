@@ -409,6 +409,15 @@ export function initRoom3D({
   // Set by api.setWaves(freqs, mags). Null = no measurement loaded (simulation mode).
   let _rewFreqs = null;       // Float32[] Hz axis from REW
   let _rewMags  = null;       // Float32[] dBFS magnitudes from REW
+
+  // ── Measurement context (full analyse() output snapshot) ──────────────────
+  // Set by api.setMeasurementContext(analysis). Foundation for measurement-
+  // driven overlays — stores a defensively-copied snapshot of the fields
+  // overlay renderers need (modes, reflections, bandLevels, scores, etc.).
+  // Null = no measurement loaded. No overlay consumes this yet; this is
+  // plumbing only. See setMeasurementContext / getMeasurementContext below.
+  let _measurement = null;
+  let _measurementUpdateCount = 0;
   let _cableGroupL = null;  // Left  speaker → rack cable mesh (TubeGeometry)
   let _cableGroupR = null;  // Right speaker → rack cable mesh (TubeGeometry)
 
@@ -4691,6 +4700,85 @@ export function initRoom3D({
         if (!freqs) { _rewFreqs = null; _rewMags = null; }
       }
       rebuild();
+    },
+
+    /**
+     * setMeasurementContext(analysis)
+     *   analysis – the `analysis` object returned by MeasurelyAnalyse.analyse()
+     *              (i.e. result.analysis — NOT result.ai or result.scores).
+     *              Pass null to clear the stored context.
+     *
+     * Foundation for measurement-driven overlays. Stores a defensively-
+     * copied snapshot of the fields overlay renderers need so consumers
+     * can't mutate engine-owned state. No overlay reads _measurement yet
+     * — this is plumbing only. Diagnostic logs are intentional and stay
+     * until follow-up consumer work is verified.
+     */
+    setMeasurementContext(analysis) {
+      _measurementUpdateCount++;
+
+      if (analysis == null) {
+        _measurement = null;
+        console.log('[room3d] Measurement update #' + _measurementUpdateCount + ' (cleared)');
+        console.log('[room3d] Measurement context updated:', _measurement);
+        return;
+      }
+
+      // Defensive shallow copies — engine owns the source arrays/objects.
+      // Nested mode objects get a per-element spread so callers can't reach
+      // through and mutate {type, freq_hz, delta_db}.
+      const modes = Array.isArray(analysis.modes)
+        ? analysis.modes.map(m => ({ ...m }))
+        : [];
+      const reflectionsMs = Array.isArray(analysis.reflections_ms)
+        ? analysis.reflections_ms.slice()
+        : [];
+      const bandLevels = (analysis.band_levels_db && typeof analysis.band_levels_db === 'object')
+        ? { ...analysis.band_levels_db }
+        : null;
+      const scores = (analysis.scores && typeof analysis.scores === 'object')
+        ? { ...analysis.scores }
+        : null;
+      const signalIntegrity = (analysis.signal_integrity && typeof analysis.signal_integrity === 'object')
+        ? { ...analysis.signal_integrity }
+        : null;
+
+      _measurement = {
+        modes,
+        reflectionsMs,
+        bandLevels,
+        bandwidthLo:    analysis.bandwidth_lo_3db_hz,
+        bandwidthHi:    analysis.bandwidth_hi_3db_hz,
+        smoothnessStd:  analysis.smoothness_std_db,
+        scores,
+        signalIntegrity,
+        timestamp:      Date.now(),
+      };
+
+      console.log('[room3d] Measurement update #' + _measurementUpdateCount);
+      console.log('[room3d] Measurement context updated:', _measurement);
+    },
+
+    /**
+     * getMeasurementContext() — read-only accessor.
+     * Returns a defensive shallow copy of the stored context, or null if
+     * no measurement is loaded. Future overlay consumers can read the
+     * internal _measurement variable directly (cheaper); this accessor
+     * exists for verification + browser-console debugging.
+     */
+    getMeasurementContext() {
+      if (_measurement == null) return null;
+      return {
+        modes:           _measurement.modes.map(m => ({ ...m })),
+        reflectionsMs:   _measurement.reflectionsMs.slice(),
+        bandLevels:      _measurement.bandLevels ? { ..._measurement.bandLevels } : null,
+        bandwidthLo:     _measurement.bandwidthLo,
+        bandwidthHi:     _measurement.bandwidthHi,
+        smoothnessStd:   _measurement.smoothnessStd,
+        scores:          _measurement.scores ? { ..._measurement.scores } : null,
+        signalIntegrity: _measurement.signalIntegrity ? { ..._measurement.signalIntegrity } : null,
+        timestamp:       _measurement.timestamp,
+      };
     },
 
     /** Toggle the SBIR interference heatmap field without hiding the ping/path geometry. */
