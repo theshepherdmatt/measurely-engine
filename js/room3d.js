@@ -135,6 +135,10 @@ export function initRoom3D({
   // updates live when UI sliders change.
   let _roomWidthOverride = null;
   let _roomLengthOverride = null;
+  let _roomHeightOverride = null;
+  // Flipped on `webglcontextlost`, cleared on `webglcontextrestored`.
+  // While true, animate() keeps rAF-ing but skips renderer.render().
+  let _animationPaused = false;
 
   function overlayEnabled(id) {
     return activeOverlays.has(id);
@@ -262,10 +266,30 @@ export function initRoom3D({
   });
 
   renderer.setSize(container.clientWidth, container.clientHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  // Cap DPR at 1.5 on small viewports — halves framebuffer cost on mobile
+  // retina screens where the GPU runs out of headroom much faster than the
+  // visual gain at 2x DPR is worth.
+  const _dprCap = window.matchMedia('(max-width: 640px)').matches ? 1.5 : 2;
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, _dprCap));
   renderer.setClearColor(0xc8c8c8, 1); // Light grey — neutral studio-cyc backdrop
   renderer.domElement.style.touchAction = 'none'; // prevent iOS/iPad scroll hijack
   container.appendChild(renderer.domElement);
+
+  // WebGL context-loss recovery. On mobile, sustained GPU pressure (e.g. a
+  // long room-slider drag) can prompt the browser to drop the context.
+  // Without these listeners the canvas just goes black silently and the
+  // render loop spams errors against a dead context. preventDefault() opts
+  // us in to the matching `webglcontextrestored` event.
+  renderer.domElement.addEventListener('webglcontextlost', (event) => {
+    event.preventDefault();
+    _animationPaused = true;
+    console.warn('[Room3D] WebGL context lost — pausing render loop');
+  }, false);
+  renderer.domElement.addEventListener('webglcontextrestored', () => {
+    console.log('[Room3D] WebGL context restored — rebuilding scene');
+    _animationPaused = false;
+    rebuild();
+  }, false);
 
   console.log("[Room3D] Renderer + camera initialised");
 
@@ -473,6 +497,22 @@ export function initRoom3D({
     // renderStage is set externally via setStage() — never override here.
     console.log("[Room3D] 🔧 rebuild() | stage:", renderStage, "| mode:", currentMode);
 
+    // Dispose GPU resources before clearing — Group.clear() detaches children
+    // but leaves their geometries/materials resident on the GPU. On the
+    // slider-drag hot path that leaks ~60 geometries + ~60 materials per
+    // second of dragging, eventually exhausting mobile GPU memory and
+    // triggering a context-loss event. No textures in this scene (every
+    // material is colour-only) so we don't walk .map / .alphaMap / etc.
+    roomGroup.traverse((obj) => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) {
+          obj.material.forEach((m) => m.dispose());
+        } else {
+          obj.material.dispose();
+        }
+      }
+    });
     roomGroup.clear();
     _waveRings = [];
     colourState = "idle";
@@ -538,6 +578,7 @@ export function initRoom3D({
     // Apply live overrides (from setRoomWidth / setRoomLength API calls)
     if (_roomWidthOverride !== null) geo.width_m = _roomWidthOverride;
     if (_roomLengthOverride !== null) geo.length_m = _roomLengthOverride;
+    if (_roomHeightOverride !== null) geo.height_m = _roomHeightOverride;
 
     // Check for furniture and treatment sub-objects
     const furn = (env.furniture) ? env.furniture : env;
@@ -2835,7 +2876,10 @@ export function initRoom3D({
     roomGroup.scale.set(scale, scale, scale);
     if (flyAnim) flyAnim.tick(performance.now());
     controls.update();
-    renderer.render(scene, camera);
+    // Skip render while the WebGL context is lost — render() against a
+    // dead context is wasted work and spams the console. rAF keeps
+    // ticking so we resume the moment `webglcontextrestored` clears the flag.
+    if (!_animationPaused) renderer.render(scene, camera);
 
   }
 
@@ -4421,6 +4465,33 @@ export function initRoom3D({
         // Plane local-Y maps to world Z after -90° rotation, so scale.y = length
         if (_roomFloor) _roomFloor.scale.y = l;
         if (_roomGrid) _roomGrid.scale.z = l;
+      } else {
+        rebuild();
+      }
+      controls.target.set(0, 0, 0);
+      controls.update();
+    },
+
+    /**
+     * Live-resize the room height. Mirrors setRoomWidth/setRoomLength.
+     * Flat ceilings with a captured shell ref scale in-place; slanted /
+     * gable ceilings have custom geometry (vertex positions depend on
+     * height non-uniformly), so they fall back to a full rebuild.
+     *
+     * NOTE: as of this commit `_roomShell` is never populated by the
+     * fat-edge shell builder, so this function (like setRoomWidth /
+     * setRoomLength) currently always takes the rebuild() path. The
+     * disposal pass added to rebuild() makes that acceptable on the
+     * hot path; if/when the shell ref is wired up the in-place branch
+     * will activate automatically.
+     */
+    setRoomHeight(meters) {
+      const h = Math.max(1.5, Number(meters));
+      _roomHeightOverride = h;
+      const data = getRoomData() || {};
+      const ceilingType = (data.geometry || data).ceiling_type || 'flat';
+      if (_roomShell && ceilingType === 'flat') {
+        _roomShell.scale.y = h;
       } else {
         rebuild();
       }
