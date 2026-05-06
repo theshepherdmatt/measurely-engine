@@ -108,7 +108,6 @@ export function initRoom3D({
     REAR_ENERGY: "rear_energy",
     COFFEE_TABLE: "coffee_table",
     BANDWIDTH: "bandwidth",
-    CLARITY: "clarity",
     SMOOTHNESS: "smoothness"
 
   };
@@ -4488,97 +4487,11 @@ export function initRoom3D({
       console.error("[Room3D] Overlay 'bandwidth' failed to render", err);
     }
 
-    // ---- CLARITY (EARLY REFLECTION WINDOW) ----
-    if (overlayEnabled(OVERLAYS.CLARITY)) try {
-
-      const floorY = -room.height_m / 2;
-      const ceilY = room.height_m / 2;
-      const speakerY = floorY + room.tweeter_height_m;
-      const listenerZ = -room.length_m / 2 + room.listener_front_m;
-      const listenerPos = new THREE.Vector3(offsetX, speakerY, listenerZ);
-      const isFocCl = isFocused(OVERLAYS.CLARITY);
-      const wallX = room.width_m / 2;
-      const clarityR = 0.8;
-
-      // 1. Direct beams (speaker → listener) — solid tubes
-      [-1, 1].forEach(side => {
-        const spkPos = new THREE.Vector3(
-          offsetX + side * room.spk_spacing_m / 2,
-          speakerY,
-          -room.length_m / 2 + room.spk_front_m
-        );
-        _addReflectionTube(spkPos, listenerPos, OC.SWEET_SPOT_TEAL, isFocCl ? 0.80 : 0.18);
-      });
-
-      // 2. Listener bubble — Three.js Object3D.position is a Vector3 with
-      // getter/setter property descriptors; Object.assign cannot reassign onto
-      // it. Use .position.copy(vec3) instead.
-      const clarityBubble = new THREE.Mesh(
-        new THREE.SphereGeometry(clarityR, 24, 16),
-        new THREE.MeshBasicMaterial({ color: OC.SWEET_SPOT_TEAL, transparent: true, opacity: isFocCl ? 0.28 : 0.05, depthWrite: false })
-      );
-      clarityBubble.position.copy(listenerPos);
-      roomGroup.add(clarityBubble);
-
-      // Foot ring on floor
-      const footRing = new THREE.Mesh(
-        new THREE.TorusGeometry(clarityR * 0.55, 0.012, 6, 48),
-        new THREE.MeshBasicMaterial({ color: OC.SWEET_SPOT_TEAL, transparent: true, opacity: isFocCl ? 0.55 : 0.1, depthWrite: false })
-      );
-      footRing.rotation.x = Math.PI / 2;
-      footRing.position.set(listenerPos.x, floorY + 0.01, listenerPos.z);
-      roomGroup.add(footRing);
-
-      // 3. Side-wall reflections — tubes + bounce dots + travelling dots
-      [-1, 1].forEach(side => {
-        const spkPos = new THREE.Vector3(
-          offsetX + side * room.spk_spacing_m / 2,
-          speakerY,
-          -room.length_m / 2 + room.spk_front_m
-        );
-        // Geometric bounce on side wall
-        const bounceZ = spkPos.z + (listenerZ - spkPos.z) * (side * wallX - spkPos.x) / (side * wallX * 2 - spkPos.x - (offsetX + (room.listener_offset_m || 0)));
-        const bounce = new THREE.Vector3(side * wallX, speakerY, THREE.MathUtils.clamp(bounceZ, -room.length_m / 2 + 0.1, room.length_m / 2 - 0.1));
-        const reflPath = spkPos.distanceTo(bounce) + bounce.distanceTo(listenerPos);
-        const directPath = spkPos.distanceTo(listenerPos);
-        const hitsBubble = (reflPath - directPath) / 343 * 1000 < 15; // red if delay < 15 ms
-        drawReflectionPath(spkPos, bounce, listenerPos, hitsBubble ? OC.SMOOTH_RED : OC.SWEET_SPOT_TEAL);
-
-        if (isFocCl) {
-          const dist = spkPos.distanceTo(bounce) + bounce.distanceTo(listenerPos);
-          const delayMs = Math.round((dist - spkPos.distanceTo(listenerPos)) / 343 * 1000);
-          const lbl = _makeLabelSprite(`${delayMs} ms`);
-          lbl.position.set(bounce.x * 0.85, speakerY + 0.55, bounce.z);
-          roomGroup.add(lbl);
-        }
-      });
-
-      // 4. Ceiling reflections — indigo tubes + travelling dots
-      const _cloudMitigatesCeil = room.ceiling_panel_mode !== 'none';
-      [-1, 1].forEach(side => {
-        const spkPos = new THREE.Vector3(
-          offsetX + side * room.spk_spacing_m / 2,
-          speakerY,
-          -room.length_m / 2 + room.spk_front_m
-        );
-        const ceilBounce = new THREE.Vector3(
-          (spkPos.x + listenerPos.x) / 2,
-          ceilY,
-          (spkPos.z + listenerPos.z) / 2
-        );
-        drawReflectionPath(spkPos, ceilBounce, listenerPos, _cloudMitigatesCeil ? OC.SWEET_SPOT_TEAL : OC.CEILING_INDIGO);
-
-        if (isFocCl) {
-          const dist = spkPos.distanceTo(ceilBounce) + ceilBounce.distanceTo(listenerPos);
-          const delayMs = Math.round((dist - spkPos.distanceTo(listenerPos)) / 343 * 1000);
-          const lbl = _makeLabelSprite(`${delayMs} ms`);
-          lbl.position.set(ceilBounce.x, ceilY - 0.3, ceilBounce.z);
-          roomGroup.add(lbl);
-        }
-      });
-    } catch (err) {
-      console.error("[Room3D] Overlay 'clarity' failed to render", err);
-    }
+    // Clarity overlay was removed in May 2026: predicted three-ray triangle
+    // wireframe never read measured arrival times. Reflections (rebuilt as
+    // a behavioural simulation) covers the same teaching ground honestly.
+    // The Clarity SCORE is preserved (scoreClarity in score.js, surfaced
+    // through the HUD pillar breakdown).
 
   }
 
@@ -4630,7 +4543,6 @@ export function initRoom3D({
         activeOverlays.add(OVERLAYS.SIDE_REFLECTIONS);
         activeOverlays.add(OVERLAYS.REAR_ENERGY);
         activeOverlays.add(OVERLAYS.COFFEE_TABLE);
-        activeOverlays.add(OVERLAYS.CLARITY);
 
       }
 

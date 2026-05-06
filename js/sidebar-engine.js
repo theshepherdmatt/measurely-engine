@@ -90,7 +90,9 @@
       label:    'Clarity',
       unit:     'Direct sound',
       icon:     'icons/clock.svg',
-      overlay:  'clarity',
+      // Overlay was removed in May 2026 (predicted triangle wireframe never
+      // read measured arrival times). Score retained — see scoreClarity.
+      overlay:  null,
     },
 
   };
