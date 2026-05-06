@@ -107,9 +107,7 @@ export function initRoom3D({
     SIDE_REFLECTIONS: "side_reflections",
     REAR_ENERGY: "rear_energy",
     COFFEE_TABLE: "coffee_table",
-    BANDWIDTH: "bandwidth",
-    SMOOTHNESS: "smoothness"
-
+    BANDWIDTH: "bandwidth"
   };
 
   /* ------------------------------------------
@@ -127,7 +125,6 @@ export function initRoom3D({
   let _pingEpoch     = performance.now() * 0.001; // kept for backward compat (unused now)
   const _splashRings = [];   // active arrival splash rings [ { mesh, startMs } ]
   let activeScore = 10;
-  let smoothnessStd = 0;
   let simulatePanels = false;
   let flyAnim = null;
 
@@ -2533,201 +2530,14 @@ export function initRoom3D({
     // Auto-toe: snap speakers to face the sphere after every full rebuild
     _applyAutoToe();
 
-    // ---- SMOOTHNESS (Room Modal Standing Wave Field) ----
-    if (overlayEnabled(OVERLAYS.SMOOTHNESS)) try {
-
-      const roughness = THREE.MathUtils.clamp(smoothnessStd / 5, 0, 1);
-      const isRough = roughness > 0.55;
-      const fieldColor = roughness > 0.8 ? OC.SMOOTH_RED : isRough ? OC.SMOOTH_AMBER : OC.SMOOTH_TEAL;
-      // The smoothness block lives in rebuild() rather than renderAnalysisOverlays(),
-      // so the local isFocused() helper used by other overlays isn't in scope here.
-      // Match the inline pattern used by the bandwidth/side-reflections blocks.
-      const isFocSM = focusedOverlay === OVERLAYS.SMOOTHNESS;
-
-      // Populate uModes from real room mode data — vec4(p, q, weight, phase_offset)
-      // Axial weighted 1.0, tangential 0.7, oblique 0.4 (Kuttruff energy weighting).
-      // Golden-ratio phase offsets create a complex, non-periodic standing wave pattern.
-      const smRawModes = window.MeasurelyAcoustics?.computeRoomModes(room) || [];
-      const smModeData = [];
-      smRawModes.slice(0, 12).forEach((m, i) => {
-        const w = m.type === 'axial' ? 1.0 : m.type === 'tangential' ? 0.7 : 0.4;
-        smModeData.push(new THREE.Vector4(m.p, m.q, w, i * Math.PI * 0.618));
-      });
-      while (smModeData.length < 12) smModeData.push(new THREE.Vector4(0, 0, 0, 0));
-
-      const smMat = new THREE.ShaderMaterial({
-        uniforms: {
-          uTime: { value: 0 },
-          uRoomW: { value: room.width_m },
-          uRoomL: { value: room.length_m },
-          uModes: { value: smModeData },
-          uRoughness: { value: roughness },
-          uColor: { value: new THREE.Color(fieldColor) },
-          uOpacity: { value: isFocSM ? 0.55 : 0.18 },
-        },
-        vertexShader: `
-        uniform float uRoomW;
-        uniform float uRoomL;
-        varying vec2 vXZ;
-        void main() {
-          vXZ = vec2((uv.x - 0.5) * uRoomW, (0.5 - uv.y) * uRoomL);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-        fragmentShader: `
-        #define PI 3.14159265359
-        uniform float uTime;
-        uniform float uRoomW;
-        uniform float uRoomL;
-        uniform float uRoughness;
-        uniform vec3  uColor;
-        uniform float uOpacity;
-        uniform vec4  uModes[12];
-        varying vec2  vXZ;
-        void main() {
-          float halfL = uRoomL * 0.5;
-          float halfW = uRoomW * 0.5;
-          float field = 0.0;
-          float totalWeight = 0.001;
-          
-          for (int i = 0; i < 12; i++) {
-            vec4 m = uModes[i];
-            if (m.z > 0.0) {
-              float w = m.z * (1.0 + uRoughness);
-              float pL = cos(m.x * PI * (vXZ.y + halfL) / uRoomL); // length = y in vXZ
-              float pW = cos(m.y * PI * (vXZ.x + halfW) / uRoomW); // width = x in vXZ
-              // Use abs(cos) so modes always add, never cancel — field stays visible
-              float amp = 0.7 + 0.3 * abs(cos(uTime * 1.2 + m.w));
-              field += w * abs(pL * pW) * amp;
-              totalWeight += w;
-            }
-          }
-
-          field = field / totalWeight;
-          gl_FragColor = vec4(uColor, clamp(field * uOpacity * 2.5, 0.0, 0.85));
-        }
-      `,
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      });
-
-      const smField = new THREE.Mesh(
-        new THREE.PlaneGeometry(room.width_m, room.length_m, 1, 1),
-        smMat
-      );
-      smField.rotation.x = -Math.PI / 2;
-      smField.position.set(0, -room.height_m / 2 + (room.tweeter_height_m || 0.95), 0);
-      smField.userData.isSmoothnessField = true;
-      roomGroup.add(smField);
-
-      // Focused: show axial mode pressure-node planes with measurement-aware labels.
-      if (isFocSM) {
-        // ── Measurement correlation for label honesty ────────────────────
-        // Mirrors the Bass Modes migration: cross-reference predicted
-        // node-plane frequencies against analysis.modes within ±5%.
-        // Confirmed nodes get a measured "{Hz} · ±{dB}" label at full
-        // opacity; unconfirmed nodes dim out and drop their label. The
-        // volumetric field colour above stays driven by smoothnessStd —
-        // this only changes how individual node planes are labelled.
-        const FREQ_TOL = 0.05;
-        const hasMeasuredModes = !!(_measurement?.modes?.length);
-        const measuredModes = hasMeasuredModes ? _measurement.modes.slice() : [];
-        const usedMeasuredIdx = new Set();
-        const matchPredicted = (predFreqHz) => {
-          if (!hasMeasuredModes) return null;
-          let bestIdx = -1, bestDist = Infinity;
-          for (let i = 0; i < measuredModes.length; i++) {
-            if (usedMeasuredIdx.has(i)) continue;
-            const m = measuredModes[i];
-            if (!isFinite(m?.freq_hz)) continue;
-            const dist = Math.abs(m.freq_hz - predFreqHz) / Math.max(predFreqHz, 1);
-            if (dist <= FREQ_TOL && dist < bestDist) {
-              bestDist = dist;
-              bestIdx = i;
-            }
-          }
-          if (bestIdx >= 0) {
-            usedMeasuredIdx.add(bestIdx);
-            return measuredModes[bestIdx];
-          }
-          return null;
-        };
-
-        const axialModes = smRawModes.filter(m => m.type === 'axial').slice(0, 5);
-        axialModes.forEach(m => {
-          const matched = matchPredicted(m.freq_hz);
-          const isConfirmed = matched != null;
-
-          // Plane opacity:
-          //   confirmed                  → 0.06 (full intensity, current)
-          //   unconfirmed (post-measure) → 0.03 (half — receded)
-          //   pre-measurement            → 0.06 (predicted-only, unchanged)
-          const planeOpacity = isConfirmed
-            ? 0.06
-            : hasMeasuredModes
-              ? 0.03
-              : 0.06;
-
-          // Label visibility + text + colour:
-          //   confirmed                  → "{Hz} · ±{dB} dB" in default grey
-          //   unconfirmed (post-measure) → no label (visually receded)
-          //   pre-measurement            → predicted "{Hz}" in muted grey
-          let labelText = null;
-          let labelColor = '#9ca3af';
-          if (isConfirmed) {
-            const f  = Math.round(matched.freq_hz);
-            const dB = matched.delta_db ?? 0;
-            const sign = dB >= 0 ? '+' : '';
-            labelText = `${f} Hz · ${sign}${dB.toFixed(1)} dB`;
-          } else if (!hasMeasuredModes) {
-            labelText = `${Math.round(m.freq_hz)} Hz`;
-            labelColor = '#6b7280';
-          }
-
-          if (m.p > 0) {
-            // Length-axis mode: nodes along Z
-            for (let k = 0; k < m.p; k++) {
-              const nodeZ = -room.length_m / 2 + (2 * k + 1) * room.length_m / (2 * m.p);
-              const nodePlane = new THREE.Mesh(
-                new THREE.PlaneGeometry(room.width_m * 0.9, room.height_m * 0.8),
-                new THREE.MeshBasicMaterial({
-                  color: OC.SMOOTH_RED, transparent: true,
-                  opacity: planeOpacity, side: THREE.DoubleSide, depthWrite: false,
-                })
-              );
-              nodePlane.position.set(0, 0, nodeZ);
-              roomGroup.add(nodePlane);
-              if (labelText) {
-                const lbl = _makeLabelSprite(labelText, labelColor);
-                lbl.position.set(room.width_m * 0.38, -room.height_m / 2 + room.height_m * 0.55, nodeZ);
-                roomGroup.add(lbl);
-              }
-            }
-          } else if (m.q > 0) {
-            // Width-axis mode: label only (node along X). No plane in the
-            // existing renderer; preserved here.
-            if (labelText) {
-              const nodeX = (2 * 0 + 1) * room.width_m / (2 * m.q) - room.width_m / 2;
-              const lbl = _makeLabelSprite(labelText, labelColor);
-              lbl.position.set(nodeX, -room.height_m / 2 + room.height_m * 0.75, 0);
-              roomGroup.add(lbl);
-            }
-          }
-        });
-
-        // Pre-measurement badge — explicit indicator that node positions
-        // are theoretical, not derived from a real measurement.
-        if (!hasMeasuredModes) {
-          const lbl = _makeLabelSprite('Predicted node positions — no measurement loaded', '#6b7280');
-          lbl.position.set(0, -room.height_m / 2 + room.height_m * 0.85, 0);
-          roomGroup.add(lbl);
-        }
-      }
-    } catch (err) {
-      console.error("[Room3D] Overlay 'smoothness' failed to render", err);
-    }
-
+    // Smoothness overlay was removed in May 2026: the volumetric standing-
+    // wave field duplicated information Bass Modes already shows (measured
+    // peaks/dips with severity colour) and the focused node-plane labels
+    // were a Bass-Modes-style migration of the same predicted/measured
+    // correlation. A future Smoothness focused-view (likely a 2D frequency
+    // response chart) may return when findings primary lands.
+    // The Smoothness SCORE is preserved (scoreSmooth in score.js, surfaced
+    // through the HUD pillar breakdown).
 
   }
 
@@ -2993,12 +2803,6 @@ export function initRoom3D({
           obj.material.opacity = intensity * 0.7;
         }
       });
-    }
-
-    // Smoothness field — advance shader time uniform
-    {
-      const smMesh = roomGroup.children.find(o => o.userData?.isSmoothnessField);
-      if (smMesh) smMesh.material.uniforms.uTime.value = performance.now() * 0.001;
     }
 
     roomGroup.scale.set(scale, scale, scale);
@@ -4646,20 +4450,19 @@ export function initRoom3D({
      *
      * @param {string|null} id     Overlay key from OVERLAYS, or null to clear all
      * @param {number}      score  Severity score (0–10) — drives some overlays' colour intensity
-     * @param {number}      std    Smoothness std-dev — only consumed when id === SMOOTHNESS
+     *
+     * The third positional `std` parameter (smoothness std-dev) was removed
+     * along with the Smoothness overlay in May 2026 — callers may still pass
+     * it for backwards compatibility, but it is now ignored.
      */
-    focusIssue(id, score = 10, std = 0) {
-      console.log("[Room3D] 🎯 focusIssue()", id, "score =", score, "std =", std);
+    focusIssue(id, score = 10) {
+      console.log("[Room3D] 🎯 focusIssue()", id, "score =", score);
 
       activeOverlays.clear();
       if (id) activeOverlays.add(id);   // null/falsy = clear all overlays, no rebuild artefact
 
       focusedOverlay = id ?? null;
       activeScore = score;
-
-      if (id === OVERLAYS.SMOOTHNESS) {
-        smoothnessStd = std;   // store smoothness strength
-      }
 
       rebuild();
     },
@@ -4736,7 +4539,7 @@ export function initRoom3D({
     },
 
     getFocus() {
-      return { id: focusedOverlay, score: activeScore, std: smoothnessStd };
+      return { id: focusedOverlay, score: activeScore };
     },
 
     /**

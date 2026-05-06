@@ -80,7 +80,10 @@
       label:    'Smoothness',
       unit:     'Consistency',
       icon:     'icons/wave-square.svg',
-      overlay:  'smoothness',
+      // Overlay was removed in May 2026 (volumetric pressure-pattern field
+      // duplicated Bass Modes; future findings-driven 2D chart may replace
+      // it). Score retained — see scoreSmooth.
+      overlay:  null,
     },
 
     clarity: {
@@ -210,16 +213,12 @@
       _clearActive();
       _cards[def.id]?.classList.add('active');
 
-      // Drive 3D overlay — access window.room3D lazily so init order doesn't matter
+      // Drive 3D overlay — access window.room3D lazily so init order doesn't matter.
+      // focusIssue(null, ...) clears all overlays gracefully when def.overlay is
+      // null (Balance, Smoothness, Clarity — score-only sections post-deletion).
       const r3d   = window.room3D;
       const score = _scores[def.id] ?? 5;
-      if (r3d) {
-        if (def.id === 'smoothness') {
-          r3d.focusIssue(def.overlay, score, _stds[def.id] ?? 0);
-        } else {
-          r3d.focusIssue(def.overlay, score);
-        }
-      }
+      if (r3d) r3d.focusIssue(def.overlay, score);
 
       onSectionClick?.(def.id);
     }
