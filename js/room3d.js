@@ -77,6 +77,67 @@ const OC = Object.fromEntries(
   Object.entries(OVERLAY_COLOURS).map(([k, v]) => [k, parseInt(v.slice(1), 16)])
 );
 
+/* ----------------------------------------------------------
+   OVERLAY_META — single source of truth for overlay labels,
+   short descriptions, and icons. Consumed by web's sidebar,
+   retail's inline overlay row, and any future satellite that
+   renders overlay buttons.
+
+   Renaming an overlay or swapping its icon happens here once
+   and propagates everywhere on next submodule bump.
+
+   Keys mirror the closure-scoped OVERLAYS enum literal values
+   inside initRoom3D() (floor_reflection / sbir / side_reflections
+   / rear_energy / coffee_table / bandwidth). Keep them in sync.
+
+   Labels, descriptions, and SVG icons for sbir / bandwidth /
+   side_reflections are taken verbatim from web/app.html's
+   .ws-overlay-row blocks (the previous home of these strings).
+   floor_reflection / rear_energy / coffee_table aren't shown
+   in any visible row today but are included for completeness so
+   any consumer can render any subset.
+---------------------------------------------------------- */
+export const OVERLAY_META = {
+  sbir: {
+    label: 'Front wall',
+    shortDescription: 'Boundary interference · front-wall nulls',
+    icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>',
+  },
+  bandwidth: {
+    label: 'Bass Modes',
+    shortDescription: 'Standing waves · room resonances',
+    icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
+  },
+  side_reflections: {
+    label: 'Reflections',
+    shortDescription: 'Behavioural simulation · speaker → wall → listener',
+    icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>',
+  },
+  floor_reflection: {
+    label: 'Floor reflection',
+    shortDescription: 'Floor bounce · auto-enabled',
+    icon: '',
+  },
+  rear_energy: {
+    label: 'Rear wall',
+    shortDescription: 'Rear-wall bass build-up',
+    icon: '',
+  },
+  coffee_table: {
+    label: 'Coffee table',
+    shortDescription: 'Coffee-table reflection',
+    icon: '',
+  },
+};
+
+/* Browser global — exposes OVERLAY_META to non-module consumers
+   (retail's inline classic <script> overlay row) without forcing
+   them to switch to ES modules. Mirrors the UMD pattern used by
+   acoustics.js, treatment-registry.js, etc. (per engine/CLAUDE.md). */
+if (typeof window !== 'undefined') {
+  window.MeasurelyOverlayMeta = OVERLAY_META;
+}
+
 export function initRoom3D({
   mountId,
   getRoomData,
