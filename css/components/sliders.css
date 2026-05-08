@@ -6,10 +6,9 @@
 
   v1.2 Machined Knob Spec:
     - 16px circular thumb (border-radius: 50%)
-    - background: var(--mly-neon-teal)
+    - background: var(--mly-text-primary) — monochrome
     - 2px white inset border
     - 4px soft shadow
-    - Semantic acoustic colour variants via data-acoustic attribute
 
   Satellites consume this via the engine/css/index.css barrel import.
   Do NOT copy these rules into satellite CSS — edit here to propagate everywhere.
@@ -32,7 +31,7 @@
     border-radius: var(--mly-radius-pill);
     touch-action: none;
 
-    /* Monochrome default — teal reserved for [data-acoustic] semantic variants */
+    /* Monochrome — sliders share the v2 neutral design language */
     background: linear-gradient(
         90deg,
         var(--mly-text-primary, #1A1A1A) var(--fill, 50%),
@@ -87,73 +86,6 @@
     box-shadow:
         0 0 0 3px rgba(26, 23, 20, 0.18),
         0 4px 8px rgba(0, 0, 0, 0.30);
-}
-
-/* ── Semantic Acoustic Colour Variants ───────────────
-   Set data-acoustic="sbir|bass|reflection" on the <input> element.
-   JS sets the --fill property; these override thumb colour only.
-   Track fill colour follows the thumb via the background gradient.
-*/
-
-/* SBIR / Active Filter — Neon Teal (default, explicit override) */
-.measurely-slider[data-acoustic="sbir"] {
-    background: linear-gradient(
-        90deg,
-        var(--mly-neon-teal, #00B8A9) var(--fill, 50%),
-        rgba(26, 23, 20, 0.14) var(--fill, 50%)
-    );
-}
-.measurely-slider[data-acoustic="sbir"]::-webkit-slider-thumb {
-    background: var(--mly-neon-teal, #00B8A9);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.30),
-                0 0 0 0px transparent;
-}
-.measurely-slider[data-acoustic="sbir"]:active::-webkit-slider-thumb {
-    box-shadow: 0 0 0 3px rgba(0, 184, 169, 0.28),
-                0 4px 8px rgba(0, 0, 0, 0.30);
-}
-.measurely-slider[data-acoustic="sbir"]::-moz-range-thumb {
-    background: var(--mly-neon-teal, #00B8A9);
-}
-
-/* Bass Modes — Neon Purple */
-.measurely-slider[data-acoustic="bass"] {
-    background: linear-gradient(
-        90deg,
-        var(--mly-neon-purple, #7C3AED) var(--fill, 50%),
-        rgba(26, 23, 20, 0.14) var(--fill, 50%)
-    );
-}
-.measurely-slider[data-acoustic="bass"]::-webkit-slider-thumb {
-    background: var(--mly-neon-purple, #7C3AED);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.30);
-}
-.measurely-slider[data-acoustic="bass"]:active::-webkit-slider-thumb {
-    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.28),
-                0 4px 8px rgba(0, 0, 0, 0.30);
-}
-.measurely-slider[data-acoustic="bass"]::-moz-range-thumb {
-    background: var(--mly-neon-purple, #7C3AED);
-}
-
-/* Reflections — Neon Pink */
-.measurely-slider[data-acoustic="reflection"] {
-    background: linear-gradient(
-        90deg,
-        var(--mly-neon-pink, #FF107A) var(--fill, 50%),
-        rgba(26, 23, 20, 0.14) var(--fill, 50%)
-    );
-}
-.measurely-slider[data-acoustic="reflection"]::-webkit-slider-thumb {
-    background: var(--mly-neon-pink, #FF107A);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.30);
-}
-.measurely-slider[data-acoustic="reflection"]:active::-webkit-slider-thumb {
-    box-shadow: 0 0 0 3px rgba(255, 16, 122, 0.28),
-                0 4px 8px rgba(0, 0, 0, 0.30);
-}
-.measurely-slider[data-acoustic="reflection"]::-moz-range-thumb {
-    background: var(--mly-neon-pink, #FF107A);
 }
 
 /* ── SELECT DROPDOWN ──────────────────────────────── */
