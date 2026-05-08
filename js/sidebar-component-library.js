@@ -990,15 +990,19 @@
   // ── Section 7 — Treatment ─────────────────────────────────────────────────
   // Delegates to treatment-registry.js; wraps its API for consistency.
 
-  function renderTreatmentSection(mountId, { types, state, defaultColour, onTreatmentChange, onColourChange } = {}) {
+  function renderTreatmentSection(mountId, { types, state, defaultColour, colours, onTreatmentChange, onColourChange } = {}) {
     const MT = window.MeasurelyTreatment;
     if (!MT) {
       console.warn('[MeasurelySCL] treatment-registry.js not loaded');
       return null;
     }
+    // Default resolved here (not in the destructure) because MT is
+    // function-scoped — referencing it in the parameter pattern would
+    // throw before this assignment runs.
+    if (colours === undefined) colours = MT.PANEL_COLOURS;
     const api = MT.initTreatmentControls({
       mountId, types, state, defaultColour,
-      colours: MT.PANEL_COLOURS,
+      colours,
       onTreatmentChange, onColourChange,
     });
     return api;
