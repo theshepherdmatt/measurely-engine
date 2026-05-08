@@ -102,16 +102,35 @@ export const OVERLAY_META = {
     label: 'Front wall',
     shortDescription: 'Boundary interference · front-wall nulls',
     icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>',
+    whatItShows: 'A live simulation of the cancellation nulls that form between the speakers and the front wall. As you reposition the speakers or resize the room, the model recomputes the null frequency — typically between 80 and 250 Hz for normal placements.',
+    howToRead: 'Pull the speakers further from the front wall and the null frequency drops; push them closer and it rises. Toggling front-wall treatment shifts the wave rings from pink (untreated) to cyan (treated), indicating the cancellation has been softened.',
+    caveats: [
+      'The front wall is modelled as a perfectly rigid reflector — heavy treatment or an open space behind the speakers will reduce the cancellation depth in practice.',
+      'Asymmetric speaker-to-wall distances produce slightly different nulls left and right; the visualisation places a single marker.',
+    ],
   },
   bandwidth: {
     label: 'Bass Modes',
     shortDescription: 'Standing waves · room resonances',
     icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
+    whatItShows: 'Standing-wave resonances between opposing room boundaries — the modes that make some bass notes louder or quieter than others. Derived from the impulse response, so this overlay only appears once a measurement has been loaded.',
+    howToRead: 'Each marker is a confirmed mode coloured by severity: red for severe, orange for moderate, amber for mild. Muted grey markers are predicted from geometry but not yet confirmed in your measurement.',
+    caveats: [
+      'Requires a loaded impulse response measurement; without one, only the predicted scaffolding is shown.',
+      'Axial modes (length, width, height) appear most prominently; tangential and oblique modes are included at reduced intensity, reflecting their typically weaker effect at the listening position.',
+      'Severity is derived from measured peak depth, not from perceived loudness on any specific track.',
+    ],
   },
   side_reflections: {
     label: 'Reflections',
     shortDescription: 'Behavioural simulation · speaker → wall → listener',
     icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="14 7 21 7 21 14"/></svg>',
+    whatItShows: 'A behavioural simulation of the speaker → wall → listener path. Animated pulses show how energy leaves the speakers, strikes a side or rear wall, and returns to the listening position. The simulation updates live as you move the speakers, the listening seat, or toggle wall treatment.',
+    howToRead: 'Teal pulses are the outgoing signal; pink flashes mark where an untreated wall reflects energy back at the listener. Toggle treatment on a wall and the pink flashes dim to cyan as the wall absorbs the bounce. Moving the speakers or listener changes which walls the pulses strike and where they impact.',
+    caveats: [
+      'First-order bounces only — second and later reflections are not modelled.',
+      'Treatment is applied as a uniform reduction; frequency-dependent absorption is not modelled.',
+    ],
   },
   floor_reflection: {
     label: 'Floor reflection',
