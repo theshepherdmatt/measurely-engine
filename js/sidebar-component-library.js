@@ -468,10 +468,6 @@
         onChange?.({ ...cur });
       }
     );
-    // Replace the sbox-btn class with room-sel-btn on the emitted buttons
-    typeGroup.row.querySelectorAll('.sbox-btn').forEach(function(b) {
-      b.className = b.className.replace('sbox-btn', 'room-sel-btn');
-    });
     wrap.appendChild(typeGroup.row);
 
     // Slant direction (shown when slanted)
