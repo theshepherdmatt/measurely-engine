@@ -142,8 +142,15 @@ export function initRoom3D({
   mountId,
   getRoomData,
   mode = "setup",
+  showLabels = true,
 }) {
   console.log("[Room3D] initRoom3D() called with mode:", mode);
+
+  // In-scene text visibility (wall compass + overlay annotation strings).
+  // Default true preserves existing behaviour for web/dashboards. Satellites
+  // like retail pass false to keep the room shell uncluttered while still
+  // benefiting from 'final'-mode opacity. Toggle at runtime via setShowLabels.
+  let _showLabels = showLabels;
 
   const container = document.getElementById(mountId);
   if (!container) {
@@ -3224,6 +3231,8 @@ export function initRoom3D({
   }
 
   function renderWallLabels(room) {
+    // Caller-controlled suppression — independent of mode/focus
+    if (!_showLabels) return;
     // Only show labels in analysis mode — not during setup wizard
     if (currentMode === 'setup') return;
     // Skip when any overlay is focused — labels clutter the focused view
@@ -3588,7 +3597,7 @@ export function initRoom3D({
       // when wall labels are off (we share the renderWallLabels gate).
       // Class A renders two stacked sprites so predicted+measured+depth all
       // fit inside the 256px label canvas; B and C are short enough for one.
-      if (currentMode !== 'setup' && !focusedOverlay) {
+      if (_showLabels && currentMode !== 'setup' && !focusedOverlay) {
         const labelX = offsetX;
         const labelZ = frontWallZ + 0.15;
         const yTop   = tweeterY + 0.55;
@@ -3922,7 +3931,7 @@ export function initRoom3D({
       // Persistent "Behavioural simulation" header tells the user this is a
       // teaching visualisation. Sub-line: pre-measurement asks for upload;
       // post-measurement surfaces the measured 2-8 kHz energy value.
-      if (currentMode !== 'setup' && !focusedOverlay) {
+      if (_showLabels && currentMode !== 'setup' && !focusedOverlay) {
         const labelX = offsetX;
         const labelZ = -halfL + room.listener_front_m + 0.4;
         const yTop   = tweeterY + 0.85;
@@ -4330,7 +4339,7 @@ export function initRoom3D({
       // Labels only appear in focused state to avoid cluttering the
       // background/at-a-glance view. All sprites are added to roomGroup so
       // rebuild()'s traverse-and-dispose pass cleans them up automatically.
-      if (isFocBW) {
+      if (_showLabels && isFocBW) {
         const _bwListenerZ = -room.length_m / 2 + room.listener_front_m;
 
         if (hasMeasuredModes) {
@@ -4894,6 +4903,17 @@ export function initRoom3D({
       _sbirFieldVisible = !!enabled;
       const m = roomGroup.children.find(o => o.userData?.isSbirField);
       if (m) m.visible = _sbirFieldVisible;
+    },
+
+    /**
+     * setShowLabels(enabled) — toggle in-scene text rendering at runtime.
+     * Suppresses wall compass labels (Front/Rear/L/R) and overlay annotation
+     * strings (SBIR / Reflections / Bandwidth). Overlay GEOMETRY (rays,
+     * shading, bounce paths, mode planes) is unaffected.
+     */
+    setShowLabels(enabled) {
+      _showLabels = !!enabled;
+      rebuild();
     },
 
     /** Reset camera to the default overview position and re-enable orbit controls. */
