@@ -3671,11 +3671,11 @@ export function initRoom3D({
       const isFocSide = focusedOverlay === OVERLAYS.SIDE_REFLECTIONS;
 
       // ── Treatment-driven reflection strength per surface ────────────────
-      // TREATED   = 0.20: soft pulse, dim flash → "treatment dampens this"
-      // UNTREATED = 0.85: bright pulse, strong flash → "this surface reflects"
+      // TREATED   = 0.30: soft pulse, dim flash → "treatment dampens this"
+      // UNTREATED = 1.00: bright pulse, strong flash → "this surface reflects"
       // Simulation toggle force-treats every surface so the user can preview.
-      const TREATED   = 0.20;
-      const UNTREATED = 0.85;
+      const TREATED   = 0.30;
+      const UNTREATED = 1.00;
 
       const sideMode = room.side_panel_mode    || 'none';
       const wallMode = room.wall_panel_mode    || 'none';
@@ -3883,7 +3883,7 @@ export function initRoom3D({
       // Each pulse is its own material because opacity animates per-instance.
       // SphereGeometry is cloned per-pulse so rebuild() disposal can free
       // each independently without leaking shared geometry references.
-      const PULSE_RADIUS = 0.06;
+      const PULSE_RADIUS = 0.075;
       const pulseGeomTemplate = new THREE.SphereGeometry(PULSE_RADIUS, 12, 8);
       for (const b of allBounces) {
         const startPos  = speakerPositions[b.speakerIdx];
@@ -3894,6 +3894,7 @@ export function initRoom3D({
           pulseGeomTemplate.clone(),
           new THREE.MeshBasicMaterial({
             color: OC.DIRECT_SIGNAL, transparent: true, opacity: 0,
+            blending: THREE.AdditiveBlending,
             depthWrite: false,
           })
         );
@@ -3913,6 +3914,7 @@ export function initRoom3D({
           pulseGeomTemplate.clone(),
           new THREE.MeshBasicMaterial({
             color: OC.PRESSURE_PEAK, transparent: true, opacity: 0,
+            blending: THREE.AdditiveBlending,
             depthWrite: false,
           })
         );
