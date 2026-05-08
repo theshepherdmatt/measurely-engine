@@ -664,31 +664,17 @@
     }, 'Subs');
     lfSection.appendChild(lfLabel);
 
-    var _subMode = cur.subwoofer_dual ? 'dual' : (cur.subwoofer ? 'single' : 'none');
-    var lfRow    = _el('div', { class: 'demo-btn-row', style: 'gap:6px;' });
-    var subBtns  = {};
-    var subOpts  = [
-      { key: 'none',   label: 'Off', title: 'No subwoofer' },
-      { key: 'single', label: 'Sub', title: 'Single subwoofer \u2014 right of rack' },
-    ];
-    for (var si = 0; si < subOpts.length; si++) {
-      (function(opt) {
-        var btn = _el('button', {
-          class: 'spk-sub-btn' + (opt.key === _subMode ? ' active' : ''),
-          type: 'button', title: opt.title,
-        }, opt.label);
-        btn.addEventListener('click', function() {
-          Object.values(subBtns).forEach(function(b) { b.classList.remove('active'); });
-          btn.classList.add('active');
-          _subMode = opt.key;
-          cur.subwoofer      = opt.key !== 'none';
-          cur.subwoofer_dual = opt.key === 'dual';
-          onChange && onChange({ ...cur });
-        });
-        subBtns[opt.key] = btn;
-        lfRow.appendChild(btn);
-      })(subOpts[si]);
-    }
+    // Single binary toggle \u2014 matches client-seating + wave-toggle pattern.
+    // Tap to enable, tap again to disable. Active state is the visual cue.
+    var lfRow  = _el('div', { class: 'demo-btn-row', style: 'gap:6px;' });
+    var subBtn = _toggleBtn('Sub', cur.subwoofer, 'Toggle subwoofer');
+    subBtn.addEventListener('click', function() {
+      cur.subwoofer      = !cur.subwoofer;
+      cur.subwoofer_dual = false;
+      subBtn.classList.toggle('active', cur.subwoofer);
+      onChange && onChange({ ...cur });
+    });
+    lfRow.appendChild(subBtn);
     lfSection.appendChild(lfRow);
     wrap.appendChild(lfSection);
 
@@ -710,10 +696,8 @@
           _updateSliderFill(s.slider);
         });
         cur.subwoofer      = state.subwoofer      ?? false;
-        cur.subwoofer_dual = state.subwoofer_dual  ?? false;
-        _subMode = cur.subwoofer_dual ? 'dual' : (cur.subwoofer ? 'single' : 'none');
-        Object.values(subBtns).forEach(function(b) { b.classList.remove('active'); });
-        if (subBtns[_subMode]) subBtns[_subMode].classList.add('active');
+        cur.subwoofer_dual = state.subwoofer_dual ?? false;
+        subBtn.classList.toggle('active', cur.subwoofer);
       },
       setValues: function(newState) {
         if (newState.speaker_type) {
@@ -733,9 +717,7 @@
         if (newState.subwoofer !== undefined) {
           cur.subwoofer      = newState.subwoofer;
           cur.subwoofer_dual = newState.subwoofer_dual ?? false;
-          _subMode = cur.subwoofer_dual ? 'dual' : (cur.subwoofer ? 'single' : 'none');
-          Object.values(subBtns).forEach(function(b) { b.classList.remove('active'); });
-          if (subBtns[_subMode]) subBtns[_subMode].classList.add('active');
+          subBtn.classList.toggle('active', cur.subwoofer);
         }
       },
       setRoomType: function(rt) { _applySpkRoomType(rt); },
