@@ -269,21 +269,45 @@
     },
   };
 
-  function renderRoomTypeToggle(mountId, { initial = 'home', onChange } = {}) {
+  function renderRoomTypeToggle(mountId, {
+    initial        = 'home',
+    onChange,
+    collapsible    = false,
+    collapsedLabel = 'Room type',
+    confirm        = false,
+    confirmText    = 'Switching room type will reset speakers and furniture. Continue?',
+    initiallyOpen  = false,
+  } = {}) {
     const mount = _mount(mountId);
     if (!mount) return null;
 
     const _TOGGLE_IDS = { home: 'select-hifi', studio: 'select-studio' };
+    const _LABELS     = { home: 'Hi-Fi', studio: 'Studio' };
+
+    // Live current key — fixes getActive() previously returning stale `initial`
+    let currentKey = initial;
+
+    // Forward declaration — populated below if collapsible
+    let summaryEl = null;
+    const _summaryText = key => collapsedLabel + ' · ' + _LABELS[key];
 
     const gridResult = _iconGridSelect(
       [
-        { key: 'home',   icon: 'hifi.svg',   label: 'Hi-Fi'  },
-        { key: 'studio', icon: 'studio.svg',  label: 'Studio' },
+        { key: 'home',   icon: 'hifi.svg',   label: _LABELS.home   },
+        { key: 'studio', icon: 'studio.svg', label: _LABELS.studio },
       ],
       initial,
       2,
       key => {
-        // Stamp the legacy IDs onto the buttons so existing JS selectors still work
+        // Re-click of the active cell — no-op
+        if (key === currentKey) return;
+        // Confirm gate — _iconGridSelect has already flipped visual state, so revert on cancel
+        if (confirm && !window.confirm(confirmText)) {
+          gridResult.setActive(currentKey);
+          return;
+        }
+        currentKey = key;
+        if (summaryEl) summaryEl.textContent = _summaryText(key);
         onChange?.(key, { ..._ROOM_TYPE_DEFAULTS[key] });
       }
     );
@@ -293,13 +317,35 @@
     if (cells[0]) cells[0].id = _TOGGLE_IDS.home;
     if (cells[1]) cells[1].id = _TOGGLE_IDS.studio;
 
-    mount.appendChild(gridResult.grid);
+    if (collapsible) {
+      const details = document.createElement('details');
+      details.className = 'mly-room-type-switcher';
+      if (initiallyOpen) details.open = true;
+
+      summaryEl = document.createElement('summary');
+      summaryEl.className = 'mly-room-type-summary';
+      summaryEl.textContent = _summaryText(currentKey);
+
+      details.appendChild(summaryEl);
+      details.appendChild(gridResult.grid);
+      mount.appendChild(details);
+    } else {
+      mount.appendChild(gridResult.grid);
+    }
 
     return {
-      setActive(key)   { gridResult.setActive(key); },
-      getActive()      { return initial; },
+      setActive(key) {
+        currentKey = key;
+        gridResult.setActive(key);
+        if (summaryEl) summaryEl.textContent = _summaryText(key);
+      },
+      getActive()      { return currentKey; },
       getDefaults(key) { return { ..._ROOM_TYPE_DEFAULTS[key] }; },
-      reset()          { gridResult.setActive(initial); },
+      reset() {
+        currentKey = initial;
+        gridResult.setActive(initial);
+        if (summaryEl) summaryEl.textContent = _summaryText(initial);
+      },
     };
   }
 
