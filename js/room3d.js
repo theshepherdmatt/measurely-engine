@@ -3557,6 +3557,58 @@ export function initRoom3D({
       sbirField.userData.isSbirField = true;
       roomGroup.add(sbirField);
 
+      // ── Predicted-null Hz readout (3-class labelling) ────────────────────
+      // First text affordance for the SBIR class A/B/C state.
+      //   C — single muted sprite "~Hz · predicted"
+      //   B — single slate sprite "~Hz · predicted only"
+      //   A — stacked sprites: muted "Hz · predicted" + severity-coloured
+      //       "Hz · ±dB · measured"
+      // Single sprite anchor — SBIR field uses a single centre-speaker source
+      // (uSpkC at offsetX), so one readout floats above that origin slightly
+      // forward of the speaker plane. Sprites are billboards (always face
+      // camera), so no rotation needed. Disposal: rebuild()'s traverse handles
+      // it — sprites are added to roomGroup like every other SBIR element.
+      const readoutY = tweeterY + 0.20;
+      const readoutZ = -room.length_m / 2 + sbirDepth + 0.05;
+
+      if (isClassA) {
+        // Stack: predicted on top (muted), measured below (severity-coloured).
+        // Centre-to-centre 0.26 m so the ~0.20 m sprite heights leave a clean gap.
+        const sPred = _makeLabelSprite(
+          `${Math.round(predictedNullHz)} Hz · predicted`,
+          '#9ca3af'
+        );
+        sPred.position.set(offsetX, readoutY + 0.13, readoutZ);
+        roomGroup.add(sPred);
+
+        const severityColour =
+          depthDb <= -10 ? '#dc2626' :   // severe
+          depthDb <=  -6 ? '#ea580c' :   // moderate
+                           '#f59e0b';    // mild
+        const depthStr = `${depthDb >= 0 ? '+' : ''}${depthDb.toFixed(0)} dB`;
+        const sMeas = _makeLabelSprite(
+          `${Math.round(measuredNullHz)} Hz · ${depthStr} · measured`,
+          severityColour
+        );
+        sMeas.position.set(offsetX, readoutY - 0.13, readoutZ);
+        roomGroup.add(sMeas);
+      } else if (isClassB) {
+        const sB = _makeLabelSprite(
+          `~${Math.round(predictedNullHz)} Hz · predicted only`,
+          '#475569'
+        );
+        sB.position.set(offsetX, readoutY, readoutZ);
+        roomGroup.add(sB);
+      } else {
+        // isClassC — pre-measurement scaffolding
+        const sC = _makeLabelSprite(
+          `~${Math.round(predictedNullHz)} Hz · predicted`,
+          '#6b7280'
+        );
+        sC.position.set(offsetX, readoutY, readoutZ);
+        roomGroup.add(sC);
+      }
+
       // ------------------------------------------
       // SBIR CORNER BASS TRAPS (simulatePanels preview only)
       // Only shown when simulatePanels is active — the main room renderer already draws
