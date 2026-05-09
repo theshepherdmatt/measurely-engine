@@ -3778,9 +3778,14 @@ export function initRoom3D({
       // listener mesh and uses the geometrically-correct ear point.
       // Math is duplicated from the station builder (~line 1941) — flagged
       // for future consolidation via a shared _headWorldPosition helper.
+      // isStudio + effectiveHeadHeight are recomputed here because the
+      // rebuild()-scoped versions (lines 739, 1642) are not visible inside
+      // renderAnalysisOverlays(); same expressions, different scope.
+      const _isStudio = room.room_type === 'studio';
+      const _effectiveHeadHeight = _isStudio ? 1.22 : 0.82;
       const _seatType = room.seating_type || 'sofa';
-      const _sphereZ  = isStudio ? 0.20 : (_seatType === 'lounge' ? 0.38 : 0.28);
-      const _sphereY  = isStudio ? effectiveHeadHeight : (_seatType === 'lounge' ? 1.00 : 0.96);
+      const _sphereZ  = _isStudio ? 0.20 : (_seatType === 'lounge' ? 0.38 : 0.28);
+      const _sphereY  = _isStudio ? _effectiveHeadHeight : (_seatType === 'lounge' ? 1.00 : 0.96);
       const listenerPos = new THREE.Vector3(
         offsetX + (room.listener_offset_m || 0),
         -halfH + _sphereY,
