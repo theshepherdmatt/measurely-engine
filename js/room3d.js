@@ -3743,12 +3743,13 @@ export function initRoom3D({
       const ceilMode = room.ceiling_panel_mode || 'none';
       const floorMat = room.floor_material     || 'hard';
 
-      // Floor has no dedicated treatment field today — carpet vs hard floor
-      // is the only honest signal we can read. Flagged for product follow-up.
+      // Floor treatment = whole-floor carpet OR a discrete area rug between
+      // speakers and listener (the rug mesh sits across the first-order
+      // bounce point in typical configurations).
       const surfaceTreated = simulatePanels
         ? { floor: true, ceiling: true, left: true, right: true, front: true, back: true }
         : {
-            floor:   floorMat === 'carpet',
+            floor:   floorMat === 'carpet' || (room.opt_area_rug ?? false),
             ceiling: ceilMode !== 'none',
             left:    sideMode === 'left'  || sideMode === 'both',
             right:   sideMode === 'right' || sideMode === 'both',
@@ -3928,7 +3929,7 @@ export function initRoom3D({
       // Treated surfaces use cyan; untreated use pink — mirrors the
       // outgoing/return pulse colour scheme.
       const surfaceMeta = {
-        floor:   { pos: [0, -halfH + 0.02, 0],  rot: ['x', -Math.PI / 2], w: room.width_m,  h: room.length_m },
+        floor:   { pos: [0, -halfH + 0.04, 0],  rot: ['x', -Math.PI / 2], w: room.width_m,  h: room.length_m },
         ceiling: { pos: [0,  halfH - 0.02, 0],  rot: ['x',  Math.PI / 2], w: room.width_m,  h: room.length_m },
         front:   { pos: [0, 0, -halfL + 0.02],  rot: null,                 w: room.width_m,  h: room.height_m },
         back:    { pos: [0, 0,  halfL - 0.02],  rot: ['y',  Math.PI],      w: room.width_m,  h: room.height_m },
