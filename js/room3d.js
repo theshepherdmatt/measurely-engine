@@ -2893,9 +2893,10 @@ export function initRoom3D({
             const dt = cycleTime - ev.start;
             if (dt >= 0 && dt < ev.duration) {
               const t = dt / ev.duration;
-              // Asymmetric envelope: fast attack (peak at 30% of flash
-              // duration), slower decay — reads like a real flash.
-              const env = t < 0.3 ? t / 0.3 : (1 - t) / 0.7;
+              // Asymmetric envelope: fast attack (peak at 20% of flash
+              // duration), longer decay — reads as absorbed energy
+              // rather than frame flicker.
+              const env = t < 0.2 ? t / 0.2 : (1 - t) / 0.8;
               const v = ev.strength * env;
               if (v > intensity) intensity = v;
             }
@@ -2906,14 +2907,22 @@ export function initRoom3D({
           const d = ud.isReflectionHalo;
           if (reducedRefl) { obj.material.opacity = 0; return; }
           let intensity = 0;
+          // Default envAtPeak=1 → scale 1.0 at rest (no active arrival).
+          // Decays to 0 as the dominant event ages out, growing scale to 1.6.
+          let envAtPeak = 1;
           for (const ev of d.events) {
             const dt = cycleTime - ev.hitTime;
             if (dt >= 0 && dt < 0.4) {
-              const v = ev.strength * (1 - dt / 0.4);
-              if (v > intensity) intensity = v;
+              const env = 1 - dt / 0.4;
+              const v = ev.strength * env;
+              if (v > intensity) {
+                intensity = v;
+                envAtPeak = env;
+              }
             }
           }
           obj.material.opacity = intensity * 0.7;
+          obj.scale.setScalar(1.0 + 0.6 * (1 - envAtPeak));
         }
       });
     }
@@ -3763,9 +3772,19 @@ export function initRoom3D({
       const halfH = room.height_m / 2;
       const tweeterY = -halfH + room.tweeter_height_m;
 
+      // Aim halo, bounce paths, and return-pulse targets at the visible
+      // head sphere (which the station builder shifts back into the seat
+      // cushion via _sphereZ). Keeps the simulation co-located with the
+      // listener mesh and uses the geometrically-correct ear point.
+      // Math is duplicated from the station builder (~line 1941) — flagged
+      // for future consolidation via a shared _headWorldPosition helper.
+      const _seatType = room.seating_type || 'sofa';
+      const _sphereZ  = isStudio ? 0.20 : (_seatType === 'lounge' ? 0.38 : 0.28);
+      const _sphereY  = isStudio ? effectiveHeadHeight : (_seatType === 'lounge' ? 1.00 : 0.96);
       const listenerPos = new THREE.Vector3(
-        offsetX, tweeterY,
-        -halfL + room.listener_front_m
+        offsetX + (room.listener_offset_m || 0),
+        -halfH + _sphereY,
+        -halfL + room.listener_front_m + _sphereZ
       );
       const speakerPositions = [
         new THREE.Vector3(offsetX - room.spk_spacing_m / 2, tweeterY, -halfL + room.spk_front_m),
@@ -3872,7 +3891,7 @@ export function initRoom3D({
       // → listener-hit timeline lives entirely within CYCLE_S.
       const CYCLE_S    = 6.0;
       const OUT_DUR    = 0.5;
-      const FLASH_DUR  = 0.15;
+      const FLASH_DUR  = 0.30;
       const RETURN_DUR = 0.5;
       const TAIL_S     = 0.25;        // listener halo tail beyond final hit
       const eventCount = allBounces.length;
