@@ -2997,7 +2997,7 @@ export function initRoom3D({
               if (v > intensity) intensity = v;
             }
           }
-          obj.material.opacity = intensity * 0.6;
+          obj.material.opacity = intensity * 0.85;
 
         } else if (ud.isReflectionHalo) {
           const d = ud.isReflectionHalo;
@@ -3017,7 +3017,7 @@ export function initRoom3D({
               }
             }
           }
-          obj.material.opacity = intensity * 0.7;
+          obj.material.opacity = intensity * 0.95;
           obj.scale.setScalar(1.0 + 0.6 * (1 - envAtPeak));
         }
       });
@@ -3912,11 +3912,11 @@ export function initRoom3D({
       // ── Existing wave-field shader plane (measured-energy evidence) ─────
       // Survives from the prior migration as the "pink bloom" layer beneath
       // the simulation. Opacity follows measurement: full _sideRefScale when
-      // confirmed, 0.40 fallback pre-measurement.
+      // confirmed, 0.55 fallback pre-measurement.
       const sideGap = (room.width_m - room.spk_spacing_m) / 2;
       const sideK   = Math.PI / Math.max(sideGap, 0.3);
       const _sideRM = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      const fieldScale = hasMeasurement ? _sideRefScale : 0.40;
+      const fieldScale = hasMeasurement ? _sideRefScale : 0.55;
       const absL = surfaceTreated.left  ? 0.75 : 0.10;
       const absR = surfaceTreated.right ? 0.75 : 0.10;
 
