@@ -492,7 +492,7 @@ export function initRoom3D({
   let _listenStation = null;  // Group: sphere + rug + sofa + coffee table
   let _autoToe = false; // Auto-toe disabled by default; use toe_in_deg from room data
   let _autoToeAngle = 0;     // Last computed angle (radians) — readable via API
-  let _waveRings = [];       // Expanding wave ring Lines, repopulated on rebuild
+  let _waveRings = [];       // Expanding wave ring Meshes, repopulated on rebuild
   let _wavesEnabled = false;  // Off by default; toggled via api.setWaves()
   let _sbirFieldVisible = true; // SBIR heatmap field on by default; toggled via api.setSbirField()
   // ── REW live measurement data ─────────────────────────────────────────────
@@ -1591,14 +1591,20 @@ export function initRoom3D({
             for (let ri = 0; ri < NUM_RINGS; ri++) ringAmps.push(1.0);
           }
 
-          // Unit circle geometry shared across all rings for this speaker
-          const circlePts = [];
-          const SEG = 72;
-          for (let j = 0; j <= SEG; j++) {
-            const a = (j / SEG) * Math.PI * 2;
-            circlePts.push(new THREE.Vector3(Math.cos(a), 0, Math.sin(a)));
+          // Unit-circle tube geometry, shared across the 5 rings for this
+          // speaker. WebGL ignores LineBasicMaterial.linewidth, so a real
+          // tube primitive is the only way to get a tuneable stroke width.
+          // The mesh is then non-uniformly scaled (r,1,r) per frame to
+          // expand the ring outward — radial tube thickness scales with r,
+          // vertical thickness stays constant.
+          const circleCurvePts = [];
+          const CIRCLE_SEG = 72;
+          for (let j = 0; j < CIRCLE_SEG; j++) {
+            const a = (j / CIRCLE_SEG) * Math.PI * 2;
+            circleCurvePts.push(new THREE.Vector3(Math.cos(a), 0, Math.sin(a)));
           }
-          const circleGeo = new THREE.BufferGeometry().setFromPoints(circlePts);
+          const ringCurve = new THREE.CatmullRomCurve3(circleCurvePts, true);
+          const ringGeo   = new THREE.TubeGeometry(ringCurve, 72, 0.02, 8, true);
 
           for (let ri = 0; ri < NUM_RINGS; ri++) {
             const amp = ringAmps[ri];
@@ -1608,13 +1614,13 @@ export function initRoom3D({
               0.90,
               0.55
             );
-            const ringMat = new THREE.LineBasicMaterial({
+            const ringMat = new THREE.MeshBasicMaterial({
               color: ringColor,
               transparent: true,
               opacity: 0,
               depthWrite: false,
             });
-            const ring = new THREE.Line(circleGeo, ringMat);
+            const ring = new THREE.Mesh(ringGeo, ringMat);
             ring.position.set(waveX, waveY, waveZ);
             ring.userData.wavePhase = ri / NUM_RINGS;
             ring.userData.waveMaxR  = maxR;
@@ -2813,9 +2819,11 @@ export function initRoom3D({
         const phase = (_wt / WAVE_CYCLE + ring.userData.wavePhase) % 1.0;
         const r = phase * ring.userData.waveMaxR;
         ring.scale.set(r, 1, r);
-        // Peak opacity = base 0.70 × waveAmp — REW nulls produce dimmer rings.
+        // Peak opacity = base 0.55 × waveAmp — REW nulls produce dimmer rings.
         // waveAmp is 1.0 in simulation mode (no REW data) so no visual regression.
-        const _peakOp = 0.70 * (ring.userData.waveAmp ?? 1.0);
+        // Tube primitive has far more pixel coverage than the prior 1-px Line,
+        // so the base is dialled down to avoid oversaturating the canvas.
+        const _peakOp = 0.55 * (ring.userData.waveAmp ?? 1.0);
         ring.material.opacity = Math.max(0, (1 - phase) * _peakOp);
         // Lerp toward treatment-driven target color (cyan=treated, pink=untreated)
         // Only override colour in simulation mode — REW data already set colour on build.
