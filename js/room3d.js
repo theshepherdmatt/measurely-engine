@@ -493,6 +493,10 @@ export function initRoom3D({
   let _autoToe = false; // Auto-toe disabled by default; use toe_in_deg from room data
   let _autoToeAngle = 0;     // Last computed angle (radians) — readable via API
   let _waveRings = [];       // Expanding wave ring Meshes, repopulated on rebuild
+  let _interferenceIndicator = null;        // Flat disc at MLP; pulses on constructive interference. Gated by _wavesEnabled — same toggle as the rings.
+  const _mlpLocalPos      = new THREE.Vector3();   // Stashed at indicator build; read by animate's interference calc.
+  const _spkLeftLocalPos  = new THREE.Vector3();
+  const _spkRightLocalPos = new THREE.Vector3();
   let _wavesEnabled = false;  // Off by default; toggled via api.setWaves()
   let _sbirFieldVisible = true; // SBIR heatmap field on by default; toggled via api.setSbirField()
   // ── REW live measurement data ─────────────────────────────────────────────
@@ -613,6 +617,7 @@ export function initRoom3D({
     });
     roomGroup.clear();
     _waveRings = [];
+    _interferenceIndicator = null;   // GPU resources freed by the traverse above; just drop the closure ref.
     colourState = "idle";
 
     // Merge whatever getRoomData() returns over safe defaults so that
@@ -1622,11 +1627,62 @@ export function initRoom3D({
             });
             const ring = new THREE.Mesh(ringGeo, ringMat);
             ring.position.set(waveX, waveY, waveZ);
-            ring.userData.wavePhase = ri / NUM_RINGS;
-            ring.userData.waveMaxR  = maxR;
-            ring.userData.waveAmp   = amp;   // animate() uses this to scale peak opacity
+            ring.userData.wavePhase   = ri / NUM_RINGS;
+            ring.userData.waveMaxR    = maxR;
+            ring.userData.waveAmp     = amp;   // animate() uses this to scale peak opacity
+            ring.userData.speakerSide = side;  // 'L'|'R' — animate's interference calc buckets by this
             roomGroup.add(ring);
             _waveRings.push(ring);
+          }
+
+          // Stash this speaker's tweeter position for the per-frame
+          // interference calc in animate(). Build the MLP indicator once
+          // per rebuild, gated to the L pass so it doesn't double-spawn.
+          if (side === 'L') {
+            _spkLeftLocalPos.set(waveX, waveY, waveZ);
+
+            // MLP math inlined from the side-reflections overlay
+            // (~line 3794). effectiveHeadHeight isn't in scope here yet —
+            // it's declared further down in the listen-station block — so
+            // the studio/sofa ear height is recomputed locally.
+            const _seatType = room.seating_type || 'sofa';
+            const _effHead  = isStudio ? 1.22 : 0.82;
+            const _sphereZ  = isStudio ? 0.20    : (_seatType === 'lounge' ? 0.38 : 0.28);
+            const _sphereY  = isStudio ? _effHead : (_seatType === 'lounge' ? 1.00 : 0.96);
+            const _halfH    = room.height_m / 2;
+            const _halfL    = room.length_m / 2;
+            _mlpLocalPos.set(
+              offsetX + (room.listener_offset_m || 0),
+              -_halfH + _sphereY,
+              -_halfL + room.listener_front_m + _sphereZ
+            );
+
+            // Visualises the CONCEPT of constructive interference at the
+            // listening position. The wave-rings system propagates at
+            // ~1.5 m/s for visual rhythm, not 343 m/s, so this is NOT an
+            // audio-rate interference simulation — the SBIR shader plane
+            // remains the measured-energy layer.
+            const INDICATOR_COLOUR = 0xFFD466;   // warm mid-yellow, dedicated — not OC.TREATED_CYAN / PRESSURE_PEAK.
+            _interferenceIndicator = new THREE.Mesh(
+              new THREE.RingGeometry(0, 0.35, 64),
+              new THREE.MeshBasicMaterial({
+                color:       INDICATOR_COLOUR,
+                transparent: true,
+                opacity:     0,
+                depthWrite:  false,
+                blending:    THREE.AdditiveBlending,
+                side:        THREE.DoubleSide,
+              })
+            );
+            _interferenceIndicator.rotation.x = -Math.PI / 2;          // lay flat on XZ
+            _interferenceIndicator.position.set(
+              _mlpLocalPos.x,
+              -_halfH + 0.005,                                          // 5 mm above floor, dodges z-fighting
+              _mlpLocalPos.z
+            );
+            roomGroup.add(_interferenceIndicator);
+          } else {
+            _spkRightLocalPos.set(waveX, waveY, waveZ);
           }
         }
 
@@ -2810,10 +2866,25 @@ export function initRoom3D({
       }
     }
 
-    // WAVE RINGS — expanding circles from each speaker at tweeter height
+    // WAVE RINGS — expanding circles from each speaker at tweeter height,
+    // plus an interference indicator at the listening position.
+    // The interference calc visualises the CONCEPT of constructive
+    // interference at the MLP — the wave-rings propagate at ~1.5 m/s for
+    // visual rhythm, not 343 m/s, so this is NOT audio-rate physics. The
+    // SBIR shader plane remains the measured-energy layer.
     if (_waveRings.length > 0) {
       const _wt = performance.now() * 0.001;
       const WAVE_CYCLE = 2.8; // seconds per full cycle
+
+      // Per-frame distances from each speaker to the MLP — invariant across
+      // all 10 rings, so compute once. Speaker / MLP positions are stashed
+      // by rebuild() in _spk*LocalPos / _mlpLocalPos.
+      const _dL = _spkLeftLocalPos.distanceTo(_mlpLocalPos);
+      const _dR = _spkRightLocalPos.distanceTo(_mlpLocalPos);
+      const INTERFERENCE_SIGMA = 0.15;
+      const _TWO_SIGMA_SQ = 2 * INTERFERENCE_SIGMA * INTERFERENCE_SIGMA;
+      let _mlpEnergyL = 0, _mlpEnergyR = 0;
+
       for (let wi = 0; wi < _waveRings.length; wi++) {
         const ring = _waveRings[wi];
         const phase = (_wt / WAVE_CYCLE + ring.userData.wavePhase) % 1.0;
@@ -2830,6 +2901,27 @@ export function initRoom3D({
         if (ring.userData.targetColor && !_rewFreqs) {
           ring.material.color.lerp(ring.userData.targetColor, 0.06);
         }
+
+        // Contribution to MLP interference: Gaussian on the gap between
+        // this ring's current radius and its speaker → MLP distance.
+        // Peaks (≈1.0) when the wavefront is passing through the listener.
+        const speakerDist  = ring.userData.speakerSide === 'L' ? _dL : _dR;
+        const wavefrontGap = r - speakerDist;
+        const contribution = Math.exp(-(wavefrontGap * wavefrontGap) / _TWO_SIGMA_SQ);
+        if (ring.userData.speakerSide === 'L') _mlpEnergyL += contribution;
+        else                                    _mlpEnergyR += contribution;
+      }
+
+      // Multiplicative combination — sqrt(L * R) is ~0 unless BOTH channels
+      // have wavefronts at the listener simultaneously (true constructive
+      // interference). Drives the disc's opacity and a subtle 1.0 → 1.25
+      // scale pulse so peaks read kinetically as well as luminously.
+      if (_interferenceIndicator) {
+        const _constructive = Math.sqrt(_mlpEnergyL * _mlpEnergyR);
+        _interferenceIndicator.material.opacity =
+          Math.min(1, Math.max(0, _constructive * 0.85));
+        const _s = 1.0 + Math.min(1, _constructive) * 0.25;
+        _interferenceIndicator.scale.set(_s, _s, _s);
       }
     }
 
