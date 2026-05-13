@@ -47,9 +47,9 @@
 
   /* ── 3. Teal — brand accent (3D viewport + landing page accents ONLY) ─── */
   /*    BANNED on dashboard controls, buttons, fills, or borders.            */
-  --mly-teal:                   #00B8A9;
-  --mly-teal-rgb:               0, 184, 169;
-  --mly-teal-soft:              rgba(0, 184, 169, 0.12);  /* tinted active-state bg; retail overrides via color-mix on --brand-accent */
+  --mly-teal:                   #3A9D93;
+  --mly-teal-rgb:               58, 157, 147;
+  --mly-teal-soft:              rgba(58, 157, 147, 0.12);  /* tinted active-state bg; retail overrides via color-mix on --brand-accent */
   --mly-teal-neon:              #00C1B2;       /* brighter variant for viewport paths */
   --mly-teal-neon-rgb:          0, 193, 178;
 
