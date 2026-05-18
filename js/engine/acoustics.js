@@ -394,6 +394,19 @@ function analyseRoom(room) {
         .slice(0, 12)
         .map(m => ({ axis: m.axis, type: m.type, p: m.p, q: m.q, r: m.r, freq_hz: Math.round(m.freq_hz * 10) / 10 }));
 
+    // Frequency-dependent Sabine RT60, opt-in additive output. Null when
+    // dimensions or the materials bridge are unusable. No existing field
+    // is removed or changed; this is purely additive.
+    let rt60 = null;
+    const surfaces = _surfacesModule();
+    if (surfaces && typeof surfaces.getRoomSurfaceMaterials === 'function') {
+        const surfaceMaterials = surfaces.getRoomSurfaceMaterials(room);
+        rt60 = predictRT60(
+            { length: geometry.L, width: geometry.W, height: geometry.H_eff },
+            surfaceMaterials
+        );
+    }
+
     return {
         geometry,
         modes:              trimmedModes,
@@ -403,6 +416,7 @@ function analyseRoom(room) {
         ceiling_reflection: ceilingRef,
         room_factor:        roomFactor,
         stereo_factor:      stereoFactor,
+        rt60,
     };
 }
 
@@ -439,6 +453,20 @@ function _materialsModule() {
     }
     if (typeof window !== 'undefined' && window.MeasurelyMaterials) {
         return window.MeasurelyMaterials;
+    }
+    return null;
+}
+
+// Resolve the surface-materials bridge (state → six-surface map). Same
+// lazy-load pattern; null when unavailable so analyseRoom can degrade
+// rt60 to null rather than throw.
+function _surfacesModule() {
+    if (typeof require !== 'undefined') {
+        try { return require('./materials/surfaces.js'); }
+        catch (_) { /* fall through to browser path */ }
+    }
+    if (typeof window !== 'undefined' && window.MeasurelySurfaces) {
+        return window.MeasurelySurfaces;
     }
     return null;
 }
