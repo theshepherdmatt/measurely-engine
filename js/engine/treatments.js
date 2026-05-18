@@ -55,9 +55,15 @@
 const PRIMARY_BOOST   = 1.5;
 const SECONDARY_BOOST = 0.9;
 
+// materialId on each archetype is a reference into js/engine/materials/.
+// The score path still reads absorptionBands; materialId is unused by
+// scoring today and is here so a later prompt can swap the dB bands for
+// octave-band Sabine α drawn from a real, mounted, provenance-tagged
+// product entry.
 const TREATMENT_PROFILES = {
     bass_trap: {
         name: 'Bass traps',
+        materialId: 'gik-244-flexrange-full-range',
         affects: { peaks_dips: 'primary', smoothness: 'secondary' },
         absorptionBands: [
             { freqLo:  40, freqHi:  100, absorptionDb: -3.0 },
@@ -68,6 +74,7 @@ const TREATMENT_PROFILES = {
     },
     wall_panel: {
         name: 'Front wall panels',
+        materialId: 'primacoustic-broadway-2in-amount',
         affects: { peaks_dips: 'primary', reflections: 'secondary' },
         absorptionBands: [
             { freqLo:  200, freqHi:  500, absorptionDb: -2.0 },
@@ -78,6 +85,7 @@ const TREATMENT_PROFILES = {
     },
     side_panel: {
         name: 'Side panels',
+        materialId: 'primacoustic-broadway-2in-amount',
         affects: { reflections: 'primary', clarity: 'secondary' },
         absorptionBands: [
             { freqLo:  500, freqHi: 2000, absorptionDb: -2.5 },
@@ -87,6 +95,7 @@ const TREATMENT_PROFILES = {
     },
     ceiling_panel: {
         name: 'Ceiling cloud',
+        materialId: 'acoustic-ceiling-tile-typical-e400',
         affects: { reflections: 'primary', smoothness: 'secondary' },
         absorptionBands: [
             { freqLo: 1000, freqHi:  4000, absorptionDb: -2.0 },
@@ -95,6 +104,28 @@ const TREATMENT_PROFILES = {
         scoreBoosts: { reflections: PRIMARY_BOOST, clarity: 0 },
     },
 };
+
+// Resolve the materials module in either Node (require) or browser
+// (window.MeasurelyMaterials, if a consumer has loaded it). Returns null
+// when unavailable so getTreatmentMaterial degrades gracefully.
+function _materialsModule() {
+    if (typeof require !== 'undefined') {
+        try { return require('./materials/index.js'); }
+        catch (_) { /* fall through to browser path */ }
+    }
+    if (typeof window !== 'undefined' && window.MeasurelyMaterials) {
+        return window.MeasurelyMaterials;
+    }
+    return null;
+}
+
+function getTreatmentMaterial(treatmentType) {
+    const profile = TREATMENT_PROFILES[treatmentType];
+    if (!profile || typeof profile.materialId !== 'string') return null;
+    const mod = _materialsModule();
+    if (!mod || typeof mod.getMaterial !== 'function') return null;
+    return mod.getMaterial(profile.materialId) || null;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -187,11 +218,39 @@ if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.m
                     `  ov: ${baseline.bandwidth ? '' : ''}${r.overall}`);
         if (drop) failures++;
     }
+
+    // -- Material link regressions (additive; no score path involved) ------
+    // (a) every profile has a string materialId
+    for (const key of Object.keys(TREATMENT_PROFILES)) {
+        const id = TREATMENT_PROFILES[key].materialId;
+        if (typeof id !== 'string' || id.length === 0) {
+            console.error(`[FAIL] ${key}: materialId is not a non-empty string (got ${JSON.stringify(id)})`);
+            failures++;
+        }
+    }
+    // (b) getTreatmentMaterial resolves a non-null material for every type
+    // (c) each resolved material exposes absorption.coefficients
+    for (const key of Object.keys(TREATMENT_PROFILES)) {
+        const mat = getTreatmentMaterial(key);
+        if (!mat) {
+            console.error(`[FAIL] ${key}: getTreatmentMaterial returned null`);
+            failures++;
+            continue;
+        }
+        if (!mat.absorption || typeof mat.absorption.coefficients !== 'object' || mat.absorption.coefficients === null) {
+            console.error(`[FAIL] ${key} -> ${mat.id}: missing absorption.coefficients`);
+            failures++;
+            continue;
+        }
+        console.log(`[pass] ${key.padEnd(15)} -> ${mat.id}`);
+    }
+
     if (failures > 0) {
-        console.error(`\n${failures} regression(s) — peaks_dips dropped after a treatment`);
+        console.error(`\n${failures} regression failure(s)`);
         process.exit(1);
     } else {
         console.log('\nAll treatments raise (or hold) peaks_dips ✓');
+        console.log('All archetypes link to a resolvable material ✓');
     }
 }
 
@@ -289,7 +348,7 @@ function applyTreatments(analysis, treatmentKeys, options = {}) {
 // ---------------------------------------------------------------------------
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { applyTreatments, TREATMENT_PROFILES };
+    module.exports = { applyTreatments, getTreatmentMaterial, TREATMENT_PROFILES };
 } else if (typeof window !== 'undefined') {
-    window.MeasurelyTreatments = { applyTreatments, TREATMENT_PROFILES };
+    window.MeasurelyTreatments = { applyTreatments, getTreatmentMaterial, TREATMENT_PROFILES };
 }
