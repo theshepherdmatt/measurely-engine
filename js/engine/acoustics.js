@@ -407,6 +407,193 @@ function analyseRoom(room) {
 }
 
 // ---------------------------------------------------------------------------
+// 7. SABINE RT60 PREDICTION (frequency-dependent, additive, opt-in)
+// ---------------------------------------------------------------------------
+//
+// Predictive model: not a physical measurement.
+//
+// Per-octave-band Sabine reverberation time computed from per-surface
+// material IDs in the materials database (js/engine/materials/). This is
+// a parallel, opt-in API — the hardcoded broadband T60_est inside
+// computeRoomGeometry (used only for the Schroeder frequency) is
+// untouched, and no overlay consumes this yet.
+//
+// Sabine's classic equation:  T60 = 0.161 · V / A_total
+//   V       = room volume (m³)
+//   A_total = Σ S_i · α_i   (m² Sabines)   per frequency band
+//
+// Air absorption (the 4·m·V term in the full Sabine equation) is
+// intentionally omitted in this first cut. It is non-negligible above
+// ~2 kHz at low humidity and is future work.
+
+const DEFAULT_RT60_FREQS    = [125, 250, 500, 1000, 2000, 4000];
+const DEFAULT_RT60_FALLBACK = 'painted-drywall';
+
+// Resolve the materials module — Node via require, browser via
+// window.MeasurelyMaterials if a consumer has loaded it. Match
+// treatments.js getTreatmentMaterial's lazy-load pattern.
+function _materialsModule() {
+    if (typeof require !== 'undefined') {
+        try { return require('./materials/index.js'); }
+        catch (_) { /* fall through to browser path */ }
+    }
+    if (typeof window !== 'undefined' && window.MeasurelyMaterials) {
+        return window.MeasurelyMaterials;
+    }
+    return null;
+}
+
+/**
+ * Predict octave-band Sabine RT60 from per-surface materials.
+ *
+ * Predictive model: not a physical measurement.
+ *
+ * @param {{length:number, width:number, height:number}} dimensions  metres
+ * @param {object} surfaceMaterials  { floor, ceiling, frontWall, backWall,
+ *                                     leftWall, rightWall: materialId|null }
+ * @param {object} [options]
+ * @param {number[]} [options.frequencies=[125,250,500,1000,2000,4000]]
+ * @param {string}   [options.fallbackMaterial='painted-drywall']
+ * @returns {Object<string, number|null> | null}
+ *          map of frequency → T60 seconds, or null per band if degenerate,
+ *          or null overall if dimensions/materials module are unusable.
+ */
+function predictRT60(dimensions, surfaceMaterials, options = {}) {
+    const length = dimensions ? Number(dimensions.length) : NaN;
+    const width  = dimensions ? Number(dimensions.width)  : NaN;
+    const height = dimensions ? Number(dimensions.height) : NaN;
+    if (!(length > 0 && width > 0 && height > 0)) return null;
+
+    const mats = _materialsModule();
+    if (!mats || typeof mats.alphaAt !== 'function' || typeof mats.getMaterial !== 'function') {
+        return null;
+    }
+
+    const freqs = (Array.isArray(options.frequencies) && options.frequencies.length)
+        ? options.frequencies.slice()
+        : DEFAULT_RT60_FREQS.slice();
+    const fallbackId = (typeof options.fallbackMaterial === 'string' && options.fallbackMaterial)
+        ? options.fallbackMaterial
+        : DEFAULT_RT60_FALLBACK;
+    const fallbackMat = mats.getMaterial(fallbackId);
+
+    // length = depth: front/back walls are width × height; left/right are length × height.
+    const areas = {
+        floor:     length * width,
+        ceiling:   length * width,
+        frontWall: width  * height,
+        backWall:  width  * height,
+        leftWall:  length * height,
+        rightWall: length * height,
+    };
+    const V = length * width * height;
+
+    // Resolve a material object per surface, with fallback for null/unresolved IDs.
+    const resolved = {};
+    for (const key of Object.keys(areas)) {
+        const id = surfaceMaterials ? surfaceMaterials[key] : null;
+        let mat = null;
+        if (typeof id === 'string' && id.length) mat = mats.getMaterial(id) || null;
+        if (!mat) mat = fallbackMat || null;
+        resolved[key] = mat;
+    }
+
+    const out = {};
+    for (const f of freqs) {
+        let A = 0;
+        let degenerate = false;
+        for (const key of Object.keys(areas)) {
+            const mat = resolved[key];
+            if (!mat) { degenerate = true; break; }
+            const alpha = mats.alphaAt(mat, f, { clamp: true });
+            if (alpha === null || !Number.isFinite(alpha)) { degenerate = true; break; }
+            A += areas[key] * alpha;
+        }
+        out[String(f)] = (degenerate || !(A > 0)) ? null : (0.161 * V / A);
+    }
+    return out;
+}
+
+// ---------------------------------------------------------------------------
+// Regression test (run with `node js/engine/acoustics.js`)
+// ---------------------------------------------------------------------------
+if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.main === module) {
+    /* eslint-disable */
+    let failures = 0;
+    const fail = (msg) => { console.error(`[FAIL] ${msg}`); failures++; };
+    const pass = (msg) => { console.log (`[pass] ${msg}`); };
+
+    const dims = { length: 5, width: 4, height: 3 };
+    const REQUESTED = [125, 250, 500, 1000, 2000, 4000];
+
+    function allSurfaces(id) {
+        return {
+            floor: id, ceiling: id,
+            frontWall: id, backWall: id,
+            leftWall: id, rightWall: id,
+        };
+    }
+
+    // Untreated concrete: T60(500) ∈ [2, 10] and every requested band finite > 0
+    const rConcrete = predictRT60(dims, allSurfaces('rough-concrete'));
+    if (!rConcrete) {
+        fail('predictRT60 returned null for concrete room');
+    } else {
+        for (const f of REQUESTED) {
+            const v = rConcrete[String(f)];
+            if (!(Number.isFinite(v) && v > 0)) {
+                fail(`concrete: T60 at ${f} Hz is not finite > 0 (got ${v})`);
+            }
+        }
+        const t500 = rConcrete['500'];
+        if (!(t500 >= 2 && t500 <= 10)) {
+            fail(`concrete: T60(500) = ${t500} not in [2, 10]`);
+        } else {
+            pass(`concrete  T60(500) = ${t500.toFixed(2)} s   (∈ [2,10])`);
+        }
+    }
+
+    // Fully absorbing: T60(500) < 0.4 and every requested band finite > 0
+    const rAbs = predictRT60(dims, allSurfaces('oc-703-2in-amount'));
+    if (!rAbs) {
+        fail('predictRT60 returned null for OC 703 room');
+    } else {
+        for (const f of REQUESTED) {
+            const v = rAbs[String(f)];
+            if (!(Number.isFinite(v) && v > 0)) {
+                fail(`OC 703: T60 at ${f} Hz is not finite > 0 (got ${v})`);
+            }
+        }
+        const t500 = rAbs['500'];
+        if (!(t500 < 0.4)) {
+            fail(`OC 703: T60(500) = ${t500} not < 0.4`);
+        } else {
+            pass(`oc-703    T60(500) = ${t500.toFixed(3)} s   (< 0.4)`);
+        }
+    }
+
+    if (rConcrete && rAbs) {
+        console.log('\nfreq   concrete (s)   oc-703 2" (s)');
+        for (const f of REQUESTED) {
+            const c = rConcrete[String(f)];
+            const a = rAbs[String(f)];
+            console.log(
+                String(f).padStart(4) + '   ' +
+                (Number.isFinite(c) ? c.toFixed(3) : String(c)).padStart(12) + '   ' +
+                (Number.isFinite(a) ? a.toFixed(3) : String(a)).padStart(13)
+            );
+        }
+    }
+
+    if (failures > 0) {
+        console.error(`\n${failures} regression failure(s)`);
+        process.exit(1);
+    } else {
+        console.log('\nSabine RT60 prediction regressions pass ✓');
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
 
@@ -415,11 +602,13 @@ if (typeof module !== 'undefined' && module.exports) {
         analyseRoom,
         computeRoomGeometry, computeRoomModes, computeSbir,
         computeTriangle, computeRoomGain, computeCeilingReflection,
+        predictRT60,
     };
 } else if (typeof window !== 'undefined') {
     window.MeasurelyAcoustics = {
         analyseRoom,
         computeRoomGeometry, computeRoomModes, computeSbir,
         computeTriangle, computeRoomGain, computeCeilingReflection,
+        predictRT60,
     };
 }
