@@ -2468,6 +2468,39 @@ export function initRoom3D({
       side: THREE.DoubleSide
     });
 
+    // Phase 1 panel-aware reflection flash: every treatment panel gets a
+    // sibling cyan overlay tagged with userData.isPanelCyanFlash. The
+    // reflection overlay block in renderAnalysisOverlays() finds these
+    // tags and assigns the matching surface's flash events, so the
+    // animator at room3d.js:3064-3083 pulses them in sync with the
+    // (always-pink) wall flash. Geometry is shared with the panel; a
+    // 1% scale-up + renderOrder=1 keeps the cyan visibly on top of
+    // the panel face without coplanar z-fighting (both materials have
+    // depthWrite=false, so we rely on render order, not depth tests).
+    // Added directly to roomGroup — the animator iterates roomGroup
+    // children non-recursively and would skip anything nested inside
+    // panelGroup (gable flush ceiling case).
+    const _addPanelCyanFlash = (panelMesh, surface) => {
+      const flash = new THREE.Mesh(
+        panelMesh.geometry,
+        new THREE.MeshBasicMaterial({
+          color: OC.TREATED_CYAN,
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        })
+      );
+      flash.position.copy(panelMesh.position);
+      flash.rotation.copy(panelMesh.rotation);
+      flash.scale.copy(panelMesh.scale).multiplyScalar(1.01);
+      flash.renderOrder = 1;
+      flash.userData.isPanelCyanFlash = { surface };
+      roomGroup.add(flash);
+      return flash;
+    };
+
     // Helper: panel mesh + edge outline for embed mode
 
     // --- WALL PANELS (front & rear walls) ---
@@ -2492,11 +2525,13 @@ export function initRoom3D({
       // panelH / panelCenterY can be overridden for client sofa sizing
       const addWallPanels = (wallZ, facingDir, panelH = wpH, panelCenterY = panelY) => {
         const geo = new THREE.BoxGeometry(wpW, panelH, wpThickness);
+        const surface = wallZ < 0 ? 'front' : 'back';
         for (let i = 0; i < panelCount; i++) {
           const px = offsetX - totalSpan / 2 + wpW / 2 + i * (wpW + wpGap);
           const mesh = new THREE.Mesh(geo, panelMat);
           mesh.position.set(px, panelCenterY, wallZ + facingDir * wpThickness / 2);
           roomGroup.add(mesh);
+          _addPanelCyanFlash(mesh, surface);
         }
       };
 
@@ -2580,6 +2615,11 @@ export function initRoom3D({
         mesh.position.set(offsetX + cx, floorY, cz);
         mesh.rotation.y = rotY;
         roomGroup.add(mesh);
+        // Bass traps straddle two walls + the floor. Phase 1 picks one
+        // primary surface per trap, aligned with bass_trap_mode semantics:
+        // front-corners → 'front', rear-corners → 'back'. Known limitation:
+        // the side wall and the floor under the trap still flash pink.
+        _addPanelCyanFlash(mesh, isFront ? 'front' : 'back');
       });
 
     }
@@ -2615,6 +2655,8 @@ export function initRoom3D({
             rp.position.set(rightX, ceilingYAt(rightX, midZ) - thickness / 2, midZ);
             rp.rotation.z = -slopeAngle;
             panelGroup.add(lp, rp);
+            _addPanelCyanFlash(lp, 'ceiling');
+            _addPanelCyanFlash(rp, 'ceiling');
           } else {
             const slopeAngle = Math.atan2(room.height_m - lowH, room.length_m / 2);
             const halfLength = cpL / 2;
@@ -2627,6 +2669,8 @@ export function initRoom3D({
             bp.position.set(offsetX, ceilingYAt(offsetX, backZ) - thickness / 2, backZ);
             bp.rotation.x = slopeAngle;
             panelGroup.add(fp, bp);
+            _addPanelCyanFlash(fp, 'ceiling');
+            _addPanelCyanFlash(bp, 'ceiling');
           }
           roomGroup.add(panelGroup);
 
@@ -2641,12 +2685,14 @@ export function initRoom3D({
           if (isZSlant) panel.rotation.x = (slantDir === "back_to_front" ? -1 : 1) * slopeAngle;
           else panel.rotation.z = (slantDir === "left_to_right" ? 1 : -1) * slopeAngle;
           roomGroup.add(panel);
+          _addPanelCyanFlash(panel, 'ceiling');
 
         } else {
           // Flat: horizontal panel pressed against ceiling
           const panel = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, cpL), panelMat);
           panel.position.set(offsetX, room.height_m / 2 - thickness / 2, midZ);
           roomGroup.add(panel);
+          _addPanelCyanFlash(panel, 'ceiling');
         }
 
       } else {
@@ -2672,6 +2718,11 @@ export function initRoom3D({
         panel.rotation.set(0, 0, 0);   // always horizontal
         panel.position.set(offsetX, cloudY, midZ);
         roomGroup.add(panel);
+        // Cloud cyan flash tagged 'ceiling'. Known limitation: the
+        // image-source model bounces off the geometric ceiling, not the
+        // cloud — so a ceiling bounce can fire the cloud flash even when
+        // the bounce point is well to one side of the cloud's footprint.
+        _addPanelCyanFlash(panel, 'ceiling');
 
         // Suspension wires: 4 corner wires, vertical, length driven by ceilingYAt.
         // Works for flat / slanted / gabled — ceilingYAt returns the correct ceiling Y
@@ -2774,6 +2825,7 @@ export function initRoom3D({
           const mesh = new THREE.Mesh(geo, panelMat);
           mesh.position.set(side * (wallX - spThickness / 2), panelBot + effH / 2, pz);
           roomGroup.add(mesh);
+          _addPanelCyanFlash(mesh, side === -1 ? 'left' : 'right');
         }
       }
 
@@ -4105,8 +4157,10 @@ export function initRoom3D({
 
       // ── Wall flash planes (one per surface that has any events) ──────────
       // Additive blending so a flash reads as glow rather than solid colour.
-      // Treated surfaces use cyan; untreated use pink — mirrors the
-      // outgoing/return pulse colour scheme.
+      // Phase 1 panel-aware flash: the wall is always pink; treatment
+      // panels carry their own additive cyan overlay (added in the panel
+      // builders, wired to per-surface events below). Where panels cover
+      // the wall, cyan dominates additively; bare wall reads pink.
       //
       // Vertical walls (front/back/left/right) use a per-wall BufferGeometry
       // built in world space whose top edge follows ceilingYAt(corner_x,
@@ -4300,7 +4354,7 @@ export function initRoom3D({
               ? _buildCeilingFlashGeom()
               : new THREE.PlaneGeometry(meta.w * 0.92, meta.h * 0.92),
           new THREE.MeshBasicMaterial({
-            color: surfaceTreated[surf] ? OC.TREATED_CYAN : OC.PRESSURE_PEAK,
+            color: OC.PRESSURE_PEAK,
             transparent: true,
             opacity: 0,
             blending: THREE.AdditiveBlending,
@@ -4315,6 +4369,21 @@ export function initRoom3D({
         flash.userData.isReflectionFlash = { events, surfaceStrength: surfaceStrength[surf] };
         roomGroup.add(flash);
       }
+
+      // Wire panel cyan flashes to per-surface flash events. The panel
+      // builders tagged each cyan overlay with userData.isPanelCyanFlash
+      // {surface}; here we hand them the same events/strength as the wall
+      // flash for that surface so the animator at room3d.js:3064-3083
+      // pulses them in lock-step. Surfaces with no events (no bounce hit
+      // this rebuild) leave the cyan flash unwired — it stays at
+      // opacity 0 and renders nothing.
+      roomGroup.children.forEach(obj => {
+        const tag = obj.userData?.isPanelCyanFlash;
+        if (!tag) return;
+        const events = flashEventsBySurface[tag.surface];
+        if (!events?.length) return;
+        obj.userData.isReflectionFlash = { events, surfaceStrength: surfaceStrength[tag.surface] };
+      });
 
       // ── Pulse spheres (outgoing teal + return pink, per bounce) ──────────
       // Each pulse is its own material because opacity animates per-instance.
