@@ -4149,10 +4149,19 @@ export function initRoom3D({
         b.returnStart = b.flashEnd;
         b.returnEnd   = b.returnStart + RETURN_DUR;
         b.strength    = surfaceStrength[b.surface] * SIM_SCALE;
+        // Absorption: when the bounce surface is treated, the panel
+        // catches the reflection — no pink return pulse, no listener
+        // halo. The outgoing teal pulse's existing fade-out envelope
+        // reads as the ball dying into the panel, and the cyan panel
+        // flash fires in the same window. Wall flash suppression on
+        // treated surfaces (commit dd5fe09) keeps the visual clean.
+        b.absorbed = surfaceTreated[b.surface] === true;
         flashEventsBySurface[b.surface].push({
           start: b.flashStart, duration: FLASH_DUR, strength: b.strength,
         });
-        haloEvents.push({ hitTime: b.returnEnd, strength: b.strength });
+        if (!b.absorbed) {
+          haloEvents.push({ hitTime: b.returnEnd, strength: b.strength });
+        }
       });
 
       // ── Wall flash planes (one per surface that has any events) ──────────
@@ -4422,7 +4431,12 @@ export function initRoom3D({
         };
         roomGroup.add(outPulse);
 
-        // Return — pink, bounce point → listener
+        // Return — pink, bounce point → listener.
+        // Skipped on treated bounces: the panel absorbed the energy,
+        // so no pink pulse leaves the wall and no halo fires at the
+        // listener (haloEvents was gated above for the same reason).
+        if (b.absorbed) continue;
+
         const retPulse = new THREE.Mesh(
           pulseGeomTemplate.clone(),
           new THREE.MeshBasicMaterial({
