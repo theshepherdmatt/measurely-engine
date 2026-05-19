@@ -78,6 +78,21 @@
       modes:       ['none', 'front', 'rear', 'both'],
       defaultMode: 'both',
       geometry:    GEOMETRY.wall_panel,
+      // v1 extras: 2-or-4 coverage selector for front/rear walls. Single
+      // state key applies to both walls (front and rear use the same count).
+      // Visualisation-only — surfaces.js: getRoomSurfaceMaterials swaps the
+      // whole-wall material on wall_panel_mode, no area term, so RT60 is
+      // unaffected. Acoustic-honest area-Sabine is a future enhancement.
+      extras: [{
+        stateKey:    'wall_panel_count',
+        label:       'Coverage',
+        options:     [
+          { value: 2, label: '2 panels' },
+          { value: 4, label: '4 panels' },
+        ],
+        default:     4,
+        visibleWhen: (state) => state.wall_panel_mode !== 'none',
+      }],
     },
     side_panel: {
       id:          'side_panel',
@@ -155,6 +170,14 @@
       const def = TREATMENT_TYPES[key];
       if (!def) return;
       treatState[def.stateKey] = state[def.stateKey] ?? 'none';
+      // Extras (e.g. wall_panel_count) — seed from caller state or
+      // per-extras default. Extras stateKeys are flat alongside the
+      // primary mode keys in the treatment state blob.
+      if (Array.isArray(def.extras)) {
+        def.extras.forEach(ex => {
+          treatState[ex.stateKey] = state[ex.stateKey] ?? ex.default;
+        });
+      }
     });
 
     // ── Treatment rows: dot toggle + mode pills ───────────────────
@@ -216,12 +239,50 @@
 
       row.append(head, pillsRow);
 
+      // Extras rows (e.g. Wall Panels' 2-or-4 coverage selector).
+      // Reuse the .treat-pills component for visual consistency with
+      // the primary mode row. Each extras entry becomes its own row,
+      // appended below the mode pills. Visibility is recomputed by
+      // sync() from ex.visibleWhen(treatState) so toggling the mode
+      // off auto-hides the count selector.
+      const extrasRows = [];
+      if (Array.isArray(def.extras)) {
+        def.extras.forEach(ex => {
+          const exRow = document.createElement('div');
+          exRow.className = 'treat-pills treat-pills-extras';
+          const exPillMap = new Map();
+          ex.options.forEach(opt => {
+            const pill = document.createElement('button');
+            pill.className  = 'treat-pill';
+            pill.type       = 'button';
+            pill.textContent = opt.label;
+            pill.addEventListener('click', e => {
+              e.stopPropagation();
+              treatState[ex.stateKey] = opt.value;
+              sync();
+              onTreatmentChange?.({ ...treatState });
+            });
+            exPillMap.set(opt.value, pill);
+            exRow.appendChild(pill);
+          });
+          row.appendChild(exRow);
+          extrasRows.push({ ex, exRow, exPillMap });
+        });
+      }
+
       const sync = () => {
         const val   = treatState[def.stateKey];
         const isOn  = val !== 'none';
         row.classList.toggle('on', isOn);
         cur.textContent = isOn ? (def.modeLabels?.[val] ?? val) : '';
         Object.entries(pillMap).forEach(([m, p]) => p.classList.toggle('active', m === val));
+        // Extras: pill active state + row visibility from visibleWhen.
+        extrasRows.forEach(({ ex, exRow, exPillMap }) => {
+          const visible = ex.visibleWhen ? !!ex.visibleWhen(treatState) : true;
+          exRow.style.display = visible ? '' : 'none';
+          const curEx = treatState[ex.stateKey];
+          exPillMap.forEach((p, v) => p.classList.toggle('active', v === curEx));
+        });
       };
 
       // Head click: toggle on (defaultMode) / off (none)

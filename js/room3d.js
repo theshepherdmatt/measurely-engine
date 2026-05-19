@@ -644,7 +644,8 @@ export function initRoom3D({
         },
         treatment: {
           wall_panel_mode: 'none', side_panel_mode: 'none',
-          bass_trap_mode: 'none', ceiling_panel_mode: 'none'
+          bass_trap_mode: 'none', ceiling_panel_mode: 'none',
+          wall_panel_count: 4
         }
       }
     };
@@ -734,6 +735,7 @@ export function initRoom3D({
       side_panel_mode: treat.side_panel_mode ?? env.side_panel_mode ?? "none",
       bass_trap_mode: treat.bass_trap_mode ?? env.bass_trap_mode ?? "none",
       ceiling_panel_mode: treat.ceiling_panel_mode ?? env.ceiling_panel_mode ?? "none",
+      wall_panel_count: treat.wall_panel_count ?? env.wall_panel_count ?? 4,
       panel_color: data.panel_color ?? null,  // optional hex string e.g. '#c8a882'
 
       // FLOOR: read from env (data.environment.floor_material) with hard fallback
@@ -2511,11 +2513,19 @@ export function initRoom3D({
       const wpW = wpGeo?.panelWidth ?? 0.60;
       const wpH = wpGeo?.panelHeight ?? 1.20;
       const wpGap = wpGeo?.panelGap ?? 0.04;
-      const wpMaxFrac = wpGeo?.maxWidthFrac ?? 0.80;
       const wpThickness = wpGeo?.thickness ?? 0.06;
 
-      const maxSpan = room.width_m * wpMaxFrac;
-      const panelCount = Math.max(1, Math.floor((maxSpan + wpGap) / (wpW + wpGap)));
+      // Panel count is now an explicit user choice (2 or 4) — see
+      // treatment-registry.js TREATMENT_TYPES.wall_panel.extras. The
+      // previous width-derived adaptive count (floor((width × maxFrac)
+      // / (panelW + gap)) → 3..6) is replaced; wider rooms now show 4
+      // panels by default instead of scaling up.
+      //
+      // Visualisation-only in v1: surfaces.js: getRoomSurfaceMaterials
+      // swaps the whole-wall material on wall_panel_mode (no area term),
+      // so changing wall_panel_count does NOT change predictRT60.
+      // Acoustic-honest area-Sabine is a future enhancement.
+      const panelCount = room.wall_panel_count ?? 4;
       const totalSpan = panelCount * wpW + (panelCount - 1) * wpGap;
       // Panels centred at tweeter/ear height — acoustically correct and stays fixed
       // relative to the floor regardless of room height slider changes.
