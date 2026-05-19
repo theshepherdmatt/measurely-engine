@@ -640,7 +640,7 @@ export function initRoom3D({
           opt_coffee_table: false, opt_desk: false, opt_chair: false,
           seating_type: 'sofa', opt_display: true, opt_mic: false,
           opt_keyboard: false, opt_client_seating: false,
-          client_seating_type: 'sofa', desk_width_m: 1.6
+          client_seating_type: 'sofa', desk_width_m: 1.6, desk_depth_m: 0.7
         },
         treatment: {
           wall_panel_mode: 'none', side_panel_mode: 'none',
@@ -727,6 +727,7 @@ export function initRoom3D({
       opt_client_seating: furn.opt_client_seating ?? env.opt_client_seating ?? data.opt_client_seating ?? false,
       client_seating_type: furn.client_seating_type ?? env.client_seating_type ?? data.client_seating_type ?? 'sofa',
       desk_width_m: furn.desk_width_m ?? env.desk_width_m ?? data.desk_width_m ?? 1.6,
+      desk_depth_m: furn.desk_depth_m ?? env.desk_depth_m ?? data.desk_depth_m ?? 0.7,
 
       // TREATMENT: Digging into data.environment.treatment
       wall_panel_mode: treat.wall_panel_mode ?? env.wall_panel_mode ?? "none",
@@ -760,16 +761,13 @@ export function initRoom3D({
     // setup (not mutated upstream), so switching back to a non-studio
     // room type restores their value.
     //
-    // Spacing dispatch mirrors the speaker-placement code further down:
-    // 'stands' uses spk_spacing_m, all other placements ride the desk
-    // edges at deskW * 0.78 separation.
+    // Speakers sit at fixed spk_spacing_m regardless of desk width
+    // (Option A — see speaker placement at room3d.js:1454). The chair's
+    // equilateral-triangle distance is therefore a function of
+    // spk_spacing_m only; the "Desk width" slider does NOT pull the
+    // chair forward or back.
     if (isStudio) {
-      const _studioOnDeskMode = (room.spk_placement !== 'stands');
-      const _studioSpacing    = _studioOnDeskMode
-        ? (room.desk_width_m ?? 1.6) * 0.78
-        : (room.spk_spacing_m ?? 2.0);
-      // Equilateral triangle — listener distance from speaker plane.
-      const _studioChairOffset = _studioSpacing * Math.sqrt(3) / 2;
+      const _studioChairOffset = (room.spk_spacing_m ?? 2.0) * Math.sqrt(3) / 2;
       // Clamp the chair against the back wall — 30 cm clearance.
       room.listener_front_m = Math.min(
         (room.spk_front_m ?? 0.45) + _studioChairOffset,
@@ -1451,11 +1449,12 @@ export function initRoom3D({
               ? _buildDetailedSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
               : _buildStandmountSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity);
 
-        // X position — for desk monitors use desk_width_m so speakers track the width slider;
-        // all other types use spk_spacing_m as usual.
-        const deskHalfW = (room.desk_width_m ?? 1.6) / 2;
-        const onDeskMode = profile.onDesk && room.spk_placement !== 'stands';
-        const x = offsetX + (side === "L" ? -1 : 1) * (onDeskMode ? deskHalfW * 0.78 : room.spk_spacing_m / 2);
+        // X position — every speaker (studio and hi-fi alike) sits at
+        // ±spk_spacing_m/2 from offsetX (Option A). Speakers do not
+        // track desk width; if a wide desk has narrow speakers they
+        // sit centred, if a narrow desk has wide speakers they hang
+        // off the edge — that's an intentional diagnostic, not a bug.
+        const x = offsetX + (side === "L" ? -1 : 1) * room.spk_spacing_m / 2;
 
         // Z anchor — every placement honours spk_front_m so the visible
         // speakers sit at the same Z the overlay code assumes
@@ -2219,7 +2218,7 @@ export function initRoom3D({
       // every part stays correctly placed relative to the speaker plane.
       if (isStudio) {
         const deskW = room.desk_width_m ?? 1.6;
-        const deskD = 0.85;
+        const deskD = room.desk_depth_m ?? 0.7;
         const halfW = deskW / 2;
 
         const RIG_DESK_BACK_LZ   = -0.05;                       // desk back edge 5 cm behind speakers

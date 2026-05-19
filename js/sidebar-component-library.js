@@ -247,6 +247,7 @@
       opt_client_seating:  false,
       client_seating_type: 'sofa',
       desk_width_m:        1.6,
+      desk_depth_m:        0.7,
     },
     studio: {
       room_type:           'studio',
@@ -266,6 +267,7 @@
       opt_client_seating:  false,
       client_seating_type: 'sofa',
       desk_width_m:        1.6,
+      desk_depth_m:        0.7,
     },
   };
 
@@ -764,6 +766,7 @@
       opt_client_seating:  state.opt_client_seating   ?? false,
       client_seating_type: state.client_seating_type  ?? 'sofa',
       desk_width_m:        state.desk_width_m         ?? 1.6,
+      desk_depth_m:        state.desk_depth_m         ?? 0.7,
     };
 
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:10px;' });
@@ -854,22 +857,44 @@
     // Desk width slider
     const deskHdr = _el('div', { class: 'demo-field-header' });
     deskHdr.append(_el('span', { class: 'demo-field-label' }, 'Desk width'));
-    const deskValEl = _el('span', { class: 'demo-field-value' }, cur.desk_width_m.toFixed(1) + ' m');
+    const deskValEl = _el('span', { class: 'demo-field-value' }, cur.desk_width_m.toFixed(2) + ' m');
     deskHdr.appendChild(deskValEl);
     const deskSlider = _el('input', {
-      type: 'range', id: 'scl-desk-width', min: '1.0', max: '2.2', step: '0.1',
+      type: 'range', id: 'scl-desk-width', min: '1.0', max: '2.5', step: '0.05',
       value: String(cur.desk_width_m), class: 'measurely-slider', 'aria-label': 'Desk width', 'data-acoustic': 'bass',
     });
     _updateSliderFill(deskSlider);
     const deskTicks = _el('div', { class: 'demo-slider-ticks' });
-    ['1.0 m', '1.6 m', '2.2 m'].forEach(t => deskTicks.appendChild(_el('span', {}, t)));
+    ['1.0 m', '1.6 m', '2.5 m'].forEach(t => deskTicks.appendChild(_el('span', {}, t)));
     const deskField = _el('div', { class: 'demo-field' });
     deskField.append(deskHdr, deskSlider, deskTicks);
     studioBlock.appendChild(deskField);
     deskSlider.addEventListener('input', () => {
       cur.desk_width_m = parseFloat(deskSlider.value);
-      deskValEl.textContent = cur.desk_width_m.toFixed(1) + ' m';
+      deskValEl.textContent = cur.desk_width_m.toFixed(2) + ' m';
       _updateSliderFill(deskSlider);
+      onChange?.({ ...cur });
+    });
+
+    // Desk depth slider
+    const deskDHdr = _el('div', { class: 'demo-field-header' });
+    deskDHdr.append(_el('span', { class: 'demo-field-label' }, 'Desk depth'));
+    const deskDValEl = _el('span', { class: 'demo-field-value' }, cur.desk_depth_m.toFixed(2) + ' m');
+    deskDHdr.appendChild(deskDValEl);
+    const deskDSlider = _el('input', {
+      type: 'range', id: 'scl-desk-depth', min: '0.5', max: '0.9', step: '0.05',
+      value: String(cur.desk_depth_m), class: 'measurely-slider', 'aria-label': 'Desk depth', 'data-acoustic': 'reflection',
+    });
+    _updateSliderFill(deskDSlider);
+    const deskDTicks = _el('div', { class: 'demo-slider-ticks' });
+    ['0.5 m', '0.7 m', '0.9 m'].forEach(t => deskDTicks.appendChild(_el('span', {}, t)));
+    const deskDField = _el('div', { class: 'demo-field' });
+    deskDField.append(deskDHdr, deskDSlider, deskDTicks);
+    studioBlock.appendChild(deskDField);
+    deskDSlider.addEventListener('input', () => {
+      cur.desk_depth_m = parseFloat(deskDSlider.value);
+      deskDValEl.textContent = cur.desk_depth_m.toFixed(2) + ' m';
+      _updateSliderFill(deskDSlider);
       onChange?.({ ...cur });
     });
 
