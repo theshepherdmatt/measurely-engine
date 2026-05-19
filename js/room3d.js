@@ -2484,7 +2484,7 @@ export function initRoom3D({
       const flash = new THREE.Mesh(
         panelMesh.geometry,
         new THREE.MeshBasicMaterial({
-          color: OC.TREATED_CYAN,
+          color: new THREE.Color(OC.TREATED_CYAN).multiplyScalar(3.0),
           transparent: true,
           opacity: 0,
           blending: THREE.AdditiveBlending,
