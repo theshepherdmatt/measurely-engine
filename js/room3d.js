@@ -3025,11 +3025,13 @@ export function initRoom3D({
         const phase = (_wt / WAVE_CYCLE + ring.userData.wavePhase) % 1.0;
         const r = phase * ring.userData.waveMaxR;
         ring.scale.set(r, 1, r);
-        // Peak opacity = base 0.55 × waveAmp — REW nulls produce dimmer rings.
+        // Peak opacity = base 0.40 × waveAmp — REW nulls produce dimmer rings.
         // waveAmp is 1.0 in simulation mode (no REW data) so no visual regression.
         // Tube primitive has far more pixel coverage than the prior 1-px Line,
         // so the base is dialled down to avoid oversaturating the canvas.
-        const _peakOp = 0.55 * (ring.userData.waveAmp ?? 1.0);
+        // 2026-05 tuning: 0.55 → 0.40 (~27%) so wave rings don't compete
+        // with the reflection overlay's HDR cyan panel flashes.
+        const _peakOp = 0.40 * (ring.userData.waveAmp ?? 1.0);
         ring.material.opacity = Math.max(0, (1 - phase) * _peakOp);
         // Lerp toward treatment-driven target color (cyan=treated, pink=untreated)
         // Only override colour in simulation mode — REW data already set colour on build.
