@@ -3774,9 +3774,12 @@ export function initRoom3D({
             float reflected = refl * sin(distance(vXZ, mirC) * uK - t);
             float absField  = abs((direct + reflected) * 0.5);
 
-            // Grey base with Neon Pink (#FF107A) at high-pressure peaks
+            // Grey base with Neon Pink (#FF107A) at high-pressure peaks.
+            // 2026-05 tuning: greyBase darkened ~50% (0.30 + 0.45·a → 0.15 + 0.22·a)
+            // so the grey wave field reads as a supporting visualisation on the
+            // light room shell. neonPink unchanged — null bands keep their pop.
             float fresnelBand = smoothstep(0.40, 0.75, absField);
-            vec3 greyBase   = vec3(0.30 + absField * 0.45);
+            vec3 greyBase   = vec3(0.15 + absField * 0.22);
             vec3 neonPink   = vec3(1.0, 0.063, 0.478);
             vec3 finalColor = mix(greyBase, neonPink, fresnelBand);
 
