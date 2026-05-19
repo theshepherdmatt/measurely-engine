@@ -4024,19 +4024,121 @@ export function initRoom3D({
       // Additive blending so a flash reads as glow rather than solid colour.
       // Treated surfaces use cyan; untreated use pink — mirrors the
       // outgoing/return pulse colour scheme.
+      //
+      // Vertical walls (front/back/left/right) use a per-wall BufferGeometry
+      // built in world space whose top edge follows ceilingYAt(corner_x,
+      // corner_z), so the flash never pokes through a slanted or gabled
+      // roof. Gable-end walls get a 5-vertex pentagon with the apex at the
+      // wall midpoint. Floor and ceiling stay as flat PlaneGeometry — floor
+      // is flat by definition; the ceiling overlay is out of scope here.
+      const _refIsSlanted = room.ceiling_type === 'slanted';
+      const _refIsGable   = room.ceiling_type === 'gable';
+      const _refHasSloped = _refIsSlanted || _refIsGable;
+      const _refSlantDir  = room.ceiling_slant_direction || 'left_to_right';
+      const _refGableAxis = room.ceiling_gable_axis || 'depth';
+      const _refFloorY    = -halfH;
+      const _refHighY     =  halfH;
+      const _refLowY      = _refHasSloped
+        ? _refFloorY + Math.min(room.ceiling_height_secondary_m ?? room.height_m, room.height_m)
+        : _refHighY;
+      // Mirrors rebuild()'s ceilingYAt(x, z) — kept local because the
+      // rebuild()-scoped helper is not in closure here.
+      const _refCeilYAt = (x, z) => {
+        if (!_refHasSloped) return _refHighY;
+        if (_refIsSlanted) {
+          let t;
+          switch (_refSlantDir) {
+            case 'left_to_right': t = (x + halfW) / room.width_m; break;
+            case 'right_to_left': t = 1 - (x + halfW) / room.width_m; break;
+            case 'front_to_back': t = 1 - (z + halfL) / room.length_m; break;
+            case 'back_to_front': t = (z + halfL) / room.length_m; break;
+            default:              t = (x + halfW) / room.width_m;
+          }
+          return _refLowY + t * (_refHighY - _refLowY);
+        }
+        // gable
+        const distRatio = _refGableAxis === 'depth'
+          ? Math.abs(x) / halfW
+          : Math.abs(z) / halfL;
+        return _refHighY - distRatio * (_refHighY - _refLowY);
+      };
+      // 4% inset on every edge — collapses to the original
+      // PlaneGeometry(w*0.92, h*0.92) on flat ceilings, and pulls the
+      // top edge down by 0.04*H on sloped/gabled walls so the flash
+      // never z-fights with the cage beams along the eave/ridge line.
+      const _refInsetFrac = 0.04;
+      const _refInsetH    = room.height_m * _refInsetFrac;
+      const _buildVerticalFlashGeom = (surf) => {
+        const bottomY = _refFloorY + _refInsetH;
+        let xMin, xMax, zMin, zMax;
+        let isGableEnd = false;
+        if (surf === 'front') {
+          xMin = -halfW + room.width_m * _refInsetFrac;
+          xMax =  halfW - room.width_m * _refInsetFrac;
+          zMin = zMax = -halfL + 0.02;
+          isGableEnd = _refIsGable && _refGableAxis === 'depth';
+        } else if (surf === 'back') {
+          xMin = -halfW + room.width_m * _refInsetFrac;
+          xMax =  halfW - room.width_m * _refInsetFrac;
+          zMin = zMax =  halfL - 0.02;
+          isGableEnd = _refIsGable && _refGableAxis === 'depth';
+        } else if (surf === 'left') {
+          xMin = xMax = -halfW + 0.02;
+          zMin = -halfL + room.length_m * _refInsetFrac;
+          zMax =  halfL - room.length_m * _refInsetFrac;
+          isGableEnd = _refIsGable && _refGableAxis !== 'depth';
+        } else { // right
+          xMin = xMax =  halfW - 0.02;
+          zMin = -halfL + room.length_m * _refInsetFrac;
+          zMax =  halfL - room.length_m * _refInsetFrac;
+          isGableEnd = _refIsGable && _refGableAxis !== 'depth';
+        }
+        const topYLeft  = _refCeilYAt(xMin, zMin) - _refInsetH;
+        const topYRight = _refCeilYAt(xMax, zMax) - _refInsetH;
+        const positions = [];
+        const indices   = [];
+        if (isGableEnd) {
+          // Pentagon: apex sits on the gable axis of symmetry (x=0 or z=0).
+          const midX = (surf === 'front' || surf === 'back') ? 0 : xMin;
+          const midZ = (surf === 'left'  || surf === 'right') ? 0 : zMin;
+          const apexY = _refCeilYAt(midX, midZ) - _refInsetH;
+          positions.push(
+            xMin, bottomY,   zMin,  // 0 BL
+            xMax, bottomY,   zMax,  // 1 BR
+            xMax, topYRight, zMax,  // 2 eave-R
+            midX, apexY,     midZ,  // 3 apex
+            xMin, topYLeft,  zMin,  // 4 eave-L
+          );
+          indices.push(0, 1, 2,  0, 2, 3,  0, 3, 4);
+        } else {
+          positions.push(
+            xMin, bottomY,   zMin,  // 0 BL
+            xMax, bottomY,   zMax,  // 1 BR
+            xMax, topYRight, zMax,  // 2 TR
+            xMin, topYLeft,  zMin,  // 3 TL
+          );
+          indices.push(0, 1, 2,  0, 2, 3);
+        }
+        const geom = new THREE.BufferGeometry();
+        geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geom.setIndex(indices);
+        return geom;
+      };
       const surfaceMeta = {
-        floor:   { pos: [0, -halfH + 0.04, 0],  rot: ['x', -Math.PI / 2], w: room.width_m,  h: room.length_m },
-        ceiling: { pos: [0,  halfH - 0.02, 0],  rot: ['x',  Math.PI / 2], w: room.width_m,  h: room.length_m },
-        front:   { pos: [0, 0, -halfL + 0.02],  rot: null,                 w: room.width_m,  h: room.height_m },
-        back:    { pos: [0, 0,  halfL - 0.02],  rot: ['y',  Math.PI],      w: room.width_m,  h: room.height_m },
-        left:    { pos: [-halfW + 0.02, 0, 0],  rot: ['y',  Math.PI / 2],  w: room.length_m, h: room.height_m },
-        right:   { pos: [ halfW - 0.02, 0, 0],  rot: ['y', -Math.PI / 2],  w: room.length_m, h: room.height_m },
+        floor:   { vertical: false, pos: [0, -halfH + 0.04, 0],  rot: ['x', -Math.PI / 2], w: room.width_m,  h: room.length_m },
+        ceiling: { vertical: false, pos: [0,  halfH - 0.02, 0],  rot: ['x',  Math.PI / 2], w: room.width_m,  h: room.length_m },
+        front:   { vertical: true },
+        back:    { vertical: true },
+        left:    { vertical: true },
+        right:   { vertical: true },
       };
       for (const [surf, meta] of Object.entries(surfaceMeta)) {
         const events = flashEventsBySurface[surf];
         if (!events.length) continue;
         const flash = new THREE.Mesh(
-          new THREE.PlaneGeometry(meta.w * 0.92, meta.h * 0.92),
+          meta.vertical
+            ? _buildVerticalFlashGeom(surf)
+            : new THREE.PlaneGeometry(meta.w * 0.92, meta.h * 0.92),
           new THREE.MeshBasicMaterial({
             color: surfaceTreated[surf] ? OC.TREATED_CYAN : OC.PRESSURE_PEAK,
             transparent: true,
@@ -4046,8 +4148,10 @@ export function initRoom3D({
             side: THREE.DoubleSide,
           })
         );
-        flash.position.set(...meta.pos);
-        if (meta.rot) flash.rotation[meta.rot[0]] = meta.rot[1];
+        if (!meta.vertical) {
+          flash.position.set(...meta.pos);
+          if (meta.rot) flash.rotation[meta.rot[0]] = meta.rot[1];
+        }
         flash.userData.isReflectionFlash = { events, surfaceStrength: surfaceStrength[surf] };
         roomGroup.add(flash);
       }
