@@ -2221,7 +2221,16 @@ export function initRoom3D({
         const deskD = room.desk_depth_m ?? 0.7;
         const halfW = deskW / 2;
 
-        const RIG_DESK_BACK_LZ   = -0.05;                       // desk back edge 5 cm behind speakers
+        // Desk back edge: seat the monitor cabinet on the desk rather
+        // than letting it overhang. Monitor profile depth is 0.24 m
+        // (cabinet centre at rig local Z = 0 → back panel at -0.12);
+        // pull the desk back another 5 cm so a visible strip of desk
+        // surface sits behind the speaker. Clamped so the desk never
+        // punches through the front wall at low spk_front_m: when
+        // spk_front_m < 0.19, the desk back rides 2 cm off the wall
+        // and the speaker overhang re-emerges — acceptable corner
+        // case per audit (better than rendering through the wall).
+        const RIG_DESK_BACK_LZ   = Math.max(-0.17, -room.spk_front_m + 0.02);
         const RIG_DESK_CENTRE_LZ = RIG_DESK_BACK_LZ + deskD / 2;
         const RIG_DESK_FRONT_LZ  = RIG_DESK_BACK_LZ + deskD;
 
