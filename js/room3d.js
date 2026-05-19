@@ -5321,10 +5321,13 @@ export function initRoom3D({
             frameStart = now;
 
             if (frameIdx >= keyframes.length) {
-              // Landed — leave controls disabled; caller decides what comes next
+              // Landed — re-enable orbit input. onDone is for app-level
+              // work (HUD, chip, save), not engine input state; the
+              // engine owns whether the user can drive the camera.
               camera.position.set(frame.cam.x, frame.cam.y, frame.cam.z);
               controls.target.set(frame.look.x, frame.look.y, frame.look.z);
               controls.update();
+              controls.enabled = true;
               flyAnim = null;
               onDone?.();
             }
