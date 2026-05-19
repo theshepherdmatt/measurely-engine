@@ -2526,7 +2526,23 @@ export function initRoom3D({
       // so changing wall_panel_count does NOT change predictRT60.
       // Acoustic-honest area-Sabine is a future enhancement.
       const panelCount = room.wall_panel_count ?? 4;
-      const totalSpan = panelCount * wpW + (panelCount - 1) * wpGap;
+      // Per-panel X offsets in room coordinates (relative to offsetX).
+      //   count === 2  → one panel under each speaker, anchored to
+      //                  room.spk_spacing_m so the layout tracks the
+      //                  speakers live as the user drags the spacing
+      //                  slider. Acoustically motivated: each panel
+      //                  damps the SBIR null behind its own speaker.
+      //                  Same X positions used on both front and rear
+      //                  for visual symmetry under mode='both'.
+      //   otherwise    → original centred tight-row math (preserved
+      //                  bit-identically for the 4-panel default and
+      //                  any future odd counts that may want a band).
+      const panelOffsetsX = panelCount === 2
+        ? [-room.spk_spacing_m / 2, room.spk_spacing_m / 2]
+        : Array.from({ length: panelCount }, (_, i) => {
+            const totalSpan = panelCount * wpW + (panelCount - 1) * wpGap;
+            return -totalSpan / 2 + wpW / 2 + i * (wpW + wpGap);
+          });
       // Panels centred at tweeter/ear height — acoustically correct and stays fixed
       // relative to the floor regardless of room height slider changes.
       const floorInWorld = -room.height_m / 2;
@@ -2536,8 +2552,8 @@ export function initRoom3D({
       const addWallPanels = (wallZ, facingDir, panelH = wpH, panelCenterY = panelY) => {
         const geo = new THREE.BoxGeometry(wpW, panelH, wpThickness);
         const surface = wallZ < 0 ? 'front' : 'back';
-        for (let i = 0; i < panelCount; i++) {
-          const px = offsetX - totalSpan / 2 + wpW / 2 + i * (wpW + wpGap);
+        for (const dx of panelOffsetsX) {
+          const px = offsetX + dx;
           const mesh = new THREE.Mesh(geo, panelMat);
           mesh.position.set(px, panelCenterY, wallZ + facingDir * wpThickness / 2);
           roomGroup.add(mesh);
