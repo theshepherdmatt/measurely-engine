@@ -747,6 +747,36 @@ export function initRoom3D({
     // not flush with the floor beneath it. Zero in studio mode (no rug).
     const rugRaise = (!isStudio && (room.opt_area_rug ?? true)) ? 0.02 : 0;
 
+    // ── Studio rig anchoring ──────────────────────────────────────────────
+    // In studio mode the desk + monitors + speakers + mic + keys + chair
+    // move as a single unit driven by spk_front_m. The chair sits an
+    // equilateral-triangle distance behind the speaker plane.
+    //
+    // Override room.listener_front_m here, before listenerZ (line ~1701)
+    // and the overlay code that re-derives listener Z from -halfL +
+    // room.listener_front_m. Every downstream consumer then resolves to
+    // the chair's new derived position without each having to branch on
+    // room_type. The user's stored listener_front_m is preserved on
+    // setup (not mutated upstream), so switching back to a non-studio
+    // room type restores their value.
+    //
+    // Spacing dispatch mirrors the speaker-placement code further down:
+    // 'stands' uses spk_spacing_m, all other placements ride the desk
+    // edges at deskW * 0.78 separation.
+    if (isStudio) {
+      const _studioOnDeskMode = (room.spk_placement !== 'stands');
+      const _studioSpacing    = _studioOnDeskMode
+        ? (room.desk_width_m ?? 1.6) * 0.78
+        : (room.spk_spacing_m ?? 2.0);
+      // Equilateral triangle — listener distance from speaker plane.
+      const _studioChairOffset = _studioSpacing * Math.sqrt(3) / 2;
+      // Clamp the chair against the back wall — 30 cm clearance.
+      room.listener_front_m = Math.min(
+        (room.spk_front_m ?? 0.45) + _studioChairOffset,
+        room.length_m - 0.30
+      );
+    }
+
     // 3. MASTER SWITCHES
     VISIBILITY.furniture = { sofa: true, coffeeTable: true, rug: true, desk: true, chair: true };
 
@@ -1427,9 +1457,14 @@ export function initRoom3D({
         const onDeskMode = profile.onDesk && room.spk_placement !== 'stands';
         const x = offsetX + (side === "L" ? -1 : 1) * (onDeskMode ? deskHalfW * 0.78 : room.spk_spacing_m / 2);
 
-        // Z anchor for all desk-based placements
-        const deskBackZ = -room.length_m / 2 + 0.05;
-        const deskZ_pos = deskBackZ + 0.30; // ~30 cm from back edge = speaker sits on rear of desk
+        // Z anchor — every placement honours spk_front_m so the visible
+        // speakers sit at the same Z the overlay code assumes
+        // (-halfL + spk_front_m for SBIR uSpkC, side_reflections
+        // speakerPositions, wave-ring waveZ). Studio meshes stay in
+        // world space (not parented under rigGroup) — same world Z
+        // gets the same visual co-location as parenting would, with
+        // zero churn to the toe-rotation / beam / cable code below.
+        const speakerZ = -room.length_m / 2 + room.spk_front_m;
 
         let y, z;
         if (profile.onDesk && room.spk_placement === 'stands') {
@@ -1437,18 +1472,18 @@ export function initRoom3D({
           const standTweeterH = room.tweeter_height_m || 1.1;
           const tweeterOffsetFromCenter = (profile.h / 2) - (profile.h * (profile.tweeterPos || 0.5));
           y = baseY + standTweeterH + tweeterOffsetFromCenter;
-          z = deskZ_pos; // same depth as desk so they sit either side of it
+          z = speakerZ;
         } else if (profile.onDesk && room.spk_placement === 'desk_stands') {
           // Short isolation stands on the desk surface — raises monitor ~7 cm
           const riserH = 0.07;
           const deskSurface = baseY + 0.775;
           y = deskSurface + riserH + profile.h / 2;
-          z = deskZ_pos - 0.15;
+          z = speakerZ;
         } else if (profile.onDesk) {
           // Desk monitors: snap to desk surface (desk top at 0.775 m above floor)
           const deskSurface = baseY + 0.775;
           y = deskSurface + profile.h / 2;
-          z = deskZ_pos - 0.15;
+          z = speakerZ;
         } else if (profile.floorStand) {
           // Floor-standing panels / statement: plinth bottom sits on rug
           // surface, cabinet bottom sits on top of plinth.
@@ -2164,25 +2199,36 @@ export function initRoom3D({
         station.add(ctGroup);
       }
 
-      // ── Studio: desk + chair + display + mic + keyboard ──────────────────────
-      // Desk anchored to front wall (via spk_front_m) so monitors always land on it.
-      // Chair anchored to listenerZ — sticky to the listening position slider.
+      // ── Studio: rigGroup (desk + display + mic + keys + chair) ──────────
+      // The rig is a single parent THREE.Group whose origin sits at the
+      // speaker plane (world Z = -halfL + spk_front_m). Every part is
+      // positioned with local-Z offsets measured from that plane:
+      //
+      //   speaker plane   →  local z = 0    (speakers are world-space siblings,
+      //                                       not parented — see room3d.js
+      //                                       speaker-placement block)
+      //   desk back edge  →  local z = -0.05 (5 cm behind speakers, toward wall)
+      //   desk centre     →  local z = -0.05 + deskD/2
+      //   desk front edge →  local z = -0.05 + deskD
+      //   chair           →  local z = listenerZ - rigZ
+      //                     (equilateral-triangle distance from spk plane,
+      //                      already baked into room.listener_front_m at
+      //                      the studio override block near line 750)
+      //
+      // Moving spk_front_m re-translates the whole rigGroup as a unit;
+      // every part stays correctly placed relative to the speaker plane.
       if (isStudio) {
         const deskW = room.desk_width_m ?? 1.6;
-
-        const deskD = 0.85;  // depth
+        const deskD = 0.85;
         const halfW = deskW / 2;
-        const spkFront = room.spk_front_m ?? 0.6;
 
-        // Desk back edge sits 5 cm from front wall; center is half-depth further.
-        // This puts the desk at the SAME Z as the speakers so monitors land on it.
-        const deskBackZ = -room.length_m / 2 + 0.05;
-        const deskZ = deskBackZ + deskD / 2;          // desk centre
-        const deskFrontZ = deskBackZ + deskD;              // desk front edge
+        const RIG_DESK_BACK_LZ   = -0.05;                       // desk back edge 5 cm behind speakers
+        const RIG_DESK_CENTRE_LZ = RIG_DESK_BACK_LZ + deskD / 2;
+        const RIG_DESK_FRONT_LZ  = RIG_DESK_BACK_LZ + deskD;
 
-        // Chair is at listening position — sticky to listener_front_m slider.
-        // For a normal studio layout the chair is comfortably behind the desk.
-        const chairZ = listenerZ;
+        const rigZ = -room.length_m / 2 + room.spk_front_m;
+        const rigGroup = new THREE.Group();
+        rigGroup.position.set(offsetX, -room.height_m / 2, rigZ);
 
         // ── Desk ──
         const deskGroup = new THREE.Group();
@@ -2192,8 +2238,8 @@ export function initRoom3D({
         [[-halfW + 0.04, 0.375, -deskD / 2 + 0.04], [halfW - 0.04, 0.375, -deskD / 2 + 0.04],
         [-halfW + 0.04, 0.375, deskD / 2 - 0.04], [halfW - 0.04, 0.375, deskD / 2 - 0.04]]
           .forEach(p => { const l = _ghostBox(0.04, 0.775, 0.04); l.position.set(...p); deskGroup.add(l); });
-        deskGroup.position.set(offsetX, -room.height_m / 2, deskZ);
-        roomGroup.add(deskGroup);
+        deskGroup.position.set(0, 0, RIG_DESK_CENTRE_LZ);
+        rigGroup.add(deskGroup);
 
         // ── Display monitor (sits at back of desk, on a stand) ──
         if (room.opt_display !== false) {
@@ -2207,16 +2253,15 @@ export function initRoom3D({
           const monitor = _ghostBox(Math.min(deskW * 0.70, 0.68), 0.38, 0.032);
           monitor.position.set(0, 1.10, 0.01);
           dispGroup.add(monitor);
-          // Positioned at back-centre of desk surface
-          dispGroup.position.set(offsetX, -room.height_m / 2, deskBackZ + 0.12);
-          roomGroup.add(dispGroup);
+          dispGroup.position.set(0, 0, RIG_DESK_BACK_LZ + 0.12);
+          rigGroup.add(dispGroup);
         }
 
         // ── Keyboard (thin slab on desk front edge) ──
         if (room.opt_keyboard) {
           const kb = _ghostBox(Math.min(deskW * 0.30, 0.44), 0.02, 0.16);
-          kb.position.set(offsetX, -room.height_m / 2 + 0.795, deskFrontZ - 0.12);
-          roomGroup.add(kb);
+          kb.position.set(0, 0.795, RIG_DESK_FRONT_LZ - 0.12);
+          rigGroup.add(kb);
         }
 
         // ── Mic on boom stand (outside left edge of desk) ──
@@ -2231,8 +2276,8 @@ export function initRoom3D({
           const capsule = _ghostBox(0.04, 0.13, 0.04);
           capsule.position.set(0.55, 1.50, 0);
           micGroup.add(capsule);
-          micGroup.position.set(offsetX - halfW - 0.1, -room.height_m / 2, deskZ);
-          roomGroup.add(micGroup);
+          micGroup.position.set(-halfW - 0.1, 0, RIG_DESK_CENTRE_LZ);
+          rigGroup.add(micGroup);
         }
 
         // ── Office chair v1.2 — 5-star base, casters, armrests, backrest ──
@@ -2269,9 +2314,16 @@ export function initRoom3D({
         chairBk.add(_ghostBox(0.44, 0.40, 0.06));
         chairBk.position.set(0, 0.17, -0.05);
         chairSup.add(chairBk);
-        chairGroup.position.set(offsetX, -room.height_m / 2, chairZ);
+        // Chair local Z: distance from speaker plane to the listening
+        // position. listenerZ was set from the overridden
+        // room.listener_front_m at line ~1701, so this lines the chair
+        // up exactly with the listen-station sphere (which is also at
+        // listenerZ in world space).
+        chairGroup.position.set(0, 0, listenerZ - rigZ);
         // No whole-group tilt — feet and stem stay flat, only backrest angled
-        roomGroup.add(chairGroup);
+        rigGroup.add(chairGroup);
+
+        roomGroup.add(rigGroup);
       }
 
       roomGroup.add(station);

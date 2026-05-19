@@ -649,12 +649,25 @@
             _updateSliderFill(sf.slider);
             onChange && onChange({ ...cur });
           });
-          sliders[def.key] = { slider: sf.slider, val: sf.val, def: def };
+          sliders[def.key] = { slider: sf.slider, val: sf.val, def: def, wrap: sf.wrap };
           block.appendChild(sf.wrap);
         })(defs[di]);
       }
       wrap.appendChild(block);
     }
+
+    // ── Listening-position slider visibility ────────────────────────────────
+    // In studio mode the chair follows the rig automatically (its world Z
+    // is derived from spk_front_m + the equilateral-triangle offset in
+    // room3d.js, with room.listener_front_m overridden at the studio
+    // anchor block). The slider would have no visible effect, so hide it
+    // entirely to avoid user confusion. listener_offset_m (left/right)
+    // stays — it still does something in studio (asymmetric desk setups).
+    function _applyListenerSliderVisibility(rt) {
+      var w = sliders.listener_front_m && sliders.listener_front_m.wrap;
+      if (w) w.style.display = rt === 'studio' ? 'none' : '';
+    }
+    _applyListenerSliderVisibility(roomType);
 
     // ── LOW FREQUENCY sub-section — 24 px gap after Block C ─────────────────
     var lfSection = _el('div', { style: 'margin-top:24px;' });
@@ -720,7 +733,10 @@
           subBtn.classList.toggle('active', cur.subwoofer);
         }
       },
-      setRoomType: function(rt) { _applySpkRoomType(rt); },
+      setRoomType: function(rt) {
+        _applySpkRoomType(rt);
+        _applyListenerSliderVisibility(rt);
+      },
     };
   }
 
