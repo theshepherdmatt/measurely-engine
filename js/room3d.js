@@ -4124,9 +4124,84 @@ export function initRoom3D({
         geom.setIndex(indices);
         return geom;
       };
+      // ── Ceiling reflection flash builder ────────────────────────────────
+      // Sibling to _buildVerticalFlashGeom: the ceiling has its own
+      // topology (4-vertex quad for flat/slanted, 6-vertex tent for gabled
+      // with the ridge as a shared edge between the two pitched faces),
+      // unrelated to the walls' quad/pentagon outlines. Returns world-space
+      // geometry; the outer loop skips pos/rot for entries flagged
+      // meta.custom so the world-space vertices aren't re-translated.
+      //
+      // Vertex/index patterns mirror the wall_height highlight ceiling at
+      // room3d.js:3242-3320 — a long-standing working reference for
+      // slanted (all 4 slant directions) and gabled (both ridge axes)
+      // ceilings. _refCeilYAt is the shared ceiling-height helper the
+      // wall flash builder also uses — single source of truth.
+      //
+      // Vertical inset is deliberately a hard 0.02 m drop below the actual
+      // ceiling at every vertex, NOT the proportional _refInsetH the walls
+      // use. A proportional drop on the ceiling would read as a visible
+      // "skirt" of bare ceiling around the flash; 2 cm is just enough to
+      // dodge z-fighting with the cage beams along the eave/ridge line.
+      // Horizontal inset stays at 4% per side — same as the walls and
+      // same as the prior PlaneGeometry(w*0.92, h*0.92) footprint, so
+      // flat ceilings remain visually identical.
+      const _CEIL_FLASH_Z_DROP = 0.02;
+      const _refCeilFlashY = (x, z) => _refCeilYAt(x, z) - _CEIL_FLASH_Z_DROP;
+      const _buildCeilingFlashGeom = () => {
+        const xMin = -halfW + room.width_m  * _refInsetFrac;
+        const xMax =  halfW - room.width_m  * _refInsetFrac;
+        const zMin = -halfL + room.length_m * _refInsetFrac;
+        const zMax =  halfL - room.length_m * _refInsetFrac;
+        const positions = [];
+        const indices   = [];
+        if (_refIsGable) {
+          // 6-vertex tent: 4 inset eave corners + 2 ridge endpoints.
+          if (_refGableAxis === 'depth') {
+            // Ridge runs front-to-back along Z; pitched faces are L and R.
+            positions.push(
+              xMin, _refCeilFlashY(xMin, zMin), zMin,  // 0 FL eave
+              xMax, _refCeilFlashY(xMax, zMin), zMin,  // 1 FR eave
+              xMax, _refCeilFlashY(xMax, zMax), zMax,  // 2 BR eave
+              xMin, _refCeilFlashY(xMin, zMax), zMax,  // 3 BL eave
+              0,    _refCeilFlashY(0,    zMin), zMin,  // 4 ridge front
+              0,    _refCeilFlashY(0,    zMax), zMax,  // 5 ridge back
+            );
+            indices.push(0, 3, 5,  0, 5, 4,  1, 4, 5,  1, 5, 2);
+          } else {
+            // Ridge runs left-to-right along X; pitched faces are F and B.
+            positions.push(
+              xMin, _refCeilFlashY(xMin, zMin), zMin,  // 0 FL eave
+              xMax, _refCeilFlashY(xMax, zMin), zMin,  // 1 FR eave
+              xMax, _refCeilFlashY(xMax, zMax), zMax,  // 2 BR eave
+              xMin, _refCeilFlashY(xMin, zMax), zMax,  // 3 BL eave
+              xMin, _refCeilFlashY(xMin, 0),    0,     // 4 ridge L
+              xMax, _refCeilFlashY(xMax, 0),    0,     // 5 ridge R
+            );
+            indices.push(1, 5, 4,  1, 4, 0,  2, 5, 4,  2, 4, 3);
+          }
+        } else {
+          // Slanted or flat: 4-vertex quad. _refCeilYAt collapses to halfH
+          // for flat ceilings, so the resulting quad is horizontal at
+          // y = halfH - 0.02 with the same 0.92 footprint as the original
+          // PlaneGeometry path — vertex positions are byte-identical to
+          // the prior flat-ceiling rendering.
+          positions.push(
+            xMin, _refCeilFlashY(xMin, zMin), zMin,  // 0 FL
+            xMax, _refCeilFlashY(xMax, zMin), zMin,  // 1 FR
+            xMax, _refCeilFlashY(xMax, zMax), zMax,  // 2 BR
+            xMin, _refCeilFlashY(xMin, zMax), zMax,  // 3 BL
+          );
+          indices.push(0, 1, 2,  0, 2, 3);
+        }
+        const geom = new THREE.BufferGeometry();
+        geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geom.setIndex(indices);
+        return geom;
+      };
       const surfaceMeta = {
         floor:   { vertical: false, pos: [0, -halfH + 0.04, 0],  rot: ['x', -Math.PI / 2], w: room.width_m,  h: room.length_m },
-        ceiling: { vertical: false, pos: [0,  halfH - 0.02, 0],  rot: ['x',  Math.PI / 2], w: room.width_m,  h: room.length_m },
+        ceiling: { custom: true },
         front:   { vertical: true },
         back:    { vertical: true },
         left:    { vertical: true },
@@ -4138,7 +4213,9 @@ export function initRoom3D({
         const flash = new THREE.Mesh(
           meta.vertical
             ? _buildVerticalFlashGeom(surf)
-            : new THREE.PlaneGeometry(meta.w * 0.92, meta.h * 0.92),
+            : meta.custom
+              ? _buildCeilingFlashGeom()
+              : new THREE.PlaneGeometry(meta.w * 0.92, meta.h * 0.92),
           new THREE.MeshBasicMaterial({
             color: surfaceTreated[surf] ? OC.TREATED_CYAN : OC.PRESSURE_PEAK,
             transparent: true,
@@ -4148,7 +4225,7 @@ export function initRoom3D({
             side: THREE.DoubleSide,
           })
         );
-        if (!meta.vertical) {
+        if (!meta.vertical && !meta.custom) {
           flash.position.set(...meta.pos);
           if (meta.rot) flash.rotation[meta.rot[0]] = meta.rot[1];
         }
