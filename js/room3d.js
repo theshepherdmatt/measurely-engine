@@ -4347,6 +4347,13 @@ export function initRoom3D({
       for (const [surf, meta] of Object.entries(surfaceMeta)) {
         const events = flashEventsBySurface[surf];
         if (!events.length) continue;
+        // Phase 2 panel-aware flash: treated surfaces don't get a wall
+        // flash at all — the panels on this surface own the visual via
+        // their cyan flash (wired below). Untreated surfaces keep the
+        // pink wall flash. surfaceTreated is recomputed on every
+        // rebuild() so toggling treatment on/off updates this gate
+        // without a stale-state path.
+        if (surfaceTreated[surf]) continue;
         const flash = new THREE.Mesh(
           meta.vertical
             ? _buildVerticalFlashGeom(surf)
