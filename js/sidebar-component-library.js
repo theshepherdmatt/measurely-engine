@@ -589,9 +589,15 @@
       function(key) { cur.speaker_type = key; hifiGroup.setActive(null); onChange && onChange({ ...cur }); }
     );
 
+    // Studio no longer offers floor stands — the stand pole would
+    // punch through the desk surface. Coerce any stale 'stands' state
+    // (from a session before this option was removed) so the button
+    // group has a valid active key and the engine renders a sensible
+    // placement. Hi-Fi mode has no placement selector at all, so this
+    // mutation is studio-only in effect.
+    if (cur.spk_placement === 'stands') cur.spk_placement = 'desk_stands';
     const placementGroup = _btnGroup(
       [
-        { key: 'stands',      label: 'Stands'      },
         { key: 'desk_stands', label: 'Desk stands' },
         { key: 'desk',        label: 'On desk'     },
       ],

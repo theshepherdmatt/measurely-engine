@@ -777,6 +777,14 @@ export function initRoom3D({
     // visible. A future commit may hide it like listener_front_m is
     // hidden (commit f7dac90).
     if (isStudio) {
+      // Floor-stand placement was removed from the studio SCL placement
+      // selector — the stand pole would punch through the desk surface.
+      // Coerce stale 'stands' state here (e.g. from a saved session
+      // before the removal, or a PocketBase record loaded directly).
+      // The 'stands' branches in the speaker placement code below stay
+      // in place defensively but never fire in studio after this coerce.
+      if (room.spk_placement === 'stands') room.spk_placement = 'desk_stands';
+
       const SPEAKER_X_INSET = 0.10; // m — speaker centre to desk edge
       room.spk_spacing_m = Math.max(
         0.20,
