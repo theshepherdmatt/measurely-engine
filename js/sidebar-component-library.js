@@ -873,14 +873,13 @@
       onChange?.({ ...cur });
     });
 
-    // Studio furniture icon grid (3-col: Display | Mic | Keys | Rug | Sub)
+    // Studio furniture icon grid (3-col: Display | Mic | Keys | Rug)
     const studioGrid = _iconGridToggle(
       [
         { key: 'opt_display',  icon: 'monitor.svg',    label: 'Display', active: cur.opt_display },
         { key: 'opt_mic',      icon: 'mic.svg',         label: 'Mic',     active: cur.opt_mic },
         { key: 'opt_keyboard', icon: 'wave-square.svg',   label: 'Keys',    active: cur.opt_keyboard },
         { key: 'opt_area_rug', icon: 'rug.svg',           label: 'Rug',     active: cur.opt_area_rug },
-        { key: 'opt_sub',      icon: 'subspeaker.svg',    label: 'Sub',     active: cur.opt_sub ?? false },
       ],
       3,
       (key, val) => {
