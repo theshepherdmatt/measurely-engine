@@ -2743,11 +2743,11 @@ export function initRoom3D({
           ceilingYAt(offsetX - cpW / 2, midZ + cpL / 2),
           ceilingYAt(offsetX + cpW / 2, midZ + cpL / 2)
         );
-        // Clamp: keep a small 0.05m clearance below the lowest ceiling point
+        // Clamp: keep a small 0.08m clearance below the lowest ceiling point
         // so the cloud rides close to the low edge of the slope (short wires)
         const cloudY = Math.min(
           floorY + SEATED_EAR_H + EAR_CLEARANCE + thickness / 2,
-          footprintCeilMin - 0.05 - thickness / 2
+          footprintCeilMin - 0.08 - thickness / 2
         );
 
         const panel = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, cpL), panelMat);
