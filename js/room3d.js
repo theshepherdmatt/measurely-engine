@@ -2733,11 +2733,20 @@ export function initRoom3D({
         const SEATED_EAR_H = 1.10;   // m above floor (ITU-R BS.1116 standard)
         const EAR_CLEARANCE = 1.10;  // m above ears to cloud bottom (2.2m above floor)
         const floorY = -room.height_m / 2;
-        const ceilTop = room.height_m / 2;
+        // Lowest ceiling height under the cloud's actual footprint. ceilingYAt()
+        // returns the correct height for flat, slanted, and gable ceilings, so
+        // sampling the four footprint corners and taking the minimum clamps the
+        // (horizontal) cloud below the LOW edge of a slope — not the apex.
+        const footprintCeilMin = Math.min(
+          ceilingYAt(offsetX - cpW / 2, midZ - cpL / 2),
+          ceilingYAt(offsetX + cpW / 2, midZ - cpL / 2),
+          ceilingYAt(offsetX - cpW / 2, midZ + cpL / 2),
+          ceilingYAt(offsetX + cpW / 2, midZ + cpL / 2)
+        );
         // Clamp: always keep at least 0.2m of clearance below the ceiling
         const cloudY = Math.min(
           floorY + SEATED_EAR_H + EAR_CLEARANCE + thickness / 2,
-          ceilTop - 0.20 - thickness / 2
+          footprintCeilMin - 0.20 - thickness / 2
         );
 
         const panel = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, cpL), panelMat);
