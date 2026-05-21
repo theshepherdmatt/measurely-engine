@@ -4639,10 +4639,10 @@ export function initRoom3D({
       // ── Measurement correlation ──────────────────────────────────────────
       // _measurement is the closure variable populated by setMeasurementContext.
       // When a measurement is loaded, cross-reference predicted modes against
-      // analysis.modes (measured peaks/dips) within a ±5% frequency tolerance.
+      // analysis.modes (measured peaks/dips) within a ±8% frequency tolerance.
       // Confirmed modes render at full shader weight; unconfirmed dim out;
       // unmatched measured peaks ≤ 1 kHz surface as 'non-modal' labels.
-      const FREQ_TOL = 0.05;
+      const FREQ_TOL = 0.08;
       const hasMeasuredModes = !!(_measurement?.modes?.length);
       const measuredModes = hasMeasuredModes ? _measurement.modes.slice() : [];
       const usedMeasuredIdx = new Set();
