@@ -254,6 +254,7 @@
       speaker_type:        'monitor',
       spk_front_m:         0.6,
       spk_spacing_m:       1.8,
+      spk_inset_m:         0.20,
       tweeter_height_m:    1.1,
       listener_front_m:    1.4,
       toe_in_deg:          15,
@@ -554,6 +555,7 @@
       speaker_type:      state.speaker_type      ?? 'floorstander',
       spk_placement:     state.spk_placement     ?? null,
       spk_spacing_m:     state.spk_spacing_m     ?? 2.0,
+      spk_inset_m:       state.spk_inset_m       ?? 0.20,
       spk_front_m:       state.spk_front_m       ?? 0.45,
       toe_in_deg:        state.toe_in_deg        ?? 12,
       listener_front_m:  state.listener_front_m  ?? 2.8,
@@ -624,6 +626,7 @@
     var blockBDefs = [
       { key: 'spk_front_m',      label: 'Speakers from wall', min: 0.1,  max: 1.5,  step: 0.05, unit: 'm', decimals: 2, hl: 'speakers', acoustic: 'sbir'       },
       { key: 'spk_spacing_m',    label: 'Speaker spacing',    min: 1.0,  max: 4.0,  step: 0.1,  unit: 'm', decimals: 1, hl: 'speakers', acoustic: 'reflection' },
+      { key: 'spk_inset_m',      label: 'Speaker inset',      min: 0,    max: 1.0,  step: 0.05, unit: 'm', decimals: 2, hl: 'speakers', acoustic: 'reflection' },
       { key: 'toe_in_deg',       label: 'Toe-in angle',       min: 0,    max: 45,   step: 1,    unit: '\u00b0',decimals: 0, hl: 'speakers', acoustic: 'reflection' },
       { key: 'tweeter_height_m', label: 'Tweeter height',     min: 0.75, max: 1.15, step: 0.05, unit: 'm', decimals: 2, hl: 'speakers', acoustic: 'reflection' },
     ];
@@ -677,6 +680,22 @@
     }
     _applyListenerSliderVisibility(roomType);
 
+    // ── Speaker spacing vs inset slider visibility ──────────────────────────
+    // Hi-Fi mode shows "Speaker spacing" (spk_spacing_m — absolute distance
+    // between the two speakers). Studio mode shows "Speaker inset" instead
+    // (spk_inset_m — how far each speaker sits inward from its desk edge);
+    // room3d.js derives the true spacing from desk width minus the insets.
+    // Exactly one of the two is visible at any time, so Hi-Fi behaviour is
+    // unchanged and the inset slider only appears in studio.
+    function _applySpacingSliderVisibility(rt) {
+      var isStudio = rt === 'studio';
+      var sp  = sliders.spk_spacing_m && sliders.spk_spacing_m.wrap;
+      var ins = sliders.spk_inset_m   && sliders.spk_inset_m.wrap;
+      if (sp)  sp.style.display  = isStudio ? 'none' : '';
+      if (ins) ins.style.display = isStudio ? ''     : 'none';
+    }
+    _applySpacingSliderVisibility(roomType);
+
     // ── LOW FREQUENCY sub-section — 24 px gap after Block C ─────────────────
     var lfSection = _el('div', { style: 'margin-top:24px;' });
     var lfLabel   = _el('span', {
@@ -711,9 +730,12 @@
         }
         Object.entries(sliders).forEach(function(entry) {
           var k = entry[0], s = entry[1];
-          s.slider.value = String(state[k]);
-          cur[k] = state[k];
-          s.val.textContent = parseFloat(state[k]).toFixed(s.def.decimals) + (s.def.unit === '\u00b0' ? '\u00b0' : ' ' + s.def.unit);
+          // state may predate spk_inset_m - fall back to the live cur value
+          // (already migration-defaulted to 0.20) so the slider never resets to NaN.
+          var rv = state[k] !== undefined ? state[k] : cur[k];
+          s.slider.value = String(rv);
+          cur[k] = rv;
+          s.val.textContent = parseFloat(rv).toFixed(s.def.decimals) + (s.def.unit === '\u00b0' ? '\u00b0' : ' ' + s.def.unit);
           _updateSliderFill(s.slider);
         });
         cur.subwoofer      = state.subwoofer      ?? false;
@@ -744,6 +766,7 @@
       setRoomType: function(rt) {
         _applySpkRoomType(rt);
         _applyListenerSliderVisibility(rt);
+        _applySpacingSliderVisibility(rt);
       },
     };
   }

@@ -631,7 +631,7 @@ export function initRoom3D({
       setup: {
         speaker_type: 'standmount', spk_spacing_m: 2.0, spk_front_m: 0.45,
         tweeter_height_m: 0.95, toe_in_deg: 12, listener_front_m: 2.8,
-        listener_offset_m: 0, subwoofer: false
+        listener_offset_m: 0, subwoofer: false, spk_inset_m: 0.20
       },
       environment: {
         room_type: 'home', floor_material: 'hard',
@@ -700,6 +700,9 @@ export function initRoom3D({
       speaker_type: setup.speaker_type,
       spk_placement: setup.spk_placement || 'desk',
       spk_spacing_m: setup.spk_spacing_m,
+      // Studio-only: how far each speaker sits inward from its desk edge.
+      // `?? 0.20` migrates saved studio sessions that predate this field.
+      spk_inset_m: setup.spk_inset_m ?? 0.20,
       spk_front_m: setup.spk_front_m,
       tweeter_height_m: setup.tweeter_height_m,
       toe_in_deg: setup.toe_in_deg,
@@ -764,20 +767,22 @@ export function initRoom3D({
     // `setup` (not mutated upstream), so switching back to a non-studio
     // room type restores them.
     //
-    //   1. room.spk_spacing_m → desk_width_m - 2 * SPEAKER_X_INSET
-    //      (Option B, reverses Option A from commit 80fc4ef): speakers
-    //      track the desk edges at 10 cm inset, so wider desks get
-    //      wider speaker placement. Chair offset below therefore also
-    //      tracks desk width — coherent: chair sits equilateral from
-    //      the *visible* speakers.
+    //   1. room.spk_spacing_m → desk_width_m - 2*SPEAKER_X_INSET
+    //      - 2*spk_inset_m. Speakers start just inside the desk edges
+    //      (SPEAKER_X_INSET, a fixed 10 cm structural margin) and the
+    //      "Speaker inset" slider (spk_inset_m) moves each speaker
+    //      further INWARD from there. spk_spacing_m therefore stays the
+    //      TRUE geometric spacing, so every downstream reader (chair
+    //      offset below, wall/ceiling panels, reflection overlays)
+    //      stays correct with no branching. The Math.max floor stops
+    //      the speakers crossing over on a narrow desk.
     //
     //   2. room.listener_front_m → spk_front_m + chair equilateral
     //      offset, clamped against the back wall (30 cm clearance).
     //
-    // The "Speaker spacing" slider (Block B in SCL) is still visible in
-    // studio but its value is overridden here — moving it does nothing
-    // visible. A future commit may hide it like listener_front_m is
-    // hidden (commit f7dac90).
+    // The Block B slider in studio drives spk_inset_m ("Speaker inset"),
+    // not spk_spacing_m — inset is desk-relative, so it never needs to
+    // change when the desk is resized.
     if (isStudio) {
       // Floor-stand placement was removed from the studio SCL placement
       // selector — the stand pole would punch through the desk surface.
@@ -787,10 +792,10 @@ export function initRoom3D({
       // in place defensively but never fire in studio after this coerce.
       if (room.spk_placement === 'stands') room.spk_placement = 'desk_stands';
 
-      const SPEAKER_X_INSET = 0.10; // m — speaker centre to desk edge
+      const SPEAKER_X_INSET = 0.10; // m — fixed structural margin, speaker centre to desk edge
       room.spk_spacing_m = Math.max(
         0.20,
-        (room.desk_width_m ?? 1.6) - 2 * SPEAKER_X_INSET
+        (room.desk_width_m ?? 1.6) - 2 * SPEAKER_X_INSET - 2 * room.spk_inset_m
       );
       const _studioChairOffset = room.spk_spacing_m * Math.sqrt(3) / 2;
       // Clamp the chair against the back wall — 30 cm clearance.
