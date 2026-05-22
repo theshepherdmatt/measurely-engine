@@ -4726,6 +4726,7 @@ export function initRoom3D({
       const modeTypeWeight = { axial: 1.0, tangential: 0.7, oblique: 0.4 };
       const uBwModes = [];
       const uBwModeColors = [];
+      const uBwModeSeverity = [];
       annotatedModes.forEach(m => {
         const typeWeight = modeTypeWeight[m.type] ?? 1.0;
         // Modes below speaker bass rolloff get reduced contribution — less energy injected
@@ -4737,10 +4738,22 @@ export function initRoom3D({
             ? _severityColor(m.measured?.delta_db)
             : _COL_PREDICTED
         );
+        // Severity rank — parallel scalar driving the shader's winner-takes-all
+        // colour selection. Confirmed modes ranked by |delta_db|: severe (8+ dB)
+        // = 3, moderate (5–8 dB) = 2, mild = 1. Unconfirmed/predicted modes get 0
+        // so they only colour a fragment when no confirmed mode is present there.
+        const _absDelta = Math.abs(m.measured?.delta_db || 0);
+        uBwModeSeverity.push(
+          m.confidence !== 'confirmed' ? 0.0
+            : _absDelta >= 8 ? 3.0
+            : _absDelta >= 5 ? 2.0
+            : 1.0
+        );
       });
       while (uBwModes.length < 8) {
         uBwModes.push(new THREE.Vector4(0, 0, 0, 0));
         uBwModeColors.push(_COL_PREDICTED);  // never read (w === 0) but keep array length
+        uBwModeSeverity.push(0.0);           // pad to length 8, matches colour array
       }
 
       // Breathing rate derived from the dominant (lowest) mode frequency.
@@ -4781,6 +4794,7 @@ export function initRoom3D({
           uOpacity: { value: isFocBW ? 0.55 : 0.28 },
           uModes: { value: uBwModes },
           uModeColors: { value: uBwModeColors },
+          uModeSeverity: { value: uBwModeSeverity },
           uOscRate: { value: visualOscillationRate },
           uBassTrapsF: { value: bwBassTrapsF },
           uBassTrapsR: { value: bwBassTrapsR },
@@ -4816,6 +4830,7 @@ export function initRoom3D({
           uniform float uReducedMotion;
           uniform vec4  uModes[8];
           uniform vec3  uModeColors[8];
+          uniform float uModeSeverity[8];
           uniform float uIsGable;
           uniform float uIsSlanted;
           uniform float uGableDepthAxis;
@@ -4852,14 +4867,26 @@ export function initRoom3D({
             float ny = (vWorldPos.y + uRoomH * 0.5) / uRoomH;
             float nz = (vWorldPos.z + uRoomL * 0.5) / uRoomL;
 
-            float pressure       = 0.0;
-            float totalWeight    = 0.001;
-            // Per-mode colour blend — each mode contributes its severity colour
-            // (or muted blue-grey if unconfirmed/predicted) weighted by its local
-            // pressure contribution. So a fragment dominated by a severe-red mode
-            // reads red even when an adjacent mild-amber mode is also present.
-            vec3  weightedColor  = vec3(0.0);
-            float colorWeightSum = 0.0001;
+            // voidColor — near-black resting tone for low-pressure fragments.
+            // Declared ahead of the mode loop so bestColor can default to it
+            // before any mode wins the severity race.
+            vec3 voidColor = vec3(0.020, 0.010, 0.050);
+
+            float pressure    = 0.0;
+            float totalWeight = 0.001;
+
+            // Winner-takes-all colour selection — the most-severe mode present
+            // at this fragment determines its colour. Each mode carries a
+            // severity rank (uModeSeverity: confirmed severe 3 / moderate 2 /
+            // mild 1; unconfirmed/predicted 0). The winner is chosen on a key
+            // that ranks severity first and uses local pressure only as a
+            // tie-break, so among equal-severity modes the strongest-pressure
+            // one wins. Because unconfirmed modes rank 0, they only colour a
+            // fragment when no confirmed mode reaches it — a confirmed severe
+            // mode is no longer averaged toward grey by co-located unconfirmed
+            // modes at corners.
+            float bestKey   = -1.0;
+            vec3  bestColor = voidColor;
 
             for (int i = 0; i < 8; i++) {
               vec4 m = uModes[i];
@@ -4868,15 +4895,18 @@ export function initRoom3D({
                 float pressureWidth  = cos(m.y * PI * nx);
                 float pressureHeight = cos(m.z * PI * ny);
                 float modePress = m.w * abs(pressureLength * pressureWidth * pressureHeight);
-                pressure       += modePress;
-                totalWeight    += m.w;
-                weightedColor  += uModeColors[i] * modePress;
-                colorWeightSum += modePress;
+                pressure    += modePress;
+                totalWeight += m.w;
+                // Severity dominates (×1000); modePress (≤1) only breaks ties.
+                float key = uModeSeverity[i] * 1000.0 + modePress;
+                if (key > bestKey) {
+                  bestKey   = key;
+                  bestColor = uModeColors[i];
+                }
               }
             }
 
-            pressure      /= totalWeight;
-            weightedColor /= colorWeightSum;
+            pressure /= totalWeight;
 
             // Spatially blend absorption based on proximity to each wall.
             // nz: 0=front wall (speakers), 1=rear wall. nx: 0=left wall, 1=right wall.
@@ -4899,14 +4929,14 @@ export function initRoom3D({
             float resonancePulse = 0.80 + 0.20 * cos(uTime * uOscRate * (1.0 - uReducedMotion));
             pressure *= resonancePulse;
 
-            // Severity-coloured blend — the per-mode colour mix replaces the old
-            // purple→pink hot-spot bloom. Pressure peaks no longer get a distinct
-            // hot-spot tint (the mode-plane geometry already communicates spatial
-            // pattern); instead, peaks just fade fully into the mode's own colour.
-            // Treated corners (high localTraps) still cool because pressure was
-            // attenuated above, dropping fragments back toward the void tone.
-            vec3 voidColor  = vec3(0.020, 0.010, 0.050);
-            vec3 finalColor = mix(voidColor, weightedColor, smoothstep(0.20, 0.70, pressure));
+            // Severity-coloured blend — the winner-takes-all colour selected
+            // above replaces the old purple→pink hot-spot bloom. Pressure peaks
+            // no longer get a distinct hot-spot tint (the mode-plane geometry
+            // already communicates spatial pattern); instead, peaks just fade
+            // fully into the dominant mode's own colour. Treated corners (high
+            // localTraps) still cool because pressure was attenuated above,
+            // dropping fragments back toward the void tone.
+            vec3 finalColor = mix(voidColor, bestColor, smoothstep(0.20, 0.70, pressure));
 
             float opacity = clamp(pressure * uOpacity * 1.8 + 0.03, 0.0, 0.80);
             gl_FragColor = vec4(finalColor, opacity);
