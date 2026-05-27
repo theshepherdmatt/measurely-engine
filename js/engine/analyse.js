@@ -120,7 +120,7 @@ function assessValidity(ir, fs) {
  * @param {object}       [options]
  * @param {number}       [options.ppo=48]           - Points per octave for UI curve
  * @param {string|null}  [options.speakerKey=null]  - Speaker profile key
- * @param {string}       [options.micType='omnitronic_mm2'] - Mic calibration type
+ * @param {string}       [options.micType='none'] - Mic calibration type; default 'none' applies no lift. REW exports are already mic-corrected.
  * @param {boolean}      [options.hasCoffeeTable=false]
  *
  * @returns {object} analysis result matching the analysis.json / analysis_ai.json schema
@@ -129,7 +129,7 @@ function analyse(ir, fs, freq, mag, room = {}, options = {}) {
     const {
         ppo          = 48,
         speakerKey   = null,
-        micType      = 'omnitronic_mm2',
+        micType      = 'none',
         hasCoffeeTable = room.opt_coffee_table ?? false,
     } = options;
 
