@@ -11,6 +11,23 @@
 import THREE from 'three';
 
 /* ----------------------------------------------------------
+   DEBUG LOGGING
+   Engine info-level logs are silenced by default. To enable
+   them at runtime, set either:
+     window.MEASURELY_DEBUG = true          (per-session)
+     localStorage.measurely_debug = '1'     (persistent)
+   Errors and warnings are NEVER gated — they always print.
+---------------------------------------------------------- */
+const _debugEnabled = () => {
+  try {
+    if (typeof window !== 'undefined' && window.MEASURELY_DEBUG) return true;
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('measurely_debug') === '1') return true;
+  } catch (_) { /* localStorage may throw in privacy-strict contexts */ }
+  return false;
+};
+const _dbg = (...args) => { if (_debugEnabled()) console.log(...args); };
+
+/* ----------------------------------------------------------
    SHARED CAMERA DEFAULT
    Single source of truth for the starting viewpoint used on
    every page.  All calls to initRoom3D() and focusOn() that
@@ -163,7 +180,7 @@ export function initRoom3D({
   mode = "setup",
   showLabels = true,
 }) {
-  console.log("[Room3D] initRoom3D() called with mode:", mode);
+  _dbg("[Room3D] initRoom3D() called with mode:", mode);
 
   // In-scene text visibility (wall compass + overlay annotation strings).
   // Default true preserves existing behaviour for web/dashboards. Satellites
@@ -315,7 +332,7 @@ export function initRoom3D({
   }
 
 
-  console.log("[Room3D] baseScale =", baseScale);
+  _dbg("[Room3D] baseScale =", baseScale);
 
 
   const ANALYSIS_DURATION = 15000; // ms
@@ -376,12 +393,12 @@ export function initRoom3D({
     console.warn('[Room3D] WebGL context lost — pausing render loop');
   }, false);
   renderer.domElement.addEventListener('webglcontextrestored', () => {
-    console.log('[Room3D] WebGL context restored — rebuilding scene');
+    _dbg('[Room3D] WebGL context restored — rebuilding scene');
     _animationPaused = false;
     rebuild();
   }, false);
 
-  console.log("[Room3D] Renderer + camera initialised");
+  _dbg("[Room3D] Renderer + camera initialised");
 
   const controls = new THREE.OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
@@ -597,7 +614,7 @@ export function initRoom3D({
   ------------------------------------------ */
   function rebuild() {
     // renderStage is set externally via setStage() — never override here.
-    console.log("[Room3D] 🔧 rebuild() | stage:", renderStage, "| mode:", currentMode);
+    _dbg("[Room3D] 🔧 rebuild() | stage:", renderStage, "| mode:", currentMode);
 
     // Dispose GPU resources before clearing — Group.clear() detaches children
     // but leaves their geometries/materials resident on the GPU. On the
@@ -813,7 +830,7 @@ export function initRoom3D({
       return;
     }
 
-    console.log("[Room3D] Mapped Room (Checking Panels):", {
+    _dbg("[Room3D] Mapped Room (Checking Panels):", {
       wall: room.wall_panel_mode,
       side: room.side_panel_mode,
       traps: room.bass_trap_mode,
@@ -1032,7 +1049,7 @@ export function initRoom3D({
     ------------------------------------------ */
     if (renderStage === "room") {
 
-      console.log("[Room3D] Rendering placeholder sources");
+      _dbg("[Room3D] Rendering placeholder sources");
 
       const srcMat = new THREE.MeshBasicMaterial({
         color: colors.room,
@@ -5022,7 +5039,7 @@ export function initRoom3D({
   /* ------------------------------------------
      START
   ------------------------------------------ */
-  console.log("[Room3D] 🚀 Starting engine | mountId:", mountId, "| stage:", renderStage);
+  _dbg("[Room3D] 🚀 Starting engine | mountId:", mountId, "| stage:", renderStage);
   rebuild();
   animate();
 
@@ -5049,14 +5066,14 @@ export function initRoom3D({
     update: rebuild,
 
     setMode(newMode) {
-      console.log("[Room3D] 🔄 setMode()", newMode);
+      _dbg("[Room3D] 🔄 setMode()", newMode);
 
       currentMode = newMode;
 
       if (newMode === "analysing") {
         analysisStart = performance.now();
         analysisPulse = 0;
-        console.log("[Room3D] ▶ analysisStart =", analysisStart);
+        _dbg("[Room3D] ▶ analysisStart =", analysisStart);
       }
 
       if (newMode === "final") {
@@ -5074,7 +5091,7 @@ export function initRoom3D({
     },
 
     setStage(newStage) {
-      console.log("[Room3D] 🎭 setStage()", newStage);
+      _dbg("[Room3D] 🎭 setStage()", newStage);
       renderStage = newStage;
       rebuild();
     },
@@ -5086,13 +5103,13 @@ export function initRoom3D({
      * @param {string} [typeHint] - optional hint ("studio"|"home") for logging
      */
     updateFurniture(typeHint) {
-      console.log("[Room3D] 🛋 updateFurniture()", typeHint ?? "");
+      _dbg("[Room3D] 🛋 updateFurniture()", typeHint ?? "");
       renderStage = "furnishings";
       rebuild();
     },
 
     resetView() {
-      console.log("[Room3D] 🔄 resetView()");
+      _dbg("[Room3D] 🔄 resetView()");
       focusedOverlay = null;
       activeOverlays.clear();
       rebuild();
@@ -5176,7 +5193,7 @@ export function initRoom3D({
      * it for backwards compatibility, but it is now ignored.
      */
     focusIssue(id, score = 10) {
-      console.log("[Room3D] 🎯 focusIssue()", id, "score =", score);
+      _dbg("[Room3D] 🎯 focusIssue()", id, "score =", score);
 
       activeOverlays.clear();
       if (id) activeOverlays.add(id);   // null/falsy = clear all overlays, no rebuild artefact
