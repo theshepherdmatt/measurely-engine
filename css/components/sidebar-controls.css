@@ -828,3 +828,13 @@
 }
 .mly-room-type-switcher[open] .mly-room-type-summary::after { transform: rotate(-135deg); }
 .mly-room-type-switcher > div { margin-top: 8px; }
+
+/* Paired with the (pointer: coarse) thumb bump to 24px in sliders.css.
+   The original 4px/2px margins were sized for a 16px thumb and would
+   clip the bigger touch thumb inside .demo-field rows. */
+@media (pointer: coarse) {
+  .demo-field .measurely-slider {
+    margin-top: 8px;
+    margin-bottom: 6px;
+  }
+}

@@ -164,3 +164,25 @@ select.measurely-select:focus {
     transform: translateX(20px);
     background: var(--mly-text-primary, #1A1A1A);
 }
+
+/* ── Touch-device sizing ──────────────────────────────
+   (pointer: coarse) catches real touch devices (iPad, iPhone, Surface
+   tablet mode) without affecting narrow-window desktops where a mouse
+   is still the input. Bumps thumb to 24px so the touch target (plus
+   the .demo-field margin override in sidebar-controls.css) clears the
+   44pt Apple HIG minimum. Track grows to 8px so it still looks
+   proportional under the fatter thumb. The :active transform: scale(1.25)
+   rules above stay relative, so the grab thumb becomes 30px naturally. */
+@media (pointer: coarse) {
+    .measurely-slider {
+        height: 8px;
+    }
+    .measurely-slider::-webkit-slider-thumb {
+        width:  24px;
+        height: 24px;
+    }
+    .measurely-slider::-moz-range-thumb {
+        width:  24px;
+        height: 24px;
+    }
+}
