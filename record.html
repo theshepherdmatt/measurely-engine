@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Measurely Engine — Record Tool</title>
+<!--
+  record.html — the engine repo's only HTML file.
+
+  The engine was deliberately stripped to JS-only in commit 33f4a51
+  ("strip repo to engine-only"). This tool re-introduces a single
+  HTML file for the narrow purpose of capturing 6-second WebM clips
+  of three named overlays (SBIR, Bass Modes, Reflections) for the
+  measurely.uk marketing site's Translate cards. It is tools-only,
+  not part of the engine's library surface, and is not deployed
+  anywhere — open it directly in Chrome (file:// or a static
+  server pointed at the engine repo root).
+
+  Boot pattern mirrors measurely-web/demo.html — same importmap
+  for the Three.js ESM bridge, same classic-script order for the
+  analysis pipeline, same ES-module import of room3d.js. The
+  engine API is reached via window.room3D, which initRoom3D() sets
+  internally.
+
+  Output: video/webm;codecs=vp9 at 8 Mbps from a 1200×800 mount.
+  Re-encode to mp4 separately with ffmpeg if required for delivery.
+-->
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100vh;
+    background: #1a1a1a;
+    color: #e0e0e0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow: hidden;
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #recordCanvas {
+    width: 1200px;
+    height: 800px;
+    flex-shrink: 0;
+    background: #c8c8c8;
+    position: relative;
+  }
+
+  #recordCanvas.recording {
+    pointer-events: none;
+    outline: 2px solid #ff5050;
+    outline-offset: 4px;
+  }
+
+  #controls {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    width: 240px;
+    background: rgba(20, 20, 20, 0.94);
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 14px 16px;
+    z-index: 10;
+    font-size: 13px;
+  }
+
+  #controls h1 {
+    margin: 0 0 12px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #888;
+  }
+
+  fieldset {
+    border: 1px solid #2e2e2e;
+    border-radius: 4px;
+    padding: 8px 10px 10px;
+    margin: 0 0 12px;
+  }
+
+  legend {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #888;
+    padding: 0 4px;
+  }
+
+  fieldset label {
+    display: block;
+    padding: 3px 0;
+    cursor: pointer;
+    line-height: 1.4;
+  }
+
+  fieldset input[type="radio"] {
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
+  button {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background: #2a2a2a;
+    color: #e0e0e0;
+    border: 1px solid #444;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: 0.01em;
+  }
+
+  button:hover:not(:disabled) {
+    background: #333;
+    border-color: #555;
+  }
+
+  button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  #status {
+    margin: 12px 0 0;
+    padding: 8px 0 0;
+    border-top: 1px solid #2a2a2a;
+    font-size: 12px;
+    color: #aaa;
+    min-height: 16px;
+    line-height: 1.4;
+  }
+
+  #status.error     { color: #ff6868; }
+  #status.recording { color: #ff5050; }
+  #status.ready     { color: #7adba6; }
+</style>
+
+<!-- Three.js ESM bridge — mirrors demo.html's importmap. The classic
+     three.min.js below populates globalThis.THREE; three.module.js
+     re-exports it for the room3d.js ES module. -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "./js/vendor/three/three.module.js"
+  }
+}
+</script>
+
+<!-- Classic-script load order mirrors measurely-web/demo.html. The
+     analysis-pipeline scripts set window.MeasurelyXxx globals that
+     room3d.js reads via optional chaining; imageSource is added for
+     the side_reflections (Reflections) overlay. -->
+<script src="js/vendor/three/three.min.js" defer></script>
+<script src="js/vendor/three/OrbitControls.js" defer></script>
+<script src="js/engine/fft.js"></script>
+<script src="js/engine/signal_math.js"></script>
+<script src="js/engine/score.js"></script>
+<script src="js/engine/acoustics.js"></script>
+<script src="js/engine/analyse.js"></script>
+<script src="js/engine/fileLoader.js"></script>
+<script src="js/engine/imageSource.js"></script>
+<script src="js/treatment-registry.js"></script>
+</head>
+<body>
+
+<div id="recordCanvas"></div>
+
+<aside id="controls">
+  <h1>Record Tool</h1>
+
+  <fieldset id="sceneFieldset">
+    <legend>Scene</legend>
+    <label><input type="radio" name="scene" value="sbir" checked> SBIR</label>
+    <label><input type="radio" name="scene" value="bass-modes"> Bass Modes</label>
+    <label><input type="radio" name="scene" value="reflections"> Reflections</label>
+  </fieldset>
+
+  <button id="setupBtn">Setup scene</button>
+  <button id="recordBtn" disabled>Record 6s</button>
+  <button id="downloadBtn" disabled>Download .webm</button>
+
+  <p id="status">Idle</p>
+</aside>
+
+<script type="module">
+import { initRoom3D } from './js/room3d.js';
+
+// ─────────────────────────────────────────────────────────────────────
+//  Scene configurations
+//
+//  overlayId values are the engine-internal keys (per OVERLAY_META in
+//  room3d.js): 'bandwidth' for the Bass Modes UI label, 'side_reflections'
+//  for the Reflections UI label.
+// ─────────────────────────────────────────────────────────────────────
+const SCENE_CONFIG = {
+  'sbir': {
+    label:     'SBIR',
+    overlayId: 'sbir',
+    room: {
+      geometry: { width_m: 4.0, length_m: 5.0, height_m: 2.5 },
+      setup:    { spk_spacing_m: 2.2, spk_front_m: 0.4, toe_in_deg: 12, listener_front_m: 3.0 },
+    },
+    measurementContext: null,
+    useAutoSpin:        false,
+  },
+  'bass-modes': {
+    label:     'Bass Modes',
+    overlayId: 'bandwidth',
+    room: {
+      geometry: { width_m: 3.6, length_m: 5.2, height_m: 2.4 },
+      setup:    { spk_spacing_m: 2.0, spk_front_m: 0.8, toe_in_deg: 10, listener_front_m: 2.8 },
+    },
+    // Synthetic measurement context — drives the volumetric pressure
+    // field to render confirmed (coloured) modes instead of muted-grey
+    // predicted-only markers. Engine reads .modes[].{type, freq_hz,
+    // delta_db} per the setMeasurementContext shape in room3d.js.
+    measurementContext: {
+      modes: [
+        { type: 'axial', freq_hz:  35, delta_db:  8 },
+        { type: 'axial', freq_hz:  67, delta_db:  6 },
+        { type: 'axial', freq_hz: 110, delta_db: 10 },
+        { type: 'axial', freq_hz: 165, delta_db:  4 },
+      ],
+    },
+    useAutoSpin: true,
+  },
+  'reflections': {
+    label:     'Reflections',
+    overlayId: 'side_reflections',
+    room: {
+      geometry: { width_m: 4.2, length_m: 5.5, height_m: 2.6 },
+      setup:    { spk_spacing_m: 2.4, spk_front_m: 1.0, toe_in_deg: 14, listener_front_m: 3.0 },
+    },
+    measurementContext: null,
+    useAutoSpin:        false,
+  },
+};
+
+// ─────────────────────────────────────────────────────────────────────
+//  Base room state — engine reads this via getRoomData. Per-scene
+//  setup mutates the geometry / setup fields and forces treatment to
+//  'none' so the overlay reads cleanly.
+// ─────────────────────────────────────────────────────────────────────
+const BASE_STATE = {
+  room_type: 'home',
+  geometry: {
+    width_m: 4.0, length_m: 5.0, height_m: 2.5,
+    ceiling_type: 'flat',
+  },
+  setup: {
+    speaker_type: 'floorstander',
+    spk_placement: 'stands',
+    spk_spacing_m: 2.2,
+    spk_front_m:   0.4,
+    tweeter_height_m: 0.95,
+    toe_in_deg:    12,
+    listener_front_m:  3.0,
+    listener_offset_m: 0,
+    subwoofer:        'none',
+    subwoofer_dual:   false,
+  },
+  environment: {
+    floor_material: 'hard',
+    furniture: {
+      opt_sofa:          true,
+      opt_area_rug:      false,
+      opt_coffee_table:  false,
+      opt_ottoman:       false,
+      opt_display:       false,
+      opt_mic:           false,
+      opt_keyboard:      false,
+      opt_client_seating: false,
+      client_seating_type: 'sofa',
+      seating_type:        'sofa',
+      sofa_width_m:        2.0,
+      desk_width_m:        1.6,
+    },
+    treatment: {
+      wall_panel_mode:    'none',
+      side_panel_mode:    'none',
+      bass_trap_mode:     'none',
+      ceiling_panel_mode: 'none',
+    },
+  },
+};
+
+const recordState = structuredClone(BASE_STATE);
+
+// ─────────────────────────────────────────────────────────────────────
+//  Engine init. The 1200×800 mount is sized by CSS before the parser
+//  reaches this script, so initRoom3D's camera aspect-ratio math and
+//  renderer.setSize call bake in the correct 1.5 aspect ratio. mode
+//  is 'analysis' (not 'setup') so the speakers render as fixed meshes
+//  without the draggable handles the setup wizard uses.
+// ─────────────────────────────────────────────────────────────────────
+const engine = initRoom3D({
+  mountId:     'recordCanvas',
+  getRoomData: () => recordState,
+  mode:        'analysis',
+});
+window.room3D = engine;
+
+engine.setStage('furnishings');
+engine.setWaves(true);
+
+// ─────────────────────────────────────────────────────────────────────
+//  DOM refs + state
+// ─────────────────────────────────────────────────────────────────────
+const mountEl     = document.getElementById('recordCanvas');
+const setupBtn    = document.getElementById('setupBtn');
+const recordBtn   = document.getElementById('recordBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const statusEl    = document.getElementById('status');
+const sceneInputs = document.querySelectorAll('input[name="scene"]');
+
+let armedScene = null;        // scene id ready to record (cleared on radio change)
+let lastTake   = null;        // { sceneId, url, blob }
+let recorder   = null;
+let recordingTimers = [];
+
+// ─────────────────────────────────────────────────────────────────────
+//  Helpers
+// ─────────────────────────────────────────────────────────────────────
+function getSelectedSceneId() {
+  return document.querySelector('input[name="scene"]:checked').value;
+}
+
+function setStatus(text, cls = '') {
+  statusEl.textContent = text;
+  statusEl.className   = cls;
+}
+
+function applySceneState(sceneId) {
+  const cfg = SCENE_CONFIG[sceneId];
+  if (!cfg) throw new Error(`Unknown scene: ${sceneId}`);
+  Object.assign(recordState.geometry, cfg.room.geometry);
+  Object.assign(recordState.setup,    cfg.room.setup);
+  recordState.environment.treatment = {
+    wall_panel_mode:    'none',
+    side_panel_mode:    'none',
+    bass_trap_mode:     'none',
+    ceiling_panel_mode: 'none',
+  };
+}
+
+function formatTimestamp(d) {
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+function clearRecordingTimers() {
+  for (const t of recordingTimers) {
+    clearTimeout(t);
+    clearInterval(t);
+  }
+  recordingTimers = [];
+}
+
+function checkRecorderSupport() {
+  if (typeof MediaRecorder === 'undefined') {
+    setStatus('Recording not supported in this browser', 'error');
+    return false;
+  }
+  if (!MediaRecorder.isTypeSupported('video/webm;codecs=vp9')) {
+    setStatus('VP9 WebM not supported in this browser — use Chrome', 'error');
+    return false;
+  }
+  return true;
+}
+
+function getCanvasEl() {
+  return mountEl.querySelector('canvas');
+}
+
+// ─────────────────────────────────────────────────────────────────────
+//  Setup scene — load room state, configure overlay, position camera
+// ─────────────────────────────────────────────────────────────────────
+setupBtn.addEventListener('click', () => {
+  const sceneId = getSelectedSceneId();
+  const cfg     = SCENE_CONFIG[sceneId];
+  setStatus('Setting up scene…');
+  recordBtn.disabled = true;
+  armedScene = null;
+
+  try {
+    // Cleanup from any previous scene
+    engine.stopAutoSpin();
+    engine.resetCamera();
+
+    // Mutate the room state recordState the engine reads each rebuild
+    applySceneState(sceneId);
+
+    // Sync the engine's geometry overrides + trigger rebuilds. These
+    // setters also re-centre OrbitControls.target on the origin, which
+    // matters because the orbit auto-rotates around that target.
+    const g = recordState.geometry;
+    engine.setRoomWidth(g.width_m);
+    engine.setRoomLength(g.length_m);
+    engine.setRoomHeight(g.height_m);
+
+    // Bass Modes needs synthetic measurement data to render confirmed
+    // (severity-coloured) modes; the other two scenes use behavioural
+    // simulation only.
+    engine.setMeasurementContext(cfg.measurementContext);
+
+    // focusIssue is the exclusive single-overlay path used by demo.html
+    // (clears other overlays, sets focusedOverlay, rebuilds). Score 8
+    // pushes the overlay to its most visually dramatic intensity.
+    engine.focusIssue(cfg.overlayId, 8);
+
+    if (cfg.useAutoSpin) {
+      // 360° / 60s = 6°/s, so the 5s usable window covers ~30° of arc
+      engine.setSpinSpeed(1.0);
+      engine.startAutoSpin();
+    }
+
+    // Wait one rAF for the rebuild's first frame to land before arming
+    requestAnimationFrame(() => {
+      armedScene = sceneId;
+      recordBtn.disabled = false;
+      setStatus(`Scene ready: ${cfg.label} — click Record 6s`, 'ready');
+    });
+  } catch (err) {
+    console.error('[record] Setup failed:', err);
+    setStatus(`Setup failed: ${err.message || err}`, 'error');
+    armedScene = null;
+    recordBtn.disabled = true;
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+//  Record — 1s settle + 5s capture, then build a downloadable blob
+// ─────────────────────────────────────────────────────────────────────
+recordBtn.addEventListener('click', () => {
+  if (!armedScene) return;
+  if (!checkRecorderSupport()) {
+    recordBtn.disabled = true;
+    return;
+  }
+
+  const canvas = getCanvasEl();
+  if (!canvas || typeof canvas.captureStream !== 'function') {
+    setStatus('Canvas does not support captureStream', 'error');
+    return;
+  }
+
+  let stream;
+  try {
+    stream = canvas.captureStream(60);
+  } catch (err) {
+    setStatus(`captureStream failed: ${err.message || err}`, 'error');
+    return;
+  }
+  if (!stream) {
+    setStatus('captureStream returned null', 'error');
+    return;
+  }
+
+  const chunks = [];
+  try {
+    recorder = new MediaRecorder(stream, {
+      mimeType:           'video/webm;codecs=vp9',
+      videoBitsPerSecond: 8_000_000,
+    });
+  } catch (err) {
+    setStatus(`MediaRecorder construction failed: ${err.message || err}`, 'error');
+    return;
+  }
+
+  recorder.ondataavailable = e => {
+    if (e.data && e.data.size > 0) chunks.push(e.data);
+  };
+
+  recorder.onerror = e => {
+    clearRecordingTimers();
+    mountEl.classList.remove('recording');
+    recordBtn.disabled = false;
+    setupBtn.disabled  = false;
+    chunks.length = 0;
+    setStatus(`Recording failed: ${e.error?.message || 'unknown error'}`, 'error');
+  };
+
+  recorder.onstop = () => {
+    clearRecordingTimers();
+    mountEl.classList.remove('recording');
+    recordBtn.disabled = false;
+    setupBtn.disabled  = false;
+
+    if (chunks.length === 0) {
+      setStatus('Recording produced no data', 'error');
+      return;
+    }
+
+    // Free the previous take's blob URL so it doesn't leak
+    if (lastTake?.url) URL.revokeObjectURL(lastTake.url);
+
+    const blob = new Blob(chunks, { type: 'video/webm' });
+    const url  = URL.createObjectURL(blob);
+    lastTake = { sceneId: armedScene, url, blob };
+    downloadBtn.disabled = false;
+    setStatus('Recording complete — ready to download', 'ready');
+  };
+
+  // Lock UI + canvas during capture
+  recordBtn.disabled = true;
+  setupBtn.disabled  = true;
+  mountEl.classList.add('recording');
+  setStatus('Recording: 6s left (settling…)', 'recording');
+
+  // 1-second engine-settle buffer before the recorder starts
+  recordingTimers.push(setTimeout(() => {
+    try {
+      recorder.start();
+    } catch (err) {
+      mountEl.classList.remove('recording');
+      recordBtn.disabled = false;
+      setupBtn.disabled  = false;
+      setStatus(`Recorder start failed: ${err.message || err}`, 'error');
+      return;
+    }
+
+    let remaining = 5;
+    setStatus(`Recording: ${remaining}s left`, 'recording');
+
+    const ticker = setInterval(() => {
+      remaining--;
+      if (remaining > 0) setStatus(`Recording: ${remaining}s left`, 'recording');
+    }, 1000);
+    recordingTimers.push(ticker);
+
+    recordingTimers.push(setTimeout(() => {
+      try { recorder.stop(); } catch (_) { /* onstop / onerror cleans up */ }
+    }, 5000));
+  }, 1000));
+});
+
+// ─────────────────────────────────────────────────────────────────────
+//  Download — most recent take, filename includes scene + YYYYMMDD-HHmm
+// ─────────────────────────────────────────────────────────────────────
+downloadBtn.addEventListener('click', () => {
+  if (!lastTake) return;
+  const ts = formatTimestamp(new Date());
+  const a  = document.createElement('a');
+  a.href     = lastTake.url;
+  a.download = `scene-${lastTake.sceneId}-${ts}.webm`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+});
+
+// ─────────────────────────────────────────────────────────────────────
+//  Switching scenes invalidates the armed state — force a fresh Setup
+// ─────────────────────────────────────────────────────────────────────
+sceneInputs.forEach(input => {
+  input.addEventListener('change', () => {
+    if (armedScene !== input.value) {
+      armedScene = null;
+      recordBtn.disabled = true;
+      setStatus('Idle — click Setup scene');
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+//  Boot
+// ─────────────────────────────────────────────────────────────────────
+if (checkRecorderSupport()) {
+  setStatus('Idle — pick a scene and click Setup');
+} else {
+  setupBtn.disabled  = true;
+  recordBtn.disabled = true;
+}
+</script>
+
+</body>
+</html>

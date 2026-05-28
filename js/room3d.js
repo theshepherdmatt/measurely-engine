@@ -5311,6 +5311,17 @@ export function initRoom3D({
       controls.autoRotate = false;
     },
 
+    /**
+     * Set the auto-spin angular rate. Three.js uses 2π/3600 × speed rad/frame
+     * at 60 fps, so the engine default of 4 turns the room 360° in 15 s; a
+     * value of 1 stretches that to 60 s. Used by tools/record.html to slow
+     * the orbit for marketing captures; safe to call any time, takes effect
+     * on the next frame.
+     */
+    setSpinSpeed(speed) {
+      controls.autoRotateSpeed = Math.max(0, Number(speed) || 0);
+    },
+
     flyby(onDone) {
       const raw_room = getRoomData();
       if (!raw_room) { onDone?.(); return; }
