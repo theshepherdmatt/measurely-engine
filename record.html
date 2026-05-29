@@ -420,14 +420,19 @@ setupBtn.addEventListener('click', () => {
     engine.setRoomLength(g.length_m);
     engine.setRoomHeight(g.height_m);
 
-    // No manual camera dolly here. The engine-wide DEFAULT_CAMERA pose
-    // (5, 3.5, 6) → (0,0,0) restored by resetCamera() above already
-    // frames the shared 4×5×2.5m room at ~80% of the 1200×800 mount —
-    // matching the on-load preview before any Setup is clicked. An
-    // earlier multiplyScalar dolly overshot once the per-scene room
-    // dimensions were unified, so the dolly is gone. The getCamera /
-    // getControls accessors stay in the engine API in case a future
-    // record-tool tweak needs them.
+    // Tighter framing for the 1200×800 capture. The DEFAULT_CAMERA pose
+    // restored by resetCamera() above frames the 4×5×2.5m room with
+    // wide #F7F7F7 margins in the actual recording — the on-load
+    // preview only LOOKS full because the control panel overlays the
+    // left ~240px of the canvas, so we never see the empty left margin.
+    // camera.zoom enlarges the rendered image without dollying the
+    // camera position, avoiding the corner-clipping problems every
+    // prior dolly attempt hit. 1.5 keeps the near floor corner safely
+    // inside; the back-top ceiling corner crops slightly, but it was
+    // already near the frame edge at zoom 1.0.
+    const cam = engine.getCamera();
+    cam.zoom = 1.5;
+    cam.updateProjectionMatrix();
 
     // Bass Modes needs synthetic measurement data to render confirmed
     // (severity-coloured) modes; the other two scenes use behavioural
