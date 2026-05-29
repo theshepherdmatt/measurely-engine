@@ -5580,6 +5580,15 @@ export function initRoom3D({
       controls.update();
     },
 
+    // Read-only handles to the underlying Three.js camera and OrbitControls.
+    // Added for tools/record.html so it can dolly the camera in for tighter
+    // marketing-clip framing without editing resetCamera (which the live app
+    // and measurely-web rely on). No consumer of the engine library uses
+    // these; if that changes, treat them as internal and prefer adding a
+    // higher-level api method instead.
+    getCamera()   { return camera; },
+    getControls() { return controls; },
+
     /**
      * setSweepMode('ideal' | 'problem')
      * Recolours the SBIR ping spheres and reflection path lines to give

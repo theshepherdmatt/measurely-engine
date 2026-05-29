@@ -205,24 +205,26 @@ import { initRoom3D } from './js/room3d.js';
 //  room3d.js): 'bandwidth' for the Bass Modes UI label, 'side_reflections'
 //  for the Reflections UI label.
 // ─────────────────────────────────────────────────────────────────────
+// Shared room geometry + setup applied to every scene so the three clips
+// read as a matched set on the marketing site. Per-scene differences are
+// limited to overlayId and (for bass-modes) the synthetic measurementContext.
+const SHARED_ROOM = {
+  geometry: { width_m: 4.0, length_m: 5.0, height_m: 2.5 },
+  setup:    { spk_spacing_m: 2.2, spk_front_m: 0.6, toe_in_deg: 12, listener_front_m: 3.0 },
+};
+
 const SCENE_CONFIG = {
   'sbir': {
-    label:     'SBIR',
-    overlayId: 'sbir',
-    room: {
-      geometry: { width_m: 4.0, length_m: 5.0, height_m: 2.5 },
-      setup:    { spk_spacing_m: 2.2, spk_front_m: 0.4, toe_in_deg: 12, listener_front_m: 3.0 },
-    },
+    label:              'SBIR',
+    overlayId:          'sbir',
+    room:               SHARED_ROOM,
     measurementContext: null,
-    useAutoSpin:        false,
+    useAutoSpin:        true,
   },
   'bass-modes': {
     label:     'Bass Modes',
     overlayId: 'bandwidth',
-    room: {
-      geometry: { width_m: 3.6, length_m: 5.2, height_m: 2.4 },
-      setup:    { spk_spacing_m: 2.0, spk_front_m: 0.8, toe_in_deg: 10, listener_front_m: 2.8 },
-    },
+    room:      SHARED_ROOM,
     // Synthetic measurement context — drives the volumetric pressure
     // field to render confirmed (coloured) modes instead of muted-grey
     // predicted-only markers. Engine reads .modes[].{type, freq_hz,
@@ -238,14 +240,11 @@ const SCENE_CONFIG = {
     useAutoSpin: true,
   },
   'reflections': {
-    label:     'Reflections',
-    overlayId: 'side_reflections',
-    room: {
-      geometry: { width_m: 4.2, length_m: 5.5, height_m: 2.6 },
-      setup:    { spk_spacing_m: 2.4, spk_front_m: 1.0, toe_in_deg: 14, listener_front_m: 3.0 },
-    },
+    label:              'Reflections',
+    overlayId:          'side_reflections',
+    room:               SHARED_ROOM,
     measurementContext: null,
-    useAutoSpin:        false,
+    useAutoSpin:        true,
   },
 };
 
@@ -411,6 +410,15 @@ setupBtn.addEventListener('click', () => {
     engine.setRoomLength(g.length_m);
     engine.setRoomHeight(g.height_m);
 
+    // Tighter framing for the recording mount only. resetCamera() above
+    // restored the engine-wide DEFAULT_CAMERA pose (room fills ~40% of
+    // canvas); dolly the camera in along its own vector toward the
+    // controls.target so the room fills ~80% of the 1200×800 frame.
+    // 0.6 was tuned by eye; nudge if the room starts clipping at the
+    // edges as the orbit swings round.
+    engine.getCamera().position.multiplyScalar(0.6);
+    engine.getControls().update();
+
     // Bass Modes needs synthetic measurement data to render confirmed
     // (severity-coloured) modes; the other two scenes use behavioural
     // simulation only.
@@ -422,8 +430,10 @@ setupBtn.addEventListener('click', () => {
     engine.focusIssue(cfg.overlayId, 8);
 
     if (cfg.useAutoSpin) {
-      // 360° / 60s = 6°/s, so the 5s usable window covers ~30° of arc
-      engine.setSpinSpeed(1.0);
+      // 360° / 60s = 6°/s at 1.0, so 2.0 → 12°/s → ~60° of swing across
+      // the 5s usable capture window. Camera orbits around (0,0,0),
+      // which setRoomWidth/Length re-centred above.
+      engine.setSpinSpeed(2.0);
       engine.startAutoSpin();
     }
 
