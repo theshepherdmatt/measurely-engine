@@ -420,9 +420,9 @@ setupBtn.addEventListener('click', () => {
     // restored the engine-wide DEFAULT_CAMERA pose (room fills ~40% of
     // canvas); dolly the camera in along its own vector toward the
     // controls.target so the room fills ~80% of the 1200×800 frame.
-    // 0.6 was tuned by eye; nudge if the room starts clipping at the
-    // edges as the orbit swings round.
-    engine.getCamera().position.multiplyScalar(0.6);
+    // 0.7 keeps the near-left floor corner inside the frame; 0.6 was
+    // overshooting and clipping it. Tune by eye if the framing drifts.
+    engine.getCamera().position.multiplyScalar(0.7);
     engine.getControls().update();
 
     // Bass Modes needs synthetic measurement data to render confirmed
