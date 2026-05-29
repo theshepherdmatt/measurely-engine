@@ -420,18 +420,14 @@ setupBtn.addEventListener('click', () => {
     engine.setRoomLength(g.length_m);
     engine.setRoomHeight(g.height_m);
 
-    // Tighter framing for the recording mount only. resetCamera() above
-    // restored the engine-wide DEFAULT_CAMERA pose (room fills ~40% of
-    // canvas). Dolly the camera in on the horizontal plane only — X and
-    // Z come in by 0.7 while Y stays at the default 3.5m elevation, so
-    // the camera keeps looking down into the room. A uniform
-    // multiplyScalar(0.7) drops Y to 2.45m (barely above the 2.5m
-    // ceiling), flattens the view angle, and clips the near floor
-    // corner at the bottom of the frame.
-    const cam = engine.getCamera();
-    cam.position.x *= 0.7;
-    cam.position.z *= 0.7;
-    engine.getControls().update();
+    // No manual camera dolly here. The engine-wide DEFAULT_CAMERA pose
+    // (5, 3.5, 6) → (0,0,0) restored by resetCamera() above already
+    // frames the shared 4×5×2.5m room at ~80% of the 1200×800 mount —
+    // matching the on-load preview before any Setup is clicked. An
+    // earlier multiplyScalar dolly overshot once the per-scene room
+    // dimensions were unified, so the dolly is gone. The getCamera /
+    // getControls accessors stay in the engine API in case a future
+    // record-tool tweak needs them.
 
     // Bass Modes needs synthetic measurement data to render confirmed
     // (severity-coloured) modes; the other two scenes use behavioural
