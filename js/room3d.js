@@ -5588,6 +5588,7 @@ export function initRoom3D({
     // higher-level api method instead.
     getCamera()   { return camera; },
     getControls() { return controls; },
+    getRenderer() { return renderer; },
 
     /**
      * setSweepMode('ideal' | 'problem')
