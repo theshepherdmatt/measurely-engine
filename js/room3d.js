@@ -5580,6 +5580,16 @@ export function initRoom3D({
       controls.update();
     },
 
+    /**
+     * Force a re-fit of the camera and renderer to the current container size.
+     * The engine already wires _onContainerResize to a ResizeObserver and a
+     * deferred rAF at init; this exposes it so consumers can also trigger it
+     * after layout is known to be final (e.g. retail's _launchRoom on phone,
+     * where the iframe's initial fit races iOS Safari's URL-bar settling).
+     * No-op if container clientWidth or clientHeight is 0.
+     */
+    resize: _onContainerResize,
+
     // Read-only handles to the underlying Three.js camera and OrbitControls.
     // Added for tools/record.html so it can dolly the camera in for tighter
     // marketing-clip framing without editing resetCamera (which the live app
