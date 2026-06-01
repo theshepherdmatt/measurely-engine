@@ -1505,7 +1505,7 @@ export function initRoom3D({
 
         // Z anchor — every placement honours spk_front_m so the visible
         // speakers sit at the same Z the overlay code assumes
-        // (-halfL + spk_front_m for SBIR uSpkC, side_reflections
+        // (-halfL + spk_front_m for SBIR speaker sources, side_reflections
         // speakerPositions, wave-ring waveZ). Studio meshes stay in
         // world space (not parented under rigGroup) — same world Z
         // gets the same visual co-location as parenting would, with
@@ -3722,9 +3722,12 @@ export function initRoom3D({
       }
 
       // ── Live SBIR interference field (ShaderMaterial) ─────────────────────
-      // Two point sources per speaker (direct + front-wall mirror image).
-      // The shader computes the exact wave interference at every pixel in the
-      // horizontal plane at tweeter height — destructive bands = SBIR nulls.
+      // Four point sources: each speaker (L and R) contributes its direct wave
+      // plus its own front-wall mirror image. SBIR is a per-speaker, per-boundary
+      // phenomenon, so the field must originate from each real speaker — not from
+      // a single centred source. The shader computes the wave interference at
+      // every pixel in the horizontal plane at tweeter height — destructive bands
+      // = SBIR nulls fanning from behind each speaker.
       const tweeterY = -room.height_m / 2 + (room.tweeter_height_m || 0.95);
       const frontWallZ = -room.length_m / 2;
 
@@ -3785,12 +3788,27 @@ export function initRoom3D({
       // Detect prefers-reduced-motion once at overlay build time
       const _sbirReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+      // Two real speaker sources (each mirrored in the front wall by the shader).
+      // Reuse the positions stashed during the wave-ring build, but those are
+      // only populated when waves are enabled (_wavesEnabled, set by setWaves()).
+      // The SBIR overlay can render with waves off (it's in the default dashboard
+      // set), so fall back to the same speaker-placement formula the rings use
+      // (offsetX ± spk_spacing/2 at frontWallZ + d) — never the room origin.
+      const _spkHalfSep = (room.spk_spacing_m || 0) / 2;
+      const _spkSrcL = _wavesEnabled
+        ? new THREE.Vector2(_spkLeftLocalPos.x,  _spkLeftLocalPos.z)
+        : new THREE.Vector2(offsetX - _spkHalfSep, frontWallZ + sbirDepth);
+      const _spkSrcR = _wavesEnabled
+        ? new THREE.Vector2(_spkRightLocalPos.x, _spkRightLocalPos.z)
+        : new THREE.Vector2(offsetX + _spkHalfSep, frontWallZ + sbirDepth);
+
       const sbirMat = new THREE.ShaderMaterial({
         uniforms: {
           uTime: { value: 0 },
           uK: { value: sbirK },
-          // Single centre-speaker source — clean concentric rings from one origin
-          uSpkC: { value: new THREE.Vector2(offsetX, frontWallZ + sbirDepth) },
+          // Two real speaker sources (L/R); each mirrored in the front wall below
+          uSpkL: { value: _spkSrcL },
+          uSpkR: { value: _spkSrcR },
           uRoomW: { value: room.width_m },
           uRoomL: { value: room.length_m },
           uOpacity: { value: (isFocSBIR ? 0.80 : 0.45) * _sbirNullScale },
@@ -3812,7 +3830,8 @@ export function initRoom3D({
         fragmentShader: `
           uniform float uTime;
           uniform float uK;
-          uniform vec2  uSpkC;
+          uniform vec2  uSpkL;
+          uniform vec2  uSpkR;
           uniform float uRoomL;
           uniform float uOpacity;
           uniform float uAbsorption;
@@ -3821,16 +3840,25 @@ export function initRoom3D({
 
           void main() {
             float wallZ = -uRoomL * 0.5;
-            // Mirror image of speaker in front wall
-            vec2 mirC = vec2(uSpkC.x, 2.0 * wallZ - uSpkC.y);
+            // Each speaker's mirror image behind the front wall
+            vec2 mirL = vec2(uSpkL.x, 2.0 * wallZ - uSpkL.y);
+            vec2 mirR = vec2(uSpkR.x, 2.0 * wallZ - uSpkR.y);
 
             float t    = uTime * (1.0 - uReducedMotion);
             float refl = 1.0 - uAbsorption;
 
-            // Single-source: direct wave + front-wall reflection
-            float direct    = sin(distance(vXZ, uSpkC) * uK - t);
-            float reflected = refl * sin(distance(vXZ, mirC) * uK - t);
-            float absField  = abs((direct + reflected) * 0.5);
+            // Per speaker: direct wave + its own front-wall reflection.
+            // Coherent sum of all four sources (both speakers carry the same
+            // signal in the SBIR band, < ~250 Hz). The 0.25 normaliser keeps
+            // the combined amplitude in the same 0..1 range as the prior
+            // single-source field — on the centre line, where the old single
+            // source sat, the two speakers add to exactly the old brightness;
+            // off-axis each speaker's own null fan emerges.
+            float directL    = sin(distance(vXZ, uSpkL) * uK - t);
+            float reflectedL = refl * sin(distance(vXZ, mirL) * uK - t);
+            float directR    = sin(distance(vXZ, uSpkR) * uK - t);
+            float reflectedR = refl * sin(distance(vXZ, mirR) * uK - t);
+            float absField   = abs((directL + reflectedL + directR + reflectedR) * 0.25);
 
             // Grey base with Neon Pink (#FF107A) at high-pressure peaks.
             // 2026-05 tuning: greyBase darkened ~50% (0.30 + 0.45·a → 0.15 + 0.22·a)
@@ -3866,11 +3894,13 @@ export function initRoom3D({
       //   B — single slate sprite "~Hz · predicted only"
       //   A — stacked sprites: muted "Hz · predicted" + severity-coloured
       //       "Hz · ±dB · measured"
-      // Single sprite anchor — SBIR field uses a single centre-speaker source
-      // (uSpkC at offsetX), so one readout floats above that origin slightly
-      // forward of the speaker plane. Sprites are billboards (always face
-      // camera), so no rotation needed. Disposal: rebuild()'s traverse handles
-      // it — sprites are added to roomGroup like every other SBIR element.
+      // Single sprite anchor — the field now originates from both speakers, but
+      // the predicted null frequency is shared (both speakers sit at the same
+      // front-wall distance d → same f = c/4d), so one readout floats above the
+      // midpoint between them (offsetX), slightly forward of the speaker plane.
+      // Sprites are billboards (always face camera), so no rotation needed.
+      // Disposal: rebuild()'s traverse handles it — sprites are added to
+      // roomGroup like every other SBIR element.
       const readoutY = tweeterY + 0.20;
       const readoutZ = -room.length_m / 2 + sbirDepth + 0.05;
 
