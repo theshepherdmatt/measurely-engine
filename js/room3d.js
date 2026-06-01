@@ -57,15 +57,22 @@ export const DEFAULT_CAMERA = {
 ---------------------------------------------------------- */
 export const OVERLAY_COLOURS = {
   // Pressure / problem indicators
-  PRESSURE_PEAK:     '#FF107A',  // neon pink — pressure hot-spots (SBIR overlay only;
-                                 // bass-modes dropped this class in the severity migration)
+  PRESSURE_PEAK:     '#FF107A',  // neon pink — SBIR confirmed null + bass-mode
+                                 // antinode/boom + non-modal peak (the "hot" end
+                                 // of the resonance ramp)
   RESONANCE_PURPLE:  '#7C3AED',  // bass-mode standing waves — the baked field +
                                  // particle cloud ramp through this (void → purple
                                  // → pink → white-hot) by pressure magnitude
+  RESONANCE_HOT:     '#FFD9F2',  // white-hot antinode core — the top of the
+                                 // resonance pressure ramp (matches the shader)
   RESONANCE_VOID:    '#0A0A32',  // zero-pressure deep (shader literal)
-  // (The amber/orange/red MODE_* severity gradient was retired in the Bass Modes
-  //  overhaul — the field now carries pressure in hue, and measured severity is
-  //  shown by the focused-mode dB labels, so colour means one thing.)
+  MODE_PREDICTED:    '#475569',  // muted slate — predicted / unconfirmed scaffolding
+                                 // (SBIR "Predicted only" chip). Neutral, not a
+                                 // sound-energy colour.
+  // (The amber/orange/red MODE_* SEVERITY gradient — MILD/MODERATE/SEVERE — was
+  //  retired in the Bass Modes overhaul: the field now carries pressure in hue and
+  //  measured severity is shown by the focused-mode dB labels, so colour means one
+  //  thing. MODE_PREDICTED is kept — it's the neutral scaffolding tone, not severity.)
 
   // Direct / clean indicators
   DIRECT_SIGNAL:     '#00B8A9',  // teal — direct path
@@ -123,17 +130,33 @@ export const OVERLAY_META = {
       'The front wall is modelled as a perfectly rigid reflector — heavy treatment or an open space behind the speakers will reduce the cancellation depth in practice.',
       'Asymmetric speaker-to-wall distances produce slightly different nulls left and right; the visualisation places a single marker.',
     ],
+    // Legend chips — colours reference OVERLAY_COLOURS so they can never drift
+    // from what the scene paints. Consumed by web's HUD legend (and any future
+    // consumer that renders one).
+    legend: [
+      { color: OVERLAY_COLOURS.PRESSURE_PEAK,  label: 'Confirmed null' },
+      { color: OVERLAY_COLOURS.MODE_PREDICTED, label: 'Predicted only' },
+    ],
   },
   bandwidth: {
     label: 'Bass Modes',
     shortDescription: 'Standing waves · room resonances',
     icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
-    whatItShows: 'Standing-wave resonances between opposing room boundaries — the modes that make some bass notes louder or quieter than others. Derived from the impulse response, so this overlay only appears once a measurement has been loaded.',
-    howToRead: 'Each marker is a confirmed mode coloured by severity: red for severe, orange for moderate, amber for mild. Muted grey markers are predicted from geometry but not yet confirmed in your measurement.',
+    whatItShows: 'Standing-wave resonances between opposing room boundaries — the modes that make some bass notes louder or quieter than others. The pattern is predicted from your room dimensions and speaker placement, and confirmed against your measurement once one is loaded.',
+    howToRead: 'The room surfaces glow with standing-wave pressure: deep purple where the field is quiet, through pink to a white-hot core at the antinodes where bass piles up against the boundaries. A cloud of points fills the room — it vibrates hardest at the antinodes and falls still on the nulls. A glow at your listening seat reads hot pink when the seat sits on an antinode (a boom) and cool purple when it sits in a null. With a measurement loaded, each confirmed mode is labelled with its frequency and measured level in dB.',
     caveats: [
-      'Requires a loaded impulse response measurement; without one, only the predicted scaffolding is shown.',
+      'Without a loaded measurement the field is predictive — computed from room geometry and speaker placement, and labelled as predicted.',
       'Axial modes (length, width, height) appear most prominently; tangential and oblique modes are included at reduced intensity, reflecting their typically weaker effect at the listening position.',
-      'Severity is derived from measured peak depth, not from perceived loudness on any specific track.',
+      'Colour shows resonance pressure, not perceived loudness; the measured level of each confirmed mode is carried by its dB label, not by the field\'s hue.',
+    ],
+    // Legend chips — colours reference OVERLAY_COLOURS so they can never drift
+    // from what the scene paints. The pressure ramp and listener rows use a
+    // gradient swatch (ramp = ordered colour stops); the renderer builds the
+    // gradient. Purple/pink only on this overlay, per the visual tenet.
+    legend: [
+      { ramp: [OVERLAY_COLOURS.RESONANCE_PURPLE, OVERLAY_COLOURS.PRESSURE_PEAK, OVERLAY_COLOURS.RESONANCE_HOT], label: 'Resonance pressure · low → antinode' },
+      { ramp: [OVERLAY_COLOURS.RESONANCE_PURPLE, OVERLAY_COLOURS.PRESSURE_PEAK], label: 'Your seat · null → boom' },
+      { color: OVERLAY_COLOURS.PRESSURE_PEAK, label: 'Non-modal peak' },
     ],
   },
   side_reflections: {
@@ -145,6 +168,11 @@ export const OVERLAY_META = {
     caveats: [
       'First-order bounces only — second and later reflections are not modelled.',
       'Treatment is applied as a uniform reduction; frequency-dependent absorption is not modelled.',
+    ],
+    legend: [
+      { color: OVERLAY_COLOURS.DIRECT_SIGNAL, label: 'Outgoing pulse' },
+      { color: OVERLAY_COLOURS.PRESSURE_PEAK, label: 'Wall reflection' },
+      { color: OVERLAY_COLOURS.TREATED_CYAN,  label: 'Treated wall' },
     ],
   },
   floor_reflection: {
@@ -5312,18 +5340,19 @@ export function initRoom3D({
             roomGroup.add(lbl);
           });
 
-          // Non-modal peaks — amber labels stacked above listener position.
-          // Distinct from the white modal labels by colour AND position: amber
-          // floats above the listener, while the purple field + particle cloud
-          // carry the modal pressure pattern. Semantic: "we measured this but
-          // it's not a textbook room mode."
+          // Non-modal peaks — pink labels stacked above listener position.
+          // Distinct from the white modal labels by their " · non-modal" suffix
+          // AND position (they float above the listener, while the purple field +
+          // particle cloud carry the modal pressure pattern). On-brand pink per
+          // the visual tenet — no amber on this overlay. Semantic: "we measured
+          // this but it's not a textbook room mode."
           nonModalPeaks.slice(0, 4).forEach((m, i) => {
             const f  = Math.round(m.freq_hz);
             const dB = m.delta_db ?? 0;
             const sign = dB >= 0 ? '+' : '';
             const lbl = _makeLabelSprite(
               `${f} Hz · ${sign}${dB.toFixed(1)} dB · non-modal`,
-              OVERLAY_COLOURS.REAR_AMBER
+              OVERLAY_COLOURS.PRESSURE_PEAK
             );
             lbl.position.set(0, _bwFloorY + 1.30 + i * 0.20, _bwListenerZ);
             roomGroup.add(lbl);
