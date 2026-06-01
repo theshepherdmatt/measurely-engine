@@ -1108,6 +1108,27 @@
     };
   }
 
+  // ── Section — Sound Burst trigger (showpiece) ─────────────────────────────
+  // A single fire button for the Sound Burst showpiece. One-shot, re-fireable.
+  // onFire: fn() — wire to room3D.fireSoundBurst().
+  //   renderSoundBurstSection(mountId, { label, onFire })
+
+  function renderSoundBurstSection(mountId, { label = 'Play sound burst', onFire } = {}) {
+    const mount = _mount(mountId);
+    if (!mount) return null;
+
+    const row = _el('div', { class: 'demo-btn-row' });
+    const btn = _el('button', { class: 'sbox-btn', type: 'button' }, label);
+    btn.addEventListener('click', () => onFire?.());
+    row.appendChild(btn);
+    mount.appendChild(row);
+
+    return {
+      fire() { onFire?.(); },
+      reset() {},
+    };
+  }
+
   // ── Public API ─────────────────────────────────────────────────────────────
 
   return {
@@ -1120,5 +1141,6 @@
     renderFloorSection,
     renderTreatmentSection,
     renderWaveToggle,
+    renderSoundBurstSection,
   };
 });

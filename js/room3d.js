@@ -541,6 +541,34 @@ export function initRoom3D({
   const _reflQuat  = new THREE.Quaternion();   // identity — never mutated
   const _reflScale = new THREE.Vector3();
   const _reflCol   = new THREE.Color();
+  // ── Sound Burst showpiece (separate from the analytical overlays) ─────────
+  // A triggered explosion of frequency-coloured balls from both speakers that
+  // bounce off the six room planes with energy loss (treated walls eat the
+  // treble) and ping the listener. Own SPECTRAL palette — deliberately distinct
+  // from the three analytical neons (pink #FF107A, purple #7C3AED, teal
+  // #00C1B2): a warm→cool fire-spark ramp so it never reads as an overlay.
+  // [centreHz, radius×roomK, spawnWeight, decay/s, bounceLoss, treatedLoss, hex]
+  // Bass: big, few, slow-dying, panels barely touch it. Treble: tiny, dense,
+  // fast-dying, panels eat it on contact. Speed is IDENTICAL across classes.
+  const BURST_CLASSES = [
+    { hz: 125,  rK: 0.115, w: 1, decay: 0.10, bounce: 0.05, treat: 0.10, hex: '#FF4D2E' }, // bass — warm red
+    { hz: 500,  rK: 0.085, w: 2, decay: 0.20, bounce: 0.11, treat: 0.45, hex: '#FF9F0A' }, // low-mid — amber
+    { hz: 2000, rK: 0.060, w: 4, decay: 0.34, bounce: 0.18, treat: 0.80, hex: '#67E66A' }, // mid — green
+    { hz: 8000, rK: 0.040, w: 8, decay: 0.58, bounce: 0.28, treat: 0.92, hex: '#CDEFFF' }, // treble — icy white
+  ];
+  const _BURST_DIE     = 0.045;     // energy floor — recycle a ball below this
+  const _BURST_FLASH_R = 0.55;      // listener-ping proximity radius (m)
+  let _lastRoom    = null;          // latest built room snapshot — read by the burst on fire
+  let _burstBalls  = null;          // InstancedMesh swarm (one draw call)
+  let _burstTrails = null;          // InstancedMesh trails (one draw call)
+  let _burstHalo   = null;          // listener ping marker (single Mesh)
+  let _burstPool   = [];            // pooled particle descriptors — no per-frame alloc
+  let _burstTrailLen = 0;
+  let _burstRunning  = false;
+  let _burstLastT    = 0;
+  let _burstHaloE    = 0;           // listener flash energy (decays)
+  const _burstCtx = { listener: new THREE.Vector3(), halfW: 0, halfH: 0, halfL: 0, treated: {}, colors: [] };
+  const _burstScratchV = new THREE.Vector3();
   let _interferenceIndicator = null;        // Flat disc at MLP; pulses on constructive interference. Gated by _wavesEnabled — same toggle as the rings.
   const _mlpLocalPos      = new THREE.Vector3();   // Stashed at indicator build; read by animate's interference calc.
   const _spkLeftLocalPos  = new THREE.Vector3();
@@ -669,6 +697,11 @@ export function initRoom3D({
     });
     roomGroup.clear();
     _waveRings = [];
+    // Sound Burst meshes live in roomGroup → already disposed by the traverse
+    // above; just drop the refs so a fresh fire rebuilds them (a mid-flight
+    // burst ends cleanly when the room geometry changes).
+    _burstBalls = _burstTrails = _burstHalo = null;
+    _burstPool = []; _burstRunning = false; _burstHaloE = 0;
     _interferenceIndicator = null;   // GPU resources freed by the traverse above; just drop the closure ref.
     colourState = "idle";
 
@@ -796,6 +829,9 @@ export function initRoom3D({
       // FLOOR: read from env (data.environment.floor_material) with hard fallback
       floor_material: env.floor_material ?? data.floor_material ?? 'hard',
     };
+    // Snapshot for the Sound Burst showpiece — it fires on user trigger (outside
+    // rebuild) and reads the current geometry + treatment from here.
+    _lastRoom = room;
 
     // 2. DEFINE MISSING VARIABLES (Prevents the ReferenceError crash)
     const isLocked = (currentMode === "locked");
@@ -3308,6 +3344,7 @@ export function initRoom3D({
       });
     }
 
+    _tickSoundBurst();   // showpiece swarm — no-op unless a burst is running
     roomGroup.scale.set(scale, scale, scale);
     if (flyAnim) flyAnim.tick(performance.now());
     controls.update();
@@ -5278,6 +5315,260 @@ export function initRoom3D({
      browser console regardless of which page
      initialised it.
   ------------------------------------------ */
+  /* ============================================================
+     SOUND BURST — triggered showpiece subsystem
+     ============================================================ */
+
+  // Device tier — particle budget + trail length behind one scalar. iPad /
+  // small / reduced-motion drop hard; desktop runs the full swarm.
+  function _burstTier() {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const low = reduced
+      || window.matchMedia('(pointer: coarse)').matches
+      || window.matchMedia('(max-width: 900px)').matches;
+    return {
+      reduced,
+      maxBalls:  reduced ? 120 : low ? 500 : 2500,   // hard-capped
+      trailLen:  reduced ? 0   : low ? 2   : 3,
+      speedMult: reduced ? 1.8 : 2.6,
+    };
+  }
+
+  // Seed an InstancedMesh: all instances hidden (scale 0), instanceColor
+  // allocated, dynamic-draw usage flagged for the per-frame updates.
+  function _seedBurstInstanced(mesh, n) {
+    _reflScale.setScalar(0);
+    _reflM.compose(_reflPos.set(0, 0, 0), _reflQuat, _reflScale);
+    _reflCol.setRGB(0, 0, 0);
+    for (let i = 0; i < n; i++) { mesh.setMatrixAt(i, _reflM); mesh.setColorAt(i, _reflCol); }
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    if (mesh.instanceColor) mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+  }
+
+  // Collapse a particle's ball + all its trail instances to scale 0 (hidden).
+  function _burstHide(i) {
+    _reflScale.setScalar(0);
+    _reflM.compose(_reflPos.set(0, 0, 0), _reflQuat, _reflScale);
+    _burstBalls.setMatrixAt(i, _reflM);
+    if (_burstTrails) {
+      for (let k = 0; k < _burstTrailLen; k++) _burstTrails.setMatrixAt(i * _burstTrailLen + k, _reflM);
+    }
+  }
+
+  function _teardownSoundBurst() {
+    for (const m of [_burstBalls, _burstTrails, _burstHalo]) {
+      if (!m) continue;
+      roomGroup.remove(m);
+      if (m.geometry) m.geometry.dispose();
+      if (m.material) m.material.dispose();
+      if (m.isInstancedMesh && typeof m.dispose === 'function') m.dispose();
+    }
+    _burstBalls = _burstTrails = _burstHalo = null;
+    _burstPool = [];
+    _burstRunning = false;
+    _burstHaloE = 0;
+  }
+
+  // Fire a fresh burst from both speakers. Re-fireable: tears down any running
+  // burst first. Reads the CURRENT room (geometry + treatment) from _lastRoom,
+  // so toggling a panel then firing shows the new absorption.
+  function _fireSoundBurst() {
+    if (!_lastRoom) return;
+    _teardownSoundBurst();
+    const room = _lastRoom;
+    const tier = _burstTier();
+    const halfW = room.width_m / 2, halfH = room.height_m / 2, halfL = room.length_m / 2;
+    const offsetX = room.listener_offset_m || 0;
+    const tweeterY = -halfH + (room.tweeter_height_m || 0.95);
+    // Speakers — same formula that populates _spkLeftLocalPos / _spkRightLocalPos.
+    const spk = [
+      new THREE.Vector3(offsetX - room.spk_spacing_m / 2, tweeterY, -halfL + room.spk_front_m),
+      new THREE.Vector3(offsetX + room.spk_spacing_m / 2, tweeterY, -halfL + room.spk_front_m),
+    ];
+    // Listener — same ear point the Reflections overlay aims at (listenerPos).
+    const _isStudio = room.room_type === 'studio';
+    const _seat = room.seating_type || 'sofa';
+    const _sphZ = _isStudio ? 0.20 : (_seat === 'lounge' ? 0.38 : 0.28);
+    const _sphY = _isStudio ? 1.22 : (_seat === 'lounge' ? 1.00 : 0.96);
+    _burstCtx.listener.set(
+      offsetX + (room.listener_offset_m || 0),
+      -halfH + _sphY,
+      -halfL + (room.listener_front_m || 2.8) + _sphZ
+    );
+    _burstCtx.halfW = halfW; _burstCtx.halfH = halfH; _burstCtx.halfL = halfL;
+    // Treatment state — same derivation as the Reflections overlay's surfaceTreated.
+    const sideMode = room.side_panel_mode || 'none', wallMode = room.wall_panel_mode || 'none';
+    const ceilMode = room.ceiling_panel_mode || 'none', floorMat = room.floor_material || 'hard';
+    _burstCtx.treated = {
+      floor:   floorMat === 'carpet' || (room.opt_area_rug ?? false),
+      ceiling: ceilMode !== 'none',
+      left:    sideMode === 'left'  || sideMode === 'both',
+      right:   sideMode === 'right' || sideMode === 'both',
+      front:   wallMode === 'front' || wallMode === 'both',
+      back:    wallMode === 'rear'  || wallMode === 'both',
+    };
+    _burstCtx.colors = BURST_CLASSES.map(c => new THREE.Color(c.hex));
+
+    // ONE shared speed — the Sound Waves ring speed × a drama multiplier.
+    // Frequency NEVER changes speed; temporal variety comes from decay only.
+    const vVis  = (Math.max(room.length_m, room.width_m) * WAVE_EXTENT_FACTOR) / WAVE_CYCLE_S;
+    const speed = vVis * tier.speedMult;
+    const roomK = Math.min(1.5, Math.max(0.7, Math.max(room.width_m, room.length_m) / 5));
+
+    // Per-class spawn counts ∝ weight (treble densest, bass fewest), capped to
+    // the tier budget and split across the two speakers.
+    const totW = BURST_CLASSES.reduce((a, c) => a + c.w, 0);
+    _burstPool = [];
+    for (let ci = 0; ci < BURST_CLASSES.length; ci++) {
+      const cls = BURST_CLASSES[ci];
+      const n = Math.max(2, Math.round(tier.maxBalls * (cls.w / totW)));
+      const radius = cls.rK * roomK;
+      const perSpk = Math.ceil(n / spk.length);
+      for (let s = 0; s < spk.length; s++) {
+        for (let j = 0; j < perSpk; j++) {
+          if (_burstPool.length >= tier.maxBalls) break;
+          // Forward-biased explosion: a uniform sphere direction blended toward
+          // the speaker→listener axis.
+          const u = Math.random() * 2 - 1, th = Math.random() * Math.PI * 2;
+          const rr = Math.sqrt(Math.max(0, 1 - u * u));
+          const fx = _burstCtx.listener.x - spk[s].x;
+          const fy = _burstCtx.listener.y - spk[s].y;
+          const fz = _burstCtx.listener.z - spk[s].z;
+          const fl = Math.hypot(fx, fy, fz) || 1;
+          _burstScratchV.set(
+            rr * Math.cos(th) * 0.6 + (fx / fl) * 0.5,
+            u * 0.6 + (fy / fl) * 0.5,
+            rr * Math.sin(th) * 0.6 + (fz / fl) * 0.5
+          ).normalize();
+          _burstPool.push({
+            alive: true, ci, radius,
+            pos: spk[s].clone(),
+            vel: _burstScratchV.clone().multiplyScalar(speed),
+            energy: 1.0,
+          });
+        }
+      }
+    }
+    if (_burstPool.length === 0) return;
+    _burstTrailLen = tier.trailLen;
+
+    // The swarm — one InstancedMesh, additive so it blooms.
+    const ballGeo = new THREE.SphereGeometry(1, 8, 6);
+    const ballMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 1,
+      blending: THREE.AdditiveBlending, depthWrite: false,
+    });
+    _burstBalls = new THREE.InstancedMesh(ballGeo, ballMat, _burstPool.length);
+    _burstBalls.frustumCulled = false;
+    _seedBurstInstanced(_burstBalls, _burstPool.length);
+    _burstBalls.userData.isBurstSwarm = true;
+    roomGroup.add(_burstBalls);
+
+    if (_burstTrailLen > 0) {
+      const tGeo = new THREE.SphereGeometry(1, 6, 4);
+      const tMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff, transparent: true, opacity: 1,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      });
+      _burstTrails = new THREE.InstancedMesh(tGeo, tMat, _burstPool.length * _burstTrailLen);
+      _burstTrails.frustumCulled = false;
+      _seedBurstInstanced(_burstTrails, _burstPool.length * _burstTrailLen);
+      roomGroup.add(_burstTrails);
+    }
+
+    // Listener ping marker — pulses white when balls arrive.
+    _burstHalo = new THREE.Mesh(
+      new THREE.SphereGeometry(0.22 * roomK, 16, 12),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff, transparent: true, opacity: 0,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      })
+    );
+    _burstHalo.position.copy(_burstCtx.listener);
+    roomGroup.add(_burstHalo);
+
+    _burstHaloE = 0;
+    _burstLastT = performance.now();
+    _burstRunning = true;
+  }
+
+  // Per-frame integrator — called from animate(), after the overlay block so
+  // the shared _refl* scratch is free. Advances, bounces (treated walls eat the
+  // treble/mid), decays, pings the listener, recycles dead balls. No allocation.
+  function _tickSoundBurst() {
+    if (!_burstRunning || !_burstBalls) return;
+    const now = performance.now();
+    let dt = (now - _burstLastT) / 1000;
+    _burstLastT = now;
+    if (dt <= 0) return;
+    if (dt > 0.05) dt = 0.05;   // clamp tab-switch / GC gaps
+    const ctx = _burstCtx;
+    const hw = ctx.halfW, hh = ctx.halfH, hl = ctx.halfL;
+    let anyAlive = false, haloHit = 0;
+
+    for (let i = 0; i < _burstPool.length; i++) {
+      const p = _burstPool[i];
+      if (!p.alive) { _burstHide(i); continue; }
+      const cls = BURST_CLASSES[p.ci];
+      p.pos.addScaledVector(p.vel, dt);
+      // Bounce off the six planes — flip the normal velocity component, lose
+      // energy = class base + treatment loss for the surface hit.
+      let surf = null;
+      if (p.pos.x >  hw) { p.pos.x =  hw - (p.pos.x - hw); p.vel.x = -p.vel.x; surf = 'right'; }
+      else if (p.pos.x < -hw) { p.pos.x = -hw - (p.pos.x + hw); p.vel.x = -p.vel.x; surf = 'left'; }
+      if (p.pos.y >  hh) { p.pos.y =  hh - (p.pos.y - hh); p.vel.y = -p.vel.y; surf = 'ceiling'; }
+      else if (p.pos.y < -hh) { p.pos.y = -hh - (p.pos.y + hh); p.vel.y = -p.vel.y; surf = 'floor'; }
+      if (p.pos.z >  hl) { p.pos.z =  hl - (p.pos.z - hl); p.vel.z = -p.vel.z; surf = 'back'; }
+      else if (p.pos.z < -hl) { p.pos.z = -hl - (p.pos.z + hl); p.vel.z = -p.vel.z; surf = 'front'; }
+      if (surf) {
+        const loss = cls.bounce + (ctx.treated[surf] ? cls.treat : 0);
+        p.energy *= (1 - Math.min(0.98, loss));
+      }
+      p.energy -= cls.decay * dt;   // continuous decay — HF dies fastest
+      if (p.energy <= _BURST_DIE) { p.alive = false; _burstHide(i); continue; }
+      anyAlive = true;
+      const dl = p.pos.distanceTo(ctx.listener);
+      if (dl < _BURST_FLASH_R) haloHit = Math.max(haloHit, p.energy * (1 - dl / _BURST_FLASH_R));
+      // Write swarm instance — additive colour carries brightness (energy).
+      _reflScale.setScalar(p.radius);
+      _reflM.compose(p.pos, _reflQuat, _reflScale);
+      _burstBalls.setMatrixAt(i, _reflM);
+      _reflCol.copy(ctx.colors[p.ci]).multiplyScalar(Math.min(1, p.energy));
+      _burstBalls.setColorAt(i, _reflCol);
+      // Trail — a short streak behind the ball along −velocity.
+      if (_burstTrails) {
+        const inv = 1 / (Math.hypot(p.vel.x, p.vel.y, p.vel.z) || 1);
+        for (let k = 0; k < _burstTrailLen; k++) {
+          const ti = i * _burstTrailLen + k;
+          const fade = 1 - (k + 1) / (_burstTrailLen + 1);
+          _burstScratchV.copy(p.vel).multiplyScalar(-inv * (k + 1) * p.radius * 1.6);
+          _reflPos.copy(p.pos).add(_burstScratchV);
+          _reflScale.setScalar(p.radius * fade * 0.85);
+          _reflM.compose(_reflPos, _reflQuat, _reflScale);
+          _burstTrails.setMatrixAt(ti, _reflM);
+          _reflCol.copy(ctx.colors[p.ci]).multiplyScalar(Math.min(1, p.energy) * fade * 0.6);
+          _burstTrails.setColorAt(ti, _reflCol);
+        }
+      }
+    }
+
+    // Listener ping — bump on arrival, decay otherwise.
+    _burstHaloE = Math.max(_burstHaloE * Math.max(0, 1 - dt * 3.0), haloHit);
+    if (_burstHalo) {
+      _burstHalo.material.opacity = Math.min(0.9, _burstHaloE);
+      _burstHalo.scale.setScalar(1 + _burstHaloE * 0.5);
+    }
+
+    _burstBalls.instanceMatrix.needsUpdate = true;
+    if (_burstBalls.instanceColor) _burstBalls.instanceColor.needsUpdate = true;
+    if (_burstTrails) {
+      _burstTrails.instanceMatrix.needsUpdate = true;
+      if (_burstTrails.instanceColor) _burstTrails.instanceColor.needsUpdate = true;
+    }
+
+    if (!anyAlive && _burstHaloE < 0.02) _teardownSoundBurst();   // costs nothing when idle
+  }
+
   const api = {
     update: rebuild,
 
@@ -5774,6 +6065,17 @@ export function initRoom3D({
       _sbirFieldVisible = !!enabled;
       const m = roomGroup.children.find(o => o.userData?.isSbirField);
       if (m) m.visible = _sbirFieldVisible;
+    },
+
+    /**
+     * fireSoundBurst() — trigger the Sound Burst showpiece: a one-shot
+     * explosion of frequency-coloured balls from both speakers that bounce off
+     * the walls with energy loss (treated walls absorb the treble/mid) and ping
+     * the listener. Re-fireable; one-shot, never loops; costs nothing when idle.
+     * Separate from the analytical overlays — does not touch them.
+     */
+    fireSoundBurst() {
+      _fireSoundBurst();
     },
 
     /**
