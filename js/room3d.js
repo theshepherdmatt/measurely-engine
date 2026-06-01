@@ -510,6 +510,14 @@ export function initRoom3D({
   let _autoToe = false; // Auto-toe disabled by default; use toe_in_deg from room data
   let _autoToeAngle = 0;     // Last computed angle (radians) — readable via API
   let _waveRings = [];       // Expanding wave ring Meshes, repopulated on rebuild
+  // Shared Sound Waves propagation constants — single source of truth so the
+  // Reflections pulses move at the SAME on-screen speed as the rings. The rings
+  // expand to (max(L,W)·WAVE_EXTENT_FACTOR) over WAVE_CYCLE_S, an implied
+  // V_VIS ≈ 1.5 m/s in a typical room — deliberately slowed for visual rhythm,
+  // NOT 343 m/s. Both the ring animator and the Reflections scheduler read these.
+  const WAVE_CYCLE_S       = 2.8;   // seconds for a ring to reach its max radius
+  const WAVE_EXTENT_FACTOR = 0.85;  // ring max radius = max(L,W) · this
+  let _reflCyclePeriod = 6.0;       // Reflections loop period (s); set per-rebuild from the longest active path so far bounces aren't clipped. Read by animate()'s pulse loop.
   let _interferenceIndicator = null;        // Flat disc at MLP; pulses on constructive interference. Gated by _wavesEnabled — same toggle as the rings.
   const _mlpLocalPos      = new THREE.Vector3();   // Stashed at indicator build; read by animate's interference calc.
   const _spkLeftLocalPos  = new THREE.Vector3();
@@ -1649,7 +1657,7 @@ export function initRoom3D({
         // and peak opacity reflect actual acoustic energy, not simulation.
         if (_wavesEnabled) {
           const NUM_RINGS = 5;
-          const maxR = Math.max(room.length_m, room.width_m) * 0.85;
+          const maxR = Math.max(room.length_m, room.width_m) * WAVE_EXTENT_FACTOR;
           const waveY = baseY + room.tweeter_height_m;
           const waveZ = -room.length_m / 2 + room.spk_front_m;
           const waveX = offsetX + (side === 'L' ? -1 : 1) * room.spk_spacing_m / 2;
@@ -3067,7 +3075,7 @@ export function initRoom3D({
     // SBIR shader plane remains the measured-energy layer.
     if (_waveRings.length > 0) {
       const _wt = performance.now() * 0.001;
-      const WAVE_CYCLE = 2.8; // seconds per full cycle
+      const WAVE_CYCLE = WAVE_CYCLE_S; // seconds per full cycle (shared with Reflections)
 
       // Per-frame distances from each speaker to the MLP — invariant across
       // all 10 rings, so compute once. Speaker / MLP positions are stashed
@@ -3151,7 +3159,7 @@ export function initRoom3D({
     // pulses hide, wall flashes show static at half their event strength
     // so the user still sees which surfaces reflect strongly.
     {
-      const REFL_CYCLE_S = 6.0;
+      const REFL_CYCLE_S = _reflCyclePeriod;
       const reducedRefl = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       const cycleTime   = reducedRefl ? 0 : (performance.now() / 1000) % REFL_CYCLE_S;
 
@@ -4216,31 +4224,43 @@ export function initRoom3D({
       roomGroup.add(sideField);
 
       // ── Cycle scheduling ─────────────────────────────────────────────────
-      // Each bounce gets a staggered start so the user sees a rolling
-      // sequence rather than a simultaneous burst. Pulse → flash → return
-      // → listener-hit timeline lives entirely within CYCLE_S.
-      const CYCLE_S    = 6.0;
-      const OUT_DUR    = 0.5;
-      const FLASH_DUR  = 0.30;
-      const RETURN_DUR = 0.5;
-      const TAIL_S     = 0.25;        // listener halo tail beyond final hit
-      const eventCount = allBounces.length;
-      const lastEventDur = OUT_DUR + FLASH_DUR + RETURN_DUR + TAIL_S;
-      const staggerWindow = Math.max(CYCLE_S - lastEventDur, 0);
-      const stagger = eventCount > 1 ? Math.min(0.4, staggerWindow / (eventCount - 1)) : 0;
+      // Pulses travel at the SAME on-screen speed as the Sound Waves rings:
+      // V_VIS = ringMaxR / WAVE_CYCLE_S (the rings' own speed, ~1.5 m/s — NOT
+      // 343 m/s, which would desync from the intentionally-slowed rings).
+      // Every segment's duration is its real geometric length / V_VIS, so a
+      // far speaker→wall→listener path visibly arrives LATER than a near one,
+      // both moving at the same speed. All bounces leave the speaker at the
+      // same cycle origin (outStart = 0); lateness comes purely from path
+      // length, not a cosmetic stagger.
+      const _ringMaxR = Math.max(room.length_m, room.width_m) * WAVE_EXTENT_FACTOR;
+      const V_VIS     = _ringMaxR / WAVE_CYCLE_S;   // m/s, shared with the rings
+      const FLASH_DUR = 0.30;        // wall-glow visual duration (not propagation)
+      const TAIL_S    = 0.25;        // listener-halo fade tail beyond final hit
+      const GAP_S     = 1.0;         // rest before the sequence repeats
 
       const flashEventsBySurface = {
         floor: [], ceiling: [], left: [], right: [], front: [], back: [],
       };
       const haloEvents = [];
-      allBounces.forEach((b, i) => {
-        const eventStart = i * stagger;
-        b.outStart    = eventStart;
-        b.outEnd      = eventStart + OUT_DUR;
+      let _maxSeqEnd = 0;            // longest active path end → drives loop period
+      allBounces.forEach((b) => {
+        const _spk = speakerPositions[b.speakerIdx];
+        const _bp  = b.bouncePoint;
+        // Segment lengths straight from the per-speaker image-source geometry.
+        const _outLen = Math.hypot(_spk.x - _bp.x, _spk.y - _bp.y, _spk.z - _bp.z);
+        const _retLen = Math.hypot(_bp.x - listenerPos.x, _bp.y - listenerPos.y, _bp.z - listenerPos.z);
+        const outDur    = _outLen / V_VIS;
+        const returnDur = _retLen / V_VIS;
+
+        // The return leg launches the instant the outgoing leg reaches the
+        // wall (returnStart = outEnd), with the wall flash firing concurrently.
+        // Total speaker→wall→listener time = outDur + returnDur ∝ path length.
+        b.outStart    = 0;
+        b.outEnd      = b.outStart + outDur;
         b.flashStart  = b.outEnd;
         b.flashEnd    = b.flashStart + FLASH_DUR;
-        b.returnStart = b.flashEnd;
-        b.returnEnd   = b.returnStart + RETURN_DUR;
+        b.returnStart = b.outEnd;
+        b.returnEnd   = b.returnStart + returnDur;
         b.strength    = surfaceStrength[b.surface] * SIM_SCALE;
         // Absorption: when the bounce surface is treated, the panel
         // catches the reflection — no pink return pulse, no listener
@@ -4252,10 +4272,19 @@ export function initRoom3D({
         flashEventsBySurface[b.surface].push({
           start: b.flashStart, duration: FLASH_DUR, strength: b.strength,
         });
+        // Absorbed bounces end at the wall flash; live ones run to the
+        // listener hit. Track the latest so the loop period covers it.
+        const _seqEnd = b.absorbed ? b.flashEnd : b.returnEnd;
+        if (_seqEnd > _maxSeqEnd) _maxSeqEnd = _seqEnd;
         if (!b.absorbed) {
           haloEvents.push({ hitTime: b.returnEnd, strength: b.strength });
         }
       });
+
+      // Loop period covers the LONGEST active path plus the halo tail and a
+      // rest gap, so far/back-wall bounces complete before the cycle restarts.
+      // animate()'s pulse loop wraps performance.now() at this period.
+      _reflCyclePeriod = (allBounces.length > 0 ? _maxSeqEnd : 6.0) + TAIL_S + GAP_S;
 
       // ── Wall flash planes (one per surface that has any events) ──────────
       // Additive blending so a flash reads as glow rather than solid colour.
