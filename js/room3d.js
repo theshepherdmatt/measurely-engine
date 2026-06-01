@@ -808,6 +808,60 @@ export function initRoom3D({
   const _bwScratchV  = new THREE.Vector3();
   const _bwScratchQ  = new THREE.Quaternion();
   const _bwScratchS  = new THREE.Vector3();
+  // Pointer-pressure "delight" layer (polish only — the modal positions/
+  // oscillation are untouched; this is a purely additive hover response). One
+  // ray from the pointer through the camera is fed to the particle shader as
+  // uniforms; the shader does the per-dot proximity in GLSL (no per-instance
+  // raycast). Listener added on Bass Modes activate, removed on dispose.
+  let _bwHoverRay     = null;            // THREE.Raycaster (lazy)
+  let _bwHoverHandler = null;            // bound pointermove handler
+  let _bwHoverOn      = false;           // listener attached?
+  const _bwPointerNDC = new THREE.Vector2();
+  // Particle material — raw-GLSL ShaderMaterial on the InstancedMesh. instanceMatrix
+  // carries the (CPU-oscillated) position + base scale; instanceColor carries the
+  // static base ramp colour. The hover aura swells/brightens/recolours each dot by
+  // its distance to the pointer ray, fading via uHover (bumped on pointermove,
+  // decayed each frame). Additive → feeds the (additive) glow; no bloom pass exists.
+  const _BW_PARTICLE_VERT = `
+    uniform vec3 uRayO;
+    uniform vec3 uRayD;
+    uniform float uHover;
+    uniform float uRadius;
+    uniform float uSwell;
+    varying vec3 vBaseCol;
+    varying float vInfl;
+    void main() {
+      vec4 centre = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+      vec3 toC = centre.xyz - uRayO;
+      float along = dot(toC, uRayD);
+      vec3 perp = toC - uRayD * max(along, 0.0);
+      float dist = length(perp);
+      float infl = uHover * smoothstep(uRadius, 0.0, dist) * step(0.0, along);
+      vInfl = infl;
+      #ifdef USE_INSTANCING_COLOR
+        vBaseCol = instanceColor;
+      #else
+        vBaseCol = vec3(0.5);
+      #endif
+      vec3 p = position * (1.0 + infl * uSwell);                 // swell toward the pointer
+      vec4 worldP = modelMatrix * instanceMatrix * vec4(p, 1.0);
+      vec3 pushDir = (dist > 1e-4) ? (perp / dist) : vec3(0.0);
+      worldP.xyz += pushDir * infl * uRadius * 0.18;             // subtle outward pressure
+      gl_Position = projectionMatrix * viewMatrix * worldP;
+    }`;
+  const _BW_PARTICLE_FRAG = `
+    precision mediump float;
+    uniform float uBaseScale;
+    varying vec3 vBaseCol;
+    varying float vInfl;
+    void main() {
+      vec3 hotPink = vec3(1.0, 0.063, 0.478);   // #FF107A — hover accent (bass/pink family, no cyan)
+      vec3 col = vBaseCol * uBaseScale;
+      col = mix(col, hotPink, clamp(vInfl * 1.3, 0.0, 1.0));
+      col = mix(col, vec3(1.0), clamp((vInfl - 0.55) * 1.8, 0.0, 1.0));  // white core under the pointer
+      float bright = 1.0 + vInfl * 1.6;                                  // brighten to glow
+      gl_FragColor = vec4(col * bright, 1.0);
+    }`;
 
   // Bake vertex — pass the quad's uv (= this surface's local 0..1 coords).
   const _BW_BAKE_VERT = `
@@ -6242,8 +6296,8 @@ export function initRoom3D({
     return {
       reduced,
       low,
-      rtSize: low ? 256 : 512,               // baked-field atlas resolution
-      grid:   low ? [6, 3, 6] : [9, 4, 9],   // interior particle grid (x,y,z) → 108 / 324
+      rtSize: low ? 256 : 512,                  // baked-field atlas resolution
+      grid:   low ? [12, 6, 12] : [20, 8, 20],  // interior particle grid (x,y,z) → 864 / 3200
     };
   }
 
@@ -6472,9 +6526,19 @@ export function initRoom3D({
       const amp  = new Float32Array(N);
       const size = new Float32Array(N);
       const geo  = new THREE.SphereGeometry(1, 6, 6);
-      const mat  = new THREE.MeshBasicMaterial({
-        transparent: true, opacity: 0.95,
-        blending: THREE.AdditiveBlending, depthWrite: false,
+      const uRadius = Math.max(0.6, Math.sqrt(room.width_m * room.width_m + room.length_m * room.length_m) * 0.12);
+      const mat  = new THREE.ShaderMaterial({
+        uniforms: {
+          uRayO:      { value: new THREE.Vector3(0, -9999, 0) },  // off-screen until first pointermove
+          uRayD:      { value: new THREE.Vector3(0, 1, 0) },
+          uHover:     { value: 0 },                                // bumped on pointermove, decayed each frame
+          uRadius:    { value: uRadius },
+          uSwell:     { value: 1.4 },
+          uBaseScale: { value: 0.95 },                             // matches the prior additive base brightness
+        },
+        vertexShader: _BW_PARTICLE_VERT,
+        fragmentShader: _BW_PARTICLE_FRAG,
+        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
       });
       const mesh = new THREE.InstancedMesh(geo, mat, N);
       mesh.frustumCulled = false;
@@ -6529,7 +6593,40 @@ export function initRoom3D({
       _bwParticleBase = base;
       _bwParticleAmp  = amp;
       _bwParticleSize = size;
+      _bwAddHover();   // attach the pointer-pressure listener while Bass Modes is active
     } catch (err) { _bwDisable('_buildBwParticles', err); _bwParticles = null; }
+  }
+
+  // Pointer-pressure hover: add/remove ONE pointermove listener (covers mouse,
+  // touch, pen). On move, cast a single ray from the pointer through the camera
+  // and feed origin/direction to the particle shader + bump uHover (which decays
+  // each frame in _animateBassModes). The handler reads the LIVE _bwParticles
+  // material, so it survives rebuilds without re-binding logic changing.
+  function _bwAddHover() {
+    if (_bwHoverOn || !renderer || !renderer.domElement) return;
+    if (!_bwHoverRay) _bwHoverRay = new THREE.Raycaster();
+    _bwHoverHandler = function (e) {
+      const m = _bwParticles && _bwParticles.material;
+      if (!m || !m.uniforms || !m.uniforms.uRayO) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      _bwPointerNDC.set(
+        ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        -(((e.clientY - rect.top) / rect.height) * 2 - 1)
+      );
+      _bwHoverRay.setFromCamera(_bwPointerNDC, camera);
+      m.uniforms.uRayO.value.copy(_bwHoverRay.ray.origin);
+      m.uniforms.uRayD.value.copy(_bwHoverRay.ray.direction);
+      m.uniforms.uHover.value = 1.0;
+    };
+    renderer.domElement.addEventListener('pointermove', _bwHoverHandler, { passive: true });
+    _bwHoverOn = true;
+  }
+  function _bwRemoveHover() {
+    if (!_bwHoverOn) return;
+    try { renderer.domElement.removeEventListener('pointermove', _bwHoverHandler); } catch (e) {}
+    _bwHoverHandler = null;
+    _bwHoverOn = false;
   }
 
   // Listener pressure probe — the hero beat. CPU-sample the seat's modal
@@ -6602,8 +6699,14 @@ export function initRoom3D({
   // geometry alloc. Frozen (early return) under reduced motion — particles stay
   // at their base positions, consistent with the baked field never moving.
   function _animateBassModes(now) {
-    if (_bwFailed || !_bwParticles || _bwReduced) return;
+    if (_bwFailed || !_bwParticles) return;
     try {
+      // Hover aura decay — runs every frame (user-driven, allowed under reduced
+      // motion). The swell/colour is in-shader from uHover, so it works even when
+      // the autonomous oscillation below is frozen.
+      const _u = _bwParticles.material && _bwParticles.material.uniforms;
+      if (_u && _u.uHover) _u.uHover.value *= 0.90;
+      if (_bwReduced) return;   // freeze ONLY the autonomous oscillation
       const phase = Math.sin(now * 0.001 * _bwOscRate);
       const GAIN = 0.12;   // metres of peak vertical excursion at a full antinode
       const base = _bwParticleBase, amp = _bwParticleAmp, size = _bwParticleSize;
@@ -6627,6 +6730,7 @@ export function initRoom3D({
   // persistent (kept across rebuilds, like the heat targets) so only the closure
   // refs reset here.
   function _teardownBassField() {
+    _bwRemoveHover();   // drop the pointer-pressure listener — no global leak
     _bwPlanes = [];
     _bwParticles = null;
     _bwParticleN = 0;
