@@ -567,6 +567,57 @@ export function initRoom3D({
   let _burstHaloE    = 0;           // listener flash energy (decays)
   const _burstCtx = { listener: new THREE.Vector3(), halfW: 0, halfH: 0, halfL: 0, treated: {}, colors: [] };
   const _burstScratchV = new THREE.Vector3();
+  // ── Shared surface-impact + heat-map system ───────────────────────────────
+  // Additive layer fed by BOTH ball systems (the Impulse swarm and the
+  // Reflections overlay). On every ball-surface hit, impactAt(surfaceKey,
+  // localPoint, energy) does two things:
+  //   Layer 1 — spawns a transient pink ripple "splash" at the impact point
+  //             (treated surfaces get a cooler/softer ripple; untreated a
+  //             brighter one).
+  //   Layer 2 — deposits a blob into a persistent GPU accumulation atlas
+  //             (one 8-bit render target, one UV cell per room surface) that
+  //             a six-plane "heat shell" samples through a pink ramp. Energy
+  //             concentration grows hot patches; treated surfaces (rug,
+  //             panels) deposit little and stay cool, so the map doubles as
+  //             treatment guidance: hot = treat here, cool rug = rug working.
+  // Purely additive: it never touches ball motion, bounce geometry, the
+  // analytical overlays' core logic, or the existing GLSL bloom plane. The
+  // accumulation target lives off-screen; the shell + splash meshes live in
+  // roomGroup so the rebuild() disposal traverse frees them for free.
+  const _HEAT_SURF_INDEX = { floor: 0, ceiling: 1, front: 2, back: 3, left: 4, right: 5 };
+  let _heatRT         = null;   // persistent 8-bit accumulation atlas (render target)
+  let _heatRtScene    = null;   // off-screen scene: decay quad + deposit splats
+  let _heatRtCam      = null;   // ortho cam mapping [0,1]² → the atlas
+  let _heatDecayQuad  = null;   // fullscreen quad, multiply-blend → in-place decay
+  let _heatSplatMesh  = null;   // InstancedMesh of additive deposit blobs
+  let _heatRingTex    = null;   // ripple annulus texture (Layer 1 splash)
+  let _heatTier       = null;   // device-tier scalar snapshot (res / rate / caps)
+  let _heatPending    = [];     // deposits queued since last RT update {u,v,deposit}
+  let _heatSplatCap   = 0;      // _heatSplatMesh instance count
+  let _heatPlanes     = [];     // the six heat-shell display planes (in roomGroup)
+  let _heatSplashMesh = null;   // Layer-1 ripple pool InstancedMesh (in roomGroup)
+  let _heatSplashPool = [];     // ripple descriptors (pooled — no per-frame alloc)
+  let _heatSplashCap  = 0;
+  let _heatSplashCursor = 0;    // round-robin spawn cursor (O(1), no slot scan)
+  let _heatReady      = false;  // shell built this rebuild → impactAt is live
+  let _heatActive     = false;  // any heat present → run the RT pass + draw planes
+  let _heatLastImpactMs = 0;
+  let _heatLastUpdateMs = 0;
+  let _heatSplashPrevMs = 0;
+  const _heatSurfLastMs = {};   // surfaceKey → last-impact ms (per-plane visibility gate)
+  const _impactRoom    = { hW: 2, hH: 1.3, hL: 2.5 };   // half-dims this rebuild (local m)
+  const _impactTreated = {};                            // surfaceKey → bool (this rebuild)
+  const _heatSurfQuat  = {};                            // surfaceKey → THREE.Quaternion (splash orient)
+  const _heatScratchV  = new THREE.Vector3();           // dedicated scratch — never clobbers _refl*
+  const _heatScratchM  = new THREE.Matrix4();
+  const _heatScratchQ  = new THREE.Quaternion();
+  const _heatScratchS  = new THREE.Vector3();
+  const _heatScratchC  = new THREE.Color();
+  // Reflections per-cycle impact events — populated by renderAnalysisOverlays
+  // when the overlay is active, consumed by animate()'s cycle-crossing detector
+  // so each bounce fires impactAt once as the pulse reaches its wall.
+  let _reflImpactEvents   = [];
+  let _reflImpactPrevCycle = 0;
   let _interferenceIndicator = null;        // Flat disc at MLP; pulses on constructive interference. Gated by _wavesEnabled — same toggle as the rings.
   const _mlpLocalPos      = new THREE.Vector3();   // Stashed at indicator build; read by animate's interference calc.
   const _spkLeftLocalPos  = new THREE.Vector3();
@@ -700,6 +751,11 @@ export function initRoom3D({
     // burst ends cleanly when the room geometry changes).
     _burstBalls = _burstTrails = _burstHalo = null;
     _burstPool = []; _burstRunning = false; _burstHaloE = 0;
+    // Heat-shell planes + ripple pool live in roomGroup → freed by the traverse
+    // above; drop refs so impactAt() no-ops until _buildHeatShell() runs at the
+    // end of rebuild. Reflections impact events are repopulated by the overlay.
+    _teardownHeatShell();
+    _reflImpactEvents = [];
     _interferenceIndicator = null;   // GPU resources freed by the traverse above; just drop the closure ref.
     colourState = "idle";
 
@@ -2962,6 +3018,12 @@ export function initRoom3D({
     renderAnalysisOverlays(room);
     renderWallLabels(room);
 
+    // Shared surface-impact + heat-map shell. Built after the overlays so it
+    // can read the same treatment state; lives in roomGroup so the next
+    // rebuild's disposal traverse frees it. Stays invisible (and idle) until a
+    // ball strikes a surface and impactAt() deposits the first heat.
+    _buildHeatShell(room);
+
     // Auto-toe: snap speakers to face the sphere after every full rebuild
     _applyAutoToe();
 
@@ -3224,6 +3286,21 @@ export function initRoom3D({
       const reducedRefl = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       const cycleTime   = reducedRefl ? 0 : (performance.now() / 1000) % REFL_CYCLE_S;
 
+      // Shared surface-impact: fire impactAt() each time the cycle clock
+      // crosses a bounce's wall-arrival (flashStart), so each reflection feeds
+      // the splash + heat map exactly once per loop. Frozen under reduced
+      // motion (pulses are parked) — the heat map can still build from Impulse.
+      if (!reducedRefl && _reflImpactEvents.length) {
+        const prev = _reflImpactPrevCycle;
+        for (const ev of _reflImpactEvents) {
+          const fired = (prev <= cycleTime)
+            ? (ev.flashStart > prev && ev.flashStart <= cycleTime)
+            : (ev.flashStart > prev || ev.flashStart <= cycleTime);   // clock wrapped
+          if (fired) impactAt(ev.surface, ev.point, ev.energy);
+        }
+        _reflImpactPrevCycle = cycleTime;
+      }
+
       roomGroup.children.forEach(obj => {
         const ud = obj.userData;
         if (!ud) return;
@@ -3314,13 +3391,21 @@ export function initRoom3D({
     }
 
     _tickSoundBurst();   // showpiece swarm — no-op unless a burst is running
+    // Shared surface-impact + heat map: the Layer-1 ripple tick (every frame),
+    // then the throttled Layer-2 accumulation pass which renders into the
+    // off-screen atlas BEFORE the main scene render so the shell samples the
+    // current frame's heat. Both no-op while idle / context-lost.
+    _tickHeatSplashes();
     roomGroup.scale.set(scale, scale, scale);
     if (flyAnim) flyAnim.tick(performance.now());
     controls.update();
     // Skip render while the WebGL context is lost — render() against a
     // dead context is wasted work and spams the console. rAF keeps
     // ticking so we resume the moment `webglcontextrestored` clears the flag.
-    if (!_animationPaused) renderer.render(scene, camera);
+    if (!_animationPaused) {
+      _updateHeatAccumulation();   // off-screen RT pass (decay + splat), then…
+      renderer.render(scene, camera);
+    }
 
   }
 
@@ -4391,6 +4476,18 @@ export function initRoom3D({
         const _bMeanR = surfaceMeanR[b.surface] * SIM_SCALE;
         flashEventsBySurface[b.surface].push({
           start: b.flashStart, duration: FLASH_DUR, strength: _bMeanR,
+        });
+        // Shared surface-impact: fire impactAt() once per cycle as the pulse
+        // reaches this wall (cycle-crossing detected in animate). Energy is the
+        // surface's mean reflection magnitude r̄ = mean √(1−α) across the active
+        // bands — i.e. how much actually reflects — so the splash brightness and
+        // heat deposit track the per-band r(f). Treated surfaces have a low r̄
+        // (and impactAt scales treated deposits down further) so they stay cool.
+        _reflImpactEvents.push({
+          surface:    b.surface,
+          point:      { x: b.bouncePoint.x, y: b.bouncePoint.y, z: b.bouncePoint.z },
+          energy:     surfaceMeanR[b.surface],
+          flashStart: b.flashStart,
         });
         // Cycle length covers every bounce's return window — including treated
         // bounces (whose pink is killed) — so the teal companions and any live
@@ -5476,6 +5573,10 @@ export function initRoom3D({
       if (surf) {
         const loss = cls.bounce + (ctx.treated[surf] ? cls.treat : 0);
         p.energy *= (1 - Math.min(0.98, loss));
+        // Shared surface-impact: the ball physically struck this plane — feed
+        // the splash + heat map with its post-bounce energy (already reduced
+        // on treated surfaces, so the rug/panels deposit little and stay cool).
+        impactAt(surf, p.pos, p.energy);
       }
       p.energy -= cls.decay * dt;   // continuous decay — HF dies fastest
       if (p.energy <= _BURST_DIE) { p.alive = false; _burstHide(i); continue; }
@@ -5520,6 +5621,482 @@ export function initRoom3D({
     }
 
     if (!anyAlive && _burstHaloE < 0.02) _teardownSoundBurst();   // costs nothing when idle
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  SHARED SURFACE-IMPACT + HEAT-MAP SYSTEM
+  //  Layer 1: transient ripple splashes (instanced, pooled, recycled).
+  //  Layer 2: GPU render-to-texture accumulation atlas → pink heat ramp on a
+  //           six-plane heat shell. Fed by impactAt() from both ball systems.
+  // ════════════════════════════════════════════════════════════════════════
+
+  // Device-tier scalar — modest target res + fewer updates on iPad / coarse
+  // pointers, none of the animated ripples under reduced motion. Mirrors the
+  // tiering the Reflections overlay and the burst swarm already use.
+  function _heatTierConfig() {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const low = reduced
+      || window.matchMedia('(pointer: coarse)').matches
+      || window.matchMedia('(max-width: 900px)').matches;
+    return {
+      reduced,
+      rtSize:      low ? 256 : 512,      // 8-bit atlas resolution (one texture, six cells)
+      updateMs:    low ? 55  : 33,       // decay+splat throttle (~18 / ~30 Hz)
+      decay:       low ? 0.95 : 0.965,   // per-update multiply — slow build, ~1 s fade-out
+      depositGain: 0.085,                // heat added per unit reflected energy
+      blobRadius:  0.05,                 // deposit blob full-width in atlas (0..1) units
+      splashCap:   low ? 40 : 96,        // Layer-1 ripple pool hard cap
+      splatCap:    64,                   // max deposits flushed per RT update
+      enableSplash: !reduced,            // reduced motion: heat still builds, no ripples
+    };
+  }
+
+  // Soft pink ripple annulus — generated once, reused for every splash. White
+  // RGB (tinted per-instance via instanceColor), alpha is the ring profile.
+  function _makeRingTexture() {
+    if (_heatRingTex) return _heatRingTex;
+    const S = 64, data = new Uint8Array(S * S * 4), c = (S - 1) / 2;
+    for (let y = 0; y < S; y++) {
+      for (let x = 0; x < S; x++) {
+        const dx = (x - c) / c, dy = (y - c) / c;
+        const radius = Math.sqrt(dx * dx + dy * dy);            // 0 centre → 1 rim
+        const ring = Math.exp(-Math.pow((radius - 0.72) / 0.26, 2)); // peak near rim
+        const alpha = radius > 1 ? 0 : Math.max(0, Math.min(1, ring));
+        const i = (y * S + x) * 4;
+        data[i] = 255; data[i + 1] = 255; data[i + 2] = 255;
+        data[i + 3] = Math.round(alpha * 255);
+      }
+    }
+    const tex = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.needsUpdate = true;
+    _heatRingTex = tex;
+    return tex;
+  }
+
+  // Wipe the accumulation atlas to zero heat (new room geometry must not
+  // inherit the previous room's hot patches).
+  function _clearHeatRT() {
+    if (!_heatRT) return;
+    const prev = renderer.getRenderTarget();
+    renderer.setRenderTarget(_heatRT);
+    renderer.setClearColor(0x000000, 1);
+    renderer.clear(true, false, false);
+    renderer.setRenderTarget(prev);
+    renderer.setClearColor(0xc8c8c8, 1);   // restore the scene's studio-cyc backdrop
+  }
+
+  // Lazily create the persistent off-screen machinery: the accumulation
+  // render target, the ortho scene holding the in-place decay quad and the
+  // additive deposit-splat InstancedMesh. These survive rebuild() — only the
+  // atlas contents are cleared per rebuild.
+  function _ensureHeatTargets() {
+    const tier = _heatTierConfig();
+    if (_heatRT && _heatRT.width !== tier.rtSize) { _heatRT.dispose(); _heatRT = null; }
+    if (!_heatRT) {
+      _heatRT = new THREE.WebGLRenderTarget(tier.rtSize, tier.rtSize, {
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.LinearFilter,
+        format: THREE.RGBAFormat,
+        type: THREE.UnsignedByteType,    // 8-bit is plenty for a heat scalar
+        depthBuffer: false,
+        stencilBuffer: false,
+        generateMipmaps: false,
+      });
+      _clearHeatRT();
+    }
+    if (!_heatRtScene) {
+      _heatRtScene = new THREE.Scene();
+      // Ortho cam: atlas UV space [0,1]² maps to the full target.
+      _heatRtCam = new THREE.OrthographicCamera(0, 1, 1, 0, -1, 1);
+
+      // In-place decay: a fullscreen quad that MULTIPLIES the target by k.
+      // CustomBlending (dst = dst·srcColor) with srcColor = (k,k,k) fades the
+      // whole atlas each update — no ping-pong second target needed.
+      const decayMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff, transparent: true, depthTest: false, depthWrite: false,
+      });
+      decayMat.blending       = THREE.CustomBlending;
+      decayMat.blendEquation  = THREE.AddEquation;
+      decayMat.blendSrc       = THREE.ZeroFactor;
+      decayMat.blendDst       = THREE.SrcColorFactor;
+      decayMat.blendSrcAlpha  = THREE.ZeroFactor;
+      decayMat.blendDstAlpha  = THREE.OneFactor;     // leave alpha alone (unused)
+      _heatDecayQuad = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), decayMat);
+      _heatDecayQuad.position.set(0.5, 0.5, 0);
+      _heatDecayQuad.renderOrder = 0;                // runs before the splats
+      _heatRtScene.add(_heatDecayQuad);
+
+      // Deposit splats — instanced additive blobs with a radial gaussian
+      // falloff. Per-instance position+size via instanceMatrix; deposit amount
+      // carried in instanceColor.r. (Under InstancedMesh, r128 auto-declares
+      // both `instanceMatrix` and `instanceColor` in the vertex prefix.)
+      _heatSplatCap = tier.splatCap;
+      const splatMat = new THREE.ShaderMaterial({
+        transparent: true, depthTest: false, depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        uniforms: {},
+        vertexShader: `
+          varying vec2 vUv;
+          varying float vDeposit;
+          void main() {
+            vUv = uv;
+            #ifdef USE_INSTANCING_COLOR
+              vDeposit = instanceColor.r;
+            #else
+              vDeposit = 1.0;
+            #endif
+            gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+          }`,
+        fragmentShader: `
+          varying vec2 vUv;
+          varying float vDeposit;
+          void main() {
+            float d = length(vUv - 0.5) * 2.0;     // 0 centre → 1 rim
+            float fall = exp(-d * d * 4.0);        // soft gaussian blob
+            gl_FragColor = vec4(vec3(fall * vDeposit), 1.0);
+          }`,
+      });
+      _heatSplatMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), splatMat, _heatSplatCap);
+      _heatSplatMesh.frustumCulled = false;
+      _heatScratchS.setScalar(0);
+      _heatScratchM.compose(_heatScratchV.set(0, 0, 0), _heatScratchQ.set(0, 0, 0, 1), _heatScratchS);
+      _heatScratchC.setRGB(0, 0, 0);
+      for (let i = 0; i < _heatSplatCap; i++) {
+        _heatSplatMesh.setMatrixAt(i, _heatScratchM);
+        _heatSplatMesh.setColorAt(i, _heatScratchC);   // allocates instanceColor
+      }
+      _heatSplatMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      if (_heatSplatMesh.instanceColor) _heatSplatMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+      _heatSplatMesh.renderOrder = 1;                  // additive, after decay
+      _heatRtScene.add(_heatSplatMesh);
+    }
+    _heatTier = tier;
+  }
+
+  // Heat-shell display material — samples this surface's atlas cell and maps
+  // it through the pink heat ramp (faint translucent magenta → #FF107A →
+  // near-white hot core), output additively. UV is derived from the vertex's
+  // roomGroup-LOCAL position via the SAME formula impactAt() uses, so deposit
+  // and display always agree (and it's scale/rotation invariant — local space
+  // never goes through roomGroup's world transform).
+  const _HEAT_VERT = `
+    varying vec3 vLocal;
+    void main() {
+      vLocal = position;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`;
+  const _HEAT_FRAG = `
+    varying vec3 vLocal;
+    uniform sampler2D uHeat;
+    uniform vec3  uHalf;     // hW, hH, hL (local metres)
+    uniform float uSurf;     // 0 floor 1 ceiling 2 front 3 back 4 left 5 right
+    uniform vec4  uCell;     // cx, cy, cw, ch (atlas cell rect)
+    uniform float uOpacity;
+    void main() {
+      float u, v;
+      if (uSurf < 1.5)        { u = (vLocal.x + uHalf.x) / (2.0 * uHalf.x); v = (vLocal.z + uHalf.z) / (2.0 * uHalf.z); } // floor / ceiling
+      else if (uSurf < 3.5)   { u = (vLocal.x + uHalf.x) / (2.0 * uHalf.x); v = (vLocal.y + uHalf.y) / (2.0 * uHalf.y); } // front / back
+      else                    { u = (vLocal.z + uHalf.z) / (2.0 * uHalf.z); v = (vLocal.y + uHalf.y) / (2.0 * uHalf.y); } // left / right
+      vec2 atlasUv = uCell.xy + clamp(vec2(u, v), 0.0, 1.0) * uCell.zw;
+      float h = clamp(texture2D(uHeat, atlasUv).r, 0.0, 1.0);
+      vec3 faint = vec3(0.55, 0.05, 0.30);     // faint translucent magenta
+      vec3 pink  = vec3(1.0, 0.063, 0.478);    // #FF107A
+      vec3 hot   = vec3(1.0, 0.82, 0.92);      // near-white hot core
+      vec3 col = mix(faint, pink, smoothstep(0.0, 0.45, h));
+      col = mix(col, hot, smoothstep(0.55, 1.0, h));
+      float intensity = smoothstep(0.015, 0.55, h);
+      if (intensity <= 0.002) discard;          // no heat → contribute nothing
+      gl_FragColor = vec4(col * intensity * uOpacity, 1.0);
+    }`;
+
+  // Build the six heat-shell planes + the Layer-1 ripple pool. Called at the
+  // end of rebuild() once room geometry + treatment are known. The planes and
+  // ripple mesh live in roomGroup (auto-disposed by the next rebuild traverse);
+  // the atlas/decay/splat machinery is persistent (only its contents reset).
+  function _buildHeatShell(room) {
+    _teardownHeatShell();      // drop stale refs (meshes already freed by the rebuild traverse)
+    _ensureHeatTargets();
+
+    const hW = room.width_m / 2, hH = room.height_m / 2, hL = room.length_m / 2;
+    _impactRoom.hW = hW; _impactRoom.hH = hH; _impactRoom.hL = hL;
+
+    // Treatment state — SAME derivation as the Reflections overlay + burst, so
+    // "treated" agrees across all three. Deposits scale down on treated
+    // surfaces (rug doing its job; panels visibly cooling their wall).
+    const sideMode = room.side_panel_mode    || 'none';
+    const wallMode = room.wall_panel_mode    || 'none';
+    const ceilMode = room.ceiling_panel_mode || 'none';
+    const floorMat = room.floor_material     || 'hard';
+    _impactTreated.floor   = floorMat === 'carpet' || (room.opt_area_rug ?? false);
+    _impactTreated.ceiling = ceilMode !== 'none';
+    _impactTreated.left    = sideMode === 'left'  || sideMode === 'both';
+    _impactTreated.right   = sideMode === 'right' || sideMode === 'both';
+    _impactTreated.front   = wallMode === 'front' || wallMode === 'both';
+    _impactTreated.back    = wallMode === 'rear'  || wallMode === 'both';
+
+    _heatPending.length = 0;
+    _heatActive = false;
+    _reflImpactPrevCycle = 0;
+    for (const k in _heatSurfLastMs) delete _heatSurfLastMs[k];   // no stale per-surface heat across a geometry change
+    _clearHeatRT();
+
+    // Per-surface splash orientation: rotate the ripple quad's +Z to the
+    // inward surface normal so the disc lies IN the surface plane.
+    const faceNormal = (nx, ny, nz) => new THREE.Quaternion().setFromUnitVectors(
+      new THREE.Vector3(0, 0, 1), new THREE.Vector3(nx, ny, nz));
+    _heatSurfQuat.floor   = faceNormal(0,  1,  0);
+    _heatSurfQuat.ceiling = faceNormal(0, -1,  0);
+    _heatSurfQuat.front   = faceNormal(0,  0,  1);
+    _heatSurfQuat.back    = faceNormal(0,  0, -1);
+    _heatSurfQuat.left    = faceNormal(1,  0,  0);
+    _heatSurfQuat.right   = faceNormal(-1, 0,  0);
+
+    // Atlas cells — 3 columns × 2 rows, indexed by _HEAT_SURF_INDEX.
+    const COLS = 3, ROWS = 2, cw = 1 / COLS, ch = 1 / ROWS;
+    const cellRect = (idx) => [ (idx % COLS) * cw, Math.floor(idx / COLS) * ch, cw, ch ];
+
+    // Heat-shell planes — explicit local-space quads at each boundary, slightly
+    // inset, identity transform (so the vertex position IS the roomGroup-local
+    // coordinate the fragment maps to UV). Floor sits just above the rug.
+    const fY = -hH + 0.025, INSET = 0.02;
+    const planeDefs = [
+      ['floor',   [[-hW, fY, -hL], [hW, fY, -hL], [hW, fY, hL], [-hW, fY, hL]]],
+      ['ceiling', [[-hW, hH - 0.01, -hL], [hW, hH - 0.01, -hL], [hW, hH - 0.01, hL], [-hW, hH - 0.01, hL]]],
+      ['front',   [[-hW, -hH, -hL + INSET], [hW, -hH, -hL + INSET], [hW, hH, -hL + INSET], [-hW, hH, -hL + INSET]]],
+      ['back',    [[-hW, -hH, hL - INSET], [hW, -hH, hL - INSET], [hW, hH, hL - INSET], [-hW, hH, hL - INSET]]],
+      ['left',    [[-hW + INSET, -hH, -hL], [-hW + INSET, -hH, hL], [-hW + INSET, hH, hL], [-hW + INSET, hH, -hL]]],
+      ['right',   [[hW - INSET, -hH, -hL], [hW - INSET, -hH, hL], [hW - INSET, hH, hL], [hW - INSET, hH, -hL]]],
+    ];
+    const buildQuad = (c) => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+        ...c[0], ...c[1], ...c[2],
+        ...c[0], ...c[2], ...c[3],
+      ]), 3));
+      return g;
+    };
+    _heatPlanes = [];
+    for (const [key, corners] of planeDefs) {
+      const idx = _HEAT_SURF_INDEX[key];
+      const mat = new THREE.ShaderMaterial({
+        transparent: true, depthWrite: false, side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending,
+        vertexShader: _HEAT_VERT, fragmentShader: _HEAT_FRAG,
+        uniforms: {
+          uHeat:    { value: _heatRT.texture },
+          uHalf:    { value: new THREE.Vector3(hW, hH, hL) },
+          uSurf:    { value: idx },
+          uCell:    { value: new THREE.Vector4(...cellRect(idx)) },
+          uOpacity: { value: 0.95 },
+        },
+      });
+      const mesh = new THREE.Mesh(buildQuad(corners), mat);
+      mesh.frustumCulled = false;
+      mesh.renderOrder = 4;          // after the grid (3), under the ball overlays
+      mesh.visible = false;          // revealed once THIS surface receives heat
+      mesh.userData.isHeatPlane = true;
+      mesh.userData.heatSurfKey = key;
+      roomGroup.add(mesh);
+      _heatPlanes.push(mesh);
+    }
+
+    // Layer-1 ripple pool — one InstancedMesh, additive, ring texture. Per
+    // splash: expanding scale (matrix) + fading tint (instanceColor). Pooled
+    // and recycled round-robin so there is no per-frame allocation.
+    _heatSplashCap = _heatTier.splashCap;
+    _heatSplashCursor = 0;
+    _heatSplashPool = [];
+    const splashMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff, map: _makeRingTexture(),
+      transparent: true, opacity: 1,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    });
+    _heatSplashMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), splashMat, _heatSplashCap);
+    _heatSplashMesh.frustumCulled = false;
+    _heatScratchS.setScalar(0);
+    _heatScratchM.compose(_heatScratchV.set(0, 0, 0), _heatScratchQ.set(0, 0, 0, 1), _heatScratchS);
+    _heatScratchC.setRGB(0, 0, 0);
+    for (let i = 0; i < _heatSplashCap; i++) {
+      _heatSplashMesh.setMatrixAt(i, _heatScratchM);
+      _heatSplashMesh.setColorAt(i, _heatScratchC);
+      _heatSplashPool.push({
+        alive: false, age: 0, life: 0.5, maxR: 0.3,
+        pos: new THREE.Vector3(), quat: _heatSurfQuat.floor, col: new THREE.Color(1, 0.1, 0.5),
+      });
+    }
+    _heatSplashMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    if (_heatSplashMesh.instanceColor) _heatSplashMesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+    _heatSplashMesh.renderOrder = 12;     // above the heat shell, with the ball overlays
+    _heatSplashMesh.userData.isHeatSplash = true;
+    roomGroup.add(_heatSplashMesh);
+
+    _heatReady = true;
+  }
+
+  // Drop heat-shell refs. The planes + ripple mesh live in roomGroup, so the
+  // rebuild() disposal traverse has already freed their GPU resources by the
+  // time this runs; we only clear closure refs so a fresh rebuild starts clean.
+  function _teardownHeatShell() {
+    _heatPlanes = [];
+    _heatSplashMesh = null;
+    _heatSplashPool = [];
+    _heatReady = false;
+    _heatActive = false;
+    _heatPending.length = 0;
+  }
+
+  // Shared impact entry point — called by the Impulse bounce handler and the
+  // Reflections cycle-crossing detector. surfaceKey ∈ floor|ceiling|front|
+  // back|left|right; point is in roomGroup-LOCAL coordinates; energy is the
+  // reflected/effective energy in 0..1.
+  function impactAt(surfaceKey, point, energy) {
+    if (!_heatReady) return;
+    const idx = _HEAT_SURF_INDEX[surfaceKey];
+    if (idx === undefined) return;
+    const e = Math.max(0, Math.min(1, energy));
+    if (e <= 0.001) return;
+    const treated = _impactTreated[surfaceKey] === true;
+    const hW = _impactRoom.hW, hH = _impactRoom.hH, hL = _impactRoom.hL;
+    const px = point.x, py = point.y, pz = point.z;
+
+    // Local point → surface (u, v) — identical formula to the display shader.
+    let u, v;
+    if (idx <= 1)      { u = (px + hW) / (2 * hW); v = (pz + hL) / (2 * hL); }
+    else if (idx <= 3) { u = (px + hW) / (2 * hW); v = (py + hH) / (2 * hH); }
+    else               { u = (pz + hL) / (2 * hL); v = (py + hH) / (2 * hH); }
+    u = Math.max(0, Math.min(1, u));
+    v = Math.max(0, Math.min(1, v));
+
+    // Layer 2 — queue a heat deposit. Deposit ∝ reflected energy; treated
+    // surfaces deposit far less, so the rug / treated panels stay cool while
+    // bare walls climb to the white-hot core.
+    if (_heatPending.length < _heatSplatCap) {
+      const COLS = 3, cw = 1 / COLS, ch = 1 / 2, PAD = 0.10;   // PAD keeps the blob inside its cell (no cross-surface bleed)
+      const col = idx % COLS, rowTop = Math.floor(idx / COLS);
+      const au = (col + PAD + u * (1 - 2 * PAD)) * cw;
+      const av = (rowTop + PAD + v * (1 - 2 * PAD)) * ch;
+      const deposit = e * (treated ? 0.18 : 1.0) * _heatTier.depositGain;
+      _heatPending.push({ u: au, v: av, deposit });
+    }
+    _heatActive = true;
+    _heatLastImpactMs = performance.now();
+    _heatSurfLastMs[surfaceKey] = _heatLastImpactMs;   // gates this surface's plane visibility
+
+    // Layer 1 — transient ripple splash (skipped entirely under reduced
+    // motion). Treated surfaces get a cooler, smaller, shorter ripple;
+    // untreated get a brighter, larger one. Both stay in the pink family.
+    if (_heatTier.enableSplash && _heatSplashMesh) {
+      const slot = (_heatSplashCursor++) % _heatSplashCap;   // O(1) round-robin
+      const s = _heatSplashPool[slot];
+      s.alive = true; s.age = 0;
+      s.life = treated ? 0.42 : 0.55;
+      s.maxR = (treated ? 0.18 : 0.30) * (0.5 + e);          // size ∝ energy
+      s.pos.set(px, py, pz);
+      s.quat = _heatSurfQuat[surfaceKey];
+      if (treated) s.col.setRGB(0.55 * e, 0.10 * e, 0.55 * e); // dim cool magenta
+      else         s.col.setRGB(1.00 * e, 0.10 * e, 0.48 * e); // bright hot pink (#FF107A family)
+    }
+  }
+
+  // Throttled accumulation pass: decay the atlas in place, then additively
+  // splat the deposits queued since the last update — ONE off-screen render
+  // call. Retires the shell when impacts have stopped and the heat has faded.
+  function _updateHeatAccumulation() {
+    if (!_heatRT || !_heatActive) return;
+    const now = performance.now();
+    if (now - _heatLastUpdateMs < _heatTier.updateMs) return;
+    _heatLastUpdateMs = now;
+
+    // Flush queued deposits into the splat instances; hide the rest.
+    const n = Math.min(_heatPending.length, _heatSplatCap);
+    for (let i = 0; i < _heatSplatCap; i++) {
+      if (i < n) {
+        const p = _heatPending[i];
+        _heatScratchS.set(_heatTier.blobRadius, _heatTier.blobRadius, 1);
+        _heatScratchM.compose(_heatScratchV.set(p.u, p.v, 0), _heatScratchQ.set(0, 0, 0, 1), _heatScratchS);
+        _heatSplatMesh.setMatrixAt(i, _heatScratchM);
+        _heatScratchC.setRGB(p.deposit, 0, 0);
+        _heatSplatMesh.setColorAt(i, _heatScratchC);
+      } else {
+        _heatScratchS.setScalar(0);
+        _heatScratchM.compose(_heatScratchV.set(0, 0, 0), _heatScratchQ.set(0, 0, 0, 1), _heatScratchS);
+        _heatSplatMesh.setMatrixAt(i, _heatScratchM);
+      }
+    }
+    _heatPending.length = 0;
+    _heatSplatMesh.instanceMatrix.needsUpdate = true;
+    if (_heatSplatMesh.instanceColor) _heatSplatMesh.instanceColor.needsUpdate = true;
+
+    // Decay strength → fullscreen multiply quad colour.
+    _heatDecayQuad.material.color.setScalar(_heatTier.decay);
+
+    // One render into the atlas: decay (renderOrder 0, multiply) then splats
+    // (renderOrder 1, additive). autoClear off so accumulation persists.
+    const prevTarget    = renderer.getRenderTarget();
+    const prevAutoClear = renderer.autoClear;
+    renderer.setRenderTarget(_heatRT);
+    renderer.autoClear = false;
+    renderer.render(_heatRtScene, _heatRtCam);
+    renderer.setRenderTarget(prevTarget);
+    renderer.autoClear = prevAutoClear;
+
+    // Per-surface visibility — only draw the planes for surfaces that have
+    // been struck recently (keeps cold walls' large additive quads off the
+    // GPU, protecting iPad fillrate). Once EVERY surface has gone quiet long
+    // enough for the decay to fade the map, idle off + clear (zero cost until
+    // the next impact).
+    const FADE_MS = 4000;
+    let anyHot = false;
+    for (const pl of _heatPlanes) {
+      const hot = (now - (_heatSurfLastMs[pl.userData.heatSurfKey] || 0)) < FADE_MS;
+      pl.visible = hot;
+      if (hot) anyHot = true;
+    }
+    if (!anyHot) {
+      _heatActive = false;
+      _clearHeatRT();
+    }
+  }
+
+  // Layer-1 ripple tick — advance/expand/fade each live splash. No allocation;
+  // recycles dead slots. Owns its own dt clock so it stays decoupled from the
+  // overlay timing. No-op under reduced motion (no splashes ever spawn).
+  function _tickHeatSplashes() {
+    if (!_heatSplashMesh) return;
+    const now = performance.now();
+    let dt = (now - _heatSplashPrevMs) / 1000;
+    _heatSplashPrevMs = now;
+    if (dt <= 0) return;
+    if (dt > 0.05) dt = 0.05;
+
+    let dirty = false;
+    for (let i = 0; i < _heatSplashCap; i++) {
+      const s = _heatSplashPool[i];
+      if (!s.alive) continue;
+      dirty = true;
+      s.age += dt;
+      const t = s.age / s.life;
+      if (t >= 1) {
+        s.alive = false;
+        _heatScratchS.setScalar(0);
+        _heatScratchM.compose(_heatScratchV.set(0, 0, 0), _heatScratchQ.set(0, 0, 0, 1), _heatScratchS);
+        _heatSplashMesh.setMatrixAt(i, _heatScratchM);
+        continue;
+      }
+      const radius = s.maxR * (0.15 + 0.85 * t);   // expand outward
+      const fade   = 1 - t;                          // fade quickly
+      _heatScratchS.set(radius, radius, 1);
+      _heatScratchM.compose(s.pos, s.quat, _heatScratchS);
+      _heatSplashMesh.setMatrixAt(i, _heatScratchM);
+      _heatScratchC.setRGB(s.col.r * fade, s.col.g * fade, s.col.b * fade);
+      _heatSplashMesh.setColorAt(i, _heatScratchC);
+    }
+    if (dirty) {
+      _heatSplashMesh.instanceMatrix.needsUpdate = true;
+      if (_heatSplashMesh.instanceColor) _heatSplashMesh.instanceColor.needsUpdate = true;
+    }
   }
 
   const api = {
