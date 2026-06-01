@@ -6017,8 +6017,8 @@ export function initRoom3D({
       const slot = (_heatSplashCursor++) % _heatSplashCap;   // O(1) round-robin
       const s = _heatSplashPool[slot];
       s.alive = true; s.age = 0;
-      s.life = treated ? 0.42 : 0.55;
-      s.maxR = (treated ? 0.18 : 0.30) * (0.5 + e);          // size ∝ energy
+      s.life = treated ? 0.70 : 0.90;                        // linger longer — readable to the eye
+      s.maxR = (treated ? 0.26 : 0.42) * (0.5 + e);          // bigger; size ∝ energy
       s.pos.set(px, py, pz);
       s.quat = _heatSurfQuat[surfaceKey];
       if (treated) s.col.setRGB(0.55 * e, 0.10 * e, 0.55 * e); // dim cool magenta
