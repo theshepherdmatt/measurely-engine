@@ -4386,10 +4386,15 @@ export function initRoom3D({
         flashEventsBySurface[b.surface].push({
           start: b.flashStart, duration: FLASH_DUR, strength: _bMeanR,
         });
-        // The return cluster always travels now (per-band opacity replaced the
-        // old all-or-nothing absorb), so every bounce runs to the listener hit.
+        // Cycle length covers every bounce's return window — including treated
+        // bounces (whose pink is killed) — so the teal companions and any live
+        // pink returns all finish before the loop restarts.
         if (b.returnEnd > _maxSeqEnd) _maxSeqEnd = b.returnEnd;
-        haloEvents.push({ hitTime: b.returnEnd, strength: _bMeanR });
+        // Clean kill: a treated surface returns no pink, so the seat gets no
+        // halo pulse from that bounce either.
+        if (surfaceTreated[b.surface] !== true) {
+          haloEvents.push({ hitTime: b.returnEnd, strength: _bMeanR });
+        }
       });
 
       // Loop period covers the LONGEST active path plus the halo tail and a
@@ -4673,9 +4678,11 @@ export function initRoom3D({
         }
 
         // Return — pink cluster, one ball per band, bounce point → listener.
-        // Brightness = r(surface, band): a treated wall dims the treble/mid
-        // balls on its bounces while the bass balls sail through.
-        for (const f of REFL_BANDS) {
+        // Clean kill: only a bare (untreated) surface returns the pink cluster.
+        // A treated surface absorbs it — the teal ball already flew in and dies
+        // into the panel, so nothing bounces back. (The teal companion above
+        // always flies, regardless of treatment.)
+        if (surfaceTreated[b.surface] !== true) for (const f of REFL_BANDS) {
           if (ballDescs.length >= REFL_MAX_BALLS) break;
           const r      = reflectionMagnitude(b.surface, f);
           const radius = _bandRadius(f);
