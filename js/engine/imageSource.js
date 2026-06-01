@@ -6,10 +6,19 @@
  * the listener crosses the surface at the geometric bounce point. If the
  * bounce point lies within the surface bounds, the reflection is valid.
  *
+ * The five flat surfaces (floor + four walls) use the simple axis-aligned
+ * mirror. The CEILING is special-cased: for slanted / gable / vaulted rooms
+ * the ceiling is one or more tilted facet planes, not a flat plane at room
+ * height, so it is reflected across the ACTUAL facet plane(s) — see
+ * _ceilingBounce(). The facet geometry is re-derived from the same room
+ * fields (ridge/eave heights, slope direction, gable axis) that drive
+ * room3d.js's ceilingYAt() wireframe, so the bounce always lands on the
+ * real roofline rather than passing through it.
+ *
  * Limitations:
  *   - First-order only (no multi-bounce / late-tail paths)
- *   - Assumes a rectangular, axis-aligned room (no slanted ceilings,
- *     no non-orthogonal walls, no diffusion)
+ *   - Walls assumed rectangular and axis-aligned (no non-orthogonal walls,
+ *     no diffusion); the ceiling may be flat, slanted, or gabled
  *   - Does not account for furniture, absorbers, or speaker dispersion —
  *     those are downstream visual concerns; the surface itself is treated
  *     as a perfect mirror here
@@ -51,6 +60,145 @@ function _dist(a, b) {
     return Math.sqrt(dx * dx + dy * dy + dz * dz);
 }
 
+// ── Ceiling geometry (slanted / gable aware) ────────────────────────────────
+// Authoritative ceiling-height + facet model for the image-source method.
+// EXACT mirror of room3d.js rebuild()'s ceilingYAt() — same fields, same
+// formulas — so the reflection plane coincides with the rendered roofline.
+// Recognised room fields (all optional; default to a flat ceiling):
+//   ceilingType : 'flat' | 'slanted' | 'gable'
+//   ceilingLowH : eave / low-edge height in metres (sloped ceilings only)
+//   slantDir    : 'left_to_right' | 'right_to_left' | 'front_to_back' | 'back_to_front'
+//   gableAxis   : 'depth' (ridge runs along z) | 'width' (ridge runs along x)
+function _ceilingYAt(room, x, z) {
+    const halfW = room.w / 2;
+    const halfL = room.l / 2;
+    const highY = room.h / 2;
+    const type = room.ceilingType || 'flat';
+    if (type !== 'slanted' && type !== 'gable') return highY;
+
+    const lowH = Math.min(room.ceilingLowH != null ? room.ceilingLowH : room.h, room.h);
+    const lowY = -room.h / 2 + lowH;
+
+    if (type === 'slanted') {
+        const dir = room.slantDir || 'left_to_right';
+        let t;
+        switch (dir) {
+            case 'left_to_right': t = (x + halfW) / room.w; break;
+            case 'right_to_left': t = 1 - (x + halfW) / room.w; break;
+            case 'front_to_back': t = 1 - (z + halfL) / room.l; break;
+            case 'back_to_front': t = (z + halfL) / room.l; break;
+            default:              t = (x + halfW) / room.w;
+        }
+        return lowY + t * (highY - lowY);
+    }
+
+    // gable: peak at the ridge (x=0 or z=0), eaves at the side walls
+    const gableAxis = room.gableAxis || 'depth';
+    const distRatio = gableAxis === 'depth' ? Math.abs(x) / halfW : Math.abs(z) / halfL;
+    return highY - distRatio * (highY - lowY);
+}
+
+// Footprint partition of the ceiling into planar facets. Flat & slanted are a
+// single facet spanning the whole footprint; a gable is two opposing facets
+// split at the ridge (x=0 for a depth ridge, z=0 for a width ridge).
+function _ceilingFacets(room) {
+    const halfW = room.w / 2;
+    const halfL = room.l / 2;
+    if ((room.ceilingType || 'flat') === 'gable') {
+        const axis = room.gableAxis || 'depth';
+        if (axis === 'depth') {
+            // ridge along z at x=0 → left and right pitched faces
+            return [
+                { xMin: -halfW, xMax: 0,     zMin: -halfL, zMax: halfL },
+                { xMin: 0,      xMax: halfW, zMin: -halfL, zMax: halfL },
+            ];
+        }
+        // ridge along x at z=0 → front and back pitched faces
+        return [
+            { xMin: -halfW, xMax: halfW, zMin: -halfL, zMax: 0     },
+            { xMin: -halfW, xMax: halfW, zMin: 0,      zMax: halfL },
+        ];
+    }
+    return [{ xMin: -halfW, xMax: halfW, zMin: -halfL, zMax: halfL }];
+}
+
+// Plane of one facet as a point A + unit normal n, derived from three corner
+// samples of _ceilingYAt() so it cannot drift from the rendered ceiling.
+function _facetPlane(room, f) {
+    const p1 = { x: f.xMin, y: _ceilingYAt(room, f.xMin, f.zMin), z: f.zMin };
+    const p2 = { x: f.xMax, y: _ceilingYAt(room, f.xMax, f.zMin), z: f.zMin };
+    const p3 = { x: f.xMin, y: _ceilingYAt(room, f.xMin, f.zMax), z: f.zMax };
+    const ux = p2.x - p1.x, uy = p2.y - p1.y, uz = p2.z - p1.z;
+    const vx = p3.x - p1.x, vy = p3.y - p1.y, vz = p3.z - p1.z;
+    let nx = uy * vz - uz * vy;
+    let ny = uz * vx - ux * vz;
+    let nz = ux * vy - uy * vx;
+    const len = Math.hypot(nx, ny, nz) || 1;
+    return { A: p1, n: { x: nx / len, y: ny / len, z: nz / len } };
+}
+
+// General reflection of point P across the plane through A with unit normal n:
+// P' = P - 2·((P-A)·n)·n.
+function _reflectAcrossPlane(P, A, n) {
+    const d = (P.x - A.x) * n.x + (P.y - A.y) * n.y + (P.z - A.z) * n.z;
+    return { x: P.x - 2 * d * n.x, y: P.y - 2 * d * n.y, z: P.z - 2 * d * n.z };
+}
+
+/**
+ * First-order ceiling reflection for a single source/listener pair, reflecting
+ * across the ACTUAL ceiling facet plane(s). For a gable the two facets are
+ * tried independently and the bounce is kept only on the facet whose own
+ * footprint contains the reflection point (i.e. the facet the speaker→listener
+ * path actually crosses); if the point falls past the ridge on one facet the
+ * adjacent facet is used, and if neither yields a valid in-bounds hit the
+ * ceiling bounce is dropped. Returns the bounce object or null.
+ *
+ * This is the SINGLE source of truth for the ceiling reflection point — any
+ * future ceiling first-reflection marker should call it rather than assuming a
+ * flat ceiling at room height.
+ */
+function ceilingBounce(speaker, listener, room) {
+    const s = _vec(speaker);
+    const l = _vec(listener);
+    const halfW = room.w / 2;
+    const halfL = room.l / 2;
+    const directPathM = _dist(s, l);
+    const eps = 1e-6;
+    let best = null;
+
+    for (const f of _ceilingFacets(room)) {
+        const { A, n } = _facetPlane(room, f);
+        // Mirror the source across this facet, then intersect the mirror→listener
+        // line with the facet plane: P(t) = m + t·(l − m), solve (P − A)·n = 0.
+        const m = _reflectAcrossPlane(s, A, n);
+        const denom = (l.x - m.x) * n.x + (l.y - m.y) * n.y + (l.z - m.z) * n.z;
+        if (Math.abs(denom) < 1e-12) continue;
+        const t = ((A.x - m.x) * n.x + (A.y - m.y) * n.y + (A.z - m.z) * n.z) / denom;
+        if (!isFinite(t) || t < 0 || t > 1) continue;
+
+        const B = {
+            x: m.x + t * (l.x - m.x),
+            y: m.y + t * (l.y - m.y),
+            z: m.z + t * (l.z - m.z),
+        };
+        // Bounce must land within THIS facet's footprint (and the room).
+        if (B.x < f.xMin - eps || B.x > f.xMax + eps) continue;
+        if (B.z < f.zMin - eps || B.z > f.zMax + eps) continue;
+        if (Math.abs(B.x) > halfW + eps || Math.abs(B.z) > halfL + eps) continue;
+
+        const totalPathM = _dist(s, B) + _dist(B, l);
+        if (!best || totalPathM < best.totalPathM) {
+            best = {
+                surface: 'ceiling',
+                bouncePoint: B,
+                totalPathM,
+                delayMs: ((totalPathM - directPathM) / SPEED_OF_SOUND_M_S) * 1000,
+            };
+        }
+    }
+    return best;
+}
+
 /**
  * Compute first-order reflection bounces for a single source/listener pair
  * inside a rectangular room.
@@ -82,6 +230,15 @@ function firstOrderBounces(speaker, listener, room) {
     const out = [];
 
     for (const surf of _SURFACES) {
+        // Ceiling: reflect across the real facet plane(s), which may be tilted
+        // (slanted) or split at a ridge (gable). For a flat ceiling this returns
+        // exactly the same point as the axis-aligned mirror below would.
+        if (surf.id === 'ceiling') {
+            const cb = ceilingBounce(s, l, room);
+            if (cb) out.push(cb);
+            continue;
+        }
+
         const m = { x: s.x, y: s.y, z: s.z };
         let plane;
 
@@ -133,7 +290,7 @@ function firstOrderBounces(speaker, listener, room) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = { firstOrderBounces };
+    module.exports = { firstOrderBounces, ceilingBounce, ceilingYAt: _ceilingYAt };
 } else if (typeof window !== 'undefined') {
-    window.MeasurelyImageSource = { firstOrderBounces };
+    window.MeasurelyImageSource = { firstOrderBounces, ceilingBounce, ceilingYAt: _ceilingYAt };
 }

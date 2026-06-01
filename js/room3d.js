@@ -4475,7 +4475,21 @@ export function initRoom3D({
       // ── Image-source first-order bounces (per speaker × per surface) ─────
       const IS = window.MeasurelyImageSource;
       if (!IS) throw new Error('MeasurelyImageSource not loaded — check script order.');
-      const roomDims = { w: room.width_m, l: room.length_m, h: room.height_m };
+      // Ceiling geometry travels with the dims so the image-source method
+      // reflects ceiling bounces across the REAL roofline (slanted / gable
+      // facets), not a flat plane at room height. Fields mirror rebuild()'s
+      // ceilingYAt() inputs; imageSource ignores the sloped fields for a
+      // flat ceiling.
+      const roomDims = {
+        w: room.width_m, l: room.length_m, h: room.height_m,
+        ceilingType: room.ceiling_type || 'flat',
+        ceilingLowH: Math.min(
+          room.ceiling_height_secondary_m != null ? room.ceiling_height_secondary_m : room.height_m,
+          room.height_m
+        ),
+        slantDir: room.ceiling_slant_direction || 'left_to_right',
+        gableAxis: room.ceiling_gable_axis || 'depth',
+      };
       const allBounces = [];
       speakerPositions.forEach((s, idx) => {
         const bounces = IS.firstOrderBounces(
