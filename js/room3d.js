@@ -619,6 +619,44 @@ export function initRoom3D({
   // so each bounce fires impactAt once as the pulse reaches its wall.
   let _reflImpactEvents   = [];
   let _reflImpactPrevCycle = 0;
+  // Heat-shell display shader — samples this surface's atlas cell and maps it
+  // through the pink heat ramp (faint translucent magenta → #FF107A → near-
+  // white hot core), output additively. UV is derived from the vertex's
+  // roomGroup-LOCAL position via the SAME formula impactAt() uses, so deposit
+  // and display always agree (scale/rotation invariant — local space never
+  // goes through roomGroup's world transform). Declared HERE (not next to
+  // _buildHeatShell) because the first rebuild() runs inside initRoom3D before
+  // execution reaches that later point — a const there is in the temporal
+  // dead zone (ReferenceError on init, which the fail-safe then latches off).
+  const _HEAT_VERT = `
+    varying vec3 vLocal;
+    void main() {
+      vLocal = position;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`;
+  const _HEAT_FRAG = `
+    varying vec3 vLocal;
+    uniform sampler2D uHeat;
+    uniform vec3  uHalf;     // hW, hH, hL (local metres)
+    uniform float uSurf;     // 0 floor 1 ceiling 2 front 3 back 4 left 5 right
+    uniform vec4  uCell;     // cx, cy, cw, ch (atlas cell rect)
+    uniform float uOpacity;
+    void main() {
+      float u, v;
+      if (uSurf < 1.5)        { u = (vLocal.x + uHalf.x) / (2.0 * uHalf.x); v = (vLocal.z + uHalf.z) / (2.0 * uHalf.z); } // floor / ceiling
+      else if (uSurf < 3.5)   { u = (vLocal.x + uHalf.x) / (2.0 * uHalf.x); v = (vLocal.y + uHalf.y) / (2.0 * uHalf.y); } // front / back
+      else                    { u = (vLocal.z + uHalf.z) / (2.0 * uHalf.z); v = (vLocal.y + uHalf.y) / (2.0 * uHalf.y); } // left / right
+      vec2 atlasUv = uCell.xy + clamp(vec2(u, v), 0.0, 1.0) * uCell.zw;
+      float h = clamp(texture2D(uHeat, atlasUv).r, 0.0, 1.0);
+      vec3 faint = vec3(0.55, 0.05, 0.30);     // faint translucent magenta
+      vec3 pink  = vec3(1.0, 0.063, 0.478);    // #FF107A
+      vec3 hot   = vec3(1.0, 0.82, 0.92);      // near-white hot core
+      vec3 col = mix(faint, pink, smoothstep(0.0, 0.45, h));
+      col = mix(col, hot, smoothstep(0.55, 1.0, h));
+      float intensity = smoothstep(0.015, 0.55, h);
+      if (intensity <= 0.002) discard;          // no heat → contribute nothing
+      gl_FragColor = vec4(col * intensity * uOpacity, 1.0);
+    }`;
   let _interferenceIndicator = null;        // Flat disc at MLP; pulses on constructive interference. Gated by _wavesEnabled — same toggle as the rings.
   const _mlpLocalPos      = new THREE.Vector3();   // Stashed at indicator build; read by animate's interference calc.
   const _spkLeftLocalPos  = new THREE.Vector3();
@@ -5790,41 +5828,10 @@ export function initRoom3D({
     _heatTier = tier;
   }
 
-  // Heat-shell display material — samples this surface's atlas cell and maps
-  // it through the pink heat ramp (faint translucent magenta → #FF107A →
-  // near-white hot core), output additively. UV is derived from the vertex's
-  // roomGroup-LOCAL position via the SAME formula impactAt() uses, so deposit
-  // and display always agree (and it's scale/rotation invariant — local space
-  // never goes through roomGroup's world transform).
-  const _HEAT_VERT = `
-    varying vec3 vLocal;
-    void main() {
-      vLocal = position;
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-    }`;
-  const _HEAT_FRAG = `
-    varying vec3 vLocal;
-    uniform sampler2D uHeat;
-    uniform vec3  uHalf;     // hW, hH, hL (local metres)
-    uniform float uSurf;     // 0 floor 1 ceiling 2 front 3 back 4 left 5 right
-    uniform vec4  uCell;     // cx, cy, cw, ch (atlas cell rect)
-    uniform float uOpacity;
-    void main() {
-      float u, v;
-      if (uSurf < 1.5)        { u = (vLocal.x + uHalf.x) / (2.0 * uHalf.x); v = (vLocal.z + uHalf.z) / (2.0 * uHalf.z); } // floor / ceiling
-      else if (uSurf < 3.5)   { u = (vLocal.x + uHalf.x) / (2.0 * uHalf.x); v = (vLocal.y + uHalf.y) / (2.0 * uHalf.y); } // front / back
-      else                    { u = (vLocal.z + uHalf.z) / (2.0 * uHalf.z); v = (vLocal.y + uHalf.y) / (2.0 * uHalf.y); } // left / right
-      vec2 atlasUv = uCell.xy + clamp(vec2(u, v), 0.0, 1.0) * uCell.zw;
-      float h = clamp(texture2D(uHeat, atlasUv).r, 0.0, 1.0);
-      vec3 faint = vec3(0.55, 0.05, 0.30);     // faint translucent magenta
-      vec3 pink  = vec3(1.0, 0.063, 0.478);    // #FF107A
-      vec3 hot   = vec3(1.0, 0.82, 0.92);      // near-white hot core
-      vec3 col = mix(faint, pink, smoothstep(0.0, 0.45, h));
-      col = mix(col, hot, smoothstep(0.55, 1.0, h));
-      float intensity = smoothstep(0.015, 0.55, h);
-      if (intensity <= 0.002) discard;          // no heat → contribute nothing
-      gl_FragColor = vec4(col * intensity * uOpacity, 1.0);
-    }`;
+  // (Heat-shell display shader strings _HEAT_VERT / _HEAT_FRAG are declared
+  //  in the early module-state block — they must exist before the first
+  //  rebuild() runs inside initRoom3D, which is earlier than this point in
+  //  source order, so a const here would hit the temporal dead zone.)
 
   // Build the six heat-shell planes + the Layer-1 ripple pool. Called at the
   // end of rebuild() once room geometry + treatment are known. The planes and
