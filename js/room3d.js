@@ -518,6 +518,29 @@ export function initRoom3D({
   const WAVE_CYCLE_S       = 2.8;   // seconds for a ring to reach its max radius
   const WAVE_EXTENT_FACTOR = 0.85;  // ring max radius = max(L,W) · this
   let _reflCyclePeriod = 6.0;       // Reflections loop period (s); set per-rebuild from the longest active path so far bounces aren't clipped. Read by animate()'s pulse loop.
+  // ── Reflections frequency-banded pulse clusters ───────────────────────────
+  // Each reflection path emits a cluster of return balls — one per frequency
+  // band — all riding ONE trajectory at ONE speed (V_VIS, the ring speed).
+  // Band → SIZE (low freq large), surface absorption → BRIGHTNESS. Rendered as
+  // a single InstancedMesh (one draw call) so iPad Safari stays smooth.
+  const REFL_BAND_SETS = { 4: [125, 500, 2000, 8000], 3: [125, 1000, 6000], 2: [160, 4000] };
+  // Per-surface absorption seam — local porous-panel α curve. This is the
+  // SINGLE place to later swap in the materials DB's alphaAt(material, f); the
+  // DB is parked (not browser-reachable), so we read the binary treated flag +
+  // this table for now. Untreated reflects almost everything; a treated porous
+  // panel passes the bass and eats the treble.
+  const REFL_UNTREATED_ALPHA = 0.04;
+  const REFL_TREATED_ALPHA = [[125, 0.10], [500, 0.55], [2000, 0.85], [8000, 0.80]];
+  const REFL_TRAIL_LEN = 4;          // comet-trail instances per pink ball
+  const REFL_MAX_BALLS = 192;        // hard instance caps — iPad budget guard
+  const REFL_MAX_TRAILS = REFL_MAX_BALLS * REFL_TRAIL_LEN;
+  // Reused scratch objects — the animation loop mutates these in place so it
+  // never allocates per frame (InstancedMesh hot path).
+  const _reflM     = new THREE.Matrix4();
+  const _reflPos   = new THREE.Vector3();
+  const _reflQuat  = new THREE.Quaternion();   // identity — never mutated
+  const _reflScale = new THREE.Vector3();
+  const _reflCol   = new THREE.Color();
   let _interferenceIndicator = null;        // Flat disc at MLP; pulses on constructive interference. Gated by _wavesEnabled — same toggle as the rings.
   const _mlpLocalPos      = new THREE.Vector3();   // Stashed at indicator build; read by animate's interference calc.
   const _spkLeftLocalPos  = new THREE.Vector3();
@@ -639,6 +662,10 @@ export function initRoom3D({
           obj.material.dispose();
         }
       }
+      // InstancedMesh keeps its instanceMatrix/instanceColor buffers separate
+      // from geometry — dispose() frees them so the Reflections ball/trail
+      // fields don't leak GPU buffers on the slider-drag rebuild hot path.
+      if (obj.isInstancedMesh && typeof obj.dispose === 'function') obj.dispose();
     });
     roomGroup.clear();
     _waveRings = [];
@@ -3167,19 +3194,74 @@ export function initRoom3D({
         const ud = obj.userData;
         if (!ud) return;
 
-        if (ud.isReflectionPulse) {
-          const d = ud.isReflectionPulse;
-          if (reducedRefl) { obj.visible = false; return; }
-          const t = (cycleTime - d.start) / (d.end - d.start);
-          if (t < 0 || t > 1) { obj.visible = false; return; }
-          obj.visible = true;
-          obj.position.lerpVectors(d.from, d.to, t);
-          // Opacity envelope: fade in over first 20% of travel, hold,
-          // fade out over last 20%.
-          const env = t < 0.2 ? t / 0.2
-                    : t > 0.8 ? (1 - t) / 0.2
-                    :           1;
-          obj.material.opacity = d.strength * env;
+        if (ud.isReflectionBallField) {
+          // Frequency-banded pulse clusters — one InstancedMesh, one draw call.
+          // Per instance: position-lerp along the shared path, per-band SIZE,
+          // and per-band BRIGHTNESS folded into the additive instance colour
+          // (additive blending: a dimmer colour contributes less light, so we
+          // never need per-instance opacity / a custom shader).
+          const descs = ud.isReflectionBallField;
+          for (let bi = 0; bi < descs.length; bi++) {
+            const d = descs[bi];
+            let scl = 0, bright = 0;
+            if (reducedRefl) {
+              // Static + brighter: park the pink return balls at their bounce
+              // point so per-surface treatment dimming reads spatially; the
+              // teal outgoing companions rest hidden to keep the frame calm.
+              if (d.kind === 'return') {
+                _reflPos.copy(d.from);          // return.from === the bounce point
+                scl = d.radius;
+                bright = d.brightness;
+              }
+            } else {
+              const t = (cycleTime - d.start) / (d.end - d.start);
+              if (t >= 0 && t <= 1) {
+                const env = t < 0.2 ? t / 0.2 : t > 0.8 ? (1 - t) / 0.2 : 1;
+                // Launch pop — quick scale/brightness overshoot as the ball
+                // leaves its origin (first 18% of travel).
+                const pop = t < 0.18 ? 1 + 0.6 * (1 - t / 0.18) : 1;
+                _reflPos.copy(d.from).lerp(d.to, t);
+                scl = d.radius * pop;
+                bright = d.brightness * env * (0.85 + 0.15 * pop);
+              }
+            }
+            _reflScale.setScalar(scl);
+            _reflM.compose(_reflPos, _reflQuat, _reflScale);
+            obj.setMatrixAt(bi, _reflM);
+            _reflCol.copy(d.color).multiplyScalar(bright);
+            obj.setColorAt(bi, _reflCol);
+          }
+          obj.instanceMatrix.needsUpdate = true;
+          if (obj.instanceColor) obj.instanceColor.needsUpdate = true;
+
+        } else if (ud.isReflectionTrailField) {
+          // Comet trails — a small fixed count of shrinking, fading followers
+          // lagging behind each pink ball along its path. Disabled (hidden)
+          // under reduced motion.
+          const descs = ud.isReflectionTrailField;
+          for (let ti = 0; ti < descs.length; ti++) {
+            const d = descs[ti];
+            let scl = 0, bright = 0;
+            if (!reducedRefl) {
+              const t = (cycleTime - d.start) / (d.end - d.start);
+              if (t >= 0 && t <= 1) {
+                const tt = t - d.lag;       // trail lags behind the lead ball
+                if (tt >= 0) {
+                  const env = t < 0.2 ? t / 0.2 : t > 0.8 ? (1 - t) / 0.2 : 1;
+                  _reflPos.copy(d.from).lerp(d.to, tt);
+                  scl = d.radius;
+                  bright = d.brightness * env;
+                }
+              }
+            }
+            _reflScale.setScalar(scl);
+            _reflM.compose(_reflPos, _reflQuat, _reflScale);
+            obj.setMatrixAt(ti, _reflM);
+            _reflCol.copy(d.color).multiplyScalar(bright);
+            obj.setColorAt(ti, _reflCol);
+          }
+          obj.instanceMatrix.needsUpdate = true;
+          if (obj.instanceColor) obj.instanceColor.needsUpdate = true;
 
         } else if (ud.isReflectionFlash) {
           const d = ud.isReflectionFlash;
@@ -4063,13 +4145,11 @@ export function initRoom3D({
 
       const isFocSide = focusedOverlay === OVERLAYS.SIDE_REFLECTIONS;
 
-      // ── Treatment-driven reflection strength per surface ────────────────
-      // TREATED   = 0.30: soft pulse, dim flash → "treatment dampens this"
-      // UNTREATED = 1.00: bright pulse, strong flash → "this surface reflects"
-      // Simulation toggle force-treats every surface so the user can preview.
-      const TREATED   = 0.30;
-      const UNTREATED = 1.00;
-
+      // ── Per-surface treated state ───────────────────────────────────────
+      // Binary treated/untreated per surface; the band-ball cluster (built
+      // below) turns this into a per-band reflection magnitude r = √(1−α) via
+      // reflectionMagnitude(). The simulation toggle force-treats every surface
+      // so the user can preview treatment.
       const sideMode = room.side_panel_mode    || 'none';
       const wallMode = room.wall_panel_mode    || 'none';
       const ceilMode = room.ceiling_panel_mode || 'none';
@@ -4088,10 +4168,6 @@ export function initRoom3D({
             front:   wallMode === 'front' || wallMode === 'both',
             back:    wallMode === 'rear'  || wallMode === 'both',
           };
-      const surfaceStrength = {};
-      for (const k of ['floor','ceiling','left','right','front','back']) {
-        surfaceStrength[k] = surfaceTreated[k] ? TREATED : UNTREATED;
-      }
 
       // ── Measurement context ─────────────────────────────────────────────
       const hasMeasurement = !!_measurement;
@@ -4223,6 +4299,46 @@ export function initRoom3D({
       sideField.userData.isSideRefField = true;
       roomGroup.add(sideField);
 
+      // ── Frequency bands + per-surface reflection magnitude ───────────────
+      // The pulse cluster carries N bands; each return ball's brightness is the
+      // surface's reflection magnitude r = √(1−α) at that band. reflectionMagnitude()
+      // is the SINGLE seam to later swap for the materials DB alphaAt(material, f).
+      const _reflReduced  = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const _reflLowPower = _reflReduced
+        || window.matchMedia('(pointer: coarse)').matches
+        || window.matchMedia('(max-width: 900px)').matches;
+      const REFL_BANDS = _reflReduced  ? REFL_BAND_SETS[2]
+                       : _reflLowPower ? REFL_BAND_SETS[3]
+                       :                 REFL_BAND_SETS[4];
+      const _treatedAlphaAt = (f) => {
+        const pts = REFL_TREATED_ALPHA;
+        if (f <= pts[0][0]) return pts[0][1];
+        if (f >= pts[pts.length - 1][0]) return pts[pts.length - 1][1];
+        for (let k = 0; k < pts.length - 1; k++) {
+          const fa = pts[k][0], aa = pts[k][1], fb = pts[k + 1][0], ab = pts[k + 1][1];
+          if (f >= fa && f < fb) {
+            const t = (Math.log2(f) - Math.log2(fa)) / (Math.log2(fb) - Math.log2(fa));
+            return aa + (ab - aa) * t;
+          }
+        }
+        return pts[pts.length - 1][1];
+      };
+      // Single seam: reads the existing binary treated flag + the local α table.
+      const reflectionMagnitude = (surfaceKey, bandFreq) => {
+        const treated = surfaceTreated[surfaceKey] === true;
+        const alpha = treated ? _treatedAlphaAt(bandFreq) : REFL_UNTREATED_ALPHA;
+        return Math.sqrt(Math.max(0, 1 - alpha));
+      };
+      // Per-surface mean r across the active bands — drives the wall flash and
+      // listener halo (aggregate remaining energy), so treatment dims them
+      // rather than switching them fully off.
+      const surfaceMeanR = {};
+      for (const _sk of ['floor', 'ceiling', 'left', 'right', 'front', 'back']) {
+        let _s = 0;
+        for (const _f of REFL_BANDS) _s += reflectionMagnitude(_sk, _f);
+        surfaceMeanR[_sk] = _s / REFL_BANDS.length;
+      }
+
       // ── Cycle scheduling ─────────────────────────────────────────────────
       // Pulses travel at the SAME on-screen speed as the Sound Waves rings:
       // V_VIS = ringMaxR / WAVE_CYCLE_S (the rings' own speed, ~1.5 m/s — NOT
@@ -4261,24 +4377,19 @@ export function initRoom3D({
         b.flashEnd    = b.flashStart + FLASH_DUR;
         b.returnStart = b.outEnd;
         b.returnEnd   = b.returnStart + returnDur;
-        b.strength    = surfaceStrength[b.surface] * SIM_SCALE;
-        // Absorption: when the bounce surface is treated, the panel
-        // catches the reflection — no pink return pulse, no listener
-        // halo. The outgoing teal pulse's existing fade-out envelope
-        // reads as the ball dying into the panel, and the cyan panel
-        // flash fires in the same window. Wall flash suppression on
-        // treated surfaces (commit dd5fe09) keeps the visual clean.
-        b.absorbed = surfaceTreated[b.surface] === true;
+        // Energy reaching the wall / listener = the surface's mean reflection
+        // magnitude across bands. The wall flash and listener halo scale with
+        // this, so a treated surface DIMS them rather than switching them fully
+        // off — a bass-heavy return still registers. (The per-band return
+        // cluster, built below, carries the full r(band) detail.)
+        const _bMeanR = surfaceMeanR[b.surface] * SIM_SCALE;
         flashEventsBySurface[b.surface].push({
-          start: b.flashStart, duration: FLASH_DUR, strength: b.strength,
+          start: b.flashStart, duration: FLASH_DUR, strength: _bMeanR,
         });
-        // Absorbed bounces end at the wall flash; live ones run to the
-        // listener hit. Track the latest so the loop period covers it.
-        const _seqEnd = b.absorbed ? b.flashEnd : b.returnEnd;
-        if (_seqEnd > _maxSeqEnd) _maxSeqEnd = _seqEnd;
-        if (!b.absorbed) {
-          haloEvents.push({ hitTime: b.returnEnd, strength: b.strength });
-        }
+        // The return cluster always travels now (per-band opacity replaced the
+        // old all-or-nothing absorb), so every bounce runs to the listener hit.
+        if (b.returnEnd > _maxSeqEnd) _maxSeqEnd = b.returnEnd;
+        haloEvents.push({ hitTime: b.returnEnd, strength: _bMeanR });
       });
 
       // Loop period covers the LONGEST active path plus the halo tail and a
@@ -4504,7 +4615,7 @@ export function initRoom3D({
           flash.position.set(...meta.pos);
           if (meta.rot) flash.rotation[meta.rot[0]] = meta.rot[1];
         }
-        flash.userData.isReflectionFlash = { events, surfaceStrength: surfaceStrength[surf] };
+        flash.userData.isReflectionFlash = { events, surfaceStrength: surfaceMeanR[surf] * SIM_SCALE };
         roomGroup.add(flash);
       }
 
@@ -4520,67 +4631,106 @@ export function initRoom3D({
         if (!tag) return;
         const events = flashEventsBySurface[tag.surface];
         if (!events?.length) return;
-        obj.userData.isReflectionFlash = { events, surfaceStrength: surfaceStrength[tag.surface] };
+        obj.userData.isReflectionFlash = { events, surfaceStrength: surfaceMeanR[tag.surface] * SIM_SCALE };
       });
 
-      // ── Pulse spheres (outgoing teal + return pink, per bounce) ──────────
-      // Each pulse is its own material because opacity animates per-instance.
-      // SphereGeometry is cloned per-pulse so rebuild() disposal can free
-      // each independently without leaking shared geometry references.
-      const PULSE_RADIUS = 0.075;
-      const pulseGeomTemplate = new THREE.SphereGeometry(PULSE_RADIUS, 12, 8);
+      // ── Frequency-banded pulse clusters (InstancedMesh — one draw call) ──
+      // Each path emits one teal outgoing companion ball + a cluster of pink
+      // return balls (one per band). Band → SIZE (low freq large, log-
+      // wavelength); surface absorption → BRIGHTNESS (r = √(1−α) per band).
+      // All balls on a path share ONE trajectory and the shared V_VIS — the
+      // per-band fan-out is size + brightness only, never speed. Rendered via a
+      // single InstancedMesh per field (balls, trails) so iPad pays one draw
+      // call each; the animate loop only mutates matrices/colours.
+      const _pinkCol = new THREE.Color(OC.PRESSURE_PEAK);   // #FF107A — hero (return)
+      const _tealCol = new THREE.Color(OC.DIRECT_SIGNAL);   // teal — quieter companion (out)
+      // Room-scaled radius envelope (clamped): 125 Hz biggest, 8 kHz smallest.
+      const _ballK = Math.min(1.5, Math.max(0.7, Math.max(room.width_m, room.length_m) / 5));
+      const _rMax  = 0.130 * _ballK;   // low band
+      const _rMin  = 0.050 * _ballK;   // high band
+      const _fLo = Math.log2(125), _fHi = Math.log2(8000);
+      const _bandRadius = (f) => {
+        const u = Math.max(0, Math.min(1, (_fHi - Math.log2(f)) / (_fHi - _fLo)));  // 1@125 → 0@8k
+        return _rMin + (_rMax - _rMin) * u;
+      };
+      const _TEAL_BRIGHT = 0.45;   // companion — dimmer than pink
+      const _PINK_BRIGHT = 0.95;   // hero
+      const ballDescs  = [];
+      const trailDescs = [];
       for (const b of allBounces) {
         const startPos  = speakerPositions[b.speakerIdx];
         const bouncePos = new THREE.Vector3(b.bouncePoint.x, b.bouncePoint.y, b.bouncePoint.z);
 
-        // Outgoing — teal, speaker → bounce point
-        const outPulse = new THREE.Mesh(
-          pulseGeomTemplate.clone(),
-          new THREE.MeshBasicMaterial({
-            color: OC.DIRECT_SIGNAL, transparent: true, opacity: 0,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-          })
-        );
-        outPulse.position.copy(startPos);
-        outPulse.visible = false;
-        outPulse.userData.isReflectionPulse = {
-          from: startPos.clone(),
-          to: bouncePos.clone(),
-          start: b.outStart,
-          end: b.outEnd,
-          strength: b.strength,
-        };
-        roomGroup.add(outPulse);
+        // Outgoing — single teal companion, speaker → bounce point.
+        if (ballDescs.length < REFL_MAX_BALLS) {
+          ballDescs.push({
+            kind: 'out',
+            from: startPos.clone(), to: bouncePos.clone(),
+            start: b.outStart, end: b.outEnd,
+            radius: _bandRadius(1000) * 0.85,
+            color: _tealCol, brightness: _TEAL_BRIGHT * SIM_SCALE,
+          });
+        }
 
-        // Return — pink, bounce point → listener.
-        // Skipped on treated bounces: the panel absorbed the energy,
-        // so no pink pulse leaves the wall and no halo fires at the
-        // listener (haloEvents was gated above for the same reason).
-        if (b.absorbed) continue;
+        // Return — pink cluster, one ball per band, bounce point → listener.
+        // Brightness = r(surface, band): a treated wall dims the treble/mid
+        // balls on its bounces while the bass balls sail through.
+        for (const f of REFL_BANDS) {
+          if (ballDescs.length >= REFL_MAX_BALLS) break;
+          const r      = reflectionMagnitude(b.surface, f);
+          const radius = _bandRadius(f);
+          const ret = {
+            kind: 'return',
+            from: bouncePos.clone(), to: listenerPos.clone(),
+            start: b.returnStart, end: b.returnEnd,
+            radius,
+            color: _pinkCol, brightness: _PINK_BRIGHT * r * SIM_SCALE,
+          };
+          ballDescs.push(ret);
 
-        const retPulse = new THREE.Mesh(
-          pulseGeomTemplate.clone(),
-          new THREE.MeshBasicMaterial({
-            color: OC.PRESSURE_PEAK, transparent: true, opacity: 0,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false,
-          })
-        );
-        retPulse.position.copy(bouncePos);
-        retPulse.visible = false;
-        retPulse.userData.isReflectionPulse = {
-          from: bouncePos.clone(),
-          to: listenerPos.clone(),
-          start: b.returnStart,
-          end: b.returnEnd,
-          strength: b.strength,
-        };
-        roomGroup.add(retPulse);
+          // Comet trail — small fixed count of shrinking, fading followers.
+          for (let k = 1; k <= REFL_TRAIL_LEN; k++) {
+            if (trailDescs.length >= REFL_MAX_TRAILS) break;
+            const fade = 1 - k / (REFL_TRAIL_LEN + 1);
+            trailDescs.push({
+              from: ret.from, to: ret.to, start: ret.start, end: ret.end,
+              lag: k * 0.05,
+              radius: radius * fade * 0.8,
+              color: _pinkCol, brightness: ret.brightness * fade * 0.6,
+            });
+          }
+        }
       }
-      // The template geometry is no longer referenced by any mesh — clones
-      // own their copies — so dispose it now to keep the overlay leak-free.
-      pulseGeomTemplate.dispose();
+
+      // Build one InstancedMesh per field. Sized to this rebuild's actual
+      // instance count; the animate loop only mutates per-instance matrices /
+      // colours (no per-frame allocation). Disposal: rebuild()'s traverse
+      // disposes geometry + material and calls InstancedMesh.dispose() to free
+      // the instance buffers. Additive blending + per-instance colour gives
+      // per-ball brightness with NO custom shader.
+      const _buildBallField = (descs, segs, flagKey) => {
+        if (descs.length === 0) return;
+        const geo = new THREE.SphereGeometry(1, segs, Math.max(4, segs - 2));
+        const mat = new THREE.MeshBasicMaterial({
+          color: 0xffffff, transparent: true, opacity: 1,
+          blending: THREE.AdditiveBlending, depthWrite: false,
+        });
+        const mesh = new THREE.InstancedMesh(geo, mat, descs.length);
+        mesh.frustumCulled = false;
+        _reflScale.setScalar(0);
+        _reflM.compose(_reflPos.set(0, 0, 0), _reflQuat, _reflScale);
+        _reflCol.setRGB(0, 0, 0);
+        for (let i = 0; i < descs.length; i++) {
+          mesh.setMatrixAt(i, _reflM);     // start hidden (scale 0)
+          mesh.setColorAt(i, _reflCol);    // allocates instanceColor
+        }
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        if (mesh.instanceColor) mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+        mesh.userData[flagKey] = descs;
+        roomGroup.add(mesh);
+      };
+      _buildBallField(ballDescs, 10, 'isReflectionBallField');
+      _buildBallField(trailDescs, 6, 'isReflectionTrailField');
 
       // ── Listener halo (pulses pink as return pulses arrive) ──────────────
       const halo = new THREE.Mesh(
