@@ -710,11 +710,34 @@ export function initRoom3D({
     uniform float uBassTrapsF;
     uniform float uBassTrapsR;
     uniform float uBtSide;
+    uniform float uCeilType;      // 0 flat, 1 slanted, 2 gable
+    uniform float uSlantDir;      // 0 L→R, 1 R→L, 2 front→back, 3 back→front
+    uniform float uGableDepth;    // 1 = ridge runs along depth (Z), 0 = along width (X)
+    uniform float uLowFrac;       // low ceiling height / room height (0..1)
+
+    // Normalised ceiling height at (nx,nz) — mirrors room3d's ceilingYAt() so the
+    // field's ceiling sits on the real roofline. Returns 1.0 for a flat ceiling.
+    float nyCeiling(float nx, float nz) {
+      if (uCeilType < 0.5) return 1.0;
+      if (uCeilType < 1.5) {                       // slanted
+        float t;
+        if      (uSlantDir < 0.5) t = nx;
+        else if (uSlantDir < 1.5) t = 1.0 - nx;
+        else if (uSlantDir < 2.5) t = 1.0 - nz;
+        else                      t = nz;
+        return uLowFrac + t * (1.0 - uLowFrac);
+      }
+      float distRatio = (uGableDepth > 0.5) ? abs(2.0 * nx - 1.0) : abs(2.0 * nz - 1.0);
+      return 1.0 - distRatio * (1.0 - uLowFrac);   // gable: 1.0 at ridge, uLowFrac at eaves
+    }
+
     void main() {
       // Map this surface's local (u,v) → normalised room coords. The fixed axis
       // is pinned to its wall (0 or 1); matches the display plane's UV mapping.
+      // The ceiling pins ny to the sloped roofline so its baked pressure is
+      // sampled at the true (lower) ceiling height, not a flat ny = 1.
       float nx, ny, nz;
-      if (uSurf < 1.5)        { nx = vUv.x; nz = vUv.y; ny = (uSurf < 0.5) ? 0.0 : 1.0; } // floor / ceiling
+      if (uSurf < 1.5)        { nx = vUv.x; nz = vUv.y; ny = (uSurf < 0.5) ? 0.0 : nyCeiling(nx, nz); } // floor / ceiling
       else if (uSurf < 3.5)   { nx = vUv.x; ny = vUv.y; nz = (uSurf < 2.5) ? 0.0 : 1.0; } // front / back
       else                    { nz = vUv.x; ny = vUv.y; nx = (uSurf < 4.5) ? 0.0 : 1.0; } // left / right
 
@@ -762,7 +785,34 @@ export function initRoom3D({
     uniform float uSurf;
     uniform vec4  uCell;     // cx, cy, cw, ch (atlas cell rect)
     uniform float uOpacity;
+    uniform float uCeilType; // 0 flat, 1 slanted, 2 gable
+    uniform float uSlantDir;
+    uniform float uGableDepth;
+    uniform float uLowFrac;
+
+    float nyCeiling(float nx, float nz) {
+      if (uCeilType < 0.5) return 1.0;
+      if (uCeilType < 1.5) {
+        float t;
+        if      (uSlantDir < 0.5) t = nx;
+        else if (uSlantDir < 1.5) t = 1.0 - nx;
+        else if (uSlantDir < 2.5) t = 1.0 - nz;
+        else                      t = nz;
+        return uLowFrac + t * (1.0 - uLowFrac);
+      }
+      float distRatio = (uGableDepth > 0.5) ? abs(2.0 * nx - 1.0) : abs(2.0 * nz - 1.0);
+      return 1.0 - distRatio * (1.0 - uLowFrac);
+    }
+
     void main() {
+      // Clip anything above the actual sloped ceiling — trims the wall planes to
+      // the room silhouette under a slanted/gable roof. The ceiling plane sits
+      // ON the slope (inset just below), so the small epsilon keeps it visible.
+      float nxC = (vLocal.x + uHalf.x) / (2.0 * uHalf.x);
+      float nzC = (vLocal.z + uHalf.z) / (2.0 * uHalf.z);
+      float ceilY = -uHalf.y + nyCeiling(nxC, nzC) * (2.0 * uHalf.y);
+      if (vLocal.y > ceilY + 0.05) discard;
+
       float u, v;
       if (uSurf < 1.5)        { u = (vLocal.x + uHalf.x) / (2.0 * uHalf.x); v = (vLocal.z + uHalf.z) / (2.0 * uHalf.z); }
       else if (uSurf < 3.5)   { u = (vLocal.x + uHalf.x) / (2.0 * uHalf.x); v = (vLocal.y + uHalf.y) / (2.0 * uHalf.y); }
@@ -5230,12 +5280,13 @@ export function initRoom3D({
       // cloud, and probe the listening seat. Each helper is internally wrapped
       // in the _bwDisable fail-safe, so a bad GPU/RT/shader disables the whole
       // subsystem without ever breaking rebuild() or the core scene.
-      // (The gable/slant ceiling clip the old full-room box did is dropped: the
-      // boundary shell uses flat box bounds, exactly as the impact heat shell
-      // already does. Mode FREQUENCIES still use H_eff via computeRoomModes.)
+      // Ceiling profile drives the bake (ceiling cell sampled on the real
+      // roofline), the display planes (sloped ceiling quad(s) + wall clip), and
+      // the particle clip. Mode FREQUENCIES already use H_eff via computeRoomModes.
+      const bwCeil = _bwCeilingUniforms(room);
       _bwTier = _bwTierConfig();
-      _bakeBassField(uBwModes, bwTraps);
-      _buildBwFieldPlanes(room, isFocBW);
+      _bakeBassField(uBwModes, bwTraps, bwCeil);
+      _buildBwFieldPlanes(room, isFocBW, bwCeil);
       _buildBwParticles(room, bwModeJs, bwTraps);
       _buildBwListenerProbe(room, bwModeJs, bwTraps, isFocBW && _showLabels);
 
@@ -6077,6 +6128,46 @@ export function initRoom3D({
     return t * t * (3 - 2 * t);
   }
 
+  // Local-metre ceiling height at (x,z) — an exact mirror of rebuild()'s
+  // ceilingYAt(), re-derived here because renderAnalysisOverlays is a sibling of
+  // rebuild() (its const isSlanted/ceilingYAt are out of scope). Used to lay the
+  // ceiling field plane on the real roofline and to keep particles under it.
+  function _bwCeilingY(room, x, z) {
+    const hW = room.width_m / 2, hL = room.length_m / 2, hH = room.height_m / 2;
+    const type = room.ceiling_type;
+    if (type !== 'slanted' && type !== 'gable') return hH;
+    const lowH = Math.min(room.ceiling_height_secondary_m ?? room.height_m, room.height_m);
+    const lowY = -hH + lowH, highY = hH;
+    if (type === 'slanted') {
+      let t;
+      switch (room.ceiling_slant_direction || 'left_to_right') {
+        case 'right_to_left': t = 1 - (x + hW) / room.width_m;  break;
+        case 'front_to_back': t = 1 - (z + hL) / room.length_m; break;
+        case 'back_to_front': t = (z + hL) / room.length_m;     break;
+        default:              t = (x + hW) / room.width_m;       // left_to_right
+      }
+      return lowY + t * (highY - lowY);
+    }
+    // gable
+    const distRatio = (room.ceiling_gable_axis || 'depth') === 'depth'
+      ? Math.abs(x) / hW
+      : Math.abs(z) / hL;
+    return highY - distRatio * (highY - lowY);
+  }
+
+  // Encode the ceiling profile as the shader uniform set shared by the bake and
+  // display materials. lowFrac = low ceiling height / room height.
+  function _bwCeilingUniforms(room) {
+    const slantCode = { left_to_right: 0, right_to_left: 1, front_to_back: 2, back_to_front: 3 };
+    const lowH = Math.min(room.ceiling_height_secondary_m ?? room.height_m, room.height_m);
+    return {
+      type:       room.ceiling_type === 'slanted' ? 1 : room.ceiling_type === 'gable' ? 2 : 0,
+      slantDir:   slantCode[room.ceiling_slant_direction] ?? 0,
+      gableDepth: (room.ceiling_gable_axis || 'depth') === 'depth' ? 1 : 0,
+      lowFrac:    Math.max(0, Math.min(1, (room.height_m ? lowH / room.height_m : 1))),
+    };
+  }
+
   // Device tier — modest atlas + fewer particles on iPad / coarse pointers.
   // reduced-motion still builds the field + cloud (frozen), consistent with the
   // rest of the engine's reduced-motion behaviour.
@@ -6175,6 +6266,10 @@ export function initRoom3D({
             uBassTrapsF: { value: 0 },
             uBassTrapsR: { value: 0 },
             uBtSide:     { value: 0 },
+            uCeilType:   { value: 0 },
+            uSlantDir:   { value: 0 },
+            uGableDepth: { value: 1 },
+            uLowFrac:    { value: 1 },
           },
         });
         const quad = new THREE.Mesh(new THREE.PlaneGeometry(cw, ch), mat);
@@ -6188,7 +6283,7 @@ export function initRoom3D({
   // Bake the 8-mode standing-wave pressure into the atlas — ONE off-screen draw
   // (six small quads) per rebuild. After this, the displayed field is just a
   // texture lookup per fragment, never the old per-frame per-fragment mode loop.
-  function _bakeBassField(uBwModes, traps) {
+  function _bakeBassField(uBwModes, traps, ceil) {
     if (_bwFailed) return;
     try {
       _ensureBwTargets();
@@ -6198,6 +6293,10 @@ export function initRoom3D({
         u.uBassTrapsF.value = traps.f;
         u.uBassTrapsR.value = traps.r;
         u.uBtSide.value     = traps.side;
+        u.uCeilType.value   = ceil.type;
+        u.uSlantDir.value   = ceil.slantDir;
+        u.uGableDepth.value = ceil.gableDepth;
+        u.uLowFrac.value    = ceil.lowFrac;
       }
       const prevTarget    = renderer.getRenderTarget();
       const prevAutoClear = renderer.autoClear;
@@ -6219,19 +6318,40 @@ export function initRoom3D({
   // the purple→pink→white ramp. Local-space quads with identity transform (the
   // vertex position IS the UV-mapped coordinate), mirroring the heat shell.
   // Live in roomGroup → freed by the next rebuild's disposal traverse.
-  function _buildBwFieldPlanes(room, isFocBW) {
+  function _buildBwFieldPlanes(room, isFocBW, ceil) {
     if (_bwFailed || !_bwRT) return;
     try {
       const hW = room.width_m / 2, hH = room.height_m / 2, hL = room.length_m / 2;
       const fY = -hH + 0.03, INSET = 0.025;   // sit just inside the wireframe, above the heat floor plane
+      // Floor + four walls are flat rectangles. Walls run full height; the
+      // display shader discards fragments above the sloped ceiling, so a
+      // slanted/gable roof trims them to the room silhouette automatically.
       const planeDefs = [
         ['floor',   [[-hW, fY, -hL], [hW, fY, -hL], [hW, fY, hL], [-hW, fY, hL]]],
-        ['ceiling', [[-hW, hH - 0.015, -hL], [hW, hH - 0.015, -hL], [hW, hH - 0.015, hL], [-hW, hH - 0.015, hL]]],
         ['front',   [[-hW, -hH, -hL + INSET], [hW, -hH, -hL + INSET], [hW, hH, -hL + INSET], [-hW, hH, -hL + INSET]]],
         ['back',    [[-hW, -hH, hL - INSET], [hW, -hH, hL - INSET], [hW, hH, hL - INSET], [-hW, hH, hL - INSET]]],
         ['left',    [[-hW + INSET, -hH, -hL], [-hW + INSET, -hH, hL], [-hW + INSET, hH, hL], [-hW + INSET, hH, -hL]]],
         ['right',   [[hW - INSET, -hH, -hL], [hW - INSET, -hH, hL], [hW - INSET, hH, hL], [hW - INSET, hH, -hL]]],
       ];
+
+      // Ceiling plane(s) — laid on the REAL roofline so the field's ceiling
+      // surface follows the slope. cy() insets each corner just below the
+      // wireframe ceiling beams. Flat = one quad; slanted = one tilted quad;
+      // gable = two quads meeting at the ridge (split on the ridge axis).
+      const cy = (x, z) => _bwCeilingY(room, x, z) - 0.015;
+      const ck = (x, z) => [x, cy(x, z), z];
+      if (ceil.type === 2) {                       // gable
+        if (ceil.gableDepth) {                     // ridge along Z (depth) at x = 0
+          planeDefs.push(['ceiling', [ck(-hW, -hL), ck(0, -hL), ck(0, hL), ck(-hW, hL)]]);
+          planeDefs.push(['ceiling', [ck(0, -hL), ck(hW, -hL), ck(hW, hL), ck(0, hL)]]);
+        } else {                                   // ridge along X (width) at z = 0
+          planeDefs.push(['ceiling', [ck(-hW, -hL), ck(hW, -hL), ck(hW, 0), ck(-hW, 0)]]);
+          planeDefs.push(['ceiling', [ck(-hW, 0), ck(hW, 0), ck(hW, hL), ck(-hW, hL)]]);
+        }
+      } else {                                     // flat or slanted — single quad
+        planeDefs.push(['ceiling', [ck(-hW, -hL), ck(hW, -hL), ck(hW, hL), ck(-hW, hL)]]);
+      }
+
       const COLS = 3, ROWS = 2, cw = 1 / COLS, ch = 1 / ROWS;
       const cellRect = (idx) => [(idx % COLS) * cw, Math.floor(idx / COLS) * ch, cw, ch];
       const buildQuad = (c) => {
@@ -6250,11 +6370,15 @@ export function initRoom3D({
           blending: THREE.AdditiveBlending,
           vertexShader: _BW_FIELD_VERT, fragmentShader: _BW_FIELD_FRAG,
           uniforms: {
-            uField:   { value: _bwRT.texture },
-            uHalf:    { value: new THREE.Vector3(hW, hH, hL) },
-            uSurf:    { value: idx },
-            uCell:    { value: new THREE.Vector4(...cellRect(idx)) },
-            uOpacity: { value: isFocBW ? 0.62 : 0.34 },
+            uField:      { value: _bwRT.texture },
+            uHalf:       { value: new THREE.Vector3(hW, hH, hL) },
+            uSurf:       { value: idx },
+            uCell:       { value: new THREE.Vector4(...cellRect(idx)) },
+            uOpacity:    { value: isFocBW ? 0.62 : 0.34 },
+            uCeilType:   { value: ceil.type },
+            uSlantDir:   { value: ceil.slantDir },
+            uGableDepth: { value: ceil.gableDepth },
+            uLowFrac:    { value: ceil.lowFrac },
           },
         });
         const mesh = new THREE.Mesh(buildQuad(corners), mat);
@@ -6314,7 +6438,9 @@ export function initRoom3D({
             amp[n] = a;
             // Antinodes glow + thrash; near-null particles collapse to scale 0
             // (additive black would vanish anyway, but hiding saves overdraw).
-            const radius = magnitude < 0.06 ? 0 : (0.018 + magnitude * 0.055);
+            // Anything above the sloped ceiling is outside the room → hidden.
+            const aboveCeiling = y > _bwCeilingY(room, x, z) - 0.05;
+            const radius = (magnitude < 0.06 || aboveCeiling) ? 0 : (0.018 + magnitude * 0.055);
             size[n] = radius;
             _bwScratchS.setScalar(radius);
             _bwScratchM.compose(_bwScratchV.set(x, y, z), _bwScratchQ.set(0, 0, 0, 1), _bwScratchS);
