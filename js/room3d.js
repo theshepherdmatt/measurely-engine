@@ -531,9 +531,7 @@ export function initRoom3D({
   // panel passes the bass and eats the treble.
   const REFL_UNTREATED_ALPHA = 0.04;
   const REFL_TREATED_ALPHA = [[125, 0.10], [500, 0.55], [2000, 0.85], [8000, 0.80]];
-  const REFL_TRAIL_LEN = 4;          // comet-trail instances per pink ball
-  const REFL_MAX_BALLS = 192;        // hard instance caps — iPad budget guard
-  const REFL_MAX_TRAILS = REFL_MAX_BALLS * REFL_TRAIL_LEN;
+  const REFL_MAX_BALLS = 192;        // hard instance cap — iPad budget guard
   // Reused scratch objects — the animation loop mutates these in place so it
   // never allocates per frame (InstancedMesh hot path).
   const _reflM     = new THREE.Matrix4();
@@ -3270,35 +3268,6 @@ export function initRoom3D({
           obj.instanceMatrix.needsUpdate = true;
           if (obj.instanceColor) obj.instanceColor.needsUpdate = true;
 
-        } else if (ud.isReflectionTrailField) {
-          // Comet trails — a small fixed count of shrinking, fading followers
-          // lagging behind each pink ball along its path. Disabled (hidden)
-          // under reduced motion.
-          const descs = ud.isReflectionTrailField;
-          for (let ti = 0; ti < descs.length; ti++) {
-            const d = descs[ti];
-            let scl = 0, bright = 0;
-            if (!reducedRefl) {
-              const t = (cycleTime - d.start) / (d.end - d.start);
-              if (t >= 0 && t <= 1) {
-                const tt = t - d.lag;       // trail lags behind the lead ball
-                if (tt >= 0) {
-                  const env = t < 0.2 ? t / 0.2 : t > 0.8 ? (1 - t) / 0.2 : 1;
-                  _reflPos.copy(d.from).lerp(d.to, tt);
-                  scl = d.radius;
-                  bright = d.brightness * env;
-                }
-              }
-            }
-            _reflScale.setScalar(scl);
-            _reflM.compose(_reflPos, _reflQuat, _reflScale);
-            obj.setMatrixAt(ti, _reflM);
-            _reflCol.copy(d.color).multiplyScalar(bright);
-            obj.setColorAt(ti, _reflCol);
-          }
-          obj.instanceMatrix.needsUpdate = true;
-          if (obj.instanceColor) obj.instanceColor.needsUpdate = true;
-
         } else if (ud.isReflectionFlash) {
           const d = ud.isReflectionFlash;
           if (reducedRefl) {
@@ -4682,8 +4651,8 @@ export function initRoom3D({
       // wavelength); surface absorption → BRIGHTNESS (r = √(1−α) per band).
       // All balls on a path share ONE trajectory and the shared V_VIS — the
       // per-band fan-out is size + brightness only, never speed. Rendered via a
-      // single InstancedMesh per field (balls, trails) so iPad pays one draw
-      // call each; the animate loop only mutates matrices/colours.
+      // single InstancedMesh (one draw call) so iPad stays smooth; the animate
+      // loop only mutates matrices/colours.
       const _pinkCol = new THREE.Color(OC.PRESSURE_PEAK);   // #FF107A — hero (return)
       const _tealCol = new THREE.Color(OC.DIRECT_SIGNAL);   // teal — quieter companion (out)
       // Room-scaled radius envelope (clamped): 125 Hz biggest, 8 kHz smallest.
@@ -4695,54 +4664,39 @@ export function initRoom3D({
         const u = Math.max(0, Math.min(1, (_fHi - Math.log2(f)) / (_fHi - _fLo)));  // 1@125 → 0@8k
         return _rMin + (_rMax - _rMin) * u;
       };
-      const _TEAL_BRIGHT = 0.45;   // companion — dimmer than pink
-      const _PINK_BRIGHT = 0.95;   // hero
-      const ballDescs  = [];
-      const trailDescs = [];
+      const _TEAL_BRIGHT = 0.60;   // light-blue balls bursting from the speaker
+      const _PINK_BRIGHT = 0.95;   // hero — the reflection coming back
+      const ballDescs = [];
       for (const b of allBounces) {
         const startPos  = speakerPositions[b.speakerIdx];
         const bouncePos = new THREE.Vector3(b.bouncePoint.x, b.bouncePoint.y, b.bouncePoint.z);
 
-        // Outgoing — single teal companion, speaker → bounce point.
-        if (ballDescs.length < REFL_MAX_BALLS) {
+        // Outgoing — a teal cluster bursting from the speaker toward the wall,
+        // one ball per band (sized by frequency). Always flies, treated or not.
+        for (const f of REFL_BANDS) {
+          if (ballDescs.length >= REFL_MAX_BALLS) break;
           ballDescs.push({
             kind: 'out',
-            from: startPos.clone(), to: bouncePos.clone(),
+            from: startPos, to: bouncePos,
             start: b.outStart, end: b.outEnd,
-            radius: _bandRadius(1000) * 0.85,
+            radius: _bandRadius(f),
             color: _tealCol, brightness: _TEAL_BRIGHT * SIM_SCALE,
           });
         }
 
-        // Return — pink cluster, one ball per band, bounce point → listener.
-        // Clean kill: only a bare (untreated) surface returns the pink cluster.
-        // A treated surface absorbs it — the teal ball already flew in and dies
-        // into the panel, so nothing bounces back. (The teal companion above
-        // always flies, regardless of treatment.)
+        // Return — pink cluster, one ball per band, bounce → listener. Clean
+        // kill: only a bare (untreated) surface bounces the pink back; a treated
+        // surface absorbs it (the teal balls die into the panel).
         if (surfaceTreated[b.surface] !== true) for (const f of REFL_BANDS) {
           if (ballDescs.length >= REFL_MAX_BALLS) break;
-          const r      = reflectionMagnitude(b.surface, f);
-          const radius = _bandRadius(f);
-          const ret = {
+          const r = reflectionMagnitude(b.surface, f);
+          ballDescs.push({
             kind: 'return',
-            from: bouncePos.clone(), to: listenerPos.clone(),
+            from: bouncePos, to: listenerPos,
             start: b.returnStart, end: b.returnEnd,
-            radius,
+            radius: _bandRadius(f),
             color: _pinkCol, brightness: _PINK_BRIGHT * r * SIM_SCALE,
-          };
-          ballDescs.push(ret);
-
-          // Comet trail — small fixed count of shrinking, fading followers.
-          for (let k = 1; k <= REFL_TRAIL_LEN; k++) {
-            if (trailDescs.length >= REFL_MAX_TRAILS) break;
-            const fade = 1 - k / (REFL_TRAIL_LEN + 1);
-            trailDescs.push({
-              from: ret.from, to: ret.to, start: ret.start, end: ret.end,
-              lag: k * 0.05,
-              radius: radius * fade * 0.8,
-              color: _pinkCol, brightness: ret.brightness * fade * 0.6,
-            });
-          }
+          });
         }
       }
 
@@ -4774,7 +4728,6 @@ export function initRoom3D({
         roomGroup.add(mesh);
       };
       _buildBallField(ballDescs, 10, 'isReflectionBallField');
-      _buildBallField(trailDescs, 6, 'isReflectionTrailField');
 
       // ── Listener halo (pulses pink as return pulses arrive) ──────────────
       const halo = new THREE.Mesh(
