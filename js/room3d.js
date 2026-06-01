@@ -122,20 +122,22 @@ const OC = Object.fromEntries(
 export const OVERLAY_META = {
   sbir: {
     label: 'Speaker placement',
-    shortDescription: 'Boundary interference · front-wall nulls',
+    shortDescription: 'Boundary nulls · distance & stacking',
     icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>',
-    whatItShows: 'A live simulation of the cancellation nulls that form between the speakers and the front wall. As you reposition the speakers or resize the room, the model recomputes the null frequency — typically between 80 and 250 Hz for normal placements.',
-    howToRead: 'Pull the speakers further from the front wall and the null frequency drops; push them closer and it rises. Toggling front-wall treatment shifts the wave rings from pink (untreated) to cyan (treated), indicating the cancellation has been softened.',
+    whatItShows: 'Each speaker fires a thin tripwire to its near boundaries — front wall, nearest side wall, floor — and labels the quarter-wave cancellation each one causes (f = c/4d, so closer boundary = higher null). The real damage is when two nulls land at similar frequencies and STACK into one deep suckout; the overlay flags that. Everything recomputes live as you move the speakers or the seat.',
+    howToRead: 'Pull a speaker away from a boundary and that boundary\'s null slides down in frequency. When two tripwires fall within about a sixth of an octave they merge into one bright "deep null" marker — that\'s the placement to fix, usually by making the front, side and floor distances unequal. Treating a boundary turns its tripwire teal ("handled"). The readout at the seat shows the resulting dip — the dominant null frequency and its depth.',
     caveats: [
-      'The front wall is modelled as a perfectly rigid reflector — heavy treatment or an open space behind the speakers will reduce the cancellation depth in practice.',
-      'Asymmetric speaker-to-wall distances produce slightly different nulls left and right; the visualisation places a single marker.',
+      'Boundaries are modelled as rigid reflectors; heavy treatment or an open space behind the speakers reduces the cancellation depth in practice.',
+      'Only nulls in the audible boundary band (~40-200 Hz) are shown; nulls outside it are dropped to keep the view readable.',
+      'Floor treatment is approximate — a rug helps less at these low frequencies than panels on a wall.',
     ],
     // Legend chips — colours reference OVERLAY_COLOURS so they can never drift
     // from what the scene paints. Consumed by web's HUD legend (and any future
-    // consumer that renders one).
+    // consumer that renders one). Pink/teal only — no severity warm palette.
     legend: [
-      { color: OVERLAY_COLOURS.PRESSURE_PEAK,  label: 'Confirmed null' },
-      { color: OVERLAY_COLOURS.MODE_PREDICTED, label: 'Predicted only' },
+      { color: OVERLAY_COLOURS.PRESSURE_PEAK, label: 'Boundary null' },
+      { ramp: [OVERLAY_COLOURS.PRESSURE_PEAK, OVERLAY_COLOURS.RESONANCE_HOT], label: 'Stacked null · deep suckout' },
+      { color: OVERLAY_COLOURS.DIRECT_SIGNAL, label: 'Treated · handled' },
     ],
   },
   bandwidth: {
@@ -536,7 +538,7 @@ export function initRoom3D({
   let _autoToe = false; // Auto-toe disabled by default; use toe_in_deg from room data
   let _autoToeAngle = 0;     // Last computed angle (radians) — readable via API
   let _waveRings = [];       // Expanding wave ring Meshes, repopulated on rebuild
-  let _sbirFronts = [];      // SBIR interference-forming wavefront rings (in roomGroup)
+  let _sbirTrips = [];       // SBIR boundary tripwire pulses + stack markers (in roomGroup)
   // Shared Sound Waves propagation constants — single source of truth so the
   // Reflections pulses move at the SAME on-screen speed as the rings. The rings
   // expand to (max(L,W)·WAVE_EXTENT_FACTOR) over WAVE_CYCLE_S, an implied
@@ -994,7 +996,7 @@ export function initRoom3D({
     });
     roomGroup.clear();
     _waveRings = [];
-    _sbirFronts = [];   // SBIR wavefront rings live in roomGroup → freed by the traverse; drop refs so the animator no-ops until SBIR rebuilds them.
+    _sbirTrips = [];    // SBIR tripwire pulses/markers live in roomGroup → freed by the traverse; drop refs so the animator no-ops until SBIR rebuilds them.
     // Sound Burst meshes live in roomGroup → already disposed by the traverse
     // above; just drop the refs so a fresh fire rebuilds them (a mid-flight
     // burst ends cleanly when the room geometry changes).
@@ -3504,9 +3506,9 @@ export function initRoom3D({
       }
     }
 
-    // SBIR interference field is now a static comb (no time uniform) — its
-    // motion lives in the SBIR wavefront rings, advanced below.
-    _animateSbirWavefronts(performance.now());
+    // SBIR motion — round-trip pulses along the boundary tripwires (the
+    // reflection that causes each null), flares on stacked markers.
+    _animateSbirTripwires(performance.now());
 
     // Bass Modes (Resonance) — the field itself is baked (static texture, no
     // per-frame shader work); the LIFE is the interior particle cloud, which
@@ -4136,89 +4138,19 @@ export function initRoom3D({
       const isClassB = hasMeasurement && !hasSignificantNull;  // predicted, not measured
       const isClassC = !hasMeasurement;                        // pre-measurement
 
-      // Field opacity scale by class:
-      //   A — drive by measured depth (-60 dB → 1.0, 0 dB → 0.1) — existing severity behaviour
-      //   B — receded; predicted null didn't show up in the measurement
-      //   C — uniform mid-low; predicted-only, intensity unknown
-      let _sbirNullScale;
-      if (isClassA) {
-        _sbirNullScale = Math.max(0.1, Math.min(1.0, (-depthDb) / 60));
-      } else if (isClassB) {
-        _sbirNullScale = 0.35;
-      } else {
-        _sbirNullScale = 0.50;
-      }
-
-      // ── Live SBIR interference field (ShaderMaterial) ─────────────────────
-      // Four point sources: each speaker (L and R) contributes its direct wave
-      // plus its own front-wall mirror image. SBIR is a per-speaker, per-boundary
-      // phenomenon, so the field must originate from each real speaker — not from
-      // a single centred source. The shader computes the wave interference at
-      // every pixel in the horizontal plane at tweeter height — destructive bands
-      // = SBIR nulls fanning from behind each speaker.
+      // Shared geometry inputs for the boundary-null model below: the speaker
+      // acoustic-centre height and the front wall Z.
       const tweeterY = -room.height_m / 2 + (room.tweeter_height_m || 0.95);
       const frontWallZ = -room.length_m / 2;
 
-      // Front wall glow — shaped to follow the ceiling profile
-      const _fwHalfW = room.width_m / 2;
-      const _fwHalfH = room.height_m / 2;
-      const _fwFloorY = -_fwHalfH;
-      const _fwHighY = _fwHalfH;
-      const _fwLowY = room.ceiling_height_secondary_m != null
-        ? -_fwHalfH + room.ceiling_height_secondary_m
-        : _fwHighY;
-      const _fwCeilType = room.ceiling_type || 'flat';
-      const _fwSlantDir = room.ceiling_slant_direction || 'left_to_right';
-      const _fwGableAxis = room.ceiling_gable_axis || 'depth';
-      const _fwCeilAt = (x) => {
-        if (_fwCeilType === 'slanted') {
-          let t;
-          switch (_fwSlantDir) {
-            case 'left_to_right': t = (x + _fwHalfW) / room.width_m; break;
-            case 'right_to_left': t = 1 - (x + _fwHalfW) / room.width_m; break;
-            case 'front_to_back': t = 1; break; // front wall is high side
-            case 'back_to_front': t = 0; break; // front wall is low side
-            default: t = (x + _fwHalfW) / room.width_m;
-          }
-          return _fwLowY + t * (_fwHighY - _fwLowY);
-        }
-        if (_fwCeilType === 'gable') {
-          const distRatio = _fwGableAxis === 'depth'
-            ? Math.abs(x) / _fwHalfW
-            : 1; // width-axis gable: front wall is at eave height
-          return _fwHighY - distRatio * (_fwHighY - _fwLowY);
-        }
-        return _fwHighY;
-      };
-      const _fwShape = new THREE.Shape();
-      const _fwSteps = 20;
-      _fwShape.moveTo(-_fwHalfW, _fwFloorY);
-      _fwShape.lineTo(_fwHalfW, _fwFloorY);
-      for (let i = _fwSteps; i >= 0; i--) {
-        const _sx = -_fwHalfW + (i / _fwSteps) * room.width_m;
-        _fwShape.lineTo(_sx, _fwCeilAt(_sx));
-      }
-      _fwShape.closePath();
-      const wallGlow = new THREE.Mesh(
-        new THREE.ShapeGeometry(_fwShape),
-        new THREE.MeshBasicMaterial({
-          color: OC.DIRECT_SIGNAL, transparent: true,
-          opacity: isFocSBIR ? 0.12 : 0.06,
-          side: THREE.DoubleSide, depthWrite: false
-        })
-      );
-      wallGlow.position.set(offsetX, 0, frontWallZ + 0.01);
-      roomGroup.add(wallGlow);
-
-      // Wave number k = π/(2d) gives first SBIR null at f0 = C/(4d)
+      // Wave number k = π/(2d) — first SBIR null at f0 = C/(4d). Still used by
+      // the seat-notch depth evaluation below (the real path-difference comb).
       const sbirK = Math.PI / (2 * sbirDepth);
 
-      // Two real speaker sources (each mirrored in the front wall by the shader).
-      // Reuse the positions stashed during the wave-ring build, but those are
-      // only populated when waves are enabled (_wavesEnabled, set by setWaves()).
-      // The SBIR overlay can render with waves off (it's in the default dashboard
-      // set), so fall back to the same speaker-placement formula the rings use
-      // (offsetX ± spk_spacing/2 at frontWallZ + d) — never the room origin.
+      // Two real speaker sources (XZ). Reuse the positions stashed during the
+      // wave-ring build when available; otherwise the speaker-placement formula
+      // (offsetX ± spk_spacing/2 at frontWallZ + d). Every boundary distance,
+      // tripwire, and the seat probe derive from these.
       const _spkHalfSep = (room.spk_spacing_m || 0) / 2;
       const _spkSrcL = _wavesEnabled
         ? new THREE.Vector2(_spkLeftLocalPos.x,  _spkLeftLocalPos.z)
@@ -4227,134 +4159,148 @@ export function initRoom3D({
         ? new THREE.Vector2(_spkRightLocalPos.x, _spkRightLocalPos.z)
         : new THREE.Vector2(offsetX + _spkHalfSep, frontWallZ + sbirDepth);
 
-      const sbirMat = new THREE.ShaderMaterial({
-        uniforms: {
-          uK: { value: sbirK },
-          // Two real speaker sources (L/R); each mirrored in the front wall below
-          uSpkL: { value: _spkSrcL },
-          uSpkR: { value: _spkSrcR },
-          uRoomW: { value: room.width_m },
-          uRoomL: { value: room.length_m },
-          uOpacity: { value: (isFocSBIR ? 1.0 : 0.62) * _sbirNullScale },
-          uAbsorption: { value: sbirAbsorption },
-        },
-        vertexShader: `
-          uniform float uRoomW;
-          uniform float uRoomL;
-          varying vec2 vXZ;
-          void main() {
-            vXZ = vec2(
-              (uv.x - 0.5) * uRoomW,
-              (0.5 - uv.y) * uRoomL
+      // ── Boundary-distance null model ─────────────────────────────────────
+      // SBIR is a per-boundary-distance phenomenon: each speaker has a quarter-
+      // wave null off each near boundary, f = c/(4·d). The real damage is when
+      // two land at similar frequencies and STACK into a deep suckout. We draw a
+      // thin glowing tripwire from each speaker to its near boundaries (front
+      // wall, near side wall, floor), label each with its null Hz, and merge
+      // collisions into one bright "deep null" warning. All geometry + labels
+      // (no field shader), recomputed every rebuild so it slides live as
+      // placement changes. Per the tenet: only these sound markers glow; the
+      // room + speakers stay neutral wireframe.
+      const C_SOUND = 343;
+      const floorY  = -room.height_m / 2;
+      const halfW   = room.width_m / 2;
+      const IN_LO = 40, IN_HI = 200;            // danger band (Hz) — drop nulls outside it
+      const STACK_RATIO = Math.pow(2, 1 / 6);   // merge nulls within ~1/6 octave
+
+      // Per-boundary treatment — treating a boundary collapses ITS null.
+      const _frontTreated = simulatePanels || hasFrontPanels || hasBassTraps;
+      const _sideTreatedL = simulatePanels || room.side_panel_mode === 'left'  || room.side_panel_mode === 'both';
+      const _sideTreatedR = simulatePanels || room.side_panel_mode === 'right' || room.side_panel_mode === 'both';
+      const _floorTreated = room.floor_material === 'carpet' || (room.opt_area_rug ?? false);
+
+      const PINK = 0xFF107A, TEAL = 0x00C1B2;
+      const _sbirUp = new THREE.Vector3(0, 1, 0);
+      _sbirTrips = [];
+
+      // Thin glowing strut a→b (a slim cylinder — WebGL ignores line width).
+      const _strut = (a, b, hex, opacity, radius) => {
+        const dir = new THREE.Vector3().subVectors(b, a);
+        const len = Math.max(dir.length(), 0.001);
+        const m = new THREE.Mesh(
+          new THREE.CylinderGeometry(radius, radius, len, 6, 1, true),
+          new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity,
+            blending: THREE.AdditiveBlending, depthWrite: false })
+        );
+        m.position.copy(a).addScaledVector(dir, 0.5);
+        m.quaternion.setFromUnitVectors(_sbirUp, dir.normalize());
+        m.userData.isSbirTrip = true;
+        roomGroup.add(m);
+        return m;
+      };
+      // A pulse travelling the round trip speaker→boundary→speaker — the
+      // reflection that causes the cancellation. Treated boundaries absorb it
+      // before it returns (handled in _animateSbirTripwires).
+      const _addPulse = (a, b, treated, phase0) => {
+        const m = new THREE.Mesh(
+          new THREE.SphereGeometry(0.05, 8, 6),
+          new THREE.MeshBasicMaterial({ color: treated ? TEAL : PINK, transparent: true,
+            opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })
+        );
+        m.position.copy(a);
+        m.frustumCulled = false;
+        m.userData.isSbirTrip = true;
+        roomGroup.add(m);
+        _sbirTrips.push({ kind: 'line', mesh: m, a: a.clone(), b: b.clone(), treated, phase0 });
+      };
+
+      const _speakers = [
+        { x: _spkSrcL.x, z: _spkSrcL.y, sideWallX: -halfW, sideTreated: _sideTreatedL },
+        { x: _spkSrcR.x, z: _spkSrcR.y, sideWallX:  halfW, sideTreated: _sideTreatedR },
+      ];
+      const _seatNulls = [];   // in-band non-treated nulls (both speakers) → dominant-dip pick
+
+      _speakers.forEach((s, si) => {
+        const a = new THREE.Vector3(s.x, tweeterY, s.z);
+        const dFront = Math.max(s.z - frontWallZ, 0.05);
+        const dFloor = Math.max(tweeterY - floorY, 0.05);
+        const dSide  = Math.max(Math.abs(s.x - s.sideWallX), 0.05);
+        const nulls = [
+          { short: 'Front', d: dFront, end: new THREE.Vector3(s.x, tweeterY, frontWallZ),  treated: _frontTreated },
+          { short: 'Floor', d: dFloor, end: new THREE.Vector3(s.x, floorY, s.z),           treated: _floorTreated },
+          { short: 'Side',  d: dSide,  end: new THREE.Vector3(s.sideWallX, tweeterY, s.z),  treated: s.sideTreated },
+        ].map(n => Object.assign(n, { f: C_SOUND / (4 * n.d) }))
+         .filter(n => n.f >= IN_LO && n.f <= IN_HI);   // declutter: in-band only
+
+        // Treated nulls — teal "handled" tripwire; pulse fades before returning.
+        nulls.filter(n => n.treated).forEach((n, i) => {
+          _strut(a, n.end, TEAL, 0.45, 0.012);
+          const lbl = _makeLabelSprite(`${n.short} · handled`, '#5eead4');
+          lbl.position.copy(a).lerp(n.end, 0.55); lbl.position.y += 0.12;
+          roomGroup.add(lbl);
+          _addPulse(a, n.end, true, (si * 3 + i) / 6);
+        });
+
+        // Untreated nulls — cluster by ~1/6 octave to find stacks.
+        const active = nulls.filter(n => !n.treated).sort((p, q) => p.f - q.f);
+        const clusters = [];
+        active.forEach(n => {
+          const last = clusters[clusters.length - 1];
+          if (last && (n.f / last.members[last.members.length - 1].f) < STACK_RATIO) {
+            last.members.push(n);
+          } else {
+            clusters.push({ members: [n] });
+          }
+        });
+
+        clusters.forEach((cl, ci) => {
+          const fRef = cl.members.reduce((acc, m) => acc + m.f, 0) / cl.members.length;
+          if (cl.members.length >= 2) {
+            // STACK — the hero. One bright deep-null marker at the speaker; the
+            // more boundaries collide, the louder. Member tripwires drawn dim so
+            // you can still read WHICH boundaries stack.
+            const sev = Math.min(1, (cl.members.length - 1) / 2 + 0.45);   // 2→0.95, 3→1.0
+            const marker = new THREE.Mesh(
+              new THREE.SphereGeometry(0.10 + 0.06 * sev, 16, 12),
+              new THREE.MeshBasicMaterial({ color: PINK, transparent: true, opacity: 0.5,
+                blending: THREE.AdditiveBlending, depthWrite: false })
             );
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            marker.position.copy(a);
+            marker.userData.isSbirTrip = true;
+            roomGroup.add(marker);
+            cl.members.forEach((n, i) => { _strut(a, n.end, PINK, 0.22, 0.009); _addPulse(a, n.end, false, (si * 3 + i) / 6); });
+            const names = cl.members.map(m => m.short).join(' + ');
+            const lbl = _makeLabelSprite(`${names} stacking · ~${Math.round(fRef)} Hz · deep null`, '#FF107A');
+            lbl.position.copy(a); lbl.position.y += 0.55;
+            roomGroup.add(lbl);
+            _sbirTrips.push({ kind: 'stack', mesh: marker, base: 0.45 + 0.1 * sev, flare: 0.4 * sev });
+            _seatNulls.push({ f: fRef, members: cl.members.length });
+          } else {
+            const n = cl.members[0];
+            _strut(a, n.end, PINK, 0.55, 0.012);
+            const lbl = _makeLabelSprite(`${n.short} · ${Math.round(n.f)} Hz`, '#f9a8d4');
+            lbl.position.copy(a).lerp(n.end, 0.55); lbl.position.y += 0.12;
+            roomGroup.add(lbl);
+            _addPulse(a, n.end, false, (si * 3 + ci) / 6);
+            _seatNulls.push({ f: n.f, members: 1 });
           }
-        `,
-        // Static comb — the steady-state interference MAGNITUDE (phasor sum) of
-        // the four sources, not a moving snapshot. The old global sin(-t) shimmer
-        // carried no information (the comb is spatially fixed by geometry), so it
-        // is gone; SBIR's motion now lives in the wavefront rings below. With no
-        // time term the field is inherently reduced-motion-safe.
-        fragmentShader: `
-          uniform float uK;
-          uniform vec2  uSpkL;
-          uniform vec2  uSpkR;
-          uniform float uRoomL;
-          uniform float uOpacity;
-          uniform float uAbsorption;
-          varying vec2  vXZ;
-
-          void main() {
-            float wallZ = -uRoomL * 0.5;
-            // Each speaker's mirror image behind the front wall (the image source)
-            vec2 mirL = vec2(uSpkL.x, 2.0 * wallZ - uSpkL.y);
-            vec2 mirR = vec2(uSpkR.x, 2.0 * wallZ - uSpkR.y);
-            float refl = 1.0 - uAbsorption;
-
-            // Coherent phasor sum of the four sources — each speaker's direct wave
-            // (amp 1) + its front-wall image (amp refl). The magnitude is the
-            // standing comb envelope: ~1 at reinforcement, ~0 at cancellation
-            // (untreated). The 0.25 normaliser keeps it in 0..1, as before.
-            float kdL  = distance(vXZ, uSpkL) * uK;
-            float kdML = distance(vXZ, mirL)  * uK;
-            float kdR  = distance(vXZ, uSpkR) * uK;
-            float kdMR = distance(vXZ, mirR)  * uK;
-            float re = cos(kdL) + refl * cos(kdML) + cos(kdR) + refl * cos(kdMR);
-            float im = sin(kdL) + refl * sin(kdML) + sin(kdR) + refl * sin(kdMR);
-            float amp = sqrt(re * re + im * im) * 0.25;
-
-            // Crisp the comb: sharp bands so reinforcement pops and cancellation
-            // drops to a clean dark void (no grey floor). pow deepens the void.
-            float comb = smoothstep(0.18, 0.60, amp);
-            comb = pow(comb, 1.4);
-
-            // On-brand: bright pink #FF107A at the comb; as front-wall treatment
-            // rises (refl→0) the bands calm toward teal #00C1B2 "clean", and the
-            // field dims — treating the wall visibly dissolves the pink comb.
-            vec3 pink  = vec3(1.0, 0.063, 0.478);   // #FF107A
-            vec3 teal  = vec3(0.0, 0.757, 0.698);   // #00C1B2
-            vec3 voidC = vec3(0.015, 0.000, 0.025);  // near-black cancellation void
-            vec3 band  = mix(pink, teal, uAbsorption);
-            vec3 finalColor = mix(voidC, band, comb);
-
-            // Reinforcement opaque + bright; cancellation near-transparent so it
-            // reads as a dark gap against the near-black stage. Treatment fades it.
-            float opacity = clamp(comb * uOpacity * 1.5 + 0.015, 0.0, 0.94);
-            opacity *= (1.0 - 0.45 * uAbsorption);
-            gl_FragColor = vec4(finalColor, opacity);
-          }
-        `,
-        transparent: true,
-        depthWrite: false,
-        side: THREE.DoubleSide,
+        });
       });
 
-      const sbirField = new THREE.Mesh(
-        new THREE.PlaneGeometry(room.width_m, room.length_m, 1, 1),
-        sbirMat
-      );
-      sbirField.rotation.x = -Math.PI / 2;
-      sbirField.position.set(0, tweeterY, 0);
-      sbirField.visible = _sbirFieldVisible;
-      sbirField.userData.isSbirField = true;
-      roomGroup.add(sbirField);
-
-      // ── Ghost speakers — the front-wall image sources ────────────────────
-      // The reflection behaves as if a phantom speaker sits behind the front
-      // wall at each speaker's mirror point (mirZ = 2·frontWallZ − srcZ, same X,
-      // tweeter height). Drawn as faint neutral wireframe boxes — structure-like
-      // phantoms per the tenet (dim, never solid), so "the wall acts like a
-      // second speaker behind it" is legible. Added to roomGroup (auto-disposed).
-      {
-        const _ghostGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(0.22, 0.34, 0.25));
-        const _ghostMat = new THREE.LineBasicMaterial({
-          color: 0x8a93a3, transparent: true, opacity: 0.20, depthWrite: false,
-        });
-        [_spkSrcL, _spkSrcR].forEach((src) => {
-          const ghost = new THREE.LineSegments(_ghostGeo.clone(), _ghostMat.clone());
-          ghost.position.set(src.x, tweeterY, 2 * frontWallZ - src.y);   // mirror across front wall
-          ghost.userData.isSbirGhost = true;
-          roomGroup.add(ghost);
-        });
-        _ghostGeo.dispose();
+      // ── Seat notch readout — the frequency-response dip at the seat ──────
+      // Resolve to the listener: the dominant null (a stack if one exists, else
+      // the lowest in-band boundary null) and its depth AT THE SEAT. Depth is the
+      // measured dip (Class A) or a CPU evaluation of the real four-source path-
+      // difference comb at the seat (more accurate than c/4d), deepened when the
+      // dominant null is a stack. A halo tints by depth: deep = hot pink, shallow
+      // = faint/teal. Rebuilt every cycle → slides live with placement.
+      let _dom = null;
+      for (const n of _seatNulls) {
+        if (!_dom || n.members > _dom.members || (n.members === _dom.members && n.f < _dom.f)) _dom = n;
       }
-
-      // ── SBIR's motion — interference forming ─────────────────────────────
-      // Direct wavefronts ripple out from each real speaker and reflected
-      // wavefronts from each ghost image; where they meet they comb — reinforcing
-      // into the bright bands, cancelling into the dark voids. This is SBIR's own
-      // motion language (no particles, no bouncing balls). Tier-guarded + frozen
-      // under reduced motion inside the builder/animator.
-      _buildSbirWavefronts(room, _spkSrcL, _spkSrcR, frontWallZ, tweeterY, 1.0 - sbirAbsorption, isFocSBIR);
-
-      // ── Listener dip probe — resolve to the seat ─────────────────────────
-      // The hero readout: the boundary dip frequency (c/4d) AND its depth AT THE
-      // LISTENING POSITION — not at the speaker plane. Depth is the measured dip
-      // (Class A) or, otherwise, a CPU evaluation of the same four-source comb
-      // envelope at the seat (0..1 "closeness to a node", and it responds to
-      // treatment via refl). A halo at the seat tints by depth: deep dip = hot
-      // pink, shallow = faint. Rebuilt every cycle, so the readout slides live as
-      // Speaker-from-wall changes the dip frequency.
+      const dominantNullHz = _dom ? Math.round(_dom.f) : Math.round(predictedNullHz);
       {
         const _isStudioS = room.room_type === 'studio';
         const _seatS = room.seating_type || 'sofa';
@@ -4362,7 +4308,8 @@ export function initRoom3D({
         const lx = offsetX + (room.listener_offset_m || 0);   // matches the listener station's X
         const lz = -room.length_m / 2 + (room.listener_front_m || 2.8) + _seatZoff;
 
-        // Four-source comb magnitude at the seat (CPU twin of the field shader).
+        // Depth at the seat — real path-difference comb (the four sources: each
+        // speaker direct + its front-wall image), more accurate than c/4d.
         const _refl = 1.0 - sbirAbsorption;
         const mirLz = 2 * frontWallZ - _spkSrcL.y;
         const mirRz = 2 * frontWallZ - _spkSrcR.y;
@@ -4371,21 +4318,20 @@ export function initRoom3D({
           [_spkSrcR.x, _spkSrcR.y, 1.0], [_spkSrcR.x, mirRz, _refl],
         ];
         let _re = 0, _im = 0;
-        for (const [sx, sz, a] of _src) {
+        for (const [sx, sz, amp] of _src) {
           const d = Math.hypot(lx - sx, lz - sz) * sbirK;
-          _re += a * Math.cos(d); _im += a * Math.sin(d);
+          _re += amp * Math.cos(d); _im += amp * Math.sin(d);
         }
-        const seatAmp = Math.hypot(_re, _im) * 0.25;          // 0..1
-        const ceiling = (1.0 + _refl) / 2;                    // reinforcement max
+        const seatAmp = Math.hypot(_re, _im) * 0.25;
+        const ceiling = (1.0 + _refl) / 2;
         const predictedDip = Math.max(0, Math.min(1, 1 - seatAmp / Math.max(ceiling, 1e-3))) * _refl;
-        // Class A trusts the measurement; B/C use the predicted proxy.
+        // A stacked dominant null reads as a worse seat dip.
+        const stackBoost = (_dom && _dom.members >= 2) ? Math.min(1.0, 0.55 + 0.22 * _dom.members) : 1.0;
         const seatDip = isClassA
           ? Math.max(0, Math.min(1, (-depthDb) / 18))
-          : predictedDip;
+          : Math.min(1, predictedDip + (1 - predictedDip) * (stackBoost - 1) + (stackBoost > 1 ? 0.15 : 0));
 
-        // Halo — sound-layer glow at the seat (the structural listener sphere
-        // stays neutral wireframe). Teal when shallow/clean → hot pink when deep.
-        const _haloCol = new THREE.Color(0x00C1B2).lerp(new THREE.Color(0xFF107A), seatDip);
+        const _haloCol = new THREE.Color(TEAL).lerp(new THREE.Color(PINK), seatDip);
         const halo = new THREE.Mesh(
           new THREE.SphereGeometry(0.26, 16, 12),
           new THREE.MeshBasicMaterial({
@@ -4399,20 +4345,17 @@ export function initRoom3D({
         halo.userData.isSbirSeatHalo = true;
         roomGroup.add(halo);
 
-        // Readout sprite above the seat. Severity stays on-brand (pink family) or
-        // neutral — no amber/orange/red. Reads live as the dip frequency slides.
+        // Readout sprite above the seat. On-brand pink family / neutral — never
+        // amber/orange/red. Reads live as the dominant dip frequency slides.
         if (_showLabels) {
           let txt, col;
           if (isClassA) {
             const depthStr = `${depthDb >= 0 ? '+' : ''}${depthDb.toFixed(0)} dB`;
-            txt = `Boundary dip · ${Math.round(measuredNullHz)} Hz · ${depthStr}`;
-            col = seatDip >= 0.55 ? '#FF107A' : seatDip >= 0.3 ? '#ff7ab8' : '#cbd5e1';
-          } else if (isClassB) {
-            txt = `Boundary dip · ~${Math.round(predictedNullHz)} Hz · predicted`;
-            col = '#94a3b8';
+            txt = `Seat dip · ${Math.round(measuredNullHz)} Hz · ${depthStr}`;
+            col = seatDip >= 0.55 ? '#FF107A' : seatDip >= 0.3 ? '#f9a8d4' : '#cbd5e1';
           } else {
-            txt = `Boundary dip · ~${Math.round(predictedNullHz)} Hz · predicted`;
-            col = '#94a3b8';
+            txt = `Seat dip · ~${dominantNullHz} Hz · predicted`;
+            col = seatDip >= 0.55 ? '#f9a8d4' : '#94a3b8';
           }
           const lbl = _makeLabelSprite(txt, col);
           lbl.position.set(lx, tweeterY + 0.45, lz);
@@ -6627,81 +6570,45 @@ export function initRoom3D({
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  //  SBIR WAVEFRONTS — interference forming. Direct wavefronts ripple out from
-  //  each real speaker (teal) and reflected wavefronts from each front-wall
-  //  ghost image (pink, dimmed by refl); where they meet they comb. This is
-  //  SBIR's own motion language — not particles, not bouncing balls. Rings live
-  //  in roomGroup (freed by the rebuild traverse). Tier-guarded; frozen under
-  //  reduced motion. Wrapped so a failure can never break rebuild().
+  //  SBIR MOTION — the reflection round trip. Each boundary tripwire carries a
+  //  pulse that travels speaker → boundary → speaker (the quarter-wave round
+  //  trip that causes the cancellation). Treated boundaries absorb the pulse
+  //  before it returns. Stacked-null markers flare each cycle as the colliding
+  //  pulses return together. Built in the SBIR overlay block (pushed to
+  //  _sbirTrips); this is the per-frame driver. Frozen under reduced motion.
+  //  Distinct from Reflections' travelling balls and Bass Modes' standing
+  //  particles.
   // ════════════════════════════════════════════════════════════════════════
-  function _buildSbirWavefronts(room, spkL, spkR, frontWallZ, planeY, refl, isFoc) {
-    try {
-      _sbirFronts = [];
-      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      const low = reduced
-        || window.matchMedia('(pointer: coarse)').matches
-        || window.matchMedia('(max-width: 900px)').matches;
-      const ringsPer = low ? 2 : 3;
-      const maxR = Math.max(room.length_m, room.width_m) * WAVE_EXTENT_FACTOR;
-
-      // Shared unit-circle tube in the XZ plane — scaled (r,1,r) per frame to
-      // expand outward. One geo shared across all fronts (matches the wave-ring
-      // pattern); the rebuild disposal traverse frees it.
-      const pts = [];
-      const SEG = 64;
-      for (let j = 0; j < SEG; j++) {
-        const a = (j / SEG) * Math.PI * 2;
-        pts.push(new THREE.Vector3(Math.cos(a), 0, Math.sin(a)));
-      }
-      const geo = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts, true), 64, 0.015, 6, true);
-
-      // Four emitters: two direct (speakers, teal) + two reflected (ghost image
-      // points behind the front wall, pink, dimmed by refl so they fade as the
-      // wall is treated — the reflection itself weakening).
-      const emitters = [
-        { x: spkL.x, z: spkL.y,                   color: 0x00C1B2, peak: 0.22 },
-        { x: spkR.x, z: spkR.y,                   color: 0x00C1B2, peak: 0.22 },
-        { x: spkL.x, z: 2 * frontWallZ - spkL.y,  color: 0xFF107A, peak: 0.22 * refl },
-        { x: spkR.x, z: 2 * frontWallZ - spkR.y,  color: 0xFF107A, peak: 0.22 * refl },
-      ];
-      const focK = isFoc ? 1.0 : 0.6;   // a touch dimmer off-focus
-      emitters.forEach((e) => {
-        if (e.peak <= 0.005) return;    // reflected fronts vanish when fully treated
-        for (let ri = 0; ri < ringsPer; ri++) {
-          const mat = new THREE.MeshBasicMaterial({
-            color: e.color, transparent: true, opacity: 0,
-            blending: THREE.AdditiveBlending, depthWrite: false,
-          });
-          const ring = new THREE.Mesh(geo, mat);
-          ring.position.set(e.x, planeY, e.z);
-          ring.scale.set(0.001, 1, 0.001);
-          ring.frustumCulled = false;
-          ring.userData.sbirFront = { phase0: ri / ringsPer, maxR, peak: e.peak * focK };
-          roomGroup.add(ring);
-          _sbirFronts.push(ring);
-        }
-      });
-    } catch (err) {
-      // Decorative layer — never let it take down the overlay/rebuild.
-      try { console.warn('[Room3D] SBIR wavefronts disabled:', err); } catch (e) {}
-      _sbirFronts = [];
-    }
-  }
-
-  // Per-frame wavefront expansion. Frozen (held at phase0) under reduced motion,
-  // consistent with the field/ring freeze. No-ops when SBIR isn't active.
-  function _animateSbirWavefronts(now) {
-    if (!_sbirFronts.length) return;
+  function _animateSbirTripwires(now) {
+    if (!_sbirTrips.length) return;
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const tsec = reduced ? 0 : now * 0.001;
     const period = WAVE_CYCLE_S;
-    for (let i = 0; i < _sbirFronts.length; i++) {
-      const ring = _sbirFronts[i];
-      const u = ring.userData.sbirFront;
-      const phase = ((tsec / period) + u.phase0) % 1.0;
-      const r = Math.max(0.001, phase * u.maxR);
-      ring.scale.set(r, 1, r);
-      ring.material.opacity = Math.max(0, (1 - phase) * u.peak);
+    const tsec = now * 0.001;
+    for (let i = 0; i < _sbirTrips.length; i++) {
+      const tr = _sbirTrips[i];
+      if (tr.kind === 'stack') {
+        // Flare on the round-trip period — the returning pulses colliding.
+        const ph = reduced ? 0.0 : ((tsec / period) % 1.0);
+        const flare = reduced ? 0.5 : Math.pow(Math.max(0, Math.sin(ph * Math.PI)), 3.0);
+        tr.mesh.material.opacity = tr.base + tr.flare * flare;
+        const sc = 1.0 + 0.28 * (reduced ? 0.5 : flare);
+        tr.mesh.scale.setScalar(sc);
+        continue;
+      }
+      // Line pulse: triangle 0→1→0 over the period (out to boundary, back).
+      const ph = reduced ? 0.30 : ((tsec / period + tr.phase0) % 1.0);
+      const tri = ph < 0.5 ? ph * 2.0 : (1.0 - ph) * 2.0;
+      if (tr.treated) {
+        // Absorbed at the boundary: only the outbound leg, fading as it goes —
+        // it never returns to comb at the speaker.
+        const out = Math.min(1, ph * 2.0);
+        tr.mesh.position.copy(tr.a).lerp(tr.b, out);
+        tr.mesh.material.opacity = reduced ? 0.12 : 0.42 * (1.0 - out);
+      } else {
+        tr.mesh.position.copy(tr.a).lerp(tr.b, tri);
+        // Brightest at the boundary (where it reflects), steady on the return.
+        tr.mesh.material.opacity = reduced ? 0.4 : (0.30 + 0.30 * tri);
+      }
     }
   }
 
@@ -7196,11 +7103,12 @@ export function initRoom3D({
       };
     },
 
-    /** Toggle the SBIR interference heatmap field without hiding the ping/path geometry. */
+    /** Toggle the SBIR boundary tripwires / stack markers / seat halo. */
     setSbirField(enabled) {
       _sbirFieldVisible = !!enabled;
-      const m = roomGroup.children.find(o => o.userData?.isSbirField);
-      if (m) m.visible = _sbirFieldVisible;
+      roomGroup.children.forEach(o => {
+        if (o.userData?.isSbirTrip || o.userData?.isSbirSeatHalo) o.visible = _sbirFieldVisible;
+      });
     },
 
     /**
