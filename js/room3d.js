@@ -850,12 +850,18 @@ export function initRoom3D({
       vec3 voidC  = vec3(0.020, 0.010, 0.050);   // near-black resting tone
       vec3 purple = vec3(0.486, 0.227, 0.929);   // #7C3AED
       vec3 pink   = vec3(1.000, 0.063, 0.478);   // #FF107A
-      vec3 hot    = vec3(1.000, 0.850, 0.950);   // white-hot antinode core
+      vec3 hot    = vec3(1.000, 0.720, 0.880);   // pink-white antinode core (pulled off pure white)
       vec3 col = mix(voidC, purple, smoothstep(0.00, 0.28, p));
       col = mix(col, pink, smoothstep(0.28, 0.62, p));
-      col = mix(col, hot,  smoothstep(0.62, 1.00, p));
+      // Narrow the white-hot band to the very peak so big high-pressure areas
+      // stay PINK rather than washing the ceiling/upper walls to flat white.
+      col = mix(col, hot,  smoothstep(0.78, 1.00, p));
+      // Low/mid intensity curve (and the discard) are unchanged — only the bright
+      // end is capped, so peak antinodes read as a contained core and feed far
+      // less into the shared bloom pass (which we must NOT lower; it's shared).
       float intensity = smoothstep(0.03, 0.55, p);
       if (intensity <= 0.002) discard;
+      intensity = min(intensity, 0.62);
       gl_FragColor = vec4(col * intensity * uOpacity, 1.0);
     }`;
 
@@ -6474,7 +6480,13 @@ export function initRoom3D({
             _bwScratchS.setScalar(radius);
             _bwScratchM.compose(_bwScratchV.set(x, y, z), _bwScratchQ.set(0, 0, 0, 1), _bwScratchS);
             mesh.setMatrixAt(n, _bwScratchM);
-            _bwRampColor(magnitude, col);
+            // Cap the bright end so the antinode particle arcs across the top stop
+            // blowing out: clamp the ramp input (brightest read hot-pink, not pure
+            // white) and scale the emissive down so they feed less into the shared
+            // bloom. Applied at the call site so the listener probe's _bwRampColor
+            // (shared) is untouched. Null particles are already hidden (radius 0).
+            _bwRampColor(Math.min(magnitude, 0.82), col);
+            col.multiplyScalar(0.70);
             mesh.setColorAt(n, col);
             n++;
           }
