@@ -601,6 +601,7 @@ export function initRoom3D({
   let _heatSplashCursor = 0;    // round-robin spawn cursor (O(1), no slot scan)
   let _heatReady      = false;  // shell built this rebuild → impactAt is live
   let _heatActive     = false;  // any heat present → run the RT pass + draw planes
+  let _heatFailed     = false;  // a heat op threw (bad GPU / RT / shader) → disable, never retry
   let _heatLastImpactMs = 0;
   let _heatLastUpdateMs = 0;
   let _heatSplashPrevMs = 0;
@@ -5630,6 +5631,20 @@ export function initRoom3D({
   //           six-plane heat shell. Fed by impactAt() from both ball systems.
   // ════════════════════════════════════════════════════════════════════════
 
+  // Fail-safe kill switch. The heat map is a purely additive cosmetic layer
+  // that touches a render target + custom shaders — exactly the surface that
+  // can fail on an old/odd GPU. If any heat op throws, disable the whole
+  // system once (logged once, never retried) so it can NEVER take the core
+  // scene or the app's init flow down with it.
+  function _heatDisable(where, err) {
+    if (!_heatFailed) {
+      _heatFailed = true;
+      try { console.warn('[Room3D] heat-map disabled after error in ' + where + ':', err); } catch (e) {}
+    }
+    _heatReady = false;
+    _heatActive = false;
+  }
+
   // Device-tier scalar — modest target res + fewer updates on iPad / coarse
   // pointers, none of the animated ripples under reduced motion. Mirrors the
   // tiering the Reflections overlay and the burst swarm already use.
@@ -5816,6 +5831,8 @@ export function initRoom3D({
   // ripple mesh live in roomGroup (auto-disposed by the next rebuild traverse);
   // the atlas/decay/splat machinery is persistent (only its contents reset).
   function _buildHeatShell(room) {
+    if (_heatFailed) return;   // a prior heat op threw — stay disabled, never break rebuild()
+    try {
     _teardownHeatShell();      // drop stale refs (meshes already freed by the rebuild traverse)
     _ensureHeatTargets();
 
@@ -5933,6 +5950,7 @@ export function initRoom3D({
     roomGroup.add(_heatSplashMesh);
 
     _heatReady = true;
+    } catch (err) { _heatDisable('_buildHeatShell', err); }
   }
 
   // Drop heat-shell refs. The planes + ripple mesh live in roomGroup, so the
@@ -5953,6 +5971,7 @@ export function initRoom3D({
   // reflected/effective energy in 0..1.
   function impactAt(surfaceKey, point, energy) {
     if (!_heatReady) return;
+    try {
     const idx = _HEAT_SURF_INDEX[surfaceKey];
     if (idx === undefined) return;
     const e = Math.max(0, Math.min(1, energy));
@@ -5998,13 +6017,15 @@ export function initRoom3D({
       if (treated) s.col.setRGB(0.55 * e, 0.10 * e, 0.55 * e); // dim cool magenta
       else         s.col.setRGB(1.00 * e, 0.10 * e, 0.48 * e); // bright hot pink (#FF107A family)
     }
+    } catch (err) { _heatDisable('impactAt', err); }
   }
 
   // Throttled accumulation pass: decay the atlas in place, then additively
   // splat the deposits queued since the last update — ONE off-screen render
   // call. Retires the shell when impacts have stopped and the heat has faded.
   function _updateHeatAccumulation() {
-    if (!_heatRT || !_heatActive) return;
+    if (_heatFailed || !_heatRT || !_heatActive) return;
+    try {
     const now = performance.now();
     if (now - _heatLastUpdateMs < _heatTier.updateMs) return;
     _heatLastUpdateMs = now;
@@ -6058,13 +6079,15 @@ export function initRoom3D({
       _heatActive = false;
       _clearHeatRT();
     }
+    } catch (err) { _heatDisable('_updateHeatAccumulation', err); }
   }
 
   // Layer-1 ripple tick — advance/expand/fade each live splash. No allocation;
   // recycles dead slots. Owns its own dt clock so it stays decoupled from the
   // overlay timing. No-op under reduced motion (no splashes ever spawn).
   function _tickHeatSplashes() {
-    if (!_heatSplashMesh) return;
+    if (_heatFailed || !_heatSplashMesh) return;
+    try {
     const now = performance.now();
     let dt = (now - _heatSplashPrevMs) / 1000;
     _heatSplashPrevMs = now;
@@ -6097,6 +6120,7 @@ export function initRoom3D({
       _heatSplashMesh.instanceMatrix.needsUpdate = true;
       if (_heatSplashMesh.instanceColor) _heatSplashMesh.instanceColor.needsUpdate = true;
     }
+    } catch (err) { _heatDisable('_tickHeatSplashes', err); }
   }
 
   const api = {
