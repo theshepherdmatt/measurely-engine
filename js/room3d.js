@@ -584,6 +584,8 @@ export function initRoom3D({
   let _peaksSeat   = null;    // seat marker mesh (peak/dip indicator)
   let _peaksDims   = null;    // { W, H, L } the modes/coupling were computed for
   let _peaksFreq   = 50;      // swept frequency (Hz), 20–240, driven by the slider
+  let _peaksHalos  = [];      // additive halo Sprites at the antinode cores (self-glow)
+  let _peaksHaloTex = null;   // cached soft-gaussian halo texture (shared by all halos)
   // Vertex shader — pass the baked per-vertex pressure to the fragment.
   const _PEAKS_VERT = `
     attribute float aPressure;
@@ -6862,6 +6864,11 @@ export function initRoom3D({
       roomGroup.remove(_peaksSeat);
       _peaksSeat.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
     }
+    for (let i = 0; i < _peaksHalos.length; i++) {
+      roomGroup.remove(_peaksHalos[i]);
+      if (_peaksHalos[i].material) _peaksHalos[i].material.dispose();   // shared halo texture is cached, not disposed
+    }
+    _peaksHalos = [];
     _peaksLayers = [];
     _peaksMat = null;
     _peaksModes = [];
@@ -7001,12 +7008,39 @@ export function initRoom3D({
           if (a > gmax) gmax = a;
         }
       }
+      // Pass 2: normalise + harvest the brightest points as halo-core candidates.
       const inv = 1 / gmax;
+      const CORE_THRESH = 0.80;
+      const cand = [];
       for (let li = 0; li < _peaksLayers.length; li++) {
         const arr = _peaksLayers[li].aPress.array;
-        for (let vi = 0; vi < arr.length; vi++) arr[vi] *= inv;
+        const pos = _peaksLayers[li].pos;
+        for (let vi = 0; vi < arr.length; vi++) {
+          const nv = arr[vi] * inv;
+          arr[vi] = nv;
+          if (nv > CORE_THRESH) cand.push({ x: pos[vi * 3], y: pos[vi * 3 + 1], z: pos[vi * 3 + 2], v: nv });
+        }
         _peaksLayers[li].aPress.needsUpdate = true;
       }
+      // Greedy spatial dedup → a few bold, distinct antinode cores (not hundreds
+      // of adjacent verts). Tiered count; min separation scales with the room.
+      cand.sort((a, b) => b.v - a.v);
+      const coarse = window.matchMedia('(pointer: coarse)').matches
+        || window.matchMedia('(max-width: 900px)').matches;
+      const N = coarse ? 8 : 14;
+      const minD = Math.max(0.45, Math.sqrt(W * W + L * L) * 0.10);
+      const minD2 = minD * minD;
+      const cores = [];
+      for (let ci = 0; ci < cand.length && cores.length < N; ci++) {
+        const c = cand[ci];
+        let ok = true;
+        for (let k = 0; k < cores.length; k++) {
+          const dx = cores[k].x - c.x, dy = cores[k].y - c.y, dz = cores[k].z - c.z;
+          if (dx * dx + dy * dy + dz * dz < minD2) { ok = false; break; }
+        }
+        if (ok) cores.push(c);
+      }
+      _buildPeaksHalos(cores, coarse);
       _updatePeaksSeat(room, mw, inv);
     } catch (err) {
       try { console.warn('[Room3D] Peaks bake failed:', err); } catch (e) {}
@@ -7054,6 +7088,71 @@ export function initRoom3D({
       roomGroup.add(grp);
       _peaksSeat = grp;
     } catch (err) { /* seat readout is optional — never block the slab */ }
+  }
+
+  // Soft-gaussian halo texture (white; tinted per-sprite via SpriteMaterial.color).
+  // Cached and shared across all halos — never disposed per rebuild.
+  function _peaksHaloTexture() {
+    if (_peaksHaloTex) return _peaksHaloTex;
+    const S = 64, data = new Uint8Array(S * S * 4), c = (S - 1) / 2;
+    for (let y = 0; y < S; y++) {
+      for (let x = 0; x < S; x++) {
+        const dx = (x - c) / c, dy = (y - c) / c;
+        const r = Math.sqrt(dx * dx + dy * dy);
+        const g = Math.exp(-r * r * 3.2);                 // soft falloff
+        const a = r > 1 ? 0 : Math.max(0, Math.min(1, g));
+        const i = (y * S + x) * 4;
+        data[i] = 255; data[i + 1] = 255; data[i + 2] = 255; data[i + 3] = Math.round(a * 255);
+      }
+    }
+    const tex = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.needsUpdate = true;
+    _peaksHaloTex = tex;
+    return tex;
+  }
+
+  // The slab's OWN glow — additive halo Sprites at the antinode cores. There is
+  // NO post-processing bloom pass in the engine/consumers (render is a plain
+  // renderer.render); "bloom" everywhere else is just additive blending. So the
+  // glow must be self-provided, which also makes it mobile-proof. Sprites are
+  // billboards positioned once per bake → no per-frame cost. World-sized so they
+  // don't shrink/vanish with device-pixel-ratio; boosted on coarse/small screens
+  // so they read boldly at phone canvas size. Saturated purple→magenta, never
+  // white (carries the no-white-wash fix). Rebuilt each bake (freq change) and
+  // freed by the rebuild traverse.
+  function _buildPeaksHalos(cores, coarse) {
+    for (let i = 0; i < _peaksHalos.length; i++) {
+      roomGroup.remove(_peaksHalos[i]);
+      if (_peaksHalos[i].material) _peaksHalos[i].material.dispose();
+    }
+    _peaksHalos = [];
+    if (!cores || !cores.length || !_peaksDims) return;
+    try {
+      const { W, H, L } = _peaksDims;
+      const diag = Math.sqrt(W * W + L * L + H * H);
+      const sizeBoost = coarse ? 1.5 : 1.0;        // bolder on small screens (sprites are DPR-independent)
+      const tex = _peaksHaloTexture();
+      const purp = new THREE.Color(0x7C3AED), mag = new THREE.Color(0xB026FF);
+      const col = new THREE.Color();
+      for (let i = 0; i < cores.length; i++) {
+        const core = cores[i];
+        const t = Math.max(0, Math.min(1, (core.v - 0.80) / 0.20));   // purple → hot magenta with depth
+        col.copy(purp).lerp(mag, t);
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: tex, color: col, transparent: true,
+          opacity: Math.min(0.95, 0.55 + 0.45 * core.v),
+          blending: THREE.AdditiveBlending, depthWrite: false,
+        }));
+        sp.position.set(core.x, core.y, core.z);
+        const s = diag * 0.085 * (0.7 + core.v) * sizeBoost;   // world-sized: bold, DPR-independent
+        sp.scale.set(s, s, 1);
+        sp.userData.isPeaksHalo = true;
+        roomGroup.add(sp);
+        _peaksHalos.push(sp);
+      }
+    } catch (err) { /* halos are decorative — never block the slab */ }
   }
 
   const api = {
