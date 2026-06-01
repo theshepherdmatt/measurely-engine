@@ -176,6 +176,23 @@ export const OVERLAY_META = {
       { color: OVERLAY_COLOURS.TREATED_CYAN,  label: 'Treated wall' },
     ],
   },
+  peaks_dips: {
+    label: 'Peaks & dips',
+    shortDescription: 'Modal pressure · sweep the bass',
+    icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h3l3 7 4-14 3 7h5"/></svg>',
+    whatItShows: 'A translucent slab of the modal pressure field, stacked through the height band from the floor to the top of the speaker cabinets. At a chosen frequency, bass energy build-ups (antinodes) glow as solid purple blobs floating in the listening zone, while cancellations (nulls) are fully transparent — you literally see through the dips. Same room modes as Bass Modes, shown as a volume you scrub rather than an oscillating cloud.',
+    howToRead: 'Drag the frequency slider (20–240 Hz) and the whole volume re-forms: where the slab is solid purple, that frequency piles up; where it is transparent teal or empty, that frequency cancels. Move the slider to a frequency you find boomy or thin and look at the listening seat — if it sits in a purple blob the note is reinforced there, if it sits in a clear gap the note is sucked out.',
+    caveats: [
+      'Steady-state prediction from room geometry + speaker placement; furniture, absorption, and speaker dispersion are not modelled.',
+      'The slab covers the floor-to-cabinet height band, not the full room volume, so it reads as the energy in the listening zone.',
+      'Modes are capped to the audible bass band; very high or very low modes are omitted.',
+    ],
+    // Teal (dip/low) → purple (peak/antinode). No pink, no amber.
+    legend: [
+      { color: OVERLAY_COLOURS.DIRECT_SIGNAL,    label: 'Dip · low pressure' },
+      { color: OVERLAY_COLOURS.RESONANCE_PURPLE, label: 'Peak · antinode' },
+    ],
+  },
   floor_reflection: {
     label: 'Floor reflection',
     shortDescription: 'Floor bounce · auto-enabled',
@@ -238,7 +255,8 @@ export function initRoom3D({
     SIDE_REFLECTIONS: "side_reflections",
     REAR_ENERGY: "rear_energy",
     COFFEE_TABLE: "coffee_table",
-    BANDWIDTH: "bandwidth"
+    BANDWIDTH: "bandwidth",
+    PEAKS_DIPS: "peaks_dips"
   };
 
   /* ------------------------------------------
@@ -554,6 +572,45 @@ export function initRoom3D({
   const _sbirV     = new THREE.Vector3();
   const _sbirUpY   = new THREE.Vector3(0, 1, 0);
   const _sbirRightX = new THREE.Vector3(1, 0, 0);
+
+  // ── Peaks & dips — volumetric modal pressure SLAB ─────────────────────────
+  // A separate lens on the same room modes: ~10 stacked horizontal layers from
+  // floor to speaker-cabinet top, per-vertex modal pressure baked into an
+  // aPressure attribute. Colour teal→purple + alpha by pressure → a translucent
+  // volume you SCRUB by frequency (re-baked on slider change, never per frame).
+  let _peaksLayers = [];      // [{ mesh, geom, pos:Float32Array(xyz), aPress:BufferAttribute }]
+  let _peaksMat    = null;    // shared raw-GLSL ShaderMaterial
+  let _peaksModes  = [];      // cached { p, q, r, f, coupling } for the current room
+  let _peaksSeat   = null;    // seat marker mesh (peak/dip indicator)
+  let _peaksDims   = null;    // { W, H, L } the modes/coupling were computed for
+  let _peaksFreq   = 50;      // swept frequency (Hz), 20–240, driven by the slider
+  // Vertex shader — pass the baked per-vertex pressure to the fragment.
+  const _PEAKS_VERT = `
+    attribute float aPressure;
+    varying float vP;
+    void main() {
+      vP = aPressure;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`;
+  // Fragment — teal (dip/low) → purple (peak/antinode); alpha from pressure so
+  // nulls vanish (you see through the dips) and antinodes read solid + bright
+  // enough to feed the shared bloom. High contrast keeps dips as real voids.
+  const _PEAKS_FRAG = `
+    precision mediump float;
+    varying float vP;
+    uniform float uContrast;
+    uniform float uNull;
+    uniform float uOpacity;
+    void main() {
+      float p  = clamp(vP, 0.0, 1.0);
+      float pc = pow(p, uContrast);
+      vec3 teal = vec3(0.000, 0.757, 0.698);   // #00C1B2 — dip / low pressure
+      vec3 purp = vec3(0.486, 0.227, 0.929);   // #7C3AED — peak / antinode
+      vec3 col  = mix(teal, purp, pc);
+      float alpha = smoothstep(uNull, 1.0, p);  // nulls fully transparent
+      if (alpha < 0.01) discard;
+      gl_FragColor = vec4(col * (0.45 + 0.75 * pc), alpha * uOpacity);
+    }`;
   // Shared Sound Waves propagation constants — single source of truth so the
   // Reflections pulses move at the SAME on-screen speed as the rings. The rings
   // expand to (max(L,W)·WAVE_EXTENT_FACTOR) over WAVE_CYCLE_S, an implied
@@ -1012,6 +1069,7 @@ export function initRoom3D({
     roomGroup.clear();
     _waveRings = [];
     _teardownSbirStreams();   // SBIR FX live in roomGroup → freed by the traverse; drop refs so the animator no-ops until SBIR rebuilds them.
+    _teardownPeaksSlab();     // Peaks & dips slab layers + seat marker live in roomGroup → freed by the traverse; drop refs.
     // Sound Burst meshes live in roomGroup → already disposed by the traverse
     // above; just drop the refs so a fresh fire rebuilds them (a mid-flight
     // burst ends cleanly when the room geometry changes).
@@ -5321,6 +5379,16 @@ export function initRoom3D({
       console.error("[Room3D] Overlay 'bandwidth' failed to render", err);
     }
 
+    // ---- PEAKS & DIPS (volumetric modal-pressure slab) ----
+    // Separate lens on the same modes as Bass Modes: a translucent slab you
+    // scrub by frequency. Builds + bakes the field at the current _peaksFreq;
+    // re-bakes (without a full rebuild) when api.setPeaksFreq() moves the slider.
+    if (overlayEnabled(OVERLAYS.PEAKS_DIPS)) try {
+      _buildPeaksSlab(room);
+    } catch (err) {
+      console.error("[Room3D] Overlay 'peaks_dips' failed to render", err);
+    }
+
     // Clarity overlay was removed in May 2026: predicted three-ray triangle
     // wireframe never read measured arrival times. Reflections (rebuilt as
     // a behavioural simulation) covers the same teaching ground honestly.
@@ -6765,6 +6833,215 @@ export function initRoom3D({
     }
   }
 
+  // ════════════════════════════════════════════════════════════════════════
+  //  PEAKS & DIPS — volumetric modal-pressure SLAB. A separate lens on the same
+  //  room modes as Bass Modes: ~10 stacked translucent horizontal layers from
+  //  floor to speaker-cabinet top. Per-vertex steady-state modal pressure at the
+  //  swept frequency is BAKED into an aPressure attribute (on build + on slider
+  //  change, never per frame); the raw-GLSL shader ramps teal→purple and fades
+  //  nulls to transparent. Static once baked → inherently reduced-motion-safe
+  //  and cheap on iPad. DISTINCT from Bass Modes' oscillating particle cloud:
+  //  this is a continuous translucent volume you scrub by frequency.
+  // ════════════════════════════════════════════════════════════════════════
+  function _teardownPeaksSlab() {
+    if (_peaksSeat) {
+      roomGroup.remove(_peaksSeat);
+      _peaksSeat.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+    }
+    _peaksLayers = [];
+    _peaksMat = null;
+    _peaksModes = [];
+    _peaksDims = null;
+    _peaksSeat = null;
+  }
+
+  // A horizontal vertex grid at height y, in roomGroup-local coords, with an
+  // (initially zero) aPressure attribute the bake fills.
+  function _buildPeaksGrid(y, GX, GZ, W, L) {
+    const nx = GX + 1, nz = GZ + 1, count = nx * nz;
+    const pos = new Float32Array(count * 3);
+    let v = 0;
+    for (let j = 0; j < nz; j++) {
+      const z = -L / 2 + (j / GZ) * L;
+      for (let i = 0; i < nx; i++) {
+        const x = -W / 2 + (i / GX) * W;
+        pos[v * 3] = x; pos[v * 3 + 1] = y; pos[v * 3 + 2] = z; v++;
+      }
+    }
+    const idx = [];
+    for (let j = 0; j < GZ; j++) {
+      for (let i = 0; i < GX; i++) {
+        const a = j * nx + i, b = a + 1, c = a + nx, d = c + 1;
+        idx.push(a, c, b, b, c, d);
+      }
+    }
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const aAttr = new THREE.BufferAttribute(new Float32Array(count), 1);
+    aAttr.setUsage(THREE.DynamicDrawUsage);
+    geom.setAttribute('aPressure', aAttr);
+    geom.setIndex(idx);
+    return { geom, pos, aPress: aAttr };
+  }
+
+  function _buildPeaksSlab(room) {
+    try {
+      _teardownPeaksSlab();
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const low = reduced
+        || window.matchMedia('(pointer: coarse)').matches
+        || window.matchMedia('(max-width: 900px)').matches;
+      const NLAYERS = low ? 7 : 10;
+      const GX = low ? 20 : 32, GZ = low ? 20 : 32;
+
+      const W = room.width_m, H = room.height_m, L = room.length_m;
+      const floorY = -H / 2;
+      // Slab spans floor → speaker-cabinet top (fallback ~1.1 m above floor).
+      const cabTop = Math.max(0.8, Math.min(1.4, (room.tweeter_height_m || 0.95) + 0.15));
+      const slabTopY = floorY + Math.min(cabTop, H * 0.7);
+
+      // Modes for this room, capped to the slider's top (240 Hz). Precompute the
+      // speaker coupling per mode = Phi at each speaker (both drive the mode).
+      // Predictive model: not a physical measurement
+      const modeList = (window.MeasurelyAcoustics?.computeRoomModes(room, 15, 240)) || [];
+      const offsetX = room.listener_offset_m || 0;
+      const halfSep = (room.spk_spacing_m || 0) / 2;
+      const tY = floorY + (room.tweeter_height_m || 0.95);
+      const fwZ = -L / 2;
+      const dF = Math.max(room.spk_front_m || 0.45, 0.05);
+      const spk = [
+        { x: offsetX - halfSep, y: tY, z: fwZ + dF },
+        { x: offsetX + halfSep, y: tY, z: fwZ + dF },
+      ];
+      const phiAt = (p, q, r, x, y, z) =>
+        Math.cos(p * Math.PI * ((z + L / 2) / L)) *
+        Math.cos(q * Math.PI * ((x + W / 2) / W)) *
+        Math.cos(r * Math.PI * ((y + H / 2) / H));
+      _peaksModes = modeList.map(m => ({
+        p: m.p, q: m.q, r: m.r, f: m.freq_hz,
+        coupling: spk.reduce((acc, s) => acc + phiAt(m.p, m.q, m.r, s.x, s.y, s.z), 0),
+      }));
+      _peaksDims = { W, H, L };
+
+      _peaksMat = new THREE.ShaderMaterial({
+        vertexShader: _PEAKS_VERT, fragmentShader: _PEAKS_FRAG,
+        uniforms: {
+          uContrast: { value: 2.0 },             // high → dips read as voids
+          uNull:     { value: 0.22 },            // smoothstep floor: below this = transparent
+          uOpacity:  { value: low ? 0.20 : 0.16 },
+        },
+        transparent: true, depthWrite: false,
+        blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+      });
+
+      _peaksLayers = [];
+      for (let li = 0; li < NLAYERS; li++) {
+        const t = NLAYERS === 1 ? 0 : li / (NLAYERS - 1);
+        const y = floorY + t * (slabTopY - floorY);
+        const { geom, pos, aPress } = _buildPeaksGrid(y, GX, GZ, W, L);
+        const mesh = new THREE.Mesh(geom, _peaksMat);
+        mesh.frustumCulled = false;
+        mesh.renderOrder = 3;
+        mesh.userData.isPeaksLayer = true;
+        roomGroup.add(mesh);
+        _peaksLayers.push({ mesh, geom, pos, aPress });
+      }
+      _bakePeaksField(room);
+    } catch (err) {
+      try { console.warn('[Room3D] Peaks & dips disabled:', err); } catch (e) {}
+      _teardownPeaksSlab();
+    }
+  }
+
+  // Re-bake the per-vertex pressure at the current _peaksFreq across all layers
+  // (normalised 0..1 over the whole slab) and refresh the seat readout. Called
+  // on build + on slider change — NOT per frame.
+  function _bakePeaksField(room) {
+    if (!_peaksLayers.length || !_peaksDims) return;
+    try {
+      const { W, H, L } = _peaksDims;
+      const PI = Math.PI;
+      const f = _peaksFreq;
+      const modes = _peaksModes;
+      // Lorentzian resonance weight × speaker coupling, per mode at f.
+      const mw = modes.map(m => {
+        const gamma = Math.max(2, m.f * 0.06);     // ~Q 16 bandwidth
+        const x = (f - m.f) / gamma;
+        return m.coupling / (1 + x * x);
+      });
+      const M = modes.length;
+      let gmax = 1e-6;
+      for (let li = 0; li < _peaksLayers.length; li++) {
+        const layer = _peaksLayers[li];
+        const pos = layer.pos, arr = layer.aPress.array, n = arr.length;
+        for (let vi = 0; vi < n; vi++) {
+          const x = pos[vi * 3], y = pos[vi * 3 + 1], z = pos[vi * 3 + 2];
+          const nzc = (z + L / 2) / L, nxc = (x + W / 2) / W, nyc = (y + H / 2) / H;
+          let pr = 0;
+          for (let mi = 0; mi < M; mi++) {
+            const m = modes[mi];
+            pr += mw[mi] * Math.cos(m.p * PI * nzc) * Math.cos(m.q * PI * nxc) * Math.cos(m.r * PI * nyc);
+          }
+          const a = Math.abs(pr);
+          arr[vi] = a;
+          if (a > gmax) gmax = a;
+        }
+      }
+      const inv = 1 / gmax;
+      for (let li = 0; li < _peaksLayers.length; li++) {
+        const arr = _peaksLayers[li].aPress.array;
+        for (let vi = 0; vi < arr.length; vi++) arr[vi] *= inv;
+        _peaksLayers[li].aPress.needsUpdate = true;
+      }
+      _updatePeaksSeat(room, mw, inv);
+    } catch (err) {
+      try { console.warn('[Room3D] Peaks bake failed:', err); } catch (e) {}
+    }
+  }
+
+  // Quiet seat marker: is the listening position a peak or a dip at this freq?
+  function _updatePeaksSeat(room, mw, inv) {
+    if (_peaksSeat) {
+      roomGroup.remove(_peaksSeat);
+      _peaksSeat.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+      _peaksSeat = null;
+    }
+    if (!room || !_showLabels) return;
+    try {
+      const { W, H, L } = _peaksDims;
+      const PI = Math.PI;
+      const floorY = -H / 2;
+      const off = room.listener_offset_m || 0;
+      const lx = off + off;   // matches the listener station's X (offsetX + listener_offset_m)
+      const ly = floorY + Math.min((room.tweeter_height_m || 0.95), H - 0.1);   // ear height, inside the slab
+      const _seat = room.seating_type || 'sofa';
+      const lz = -L / 2 + (room.listener_front_m || 2.8) + (room.room_type === 'studio' ? 0.20 : (_seat === 'lounge' ? 0.38 : 0.28));
+      const nzc = (lz + L / 2) / L, nxc = (lx + W / 2) / W, nyc = (ly + H / 2) / H;
+      let pr = 0;
+      for (let mi = 0; mi < _peaksModes.length; mi++) {
+        const m = _peaksModes[mi];
+        pr += mw[mi] * Math.cos(m.p * PI * nzc) * Math.cos(m.q * PI * nxc) * Math.cos(m.r * PI * nyc);
+      }
+      const seatP = Math.max(0, Math.min(1, Math.abs(pr) * inv));
+      const grp = new THREE.Group();
+      const col = new THREE.Color(0x00C1B2).lerp(new THREE.Color(0x7C3AED), seatP);
+      const dot = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 14, 10),
+        new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.35 + 0.5 * seatP,
+          blending: THREE.AdditiveBlending, depthWrite: false })
+      );
+      dot.position.set(lx, ly, lz);
+      grp.add(dot);
+      const verdict = seatP >= 0.6 ? 'peak' : seatP <= 0.3 ? 'dip' : 'mid';
+      const lbl = _makeLabelSprite(`Seat · ${Math.round(_peaksFreq)} Hz · ${verdict}`, seatP >= 0.6 ? '#c4b5fd' : '#5eead4');
+      lbl.position.set(lx, ly + 0.4, lz);
+      grp.add(lbl);
+      grp.userData.isPeaksSeat = true;
+      roomGroup.add(grp);
+      _peaksSeat = grp;
+    } catch (err) { /* seat readout is optional — never block the slab */ }
+  }
+
   const api = {
     update: rebuild,
 
@@ -7263,6 +7540,21 @@ export function initRoom3D({
         if (o.userData?.isSbirFx) o.visible = _sbirFieldVisible;
       });
     },
+
+    /**
+     * setPeaksFreq(hz) — set the swept frequency (20–240 Hz) for the Peaks &
+     * dips slab. Re-bakes the field in place (no full rebuild) when the overlay
+     * is active, so dragging the SCL frequency slider re-forms the volume live.
+     */
+    setPeaksFreq(hz) {
+      _peaksFreq = Math.max(20, Math.min(240, parseFloat(hz) || 50));
+      if (overlayEnabled(OVERLAYS.PEAKS_DIPS) && _peaksLayers.length) {
+        _bakePeaksField(_lastRoom);
+      }
+    },
+
+    /** Current Peaks & dips swept frequency (Hz). */
+    getPeaksFreq() { return _peaksFreq; },
 
     /**
      * fireSoundBurst() — trigger the Sound Burst showpiece: a one-shot

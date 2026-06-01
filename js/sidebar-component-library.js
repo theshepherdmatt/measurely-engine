@@ -1129,6 +1129,40 @@
     };
   }
 
+  // ── Section — Peaks & dips frequency sweep ────────────────────────────────
+  // A single range slider (20–240 Hz) for the Peaks & dips overlay. Mount it
+  // when that overlay is active; wire onChange to room3D.setPeaksFreq(hz) so the
+  // slab re-forms as you scrub. Debounce is unnecessary — the engine re-bakes on
+  // change (not per frame) and the bake is fast — but callers may throttle.
+  //   renderPeaksFreqSlider(mountId, { value, min, max, onChange })
+  function renderPeaksFreqSlider(mountId, { value = 50, min = 20, max = 240, onChange } = {}) {
+    const mount = _mount(mountId);
+    if (!mount) return null;
+
+    const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
+    const { wrap: fw, slider, val } = _sliderField({
+      label: 'Frequency', id: 'scl-peaks-freq',
+      min, max, step: 1, value, unit: 'Hz', decimals: 0, acoustic: 'peaks_dips',
+    });
+    slider.addEventListener('input', () => {
+      const v = parseFloat(slider.value);
+      val.textContent = v.toFixed(0) + ' Hz';
+      _updateSliderFill(slider);
+      onChange?.(v);
+    });
+    wrap.appendChild(fw);
+    mount.appendChild(wrap);
+
+    return {
+      setValue(v) {
+        slider.value = String(v);
+        val.textContent = Math.round(v) + ' Hz';
+        _updateSliderFill(slider);
+      },
+      reset() { this.setValue(value); },
+    };
+  }
+
   // ── Public API ─────────────────────────────────────────────────────────────
 
   return {
@@ -1142,5 +1176,6 @@
     renderTreatmentSection,
     renderWaveToggle,
     renderSoundBurstSection,
+    renderPeaksFreqSlider,
   };
 });
