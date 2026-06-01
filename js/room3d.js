@@ -604,12 +604,26 @@ export function initRoom3D({
     void main() {
       float p  = clamp(vP, 0.0, 1.0);
       float pc = pow(p, uContrast);
-      vec3 teal = vec3(0.000, 0.757, 0.698);   // #00C1B2 — dip / low pressure
-      vec3 purp = vec3(0.486, 0.227, 0.929);   // #7C3AED — peak / antinode
-      vec3 col  = mix(teal, purp, pc);
-      float alpha = smoothstep(uNull, 1.0, p);  // nulls fully transparent
+      // LOW-GREEN ramp. The wash came from teal (green 0.76): additively summing
+      // ~10 high-green layers drives green+blue → 1 = cyan-white. So teal shows
+      // ONLY at near-transparent dips; the visible mid/high route through
+      // electric blue → purple → hot magenta, all low-green, so a summed antinode
+      // column reads as a saturated purple/magenta core, never white.
+      vec3 teal = vec3(0.000, 0.757, 0.698);   // #00C1B2 — dip (barely visible, low alpha)
+      vec3 blue = vec3(0.106, 0.247, 1.000);   // electric blue — low green
+      vec3 purp = vec3(0.486, 0.227, 0.929);   // #7C3AED — peak
+      vec3 mag  = vec3(0.835, 0.157, 1.000);   // hot magenta-purple — top-antinode punch
+      vec3 col = mix(teal, blue, smoothstep(0.00, 0.32, pc));
+      col = mix(col, purp,      smoothstep(0.32, 0.70, pc));
+      col = mix(col, mag,       smoothstep(0.70, 1.00, pc));
+      // Boost chroma so it glows COLOURED (push away from grey before bloom).
+      float luma = dot(col, vec3(0.299, 0.587, 0.114));
+      col = clamp(mix(vec3(luma), col, 1.35), 0.0, 1.0);
+      // Dips fully transparent; antinodes reach solid sooner → bold blobs, not haze.
+      float alpha = smoothstep(uNull, 0.85, p);
       if (alpha < 0.01) discard;
-      gl_FragColor = vec4(col * (0.45 + 0.75 * pc), alpha * uOpacity);
+      // Hue-preserving brightness (scales the colour, never adds white).
+      gl_FragColor = vec4(col * (0.60 + 0.70 * pc), alpha * uOpacity);
     }`;
   // Shared Sound Waves propagation constants — single source of truth so the
   // Reflections pulses move at the SAME on-screen speed as the rings. The rings
@@ -6926,9 +6940,9 @@ export function initRoom3D({
       _peaksMat = new THREE.ShaderMaterial({
         vertexShader: _PEAKS_VERT, fragmentShader: _PEAKS_FRAG,
         uniforms: {
-          uContrast: { value: 2.0 },             // high → dips read as voids
-          uNull:     { value: 0.22 },            // smoothstep floor: below this = transparent
-          uOpacity:  { value: low ? 0.20 : 0.16 },
+          uContrast: { value: 2.3 },             // higher → dips read as harder voids
+          uNull:     { value: 0.30 },            // more of the low range goes transparent
+          uOpacity:  { value: low ? 0.18 : 0.15 }, // a touch lower → headroom so stacks stay in-gamut (saturated, not clipped white)
         },
         transparent: true, depthWrite: false,
         blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
