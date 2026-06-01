@@ -124,20 +124,19 @@ export const OVERLAY_META = {
     label: 'Speaker placement',
     shortDescription: 'Boundary nulls · distance & stacking',
     icon: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>',
-    whatItShows: 'Each speaker fires a thin tripwire to its near boundaries — front wall, nearest side wall, floor — and labels the quarter-wave cancellation each one causes (f = c/4d, so closer boundary = higher null). The real damage is when two nulls land at similar frequencies and STACK into one deep suckout; the overlay flags that. Everything recomputes live as you move the speakers or the seat.',
-    howToRead: 'Pull a speaker away from a boundary and that boundary\'s null slides down in frequency. When two tripwires fall within about a sixth of an octave they merge into one bright "deep null" marker — that\'s the placement to fix, usually by making the front, side and floor distances unequal. Treating a boundary turns its tripwire teal ("handled"). The readout at the seat shows the resulting dip — the dominant null frequency and its depth.',
+    whatItShows: 'Energy streams flow from each speaker out to its near boundaries — front wall, nearest side wall, floor — and back, the quarter-wave round trip (f = c/4d) that causes a cancellation. Where the returning energy collides out of phase it gets devoured in a throbbing suckout; in phase it pops as a bright flare. When two boundary nulls land at similar frequencies they STACK into one violent vortex — the deep suckout to fix. Everything recomputes live as you move the speakers or the seat.',
+    howToRead: 'Watch where the streams get eaten: a throbbing pink vortex is a cancellation. Pull a speaker away from a boundary and its null slides down in frequency; line two boundaries up at the same distance and their vortices merge into one violent suckout — separate them and it tears apart. Treating a boundary calms its stream to teal and closes the hole. The vortex at the seat, with the "Boundary dip" readout, is the dip you actually hear.',
     caveats: [
       'Boundaries are modelled as rigid reflectors; heavy treatment or an open space behind the speakers reduces the cancellation depth in practice.',
       'Only nulls in the audible boundary band (~40-200 Hz) are shown; nulls outside it are dropped to keep the view readable.',
       'Floor treatment is approximate — a rug helps less at these low frequencies than panels on a wall.',
     ],
     // Legend chips — colours reference OVERLAY_COLOURS so they can never drift
-    // from what the scene paints. Consumed by web's HUD legend (and any future
-    // consumer that renders one). Pink/teal only — no severity warm palette.
+    // from what the scene paints. Pink/teal only — no severity warm palette.
     legend: [
-      { color: OVERLAY_COLOURS.PRESSURE_PEAK, label: 'Boundary null' },
-      { ramp: [OVERLAY_COLOURS.PRESSURE_PEAK, OVERLAY_COLOURS.RESONANCE_HOT], label: 'Stacked null · deep suckout' },
-      { color: OVERLAY_COLOURS.DIRECT_SIGNAL, label: 'Treated · handled' },
+      { color: OVERLAY_COLOURS.PRESSURE_PEAK, label: 'Reinforcement flare' },
+      { ramp: [OVERLAY_COLOURS.PRESSURE_PEAK, OVERLAY_COLOURS.RESONANCE_HOT], label: 'Cancellation suckout · your dip' },
+      { color: OVERLAY_COLOURS.DIRECT_SIGNAL, label: 'Treated · healed' },
     ],
   },
   bandwidth: {
@@ -538,7 +537,23 @@ export function initRoom3D({
   let _autoToe = false; // Auto-toe disabled by default; use toe_in_deg from room data
   let _autoToeAngle = 0;     // Last computed angle (radians) — readable via API
   let _waveRings = [];       // Expanding wave ring Meshes, repopulated on rebuild
-  let _sbirTrips = [];       // SBIR boundary tripwire pulses + stack markers (in roomGroup)
+  // SBIR energy-stream FX (in roomGroup → freed by the rebuild traverse).
+  let _sbirParticles = null;  // InstancedMesh — glowing stream particles
+  let _sbirTrails    = null;  // InstancedMesh — comet trails (desktop tier only)
+  let _sbirTrailLen  = 0;
+  let _sbirPool      = [];    // particle descriptors { sIdx, phase0, speed, radius, ox/oy/oz, swirl }
+  let _sbirStreams   = [];    // stream defs { a, b, treated, color, suck:Vector3|null, throbW }
+  let _sbirVortices  = [];    // { ring, severity, throbW, seat }
+  let _sbirFlares    = [];    // { mesh, throbW, treated }
+  const _sbirM     = new THREE.Matrix4();
+  const _sbirPos   = new THREE.Vector3();
+  const _sbirPos2  = new THREE.Vector3();
+  const _sbirQuat  = new THREE.Quaternion();
+  const _sbirScale = new THREE.Vector3();
+  const _sbirCol   = new THREE.Color();
+  const _sbirV     = new THREE.Vector3();
+  const _sbirUpY   = new THREE.Vector3(0, 1, 0);
+  const _sbirRightX = new THREE.Vector3(1, 0, 0);
   // Shared Sound Waves propagation constants — single source of truth so the
   // Reflections pulses move at the SAME on-screen speed as the rings. The rings
   // expand to (max(L,W)·WAVE_EXTENT_FACTOR) over WAVE_CYCLE_S, an implied
@@ -996,7 +1011,7 @@ export function initRoom3D({
     });
     roomGroup.clear();
     _waveRings = [];
-    _sbirTrips = [];    // SBIR tripwire pulses/markers live in roomGroup → freed by the traverse; drop refs so the animator no-ops until SBIR rebuilds them.
+    _teardownSbirStreams();   // SBIR FX live in roomGroup → freed by the traverse; drop refs so the animator no-ops until SBIR rebuilds them.
     // Sound Burst meshes live in roomGroup → already disposed by the traverse
     // above; just drop the refs so a fresh fire rebuilds them (a mid-flight
     // burst ends cleanly when the room geometry changes).
@@ -3506,9 +3521,9 @@ export function initRoom3D({
       }
     }
 
-    // SBIR motion — round-trip pulses along the boundary tripwires (the
-    // reflection that causes each null), flares on stacked markers.
-    _animateSbirTripwires(performance.now());
+    // SBIR motion — energy streams collide and get eaten at the suckouts /
+    // pop into flares at the walls; the seat vortex throbs at the dip.
+    _animateSbirStreams(performance.now());
 
     // Bass Modes (Resonance) — the field itself is baked (static texture, no
     // per-frame shader work); the LIFE is the interior particle cloud, which
@@ -4174,118 +4189,71 @@ export function initRoom3D({
       const halfW   = room.width_m / 2;
       const IN_LO = 40, IN_HI = 200;            // danger band (Hz) — drop nulls outside it
       const STACK_RATIO = Math.pow(2, 1 / 6);   // merge nulls within ~1/6 octave
+      const PINK = 0xFF107A, TEAL = 0x00C1B2;
 
-      // Per-boundary treatment — treating a boundary collapses ITS null.
+      // Per-boundary treatment — treating a boundary HEALS (chokes) its stream.
       const _frontTreated = simulatePanels || hasFrontPanels || hasBassTraps;
       const _sideTreatedL = simulatePanels || room.side_panel_mode === 'left'  || room.side_panel_mode === 'both';
       const _sideTreatedR = simulatePanels || room.side_panel_mode === 'right' || room.side_panel_mode === 'both';
       const _floorTreated = room.floor_material === 'carpet' || (room.opt_area_rug ?? false);
 
-      const PINK = 0xFF107A, TEAL = 0x00C1B2;
-      const _sbirUp = new THREE.Vector3(0, 1, 0);
-      _sbirTrips = [];
-
-      // Thin glowing strut a→b (a slim cylinder — WebGL ignores line width).
-      const _strut = (a, b, hex, opacity, radius) => {
-        const dir = new THREE.Vector3().subVectors(b, a);
-        const len = Math.max(dir.length(), 0.001);
-        const m = new THREE.Mesh(
-          new THREE.CylinderGeometry(radius, radius, len, 6, 1, true),
-          new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity,
-            blending: THREE.AdditiveBlending, depthWrite: false })
-        );
-        m.position.copy(a).addScaledVector(dir, 0.5);
-        m.quaternion.setFromUnitVectors(_sbirUp, dir.normalize());
-        m.userData.isSbirTrip = true;
-        roomGroup.add(m);
-        return m;
-      };
-      // A pulse travelling the round trip speaker→boundary→speaker — the
-      // reflection that causes the cancellation. Treated boundaries absorb it
-      // before it returns (handled in _animateSbirTripwires).
-      const _addPulse = (a, b, treated, phase0) => {
-        const m = new THREE.Mesh(
-          new THREE.SphereGeometry(0.05, 8, 6),
-          new THREE.MeshBasicMaterial({ color: treated ? TEAL : PINK, transparent: true,
-            opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })
-        );
-        m.position.copy(a);
-        m.frustumCulled = false;
-        m.userData.isSbirTrip = true;
-        roomGroup.add(m);
-        _sbirTrips.push({ kind: 'line', mesh: m, a: a.clone(), b: b.clone(), treated, phase0 });
-      };
+      // Build the energy-stream / vortex / flare DEFINITIONS from the honest
+      // per-boundary null model (c/4d). Meshes + the particle swarm are created
+      // by _buildSbirStreams below; this stays pure data so the physics reads
+      // clearly. throbW maps a null frequency → a visible breathing rate.
+      const sbirStreamDefs = [];   // { a, b, treated, color, suck:Vector3|null, throbW }
+      const sbirVortexDefs = [];   // { center, severity, color, throbW, seat }
+      const sbirFlareDefs  = [];   // { pos, treated, throbW }
+      const _throbOf = (f) => f / 40;   // Hz → ~2–4 s visual cycle (same mapping as Bass Modes)
 
       const _speakers = [
         { x: _spkSrcL.x, z: _spkSrcL.y, sideWallX: -halfW, sideTreated: _sideTreatedL },
         { x: _spkSrcR.x, z: _spkSrcR.y, sideWallX:  halfW, sideTreated: _sideTreatedR },
       ];
-      const _seatNulls = [];   // in-band non-treated nulls (both speakers) → dominant-dip pick
+      const _seatNulls = [];   // in-band nulls (both speakers) → dominant-dip pick for the seat
 
-      _speakers.forEach((s, si) => {
+      _speakers.forEach((s) => {
         const a = new THREE.Vector3(s.x, tweeterY, s.z);
         const dFront = Math.max(s.z - frontWallZ, 0.05);
         const dFloor = Math.max(tweeterY - floorY, 0.05);
         const dSide  = Math.max(Math.abs(s.x - s.sideWallX), 0.05);
         const nulls = [
-          { short: 'Front', d: dFront, end: new THREE.Vector3(s.x, tweeterY, frontWallZ),  treated: _frontTreated },
-          { short: 'Floor', d: dFloor, end: new THREE.Vector3(s.x, floorY, s.z),           treated: _floorTreated },
-          { short: 'Side',  d: dSide,  end: new THREE.Vector3(s.sideWallX, tweeterY, s.z),  treated: s.sideTreated },
+          { d: dFront, end: new THREE.Vector3(s.x, tweeterY, frontWallZ),  treated: _frontTreated },
+          { d: dFloor, end: new THREE.Vector3(s.x, floorY, s.z),           treated: _floorTreated },
+          { d: dSide,  end: new THREE.Vector3(s.sideWallX, tweeterY, s.z),  treated: s.sideTreated },
         ].map(n => Object.assign(n, { f: C_SOUND / (4 * n.d) }))
-         .filter(n => n.f >= IN_LO && n.f <= IN_HI);   // declutter: in-band only
+         .filter(n => n.f >= IN_LO && n.f <= IN_HI);   // in-band only
 
-        // Treated nulls — teal "handled" tripwire; pulse fades before returning.
-        nulls.filter(n => n.treated).forEach((n, i) => {
-          _strut(a, n.end, TEAL, 0.45, 0.012);
-          const lbl = _makeLabelSprite(`${n.short} · handled`, '#5eead4');
-          lbl.position.copy(a).lerp(n.end, 0.55); lbl.position.y += 0.12;
-          roomGroup.add(lbl);
-          _addPulse(a, n.end, true, (si * 3 + i) / 6);
+        // Treated nulls — calm teal streams, NO suckout: the reflection is
+        // absorbed, so energy flows smoothly through and the hole heals. A dim
+        // teal flare still marks the boundary.
+        nulls.filter(n => n.treated).forEach((n) => {
+          sbirStreamDefs.push({ a: a.clone(), b: n.end.clone(), treated: true, color: TEAL, suck: null, throbW: _throbOf(n.f) });
+          sbirFlareDefs.push({ pos: n.end.clone(), treated: true, throbW: _throbOf(n.f) });
         });
 
-        // Untreated nulls — cluster by ~1/6 octave to find stacks.
+        // Untreated nulls — cluster by ~1/6 octave; coincident nulls STACK into
+        // one more-violent suckout (the catastrophe). Each member feeds the
+        // cluster's vortex (at the speaker, where the round trip cancels) with a
+        // pink stream + a reinforcement flare at its wall.
         const active = nulls.filter(n => !n.treated).sort((p, q) => p.f - q.f);
         const clusters = [];
         active.forEach(n => {
           const last = clusters[clusters.length - 1];
-          if (last && (n.f / last.members[last.members.length - 1].f) < STACK_RATIO) {
-            last.members.push(n);
-          } else {
-            clusters.push({ members: [n] });
-          }
+          if (last && (n.f / last.members[last.members.length - 1].f) < STACK_RATIO) last.members.push(n);
+          else clusters.push({ members: [n] });
         });
 
-        clusters.forEach((cl, ci) => {
+        clusters.forEach((cl) => {
           const fRef = cl.members.reduce((acc, m) => acc + m.f, 0) / cl.members.length;
-          if (cl.members.length >= 2) {
-            // STACK — the hero. One bright deep-null marker at the speaker; the
-            // more boundaries collide, the louder. Member tripwires drawn dim so
-            // you can still read WHICH boundaries stack.
-            const sev = Math.min(1, (cl.members.length - 1) / 2 + 0.45);   // 2→0.95, 3→1.0
-            const marker = new THREE.Mesh(
-              new THREE.SphereGeometry(0.10 + 0.06 * sev, 16, 12),
-              new THREE.MeshBasicMaterial({ color: PINK, transparent: true, opacity: 0.5,
-                blending: THREE.AdditiveBlending, depthWrite: false })
-            );
-            marker.position.copy(a);
-            marker.userData.isSbirTrip = true;
-            roomGroup.add(marker);
-            cl.members.forEach((n, i) => { _strut(a, n.end, PINK, 0.22, 0.009); _addPulse(a, n.end, false, (si * 3 + i) / 6); });
-            const names = cl.members.map(m => m.short).join(' + ');
-            const lbl = _makeLabelSprite(`${names} stacking · ~${Math.round(fRef)} Hz · deep null`, '#FF107A');
-            lbl.position.copy(a); lbl.position.y += 0.55;
-            roomGroup.add(lbl);
-            _sbirTrips.push({ kind: 'stack', mesh: marker, base: 0.45 + 0.1 * sev, flare: 0.4 * sev });
-            _seatNulls.push({ f: fRef, members: cl.members.length });
-          } else {
-            const n = cl.members[0];
-            _strut(a, n.end, PINK, 0.55, 0.012);
-            const lbl = _makeLabelSprite(`${n.short} · ${Math.round(n.f)} Hz`, '#f9a8d4');
-            lbl.position.copy(a).lerp(n.end, 0.55); lbl.position.y += 0.12;
-            roomGroup.add(lbl);
-            _addPulse(a, n.end, false, (si * 3 + ci) / 6);
-            _seatNulls.push({ f: n.f, members: 1 });
-          }
+          const severity = Math.min(1, (cl.members.length - 1) / 2 + 0.45);   // 1→0.45, 2→0.95, 3→1.0
+          const suck = a.clone();   // the suckout sits at the speaker
+          sbirVortexDefs.push({ center: suck.clone(), severity, color: PINK, throbW: _throbOf(fRef), seat: false });
+          cl.members.forEach((n) => {
+            sbirStreamDefs.push({ a: a.clone(), b: n.end.clone(), treated: false, color: PINK, suck: suck.clone(), throbW: _throbOf(n.f) });
+            sbirFlareDefs.push({ pos: n.end.clone(), treated: false, throbW: _throbOf(n.f) });
+          });
+          _seatNulls.push({ f: fRef, members: cl.members.length });
         });
       });
 
@@ -4331,21 +4299,17 @@ export function initRoom3D({
           ? Math.max(0, Math.min(1, (-depthDb) / 18))
           : Math.min(1, predictedDip + (1 - predictedDip) * (stackBoost - 1) + (stackBoost > 1 ? 0.15 : 0));
 
-        const _haloCol = new THREE.Color(TEAL).lerp(new THREE.Color(PINK), seatDip);
-        const halo = new THREE.Mesh(
-          new THREE.SphereGeometry(0.26, 16, 12),
-          new THREE.MeshBasicMaterial({
-            color: _haloCol, transparent: true,
-            opacity: 0.18 + 0.55 * seatDip,
-            blending: THREE.AdditiveBlending, depthWrite: false,
-          })
-        );
-        halo.position.set(lx, tweeterY, lz);
-        halo.frustumCulled = false;
-        halo.userData.isSbirSeatHalo = true;
-        roomGroup.add(halo);
+        // Seat suckout — if the seat sits in a cancellation, a vortex throbs
+        // here (the "your bass dies here" payoff). Built as a vortex def below;
+        // its rim tints hot pink with depth.
+        if (seatDip > 0.22) {
+          sbirVortexDefs.push({
+            center: new THREE.Vector3(lx, tweeterY, lz),
+            severity: seatDip, color: PINK, throbW: _throbOf(dominantNullHz), seat: true,
+          });
+        }
 
-        // Readout sprite above the seat. On-brand pink family / neutral — never
+        // Small readout riding the seat. On-brand pink family / neutral — never
         // amber/orange/red. Reads live as the dominant dip frequency slides.
         if (_showLabels) {
           let txt, col;
@@ -4362,6 +4326,9 @@ export function initRoom3D({
           roomGroup.add(lbl);
         }
       }
+
+      // Create the meshes + particle swarm from the accumulated defs.
+      _buildSbirStreams(sbirStreamDefs, sbirVortexDefs, sbirFlareDefs, _sbirTierConfig());
 
       // ------------------------------------------
       // SBIR CORNER BASS TRAPS (simulatePanels preview only)
@@ -6570,45 +6537,217 @@ export function initRoom3D({
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  //  SBIR MOTION — the reflection round trip. Each boundary tripwire carries a
-  //  pulse that travels speaker → boundary → speaker (the quarter-wave round
-  //  trip that causes the cancellation). Treated boundaries absorb the pulse
-  //  before it returns. Stacked-null markers flare each cycle as the colliding
-  //  pulses return together. Built in the SBIR overlay block (pushed to
-  //  _sbirTrips); this is the per-frame driver. Frozen under reduced motion.
-  //  Distinct from Reflections' travelling balls and Bass Modes' standing
-  //  particles.
+  //  SBIR ENERGY STREAMS — interference as energy colliding and being eaten.
+  //  Dense glowing instanced particles stream speaker → boundary → back (the
+  //  quarter-wave round trip); on the return they spiral into a suckout at the
+  //  speaker (the cancellation devouring them) while a flare pops at the wall
+  //  (reinforcement). Stacked nulls merge into one violent vortex; the seat
+  //  vortex is the "your bass dies here" payoff. Treated boundaries flow calm
+  //  teal with no suckout — the hole heals. Built from the per-boundary null
+  //  model in the SBIR block; reuses the InstancedMesh + trail + tier patterns
+  //  from the burst swarm. Frozen under reduced motion. DISTINCT motion:
+  //  round-trip collision/annihilation — not Reflections' one-way travel, not
+  //  Bass Modes' in-place oscillation.
   // ════════════════════════════════════════════════════════════════════════
-  function _animateSbirTripwires(now) {
-    if (!_sbirTrips.length) return;
+  function _sbirTierConfig() {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const period = WAVE_CYCLE_S;
-    const tsec = now * 0.001;
-    for (let i = 0; i < _sbirTrips.length; i++) {
-      const tr = _sbirTrips[i];
-      if (tr.kind === 'stack') {
-        // Flare on the round-trip period — the returning pulses colliding.
-        const ph = reduced ? 0.0 : ((tsec / period) % 1.0);
-        const flare = reduced ? 0.5 : Math.pow(Math.max(0, Math.sin(ph * Math.PI)), 3.0);
-        tr.mesh.material.opacity = tr.base + tr.flare * flare;
-        const sc = 1.0 + 0.28 * (reduced ? 0.5 : flare);
-        tr.mesh.scale.setScalar(sc);
-        continue;
+    const low = reduced
+      || window.matchMedia('(pointer: coarse)').matches
+      || window.matchMedia('(max-width: 900px)').matches;
+    return { reduced, particles: low ? 260 : 760, trailLen: low ? 0 : 3 };
+  }
+
+  function _teardownSbirStreams() {
+    _sbirParticles = null;
+    _sbirTrails    = null;
+    _sbirTrailLen  = 0;
+    _sbirPool      = [];
+    _sbirStreams   = [];
+    _sbirVortices  = [];
+    _sbirFlares    = [];
+  }
+
+  function _buildSbirStreams(streams, vortices, flares, tier) {
+    try {
+      _teardownSbirStreams();
+      _sbirStreams = streams;
+
+      // Vortex rings — additive torus; empty centre = dark core, pink/teal rim.
+      _sbirVortices = vortices.map((v) => {
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(v.seat ? 0.34 : 0.16, v.seat ? 0.055 : 0.03, 8, 28),
+          new THREE.MeshBasicMaterial({ color: v.color, transparent: true, opacity: 0,
+            blending: THREE.AdditiveBlending, depthWrite: false })
+        );
+        ring.position.copy(v.center);
+        ring.rotation.x = -Math.PI / 2;
+        ring.frustumCulled = false;
+        ring.userData.isSbirFx = true;
+        roomGroup.add(ring);
+        return { ring, severity: v.severity, throbW: v.throbW, seat: !!v.seat };
+      });
+
+      // Reinforcement flares — bright additive sphere at each boundary impact.
+      _sbirFlares = flares.map((f) => {
+        const m = new THREE.Mesh(
+          new THREE.SphereGeometry(f.treated ? 0.05 : 0.08, 8, 6),
+          new THREE.MeshBasicMaterial({ color: f.treated ? 0x00C1B2 : 0xFF107A, transparent: true,
+            opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false })
+        );
+        m.position.copy(f.pos);
+        m.frustumCulled = false;
+        m.userData.isSbirFx = true;
+        roomGroup.add(m);
+        return { mesh: m, throbW: f.throbW, treated: f.treated };
+      });
+
+      // Particle swarm — one InstancedMesh, additive, instanceColor carries
+      // brightness. Distributed round-robin across the streams.
+      const N = tier.particles, nS = streams.length;
+      if (nS === 0 || N === 0) return;
+      _sbirParticles = new THREE.InstancedMesh(
+        new THREE.SphereGeometry(1, 6, 5),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1,
+          blending: THREE.AdditiveBlending, depthWrite: false }),
+        N
+      );
+      _sbirParticles.frustumCulled = false;
+      _sbirParticles.userData.isSbirFx = true;
+      _seedBurstInstanced(_sbirParticles, N);
+      roomGroup.add(_sbirParticles);
+
+      _sbirTrailLen = tier.trailLen;
+      if (_sbirTrailLen > 0) {
+        _sbirTrails = new THREE.InstancedMesh(
+          new THREE.SphereGeometry(1, 5, 4),
+          new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1,
+            blending: THREE.AdditiveBlending, depthWrite: false }),
+          N * _sbirTrailLen
+        );
+        _sbirTrails.frustumCulled = false;
+        _sbirTrails.userData.isSbirFx = true;
+        _seedBurstInstanced(_sbirTrails, N * _sbirTrailLen);
+        roomGroup.add(_sbirTrails);
       }
-      // Line pulse: triangle 0→1→0 over the period (out to boundary, back).
-      const ph = reduced ? 0.30 : ((tsec / period + tr.phase0) % 1.0);
-      const tri = ph < 0.5 ? ph * 2.0 : (1.0 - ph) * 2.0;
-      if (tr.treated) {
-        // Absorbed at the boundary: only the outbound leg, fading as it goes —
-        // it never returns to comb at the speaker.
-        const out = Math.min(1, ph * 2.0);
-        tr.mesh.position.copy(tr.a).lerp(tr.b, out);
-        tr.mesh.material.opacity = reduced ? 0.12 : 0.42 * (1.0 - out);
-      } else {
-        tr.mesh.position.copy(tr.a).lerp(tr.b, tri);
-        // Brightest at the boundary (where it reflects), steady on the return.
-        tr.mesh.material.opacity = reduced ? 0.4 : (0.30 + 0.30 * tri);
+
+      _sbirPool = [];
+      for (let i = 0; i < N; i++) {
+        const sIdx = i % nS;
+        const s = streams[sIdx];
+        // A perpendicular offset → the stream reads as a tube, not a line.
+        const dir = new THREE.Vector3().subVectors(s.b, s.a);
+        if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1);
+        dir.normalize();
+        const ref = Math.abs(dir.y) < 0.9 ? _sbirUpY : _sbirRightX;
+        const perp1 = new THREE.Vector3().crossVectors(dir, ref).normalize();
+        const perp2 = new THREE.Vector3().crossVectors(dir, perp1).normalize();
+        const ang = Math.random() * Math.PI * 2;
+        const rad = 0.02 + Math.random() * 0.06;
+        _sbirPool.push({
+          sIdx,
+          phase0: Math.random(),
+          speed:  0.8 + Math.random() * 0.5,
+          radius: 0.025 + Math.random() * 0.03,
+          ox: (perp1.x * Math.cos(ang) + perp2.x * Math.sin(ang)) * rad,
+          oy: (perp1.y * Math.cos(ang) + perp2.y * Math.sin(ang)) * rad,
+          oz: (perp1.z * Math.cos(ang) + perp2.z * Math.sin(ang)) * rad,
+          swirl: Math.random() * Math.PI * 2,
+        });
       }
+    } catch (err) {
+      try { console.warn('[Room3D] SBIR streams disabled:', err); } catch (e) {}
+      _teardownSbirStreams();
+    }
+  }
+
+  function _animateSbirStreams(now) {
+    if (!_sbirParticles && !_sbirVortices.length && !_sbirFlares.length) return;
+    try {
+      const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const tsec = now * 0.001;
+      const period = WAVE_CYCLE_S;
+      const N = (_sbirParticles && _sbirStreams.length) ? _sbirPool.length : 0;
+      const trailLen = _sbirTrailLen;
+      for (let i = 0; i < N; i++) {
+        const p = _sbirPool[i];
+        const s = _sbirStreams[p.sIdx];
+        const phase = reduced ? p.phase0 : ((tsec / period * p.speed + p.phase0) % 1.0);
+        const out = phase < 0.5;
+        const leg = out ? phase * 2.0 : (phase - 0.5) * 2.0;   // 0..1 within the leg
+        if (out) _sbirPos.copy(s.a).lerp(s.b, leg);
+        else     _sbirPos.copy(s.b).lerp(s.a, leg);
+        // Pinch the tube to a point at each endpoint (0 at a & b, full mid-flight).
+        const pinch = Math.sin(phase * Math.PI);
+        _sbirPos.x += p.ox * pinch; _sbirPos.y += p.oy * pinch; _sbirPos.z += p.oz * pinch;
+
+        let snuff = 1.0;
+        if (s.suck && !out && leg > 0.5) {
+          // Return leg nearing the speaker → spiral into the suckout and fade
+          // (the cancellation devouring the energy).
+          const k = (leg - 0.5) / 0.5;             // 0..1 as it reaches the centre
+          _sbirPos.lerp(s.suck, k * 0.9);
+          const sw = p.swirl + (reduced ? 0 : tsec * 3.0);
+          const swirlR = 0.10 * (1 - k);
+          _sbirPos.x += Math.cos(sw) * swirlR;
+          _sbirPos.z += Math.sin(sw) * swirlR;
+          snuff = 1 - k;
+        }
+
+        const throb = reduced ? 0.85 : (0.6 + 0.4 * Math.sin(tsec * s.throbW + p.swirl));
+        let bright = (s.treated ? 0.5 : 0.72) * snuff * throb;
+        if (out && leg > 0.78) bright *= 1.4;            // reinforcement near the wall
+        bright = Math.min(1, bright);
+        const r = p.radius * (0.55 + 0.45 * snuff);
+        _sbirScale.setScalar(r);
+        _sbirM.compose(_sbirPos, _sbirQuat, _sbirScale);
+        _sbirParticles.setMatrixAt(i, _sbirM);
+        _sbirCol.setHex(s.color).multiplyScalar(bright);
+        _sbirParticles.setColorAt(i, _sbirCol);
+
+        if (trailLen > 0) {
+          // Trail behind, along the leg's travel direction.
+          if (out) _sbirV.subVectors(s.b, s.a).normalize();
+          else     _sbirV.subVectors(s.a, s.b).normalize();
+          for (let k = 0; k < trailLen; k++) {
+            const ti = i * trailLen + k;
+            const fade = 1 - (k + 1) / (trailLen + 1);
+            _sbirPos2.copy(_sbirPos).addScaledVector(_sbirV, -(k + 1) * r * 1.8);
+            _sbirScale.setScalar(r * fade * 0.8);
+            _sbirM.compose(_sbirPos2, _sbirQuat, _sbirScale);
+            _sbirTrails.setMatrixAt(ti, _sbirM);
+            _sbirCol.setHex(s.color).multiplyScalar(bright * fade * 0.55);
+            _sbirTrails.setColorAt(ti, _sbirCol);
+          }
+        }
+      }
+      if (_sbirParticles) {
+        _sbirParticles.instanceMatrix.needsUpdate = true;
+        if (_sbirParticles.instanceColor) _sbirParticles.instanceColor.needsUpdate = true;
+      }
+      if (_sbirTrails) {
+        _sbirTrails.instanceMatrix.needsUpdate = true;
+        if (_sbirTrails.instanceColor) _sbirTrails.instanceColor.needsUpdate = true;
+      }
+
+      // Vortex rings — throb at the null freq; bigger/brighter with severity.
+      for (let v = 0; v < _sbirVortices.length; v++) {
+        const vo = _sbirVortices[v];
+        const throb = reduced ? 0.7 : (0.5 + 0.5 * Math.sin(tsec * vo.throbW));
+        vo.ring.material.opacity = Math.min(0.95, (0.2 + 0.6 * vo.severity) * (0.55 + 0.45 * throb));
+        vo.ring.scale.setScalar((vo.seat ? 1.0 : 0.9) + (0.35 + 0.5 * vo.severity) * throb);
+      }
+
+      // Reinforcement flares — pop on the round-trip period at each wall.
+      for (let f = 0; f < _sbirFlares.length; f++) {
+        const fl = _sbirFlares[f];
+        const ph = reduced ? 0.5 : ((tsec / period) % 1.0);
+        const flare = reduced ? 0.5 : Math.pow(Math.max(0, Math.sin(ph * Math.PI)), 2.5);
+        fl.mesh.material.opacity = (fl.treated ? 0.22 : 0.55) * (reduced ? 0.6 : (0.25 + 0.75 * flare));
+        fl.mesh.scale.setScalar(0.6 + 0.8 * (reduced ? 0.5 : flare));
+      }
+    } catch (err) {
+      try { console.warn('[Room3D] SBIR stream anim disabled:', err); } catch (e) {}
+      _teardownSbirStreams();
     }
   }
 
@@ -7103,11 +7242,11 @@ export function initRoom3D({
       };
     },
 
-    /** Toggle the SBIR boundary tripwires / stack markers / seat halo. */
+    /** Toggle the SBIR energy-stream FX (particles, trails, vortices, flares). */
     setSbirField(enabled) {
       _sbirFieldVisible = !!enabled;
       roomGroup.children.forEach(o => {
-        if (o.userData?.isSbirTrip || o.userData?.isSbirSeatHalo) o.visible = _sbirFieldVisible;
+        if (o.userData?.isSbirFx) o.visible = _sbirFieldVisible;
       });
     },
 
