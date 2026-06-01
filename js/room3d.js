@@ -59,15 +59,13 @@ export const OVERLAY_COLOURS = {
   // Pressure / problem indicators
   PRESSURE_PEAK:     '#FF107A',  // neon pink — pressure hot-spots (SBIR overlay only;
                                  // bass-modes dropped this class in the severity migration)
-  RESONANCE_PURPLE:  '#7C3AED',  // bass-mode standing waves (legacy — retained for
-                                 // any non-bandwidth caller; bass-modes now uses MODE_*)
+  RESONANCE_PURPLE:  '#7C3AED',  // bass-mode standing waves — the baked field +
+                                 // particle cloud ramp through this (void → purple
+                                 // → pink → white-hot) by pressure magnitude
   RESONANCE_VOID:    '#0A0A32',  // zero-pressure deep (shader literal)
-
-  // Bass-mode severity gradient — colours confirmed modes by measured |delta_db|
-  MODE_MILD:         '#fbbf24',  // amber — 3-5 dB peak
-  MODE_MODERATE:     '#f97316',  // orange — 5-8 dB peak
-  MODE_SEVERE:       '#ef4444',  // red — 8+ dB peak
-  MODE_PREDICTED:    '#475569',  // muted blue-grey — geometry-only / unconfirmed scaffolding
+  // (The amber/orange/red MODE_* severity gradient was retired in the Bass Modes
+  //  overhaul — the field now carries pressure in hue, and measured severity is
+  //  shown by the focused-mode dB labels, so colour means one thing.)
 
   // Direct / clean indicators
   DIRECT_SIGNAL:     '#00B8A9',  // teal — direct path
@@ -657,6 +655,132 @@ export function initRoom3D({
       if (intensity <= 0.002) discard;          // no heat → contribute nothing
       gl_FragColor = vec4(col * intensity * uOpacity, 1.0);
     }`;
+
+  // ── Bass Modes (Resonance) — baked modal-pressure field ───────────────────
+  // The old overlay ran the 8-mode standing-wave cos() loop per fragment, per
+  // frame, across a full-room BackSide box — the iPad hotspot. This subsystem
+  // instead BAKES the summed modal pressure into an off-screen atlas ONCE per
+  // rebuild (same six-surface 3×2 cell layout as the impact heat shell) and
+  // displays it on six boundary planes that just sample the texture. Per-frame
+  // cost on the surfaces is then a single texture lookup. It runs on its OWN
+  // render target and planes — NOT the shared impact atlas — so the impact
+  // decay/splat path and the modal field never corrupt each other. Motion lives
+  // in the interior particle cloud, not the field. Mirrors the heat-shell
+  // patterns: device-tiered atlas res, _HEAT_SURF_INDEX cell layout, local→UV
+  // mapping, and a one-shot fail-safe that can never break rebuild()/the scene.
+  // Per the visual tenet: only the sound (this purple field + particles) carries
+  // colour, light, and motion; the room shell stays neutral wireframe.
+  let _bwRT          = null;   // dedicated modal-field atlas (separate from _heatRT)
+  let _bwRtScene     = null;   // off-screen bake scene: six per-surface quads
+  let _bwRtCam       = null;   // ortho cam mapping [0,1]² → the atlas
+  let _bwBakeQuads   = [];     // the six bake quads (uniforms updated per rebuild)
+  let _bwPlanes      = [];     // six display planes (in roomGroup → auto-disposed)
+  let _bwParticles   = null;   // interior standing-wave particle cloud (InstancedMesh)
+  let _bwListenerHalo = null;  // sound-layer glow at the listening seat (in roomGroup)
+  let _bwTier        = null;   // device-tier snapshot (atlas res / particle count)
+  let _bwFailed      = false;  // a bake/particle op threw → disable, never retry
+  let _bwOscRate     = 0;      // dominant-mode breathing rate (rad-ish/s) for particles
+  let _bwReduced     = false;  // prefers-reduced-motion snapshot — freezes particle motion
+  let _bwParticleN   = 0;      // particle slot count this rebuild
+  let _bwParticleBase = null;  // Float32Array xyz×N — static base positions
+  let _bwParticleAmp  = null;  // Float32Array N — signed normalised modal amplitude
+  let _bwParticleSize = null;  // Float32Array N — per-particle base radius (0 = hidden)
+  const _bwScratchM  = new THREE.Matrix4();
+  const _bwScratchV  = new THREE.Vector3();
+  const _bwScratchQ  = new THREE.Quaternion();
+  const _bwScratchS  = new THREE.Vector3();
+
+  // Bake vertex — pass the quad's uv (= this surface's local 0..1 coords).
+  const _BW_BAKE_VERT = `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`;
+  // Bake fragment — reconstruct the normalised room coords (nx,ny,nz) for this
+  // surface, sum the 8 modes' standing-wave pressure (SAME equation as the old
+  // box shader), apply the per-wall bass-trap cooling, and write the scalar
+  // pressure to the R channel. Runs six times total (once per surface quad) per
+  // rebuild — never per frame.
+  const _BW_BAKE_FRAG = `
+    #define PI 3.14159265359
+    varying vec2 vUv;
+    uniform float uSurf;          // 0 floor 1 ceiling 2 front 3 back 4 left 5 right
+    uniform vec4  uModes[8];      // (p, q, r, weight)
+    uniform float uBassTrapsF;
+    uniform float uBassTrapsR;
+    uniform float uBtSide;
+    void main() {
+      // Map this surface's local (u,v) → normalised room coords. The fixed axis
+      // is pinned to its wall (0 or 1); matches the display plane's UV mapping.
+      float nx, ny, nz;
+      if (uSurf < 1.5)        { nx = vUv.x; nz = vUv.y; ny = (uSurf < 0.5) ? 0.0 : 1.0; } // floor / ceiling
+      else if (uSurf < 3.5)   { nx = vUv.x; ny = vUv.y; nz = (uSurf < 2.5) ? 0.0 : 1.0; } // front / back
+      else                    { nz = vUv.x; ny = vUv.y; nx = (uSurf < 4.5) ? 0.0 : 1.0; } // left / right
+
+      // Predictive model: not a physical measurement
+      float pressure = 0.0;
+      float totalWeight = 0.001;
+      for (int i = 0; i < 8; i++) {
+        vec4 m = uModes[i];
+        if (m.w > 0.0) {
+          float pL = cos(m.x * PI * nz);
+          float pW = cos(m.y * PI * nx);
+          float pH = cos(m.z * PI * ny);
+          pressure    += m.w * abs(pL * pW * pH);
+          totalWeight += m.w;
+        }
+      }
+      pressure /= totalWeight;
+
+      // Per-wall bass-trap cooling — proximity-blended, same model as before.
+      float frontProx = smoothstep(0.5, 0.0, nz);
+      float rearProx  = smoothstep(0.5, 1.0, nz);
+      float leftProx  = smoothstep(0.5, 0.0, nx);
+      float rightProx = smoothstep(0.5, 1.0, nx);
+      float localTraps = max(max(frontProx * uBassTrapsF, rearProx * uBassTrapsR),
+                             (leftProx + rightProx) * uBtSide);
+      pressure *= (1.0 - localTraps * 0.35);
+
+      gl_FragColor = vec4(clamp(pressure, 0.0, 1.0), 0.0, 0.0, 1.0);
+    }`;
+  // Display vertex — identical to the heat shell: pass roomGroup-LOCAL position.
+  const _BW_FIELD_VERT = `
+    varying vec3 vLocal;
+    void main() {
+      vLocal = position;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`;
+  // Display fragment — sample this surface's atlas cell and ramp the baked
+  // pressure through the on-brand resonance gradient: near-black void → purple
+  // (#7C3AED) → pink (#FF107A) → white-hot core. Hue carries pressure magnitude
+  // ONLY; measured severity lives in the focused-mode labels, not the colour.
+  const _BW_FIELD_FRAG = `
+    varying vec3 vLocal;
+    uniform sampler2D uField;
+    uniform vec3  uHalf;     // hW, hH, hL (local metres)
+    uniform float uSurf;
+    uniform vec4  uCell;     // cx, cy, cw, ch (atlas cell rect)
+    uniform float uOpacity;
+    void main() {
+      float u, v;
+      if (uSurf < 1.5)        { u = (vLocal.x + uHalf.x) / (2.0 * uHalf.x); v = (vLocal.z + uHalf.z) / (2.0 * uHalf.z); }
+      else if (uSurf < 3.5)   { u = (vLocal.x + uHalf.x) / (2.0 * uHalf.x); v = (vLocal.y + uHalf.y) / (2.0 * uHalf.y); }
+      else                    { u = (vLocal.z + uHalf.z) / (2.0 * uHalf.z); v = (vLocal.y + uHalf.y) / (2.0 * uHalf.y); }
+      vec2 atlasUv = uCell.xy + clamp(vec2(u, v), 0.0, 1.0) * uCell.zw;
+      float p = clamp(texture2D(uField, atlasUv).r, 0.0, 1.0);
+      vec3 voidC  = vec3(0.020, 0.010, 0.050);   // near-black resting tone
+      vec3 purple = vec3(0.486, 0.227, 0.929);   // #7C3AED
+      vec3 pink   = vec3(1.000, 0.063, 0.478);   // #FF107A
+      vec3 hot    = vec3(1.000, 0.850, 0.950);   // white-hot antinode core
+      vec3 col = mix(voidC, purple, smoothstep(0.00, 0.28, p));
+      col = mix(col, pink, smoothstep(0.28, 0.62, p));
+      col = mix(col, hot,  smoothstep(0.62, 1.00, p));
+      float intensity = smoothstep(0.03, 0.55, p);
+      if (intensity <= 0.002) discard;
+      gl_FragColor = vec4(col * intensity * uOpacity, 1.0);
+    }`;
+
   let _interferenceIndicator = null;        // Flat disc at MLP; pulses on constructive interference. Gated by _wavesEnabled — same toggle as the rings.
   const _mlpLocalPos      = new THREE.Vector3();   // Stashed at indicator build; read by animate's interference calc.
   const _spkLeftLocalPos  = new THREE.Vector3();
@@ -794,6 +918,7 @@ export function initRoom3D({
     // above; drop refs so impactAt() no-ops until _buildHeatShell() runs at the
     // end of rebuild. Reflections impact events are repopulated by the overlay.
     _teardownHeatShell();
+    _teardownBassField();            // Bass Modes planes/particles/halo live in roomGroup → freed by the traverse; drop refs so animate no-ops until the overlay rebuilds them.
     _reflImpactEvents = [];
     _interferenceIndicator = null;   // GPU resources freed by the traverse above; just drop the closure ref.
     colourState = "idle";
@@ -3298,13 +3423,11 @@ export function initRoom3D({
       }
     }
 
-    // Resonance field — advance time uniform (frozen when prefers-reduced-motion)
-    {
-      const bwMesh = roomGroup.children.find(o => o.userData?.isBandwidthField);
-      if (bwMesh?.material?.uniforms && !bwMesh.material.uniforms.uReducedMotion?.value) {
-        bwMesh.material.uniforms.uTime.value = performance.now() * 0.001;
-      }
-    }
+    // Bass Modes (Resonance) — the field itself is baked (static texture, no
+    // per-frame shader work); the LIFE is the interior particle cloud, which
+    // vibrates in place at the room's dominant-mode tempo. Frozen under
+    // prefers-reduced-motion (handled inside _animateBassModes).
+    _animateBassModes(performance.now());
 
     // Side reflection wave field — advance time uniform
     {
@@ -4977,20 +5100,9 @@ export function initRoom3D({
     if (overlayEnabled(OVERLAYS.BANDWIDTH)) try {
 
       const isFocBW = focusedOverlay === OVERLAYS.BANDWIDTH;
-      const _bwReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-      // Ceiling profile — re-derived here because renderAnalysisOverlays is a sibling
-      // of rebuild(), not nested inside it, so rebuild()'s const isGable etc. are out of scope.
-      const _bwIsSlanted = room.ceiling_type === 'slanted';
-      const _bwIsGable = room.ceiling_type === 'gable';
-      const _bwSlantDir = room.ceiling_slant_direction || 'left_to_right';
-      const _bwGableAxis = room.ceiling_gable_axis || 'depth';
+      // Floor Y in roomGroup-local space — anchor for the focused-mode labels.
       const _bwFloorY = -room.height_m / 2;
-      const _bwLowH = (_bwIsSlanted || _bwIsGable)
-        ? Math.min(room.ceiling_height_secondary_m ?? room.height_m, room.height_m)
-        : room.height_m;
-      const _bwHighY = room.height_m / 2;
-      const _bwLowY = _bwFloorY + _bwLowH;
 
       // Predictive model: not a physical measurement
       const bwModes = window.MeasurelyAcoustics?.computeRoomModes(room) || [];
@@ -5057,62 +5169,25 @@ export function initRoom3D({
         m.confidence === 'unconfirmed' ? 0.32 :
                                          0.50;
 
-      // Per-mode colour — confirmed modes use a severity gradient driven by
-      // |delta_db|; everything else (unconfirmed, predicted) uses the muted
-      // blue-grey scaffolding tone. Severity bands match the spec:
-      //   |Δ| ≥ 8 dB  → MODE_SEVERE (red)
-      //   |Δ| ≥ 5 dB  → MODE_MODERATE (orange)
-      //   else        → MODE_MILD (amber)
-      // Dips count by absolute delta — a -8 dB null is as serious as +8 dB peak.
-      const _hex2vec = (hex) => new THREE.Vector3(
-        ((hex >> 16) & 0xff) / 255,
-        ((hex >>  8) & 0xff) / 255,
-        ( hex        & 0xff) / 255,
-      );
-      const _COL_MILD      = _hex2vec(OC.MODE_MILD);
-      const _COL_MODERATE  = _hex2vec(OC.MODE_MODERATE);
-      const _COL_SEVERE    = _hex2vec(OC.MODE_SEVERE);
-      const _COL_PREDICTED = _hex2vec(OC.MODE_PREDICTED);
-      const _severityColor = (deltaDb) => {
-        const a = Math.abs(deltaDb || 0);
-        if (a >= 8) return _COL_SEVERE;
-        if (a >= 5) return _COL_MODERATE;
-        return _COL_MILD;
-      };
-
-      // Build 3D mode data — include height axis (r) for volumetric pressure field.
-      // Mode type weights: axial 1.0, tangential 0.7, oblique 0.4.
+      // Build 3D mode data — (p, q, r) indices + an energy weight per mode.
+      // Mode type weights: axial 1.0, tangential 0.7, oblique 0.4. The field
+      // now colours by PRESSURE MAGNITUDE only (purple→pink→white); measured
+      // severity is carried by the focused-mode labels, not the field hue — so
+      // the per-mode colour/severity arrays the old winner-takes-all shader
+      // needed are gone. uBwModes feeds both the GPU bake and the CPU sampler.
       const modeTypeWeight = { axial: 1.0, tangential: 0.7, oblique: 0.4 };
-      const uBwModes = [];
-      const uBwModeColors = [];
-      const uBwModeSeverity = [];
+      const uBwModes  = [];   // THREE.Vector4(p, q, r, weight) × 8 for the bake shader
+      const bwModeJs  = [];   // { p, q, r, w } for CPU pressure sampling (particles + probe)
       annotatedModes.forEach(m => {
         const typeWeight = modeTypeWeight[m.type] ?? 1.0;
         // Modes below speaker bass rolloff get reduced contribution — less energy injected
         const bassEnergyScale = (m.freq_hz <= bassRolloffHz) ? 0.30 : 1.0;
-        const conf = confidenceMul(m);
-        uBwModes.push(new THREE.Vector4(m.p, m.q, m.r, typeWeight * bassEnergyScale * conf));
-        uBwModeColors.push(
-          m.confidence === 'confirmed'
-            ? _severityColor(m.measured?.delta_db)
-            : _COL_PREDICTED
-        );
-        // Severity rank — parallel scalar driving the shader's winner-takes-all
-        // colour selection. Confirmed modes ranked by |delta_db|: severe (8+ dB)
-        // = 3, moderate (5–8 dB) = 2, mild = 1. Unconfirmed/predicted modes get 0
-        // so they only colour a fragment when no confirmed mode is present there.
-        const _absDelta = Math.abs(m.measured?.delta_db || 0);
-        uBwModeSeverity.push(
-          m.confidence !== 'confirmed' ? 0.0
-            : _absDelta >= 8 ? 3.0
-            : _absDelta >= 5 ? 2.0
-            : 1.0
-        );
+        const w = typeWeight * bassEnergyScale * confidenceMul(m);
+        uBwModes.push(new THREE.Vector4(m.p, m.q, m.r, w));
+        bwModeJs.push({ p: m.p, q: m.q, r: m.r, w, freq_hz: m.freq_hz });
       });
       while (uBwModes.length < 8) {
-        uBwModes.push(new THREE.Vector4(0, 0, 0, 0));
-        uBwModeColors.push(_COL_PREDICTED);  // never read (w === 0) but keep array length
-        uBwModeSeverity.push(0.0);           // pad to length 8, matches colour array
+        uBwModes.push(new THREE.Vector4(0, 0, 0, 0));  // pad to the shader's fixed array length
       }
 
       // Breathing rate derived from the dominant (lowest) mode frequency.
@@ -5140,183 +5215,29 @@ export function initRoom3D({
         ? (simulatePanels || room.side_panel_mode === 'both' ? 0.40 : 0.22)
         : 0.0;
 
-      // Ceiling clip uniforms — discard fragments that fall outside the actual room volume.
-      // Encoded: uSlantDir 0=left_to_right, 1=right_to_left, 2=front_to_back, 3=back_to_front
-      const bwSlantDirCode = { left_to_right: 0, right_to_left: 1, front_to_back: 2, back_to_front: 3 };
+      // Treatment levels, packaged once for the bake shader AND the CPU sampler
+      // (particles + listener probe) so all three agree on which corners cool.
+      const bwTraps = { f: bwBassTrapsF, r: bwBassTrapsR, side: bwSidePanels };
 
-      const bwMat = new THREE.ShaderMaterial({
-        uniforms: {
-          uTime: { value: 0 },
-          uRoomW: { value: room.width_m },
-          uRoomL: { value: room.length_m },
-          uRoomH: { value: room.height_m },
-          uOpacity: { value: isFocBW ? 0.55 : 0.28 },
-          uModes: { value: uBwModes },
-          uModeColors: { value: uBwModeColors },
-          uModeSeverity: { value: uBwModeSeverity },
-          uOscRate: { value: visualOscillationRate },
-          uBassTrapsF: { value: bwBassTrapsF },
-          uBassTrapsR: { value: bwBassTrapsR },
-          uBtSide:     { value: bwSidePanels },
-          uReducedMotion: { value: _bwReducedMotion ? 1.0 : 0.0 },
-          // Ceiling profile — for gable and slanted rooms, discard above the slope
-          uIsGable: { value: _bwIsGable ? 1.0 : 0.0 },
-          uIsSlanted: { value: _bwIsSlanted ? 1.0 : 0.0 },
-          uGableDepthAxis: { value: _bwGableAxis === 'depth' ? 1.0 : 0.0 },
-          uEavesY: { value: _bwLowY },   // lowest ceiling point (eave or slant low end)
-          uPeakY: { value: _bwHighY },   // highest ceiling point (ridge or slant high end)
-          uSlantDir: { value: bwSlantDirCode[_bwSlantDir] ?? 0 },
-        },
-        vertexShader: `
-          varying vec3 vWorldPos;
-          void main() {
-            vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-            vWorldPos = worldPosition.xyz;
-            gl_Position = projectionMatrix * viewMatrix * worldPosition;
-          }
-        `,
-        fragmentShader: `
-          #define PI 3.14159265359
-          uniform float uTime;
-          uniform float uRoomW;
-          uniform float uRoomL;
-          uniform float uRoomH;
-          uniform float uOpacity;
-          uniform float uOscRate;
-          uniform float uBassTrapsF;
-          uniform float uBassTrapsR;
-          uniform float uBtSide;
-          uniform float uReducedMotion;
-          uniform vec4  uModes[8];
-          uniform vec3  uModeColors[8];
-          uniform float uModeSeverity[8];
-          uniform float uIsGable;
-          uniform float uIsSlanted;
-          uniform float uGableDepthAxis;
-          uniform float uEavesY;
-          uniform float uPeakY;
-          uniform float uSlantDir;
-          varying vec3  vWorldPos;
+      // Particle-cloud breathing rate = the room's own dominant-mode tempo
+      // (visualOscillationRate, Hz/40). Snapshot reduced-motion here so the
+      // animate loop and the build agree on whether the cloud moves.
+      _bwOscRate = visualOscillationRate;
+      _bwReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-          void main() {
-            // Clip fragments above the actual ceiling profile so the pressure field
-            // never breaks through a gabled or slanted roof surface.
-            if (uIsGable > 0.5) {
-              float halfW    = uRoomW * 0.5;
-              float halfL    = uRoomL * 0.5;
-              float distRatio = (uGableDepthAxis > 0.5)
-                ? abs(vWorldPos.x) / halfW   // gable ridge runs along Z (depth axis)
-                : abs(vWorldPos.z) / halfL;  // gable ridge runs along X (width axis)
-              float maxCeilingY = mix(uPeakY, uEavesY, distRatio);
-              if (vWorldPos.y > maxCeilingY) discard;
-            } else if (uIsSlanted > 0.5) {
-              float halfW = uRoomW * 0.5;
-              float halfL = uRoomL * 0.5;
-              float t;
-              if      (uSlantDir < 0.5) t = (vWorldPos.x + halfW) / uRoomW;          // left_to_right
-              else if (uSlantDir < 1.5) t = 1.0 - (vWorldPos.x + halfW) / uRoomW;   // right_to_left
-              else if (uSlantDir < 2.5) t = 1.0 - (vWorldPos.z + halfL) / uRoomL;   // front_to_back
-              else                      t = (vWorldPos.z + halfL) / uRoomL;          // back_to_front
-              float maxCeilingY = mix(uEavesY, uPeakY, t);
-              if (vWorldPos.y > maxCeilingY) discard;
-            }
-
-            // Normalised position within room volume [0..1] on each axis
-            float nx = (vWorldPos.x + uRoomW * 0.5) / uRoomW;
-            float ny = (vWorldPos.y + uRoomH * 0.5) / uRoomH;
-            float nz = (vWorldPos.z + uRoomL * 0.5) / uRoomL;
-
-            // voidColor — near-black resting tone for low-pressure fragments.
-            // Declared ahead of the mode loop so bestColor can default to it
-            // before any mode wins the severity race.
-            vec3 voidColor = vec3(0.020, 0.010, 0.050);
-
-            float pressure    = 0.0;
-            float totalWeight = 0.001;
-
-            // Winner-takes-all colour selection — the most-severe mode present
-            // at this fragment determines its colour. Each mode carries a
-            // severity rank (uModeSeverity: confirmed severe 3 / moderate 2 /
-            // mild 1; unconfirmed/predicted 0). The winner is chosen on a key
-            // that ranks severity first and uses local pressure only as a
-            // tie-break, so among equal-severity modes the strongest-pressure
-            // one wins. Because unconfirmed modes rank 0, they only colour a
-            // fragment when no confirmed mode reaches it — a confirmed severe
-            // mode is no longer averaged toward grey by co-located unconfirmed
-            // modes at corners.
-            float bestKey   = -1.0;
-            vec3  bestColor = voidColor;
-
-            for (int i = 0; i < 8; i++) {
-              vec4 m = uModes[i];
-              if (m.w > 0.0) {
-                float pressureLength = cos(m.x * PI * nz);
-                float pressureWidth  = cos(m.y * PI * nx);
-                float pressureHeight = cos(m.z * PI * ny);
-                float modePress = m.w * abs(pressureLength * pressureWidth * pressureHeight);
-                pressure    += modePress;
-                totalWeight += m.w;
-                // Severity dominates (×1000); modePress (≤1) only breaks ties.
-                float key = uModeSeverity[i] * 1000.0 + modePress;
-                if (key > bestKey) {
-                  bestKey   = key;
-                  bestColor = uModeColors[i];
-                }
-              }
-            }
-
-            pressure /= totalWeight;
-
-            // Spatially blend absorption based on proximity to each wall.
-            // nz: 0=front wall (speakers), 1=rear wall. nx: 0=left wall, 1=right wall.
-            float frontProx  = smoothstep(0.5, 0.0, nz);
-            float rearProx   = smoothstep(0.5, 1.0, nz);
-            float leftProx   = smoothstep(0.5, 0.0, nx);
-            float rightProx  = smoothstep(0.5, 1.0, nx);
-            float localTraps = max(
-              max(frontProx * uBassTrapsF, rearProx * uBassTrapsR),
-              (leftProx + rightProx) * uBtSide
-            );
-
-            // Bass traps damp the standing wave energy at treated corners.
-            // 0.35 factor: full traps cut peak pressure by ~35%, visibly cooling corners.
-            pressure *= (1.0 - localTraps * 0.35);
-
-            // Resonance breathing: standing wave oscillates at dominant mode frequency.
-            // uOscRate = f_dominant / 40 gives a 2–4 second visual cycle.
-            // Frozen when prefers-reduced-motion is active.
-            float resonancePulse = 0.80 + 0.20 * cos(uTime * uOscRate * (1.0 - uReducedMotion));
-            pressure *= resonancePulse;
-
-            // Severity-coloured blend — the winner-takes-all colour selected
-            // above replaces the old purple→pink hot-spot bloom. Pressure peaks
-            // no longer get a distinct hot-spot tint (the mode-plane geometry
-            // already communicates spatial pattern); instead, peaks just fade
-            // fully into the dominant mode's own colour. Treated corners (high
-            // localTraps) still cool because pressure was attenuated above,
-            // dropping fragments back toward the void tone.
-            vec3 finalColor = mix(voidColor, bestColor, smoothstep(0.20, 0.70, pressure));
-
-            float opacity = clamp(pressure * uOpacity * 1.8 + 0.03, 0.0, 0.80);
-            gl_FragColor = vec4(finalColor, opacity);
-          }
-        `,
-        transparent: true,
-        depthWrite: false,
-        // BackSide renders only the inner faces — the near wall becomes transparent,
-        // letting the camera see the pressure field on far walls, ceiling, and floor
-        // without the 6-face opacity stacking that made it look like a solid grey box.
-        side: THREE.BackSide,
-      });
-
-      // Full-room volume — BackSide makes the near wall invisible so the interior
-      // pressure field reads clearly through the wireframe cage.
-      const resonanceVolume = new THREE.Mesh(
-        new THREE.BoxGeometry(room.width_m, room.height_m, room.length_m),
-        bwMat
-      );
-      resonanceVolume.userData.isBandwidthField = true;
-      roomGroup.add(resonanceVolume);
+      // RENDER. Bake the 8-mode field into the dedicated atlas ONCE, display it
+      // on the six boundary planes, scatter the interior standing-wave particle
+      // cloud, and probe the listening seat. Each helper is internally wrapped
+      // in the _bwDisable fail-safe, so a bad GPU/RT/shader disables the whole
+      // subsystem without ever breaking rebuild() or the core scene.
+      // (The gable/slant ceiling clip the old full-room box did is dropped: the
+      // boundary shell uses flat box bounds, exactly as the impact heat shell
+      // already does. Mode FREQUENCIES still use H_eff via computeRoomModes.)
+      _bwTier = _bwTierConfig();
+      _bakeBassField(uBwModes, bwTraps);
+      _buildBwFieldPlanes(room, isFocBW);
+      _buildBwParticles(room, bwModeJs, bwTraps);
+      _buildBwListenerProbe(room, bwModeJs, bwTraps, isFocBW && _showLabels);
 
       // ── Focused-mode annotations ─────────────────────────────────────────
       // Labels only appear in focused state to avoid cluttering the
@@ -5342,9 +5263,9 @@ export function initRoom3D({
 
           // Non-modal peaks — amber labels stacked above listener position.
           // Distinct from the white modal labels by colour AND position: amber
-          // floats above the listener, severity-coloured planes sit at mode
-          // antinodes. Semantic: "we measured this but it's not a textbook
-          // room mode."
+          // floats above the listener, while the purple field + particle cloud
+          // carry the modal pressure pattern. Semantic: "we measured this but
+          // it's not a textbook room mode."
           nonModalPeaks.slice(0, 4).forEach((m, i) => {
             const f  = Math.round(m.freq_hz);
             const dB = m.delta_db ?? 0;
@@ -5359,7 +5280,7 @@ export function initRoom3D({
         } else {
           // Pre-measurement: single badge to make the predicted-only state
           // explicit. Muted slate keeps the badge legible without competing
-          // with the cool blue-grey scaffolding behind it.
+          // with the purple modal field behind it.
           const lbl = _makeLabelSprite('Predicted — no measurement loaded',
                                        '#94a3b8');
           lbl.position.set(0, _bwFloorY + 0.45, 0);
@@ -6128,6 +6049,394 @@ export function initRoom3D({
       if (_heatSplashMesh.instanceColor) _heatSplashMesh.instanceColor.needsUpdate = true;
     }
     } catch (err) { _heatDisable('_tickHeatSplashes', err); }
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  BASS MODES (RESONANCE) — baked modal field + standing-wave particle cloud
+  //  + listener pressure probe. Architecture rationale is in the shader-string
+  //  block near the top of the module. Everything here is wrapped in _bwDisable
+  //  so a bad GPU / RT / shader disables the subsystem without ever breaking
+  //  rebuild() or the core scene. Per the visual tenet, this is the ONLY part
+  //  of the overlay that carries colour, light, and motion — the room shell and
+  //  the listener marker stay neutral wireframe.
+  // ════════════════════════════════════════════════════════════════════════
+
+  function _bwDisable(where, err) {
+    if (!_bwFailed) {
+      _bwFailed = true;
+      try { console.warn('[Room3D] Bass Modes field disabled after error in ' + where + ':', err); } catch (e) {}
+    }
+    _bwParticles = null;
+    _bwListenerHalo = null;
+  }
+
+  // Hermite smoothstep — CPU twin of GLSL smoothstep, for the particle/probe
+  // colour ramp and the bass-trap cooling so they agree with the bake shader.
+  function _bwSmoothstep(e0, e1, x) {
+    const t = Math.max(0, Math.min(1, (x - e0) / (e1 - e0)));
+    return t * t * (3 - 2 * t);
+  }
+
+  // Device tier — modest atlas + fewer particles on iPad / coarse pointers.
+  // reduced-motion still builds the field + cloud (frozen), consistent with the
+  // rest of the engine's reduced-motion behaviour.
+  function _bwTierConfig() {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const low = reduced
+      || window.matchMedia('(pointer: coarse)').matches
+      || window.matchMedia('(max-width: 900px)').matches;
+    return {
+      reduced,
+      low,
+      rtSize: low ? 256 : 512,               // baked-field atlas resolution
+      grid:   low ? [6, 3, 6] : [9, 4, 9],   // interior particle grid (x,y,z) → 108 / 324
+    };
+  }
+
+  // CPU twin of the bake shader's pressure sum — SIGNED (no abs) so neighbouring
+  // antinodes oscillate in opposite directions, which is what reads as a
+  // standing wave. Normalised to ~[-1,1] by total mode weight. nx/ny/nz are
+  // 0..1 room coords. Predictive model: not a physical measurement.
+  function _bwSignedPressure(nx, ny, nz, modes) {
+    let pressure = 0, totalWeight = 0.001;
+    for (let i = 0; i < modes.length; i++) {
+      const m = modes[i];
+      if (m.w <= 0) continue;
+      pressure += m.w
+        * Math.cos(m.p * Math.PI * nz)
+        * Math.cos(m.q * Math.PI * nx)
+        * Math.cos(m.r * Math.PI * ny);
+      totalWeight += m.w;
+    }
+    return pressure / totalWeight;
+  }
+
+  // Per-wall bass-trap cooling — CPU twin of the bake shader's localTraps block,
+  // so the particles and the probe cool at treated corners exactly as the field.
+  function _bwTrapCool(nx, nz, traps) {
+    const frontProx = _bwSmoothstep(0.5, 0.0, nz);
+    const rearProx  = _bwSmoothstep(0.5, 1.0, nz);
+    const leftProx  = _bwSmoothstep(0.5, 0.0, nx);
+    const rightProx = _bwSmoothstep(0.5, 1.0, nx);
+    const localTraps = Math.max(
+      Math.max(frontProx * traps.f, rearProx * traps.r),
+      (leftProx + rightProx) * traps.side
+    );
+    return 1.0 - localTraps * 0.35;
+  }
+
+  // Map a 0..1 pressure magnitude to the resonance ramp (void → purple #7C3AED →
+  // pink #FF107A → white-hot), writing into the supplied THREE.Color. Mirrors
+  // the display fragment's mix chain so JS-coloured particles/halo match the
+  // GPU-coloured field surfaces.
+  function _bwRampColor(t, out) {
+    const mix = (a, b, k) => [a[0] + (b[0]-a[0])*k, a[1] + (b[1]-a[1])*k, a[2] + (b[2]-a[2])*k];
+    const voidC  = [0.020, 0.010, 0.050];
+    const purple = [0.486, 0.227, 0.929];   // #7C3AED
+    const pink   = [1.000, 0.063, 0.478];   // #FF107A
+    const hot    = [1.000, 0.850, 0.950];   // white-hot antinode core
+    let c = mix(voidC,  purple, _bwSmoothstep(0.00, 0.28, t));
+    c     = mix(c,      pink,   _bwSmoothstep(0.28, 0.62, t));
+    c     = mix(c,      hot,    _bwSmoothstep(0.62, 1.00, t));
+    return out.setRGB(c[0], c[1], c[2]);
+  }
+
+  // Lazily create the persistent bake machinery: the dedicated atlas render
+  // target, an ortho scene with six per-surface bake quads, and its camera.
+  // These survive rebuild() (only their uniforms + the atlas contents change).
+  function _ensureBwTargets() {
+    const tier = _bwTier;
+    if (_bwRT && _bwRT.width !== tier.rtSize) { _bwRT.dispose(); _bwRT = null; }
+    if (!_bwRT) {
+      _bwRT = new THREE.WebGLRenderTarget(tier.rtSize, tier.rtSize, {
+        minFilter: THREE.LinearFilter,
+        magFilter: THREE.LinearFilter,
+        format: THREE.RGBAFormat,
+        type: THREE.UnsignedByteType,
+        depthBuffer: false,
+        stencilBuffer: false,
+        generateMipmaps: false,
+      });
+    }
+    if (!_bwRtScene) {
+      _bwRtScene = new THREE.Scene();
+      _bwRtCam = new THREE.OrthographicCamera(0, 1, 1, 0, -1, 1);   // [0,1]² → atlas
+      const COLS = 3, ROWS = 2, cw = 1 / COLS, ch = 1 / ROWS;
+      _bwBakeQuads = [];
+      for (const key in _HEAT_SURF_INDEX) {
+        const idx = _HEAT_SURF_INDEX[key];
+        const colN = idx % COLS, rowN = Math.floor(idx / COLS);
+        const mat = new THREE.ShaderMaterial({
+          depthTest: false, depthWrite: false,
+          vertexShader: _BW_BAKE_VERT, fragmentShader: _BW_BAKE_FRAG,
+          uniforms: {
+            uSurf:       { value: idx },
+            uModes:      { value: [] },     // filled in _bakeBassField before each render
+            uBassTrapsF: { value: 0 },
+            uBassTrapsR: { value: 0 },
+            uBtSide:     { value: 0 },
+          },
+        });
+        const quad = new THREE.Mesh(new THREE.PlaneGeometry(cw, ch), mat);
+        quad.position.set(colN * cw + cw / 2, rowN * ch + ch / 2, 0);
+        _bwRtScene.add(quad);
+        _bwBakeQuads.push(quad);
+      }
+    }
+  }
+
+  // Bake the 8-mode standing-wave pressure into the atlas — ONE off-screen draw
+  // (six small quads) per rebuild. After this, the displayed field is just a
+  // texture lookup per fragment, never the old per-frame per-fragment mode loop.
+  function _bakeBassField(uBwModes, traps) {
+    if (_bwFailed) return;
+    try {
+      _ensureBwTargets();
+      for (const quad of _bwBakeQuads) {
+        const u = quad.material.uniforms;
+        u.uModes.value      = uBwModes;
+        u.uBassTrapsF.value = traps.f;
+        u.uBassTrapsR.value = traps.r;
+        u.uBtSide.value     = traps.side;
+      }
+      const prevTarget    = renderer.getRenderTarget();
+      const prevAutoClear = renderer.autoClear;
+      const prevClear     = new THREE.Color();
+      renderer.getClearColor(prevClear);
+      const prevAlpha     = renderer.getClearAlpha();
+      renderer.setRenderTarget(_bwRT);
+      renderer.setClearColor(0x000000, 1);
+      renderer.autoClear = true;
+      renderer.clear(true, false, false);
+      renderer.render(_bwRtScene, _bwRtCam);
+      renderer.setRenderTarget(prevTarget);
+      renderer.autoClear = prevAutoClear;
+      renderer.setClearColor(prevClear, prevAlpha);
+    } catch (err) { _bwDisable('_bakeBassField', err); }
+  }
+
+  // Build the six boundary display planes that sample the baked atlas through
+  // the purple→pink→white ramp. Local-space quads with identity transform (the
+  // vertex position IS the UV-mapped coordinate), mirroring the heat shell.
+  // Live in roomGroup → freed by the next rebuild's disposal traverse.
+  function _buildBwFieldPlanes(room, isFocBW) {
+    if (_bwFailed || !_bwRT) return;
+    try {
+      const hW = room.width_m / 2, hH = room.height_m / 2, hL = room.length_m / 2;
+      const fY = -hH + 0.03, INSET = 0.025;   // sit just inside the wireframe, above the heat floor plane
+      const planeDefs = [
+        ['floor',   [[-hW, fY, -hL], [hW, fY, -hL], [hW, fY, hL], [-hW, fY, hL]]],
+        ['ceiling', [[-hW, hH - 0.015, -hL], [hW, hH - 0.015, -hL], [hW, hH - 0.015, hL], [-hW, hH - 0.015, hL]]],
+        ['front',   [[-hW, -hH, -hL + INSET], [hW, -hH, -hL + INSET], [hW, hH, -hL + INSET], [-hW, hH, -hL + INSET]]],
+        ['back',    [[-hW, -hH, hL - INSET], [hW, -hH, hL - INSET], [hW, hH, hL - INSET], [-hW, hH, hL - INSET]]],
+        ['left',    [[-hW + INSET, -hH, -hL], [-hW + INSET, -hH, hL], [-hW + INSET, hH, hL], [-hW + INSET, hH, -hL]]],
+        ['right',   [[hW - INSET, -hH, -hL], [hW - INSET, -hH, hL], [hW - INSET, hH, hL], [hW - INSET, hH, -hL]]],
+      ];
+      const COLS = 3, ROWS = 2, cw = 1 / COLS, ch = 1 / ROWS;
+      const cellRect = (idx) => [(idx % COLS) * cw, Math.floor(idx / COLS) * ch, cw, ch];
+      const buildQuad = (c) => {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+          ...c[0], ...c[1], ...c[2],
+          ...c[0], ...c[2], ...c[3],
+        ]), 3));
+        return g;
+      };
+      _bwPlanes = [];
+      for (const [key, corners] of planeDefs) {
+        const idx = _HEAT_SURF_INDEX[key];
+        const mat = new THREE.ShaderMaterial({
+          transparent: true, depthWrite: false, side: THREE.DoubleSide,
+          blending: THREE.AdditiveBlending,
+          vertexShader: _BW_FIELD_VERT, fragmentShader: _BW_FIELD_FRAG,
+          uniforms: {
+            uField:   { value: _bwRT.texture },
+            uHalf:    { value: new THREE.Vector3(hW, hH, hL) },
+            uSurf:    { value: idx },
+            uCell:    { value: new THREE.Vector4(...cellRect(idx)) },
+            uOpacity: { value: isFocBW ? 0.62 : 0.34 },
+          },
+        });
+        const mesh = new THREE.Mesh(buildQuad(corners), mat);
+        mesh.frustumCulled = false;
+        mesh.renderOrder = 4;            // after the grid (3), under the ball overlays
+        mesh.userData.isBwPlane = true;
+        roomGroup.add(mesh);
+        _bwPlanes.push(mesh);
+      }
+    } catch (err) { _bwDisable('_buildBwFieldPlanes', err); }
+  }
+
+  // Scatter the interior standing-wave particle cloud. Each particle's signed
+  // modal amplitude (A) is sampled ONCE here; the per-frame work in
+  // _animateBassModes is only the sin(t·w) vertical excursion. Particles thrash
+  // at antinodes, sit dead-still (and hidden) on null planes, never travel — the
+  // standing-wave behaviour that keeps Bass Modes distinct from Reflections.
+  function _buildBwParticles(room, modes, traps) {
+    if (_bwFailed) return;
+    try {
+      _bwParticles = null; _bwParticleN = 0;
+      if (!modes.length) return;
+      const [gx, gy, gz] = _bwTier.grid;
+      const hW = room.width_m / 2, hH = room.height_m / 2, hL = room.length_m / 2;
+      const INSET = 0.14;                 // keep particles in the interior air, off the walls
+      const N = gx * gy * gz;
+      const base = new Float32Array(N * 3);
+      const amp  = new Float32Array(N);
+      const size = new Float32Array(N);
+      const geo  = new THREE.SphereGeometry(1, 6, 6);
+      const mat  = new THREE.MeshBasicMaterial({
+        transparent: true, opacity: 0.95,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      });
+      const mesh = new THREE.InstancedMesh(geo, mat, N);
+      mesh.frustumCulled = false;
+      mesh.userData.isBwParticles = true;
+      const col = new THREE.Color();
+      let n = 0;
+      for (let ix = 0; ix < gx; ix++) {
+        for (let iy = 0; iy < gy; iy++) {
+          for (let iz = 0; iz < gz; iz++) {
+            const fx = gx > 1 ? ix / (gx - 1) : 0.5;
+            const fy = gy > 1 ? iy / (gy - 1) : 0.5;
+            const fz = gz > 1 ? iz / (gz - 1) : 0.5;
+            // local centred position, inset from the walls
+            const x = (fx - 0.5) * (room.width_m  - 2 * INSET);
+            const y = (fy - 0.5) * (room.height_m - 2 * INSET);
+            const z = (fz - 0.5) * (room.length_m - 2 * INSET);
+            // true 0..1 room coords at the particle for the pressure sample
+            const cnx = (x + hW) / room.width_m;
+            const cny = (y + hH) / room.height_m;
+            const cnz = (z + hL) / room.length_m;
+            const a   = _bwSignedPressure(cnx, cny, cnz, modes) * _bwTrapCool(cnx, cnz, traps);
+            const magnitude = Math.abs(a);
+            base[n * 3] = x; base[n * 3 + 1] = y; base[n * 3 + 2] = z;
+            amp[n] = a;
+            // Antinodes glow + thrash; near-null particles collapse to scale 0
+            // (additive black would vanish anyway, but hiding saves overdraw).
+            const radius = magnitude < 0.06 ? 0 : (0.018 + magnitude * 0.055);
+            size[n] = radius;
+            _bwScratchS.setScalar(radius);
+            _bwScratchM.compose(_bwScratchV.set(x, y, z), _bwScratchQ.set(0, 0, 0, 1), _bwScratchS);
+            mesh.setMatrixAt(n, _bwScratchM);
+            _bwRampColor(magnitude, col);
+            mesh.setColorAt(n, col);
+            n++;
+          }
+        }
+      }
+      mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      roomGroup.add(mesh);
+      _bwParticles    = mesh;
+      _bwParticleN    = N;
+      _bwParticleBase = base;
+      _bwParticleAmp  = amp;
+      _bwParticleSize = size;
+    } catch (err) { _bwDisable('_buildBwParticles', err); _bwParticles = null; }
+  }
+
+  // Listener pressure probe — the hero beat. CPU-sample the seat's modal
+  // pressure, float a sound-layer glow halo there (hot pink = boom, cool purple
+  // = null) and, when focused, a readout naming the dominant mode at the seat
+  // and whether it's a boom or a null. The structural listener sphere stays
+  // neutral wireframe; this halo is the sound's footprint at the seat.
+  function _buildBwListenerProbe(room, modes, traps, showReadout) {
+    if (_bwFailed) return;
+    try {
+      _bwListenerHalo = null;
+      if (!modes.length) return;
+      const isStudio = room.room_type === 'studio';
+      const seat = room.seating_type || 'sofa';
+      // Seat offsets — same values the listener station uses to place the sphere.
+      const sphZ = isStudio ? 0.20 : (seat === 'lounge' ? 0.38 : 0.28);
+      const sphY = isStudio ? 1.22 : (seat === 'lounge' ? 1.00 : 0.96);
+      const off  = room.listener_offset_m || 0;
+      const hW = room.width_m / 2, hH = room.height_m / 2, hL = room.length_m / 2;
+      const lx = off + off;   // matches the listener station's x (offsetX + listener_offset_m)
+      const ly = -hH + sphY;
+      const lz = -hL + room.listener_front_m + sphZ;
+      // normalised room coords at the seat (clamped — a large offset can push outside)
+      const cnx = Math.max(0, Math.min(1, (lx + hW) / room.width_m));
+      const cny = Math.max(0, Math.min(1, (ly + hH) / room.height_m));
+      const cnz = Math.max(0, Math.min(1, (lz + hL) / room.length_m));
+      const pressure = Math.abs(_bwSignedPressure(cnx, cny, cnz, modes)) * _bwTrapCool(cnx, cnz, traps);
+      const norm = Math.min(1, pressure * 1.3);
+
+      const col = new THREE.Color();
+      _bwRampColor(norm, col);
+      const haloMat = new THREE.MeshBasicMaterial({
+        color: col, transparent: true,
+        opacity: 0.30 + 0.5 * norm,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      });
+      const halo = new THREE.Mesh(new THREE.SphereGeometry(0.30, 16, 12), haloMat);
+      halo.position.set(lx, ly, lz);
+      halo.frustumCulled = false;
+      halo.userData.isBwListenerHalo = true;
+      roomGroup.add(halo);
+      _bwListenerHalo = halo;
+
+      if (showReadout) {
+        // Dominant mode AT THE SEAT — the mode contributing the most |pressure|
+        // at the listening position, so the readout names what the listener hears.
+        let domF = 0, domContrib = -1;
+        for (const m of modes) {
+          const contrib = Math.abs(
+            m.w
+            * Math.cos(m.p * Math.PI * cnz)
+            * Math.cos(m.q * Math.PI * cnx)
+            * Math.cos(m.r * Math.PI * cny)
+          );
+          if (contrib > domContrib) { domContrib = contrib; domF = m.freq_hz; }
+        }
+        const verdict = pressure >= 0.45 ? 'boom at your seat'
+                      : pressure <= 0.18 ? 'null at your seat'
+                      : 'at your seat';
+        const lbl = _makeLabelSprite(`${Math.round(domF || 0)} Hz · ${verdict}`, '#f8fafc');
+        lbl.position.set(lx, ly + 0.5, lz);
+        roomGroup.add(lbl);
+      }
+    } catch (err) { _bwDisable('_buildBwListenerProbe', err); _bwListenerHalo = null; }
+  }
+
+  // Per-frame particle animation — the ONLY per-frame cost of the overlay. Each
+  // live particle vibrates in place: y = base.y + sin(t·w)·A. Shared phase +
+  // signed A = a standing wave (antinodes opposed across nulls). No travel, no
+  // geometry alloc. Frozen (early return) under reduced motion — particles stay
+  // at their base positions, consistent with the baked field never moving.
+  function _animateBassModes(now) {
+    if (_bwFailed || !_bwParticles || _bwReduced) return;
+    try {
+      const phase = Math.sin(now * 0.001 * _bwOscRate);
+      const GAIN = 0.12;   // metres of peak vertical excursion at a full antinode
+      const base = _bwParticleBase, amp = _bwParticleAmp, size = _bwParticleSize;
+      for (let i = 0; i < _bwParticleN; i++) {
+        const radius = size[i];
+        if (radius <= 0) continue;   // hidden null-plane particle — leave collapsed
+        _bwScratchS.setScalar(radius);
+        _bwScratchM.compose(
+          _bwScratchV.set(base[i * 3], base[i * 3 + 1] + phase * amp[i] * GAIN, base[i * 3 + 2]),
+          _bwScratchQ.set(0, 0, 0, 1),
+          _bwScratchS
+        );
+        _bwParticles.setMatrixAt(i, _bwScratchM);
+      }
+      _bwParticles.instanceMatrix.needsUpdate = true;
+    } catch (err) { _bwDisable('_animateBassModes', err); }
+  }
+
+  // Drop Bass Modes refs each rebuild. The planes / particles / halo live in
+  // roomGroup (freed by the disposal traverse); the bake target + bake scene are
+  // persistent (kept across rebuilds, like the heat targets) so only the closure
+  // refs reset here.
+  function _teardownBassField() {
+    _bwPlanes = [];
+    _bwParticles = null;
+    _bwParticleN = 0;
+    _bwParticleBase = _bwParticleAmp = _bwParticleSize = null;
+    _bwListenerHalo = null;
   }
 
   const api = {

@@ -118,11 +118,12 @@ function computeRoomGeometry(room) {
  * @param {number} maxModes - modes per axis, default 15
  * @returns {{ axis: string, order: number, freq_hz: number }[]}
  */
-function computeRoomModes(room, maxModes = 15) {
+function computeRoomModes(room, maxModes = 15, maxFreqHz = 600) {
     const cType = _get(room, 'ceiling_type', 'flat');
     const H     = parseFloat(_get(room, 'height_m', 0));
     let H_eff;
-    if (cType === 'slanted' || cType === 'gabled') {
+    // 'gable' is the canonical schema value; 'gabled' kept for back-compat.
+    if (cType === 'slanted' || cType === 'gable' || cType === 'gabled') {
         const H_sec = parseFloat(_get(room, 'ceiling_height_secondary_m', H));
         H_eff = (H + H_sec) / 2.0;
     } else {
@@ -138,15 +139,24 @@ function computeRoomModes(room, maxModes = 15) {
     const modeList = [];
     const _L = dims.length, _W = dims.width, _H = dims.height;
     if (_L > 0 && _W > 0 && _H > 0) {
-        for (let p = 0; p <= maxModes; p++) {
-            for (let q = 0; q <= maxModes; q++) {
-                for (let r = 0; r <= maxModes; r++) {
+        // Bound each axis index by the lowest order whose first-axial mode still
+        // sits under maxFreqHz, rather than blindly sweeping 0..maxModes on all
+        // three axes (which computed ~4096 modes to keep the handful of lowest
+        // ones the consumers actually use). The per-axial frequency is
+        // n·C/(2·dim), so the highest useful n on an axis is floor(maxFreqHz·2·dim/C).
+        // The combined-frequency check below then trims the index-space corners.
+        const _axisMax = (dim) => Math.min(maxModes, Math.floor((maxFreqHz * 2.0 * dim) / C));
+        const pMax = _axisMax(_L), qMax = _axisMax(_W), rMax = _axisMax(_H);
+        for (let p = 0; p <= pMax; p++) {
+            for (let q = 0; q <= qMax; q++) {
+                for (let r = 0; r <= rMax; r++) {
                     if (p === 0 && q === 0 && r === 0) continue;
-                    
+
                     const freq = (C / 2.0) * Math.sqrt(
                         Math.pow(p / _L, 2) + Math.pow(q / _W, 2) + Math.pow(r / _H, 2)
                     );
-                    
+                    if (freq > maxFreqHz) continue;
+
                     // Categorise mode type
                     const nonZeroCount = (p > 0 ? 1 : 0) + (q > 0 ? 1 : 0) + (r > 0 ? 1 : 0);
                     let type = 'oblique';
