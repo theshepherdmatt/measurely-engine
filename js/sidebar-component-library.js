@@ -280,6 +280,7 @@
       room_type:           'cinema',
       speaker_type:        'floorstander',
       screen_type:         'stand',   // 'stand' | 'wall' | 'projector' — cinema TV/screen mount
+      cinema_seat_count:   3,          // 3 | 4 | 5 — theatre recliner row length
       spk_spacing_m:       2.2,
       spk_front_m:         0.3,
       spk_inset_m:         0.20,
@@ -612,6 +613,49 @@
       reset() {
         cur.screen_type = state.screen_type ?? 'stand';
         typeGroup.setActive(cur.screen_type);
+      },
+    };
+  }
+
+  // ── Cinema seat-count selector ────────────────────────────────────────────
+  // Standalone control (not part of any always-mounted section) — a consumer
+  // mounts it only for the cinema room type, so it stays dormant elsewhere
+  // (e.g. web, which has no cinema room type). A single 3–5 slider whose value
+  // writes cur.cinema_seat_count and fires onChange. cinema_seat_count is
+  // geometry-only (drives the theatre recliner row length in room3d.js); it
+  // does not feed acoustics/analysis.
+  function renderSeatCountSection(mountId, { state = {}, onChange } = {}) {
+    const mount = _mount(mountId);
+    if (!mount) return null;
+
+    const cur = {
+      cinema_seat_count: state.cinema_seat_count ?? 3,
+    };
+
+    const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:10px;' });
+
+    const { wrap: seatWrap, slider: seatSlider, val: seatVal } = _sliderField({
+      label: 'Seats', id: 'scl-cinema-seats',
+      min: 3, max: 5, step: 1, decimals: 0,
+      value: cur.cinema_seat_count,
+    });
+    seatSlider.addEventListener('input', () => {
+      const v = parseInt(seatSlider.value, 10);
+      cur.cinema_seat_count = v;
+      seatVal.textContent = String(v);
+      _updateSliderFill(seatSlider);
+      onChange?.({ ...cur });
+    });
+    wrap.appendChild(seatWrap);
+
+    mount.appendChild(wrap);
+
+    return {
+      reset() {
+        cur.cinema_seat_count = state.cinema_seat_count ?? 3;
+        seatSlider.value = String(cur.cinema_seat_count);
+        seatVal.textContent = String(cur.cinema_seat_count);
+        _updateSliderFill(seatSlider);
       },
     };
   }
@@ -1281,6 +1325,7 @@
     renderRoomSection,
     renderCeilingSection,
     renderScreenTypeSection,
+    renderSeatCountSection,
     renderSpeakersSection,
     renderFurnitureSection,
     renderFloorSection,

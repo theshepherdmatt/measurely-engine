@@ -1234,6 +1234,8 @@ export function initRoom3D({
       speaker_type: setup.speaker_type,
       // Cinema TV/screen mount — geometry only, never read by acoustics/analysis.
       screen_type: setup.screen_type ?? 'stand',
+      // Cinema theatre-row seat count (3–5) — geometry only, not read by acoustics/analysis.
+      cinema_seat_count: setup.cinema_seat_count ?? 3,
       spk_placement: setup.spk_placement || 'desk',
       spk_spacing_m: setup.spk_spacing_m,
       // Studio-only: how far each speaker sits inward from its desk edge.
@@ -2876,18 +2878,25 @@ export function initRoom3D({
       }
 
       // ── Cinema: theatre recliner row (cinema room only) ────────────────────
-      // Three reclined seats facing the front-wall screen (−Z), with a chunky
-      // armrest between each seat and at both ends (4 total) so it reads as a
-      // theatre row. All charcoal _ghostBox, station-local (+Z toward the back
-      // wall, same convention as the sofa), parented to the listener station so
-      // it tracks the listener and uses the same back-wall clamp. Hardcoded
-      // 3 seats — no state field. Geometry only; never read by acoustics/analysis.
+      // N reclined seats (N = cinema_seat_count, 3–5) facing the front-wall
+      // screen (−Z), with a chunky armrest between each seat and at both ends
+      // (N+1 total) so it reads as a theatre row. All charcoal _ghostBox,
+      // station-local (+Z toward the back wall, same convention as the sofa),
+      // parented to the listener station so it tracks the listener and uses the
+      // same back-wall clamp. Geometry only; never read by acoustics/analysis.
       if (room.room_type === 'cinema') {
         const reclinerRow = new THREE.Group();
 
         const seatW = 0.55, armW = 0.12;
-        const seatXs = [-0.67, 0, 0.67];                 // centre seat at x=0, aligned with the listener
-        const armXs  = [-1.005, -0.335, 0.335, 1.005];   // dividers between seats + both ends
+        // Parametric, symmetric about x=0. Seat-centre pitch = seatW + armW, so
+        // armrests sit exactly between adjacent seats and at both ends. Odd N
+        // puts a seat at x=0 (on the listener); even N straddles the centre.
+        const N = Math.max(3, Math.min(5, Math.round(room.cinema_seat_count ?? 3)));
+        const seatPitch = seatW + armW;  // 0.67 — seat centre to seat centre
+        const seatXs = [];
+        for (let i = 0; i < N; i++) seatXs.push((i - (N - 1) / 2) * seatPitch);
+        const armXs = [];
+        for (let j = 0; j <= N; j++) armXs.push((j - N / 2) * seatPitch);
 
         seatXs.forEach(sx => {
           // Seat cushion / base.
