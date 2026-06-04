@@ -1236,6 +1236,9 @@ export function initRoom3D({
       screen_type: setup.screen_type ?? 'stand',
       // Cinema theatre-row seat count (3–5) — geometry only, not read by acoustics/analysis.
       cinema_seat_count: setup.cinema_seat_count ?? 3,
+      // Cinema seating type ('recliner_row' | 'corner_l' | 'corner_r') — geometry only.
+      // Separate from the home seating_type to avoid cross-mode coupling.
+      cinema_seating_type: setup.cinema_seating_type ?? 'recliner_row',
       spk_placement: setup.spk_placement || 'desk',
       spk_spacing_m: setup.spk_spacing_m,
       // Studio-only: how far each speaker sits inward from its desk edge.
@@ -2877,14 +2880,43 @@ export function initRoom3D({
         station.add(seatingGroup);
       }
 
-      // ── Cinema: theatre recliner row (cinema room only) ────────────────────
-      // N reclined seats (N = cinema_seat_count, 3–5) facing the front-wall
-      // screen (−Z), with a chunky armrest between each seat and at both ends
-      // (N+1 total) so it reads as a theatre row. All charcoal _ghostBox,
-      // station-local (+Z toward the back wall, same convention as the sofa),
-      // parented to the listener station so it tracks the listener and uses the
-      // same back-wall clamp. Geometry only; never read by acoustics/analysis.
-      if (room.room_type === 'cinema') {
+      // ── Cinema seating (cinema room only) — type via cinema_seating_type ───
+      //   'corner_l' / 'corner_r' → L-shaped sectional couch (this branch);
+      //   'recliner_row' (default) → the parametric N-seat theatre row below.
+      // All charcoal _ghostBox, station-local (+Z toward the back wall, same
+      // convention as the sofa), parented to the listener station, same back-wall
+      // clamp. Geometry only; never read by acoustics/analysis.
+      if (room.room_type === 'cinema' &&
+          (room.cinema_seating_type === 'corner_l' || room.cinema_seating_type === 'corner_r')) {
+        // L-shaped sectional: a main run along the rear (centred on the listener)
+        // plus a perpendicular return extending forward (−Z) on one side.
+        // corner_l → return on the left (−X); corner_r → mirror (+X). Composed
+        // from the listener-sofa modules. cinema_seat_count does NOT apply here.
+        const seatingGroup = new THREE.Group();
+        const side = room.cinema_seating_type === 'corner_r' ? +1 : -1;
+
+        // Main run along the rear wall (back panel at +Z), centred on x=0.
+        const mainBase = _ghostBox(2.4, 0.4, 0.9); mainBase.position.set(0, 0.2, 0);     seatingGroup.add(mainBase);
+        const mainBack = _ghostBox(2.4, 0.5, 0.2); mainBack.position.set(0, 0.55, 0.35); seatingGroup.add(mainBack);
+
+        // Perpendicular return extending forward on `side`, outer edge flush with
+        // the main-run end; its backrest runs along the side wall.
+        const retBase  = _ghostBox(0.9, 0.4, 1.6); retBase.position.set(side * 0.75, 0.2, -0.35);   seatingGroup.add(retBase);
+        const sideBack = _ghostBox(0.2, 0.5, 1.6); sideBack.position.set(side * 1.1, 0.55, -0.35);  seatingGroup.add(sideBack);
+
+        // Arms: one at the main-run open end (opposite the return), one at the
+        // return's forward tip.
+        const openArm = _ghostBox(0.2, 0.35, 0.9); openArm.position.set(-side * 1.1, 0.4, 0);     seatingGroup.add(openArm);
+        const retArm  = _ghostBox(0.9, 0.35, 0.2); retArm.position.set(side * 0.75, 0.4, -1.05);  seatingGroup.add(retArm);
+
+        // Same station-local placement + back-wall clamp as the recliner row.
+        const _cornerBackExtent = 0.55;
+        const _cornerMaxLocalZ = (room.length_m / 2) - listenerZ - _cornerBackExtent - 0.05;
+        seatingGroup.position.set(0, 0, Math.min(0.35, Math.max(0, _cornerMaxLocalZ)));
+        station.add(seatingGroup);
+
+      } else if (room.room_type === 'cinema') {
+        // ── recliner_row (default) — parametric N-seat theatre row ──
         const reclinerRow = new THREE.Group();
 
         const seatW = 0.55, armW = 0.12;

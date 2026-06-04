@@ -281,6 +281,7 @@
       speaker_type:        'floorstander',
       screen_type:         'stand',   // 'stand' | 'wall' | 'projector' — cinema TV/screen mount
       cinema_seat_count:   3,          // 3 | 4 | 5 — theatre recliner row length
+      cinema_seating_type: 'recliner_row',  // 'recliner_row' | 'corner_l' | 'corner_r'
       spk_spacing_m:       2.2,
       spk_front_m:         0.3,
       spk_inset_m:         0.20,
@@ -656,6 +657,47 @@
         seatSlider.value = String(cur.cinema_seat_count);
         seatVal.textContent = String(cur.cinema_seat_count);
         _updateSliderFill(seatSlider);
+      },
+    };
+  }
+
+  // ── Cinema seating-type selector ──────────────────────────────────────────
+  // Standalone control (not part of any always-mounted section) — a consumer
+  // mounts it only for the cinema room type, so it stays dormant elsewhere
+  // (e.g. web, which has no cinema room type). A 3-key _btnGroup whose callback
+  // writes cur.cinema_seating_type and fires onChange. cinema_seating_type is
+  // geometry-only (drives the cinema seating shape in room3d.js); it does not
+  // feed acoustics/analysis.
+  function renderCinemaSeatingTypeSection(mountId, { state = {}, onChange } = {}) {
+    const mount = _mount(mountId);
+    if (!mount) return null;
+
+    const cur = {
+      cinema_seating_type: state.cinema_seating_type ?? 'recliner_row',
+    };
+
+    const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:10px;' });
+
+    const typeGroup = _btnGroup(
+      [
+        { key: 'recliner_row', label: 'Recliners' },
+        { key: 'corner_l',     label: 'Corner L'  },
+        { key: 'corner_r',     label: 'Corner R'  },
+      ],
+      cur.cinema_seating_type,
+      key => {
+        cur.cinema_seating_type = key;
+        onChange?.({ ...cur });
+      }
+    );
+    wrap.appendChild(typeGroup.row);
+
+    mount.appendChild(wrap);
+
+    return {
+      reset() {
+        cur.cinema_seating_type = state.cinema_seating_type ?? 'recliner_row';
+        typeGroup.setActive(cur.cinema_seating_type);
       },
     };
   }
@@ -1326,6 +1368,7 @@
     renderCeilingSection,
     renderScreenTypeSection,
     renderSeatCountSection,
+    renderCinemaSeatingTypeSection,
     renderSpeakersSection,
     renderFurnitureSection,
     renderFloorSection,
