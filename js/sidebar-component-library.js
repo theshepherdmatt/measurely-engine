@@ -1020,6 +1020,44 @@
 
     return {
       setRoomType(rt) { _applyRoomType(rt); },
+      // Reflect an external set of furniture flags into the button states —
+      // mirrors speakersAPI.setValues. One-way "adopt this state" update used
+      // when a consumer changes the underlying flags (e.g. a room-type switch
+      // reseeds opt_* furniture defaults): merge the flags into `cur`, then
+      // re-derive every grid's active state the SAME way construction does.
+      // Deliberately does NOT call onChange — this is not a user edit, so it
+      // must not write back to the consumer or create a feedback loop.
+      setValues(flags) {
+        if (!flags) return;
+        const FURN_KEYS = ['opt_area_rug', 'opt_sofa', 'opt_coffee_table',
+                           'seating_type', 'sofa_width_m', 'opt_ottoman',
+                           'opt_display', 'opt_mic', 'opt_keyboard',
+                           'opt_client_seating', 'client_seating_type'];
+        for (const k of FURN_KEYS) {
+          if (flags[k] !== undefined) cur[k] = flags[k];
+        }
+        // Seating single-select — same derivation as construction (~842-845).
+        _curSeatingKey = (cur.seating_type === 'lounge')
+          ? 'lounge'
+          : ((cur.sofa_width_m ?? 2.8) <= 1.4 ? 'compact' : 'sofa');
+        seatingGroup.setActive(_curSeatingKey);
+        // Lounge suppresses coffee table + ottoman (mirrors the seating onChange).
+        if (_curSeatingKey === 'lounge') {
+          cur.opt_coffee_table = false;
+          cur.opt_ottoman      = false;
+        }
+        // Re-apply every furniture grid's active state from the merged `cur`.
+        hifiGrid.setActive('opt_area_rug',     cur.opt_area_rug);
+        hifiGrid.setActive('opt_coffee_table', cur.opt_coffee_table);
+        hifiGrid.setActive('opt_ottoman',      cur.opt_ottoman);
+        studioGrid.setActive('opt_display',    cur.opt_display);
+        studioGrid.setActive('opt_mic',        cur.opt_mic);
+        studioGrid.setActive('opt_keyboard',   cur.opt_keyboard);
+        studioGrid.setActive('opt_area_rug',   cur.opt_area_rug);
+        clientToggleBtn.classList.toggle('active', cur.opt_client_seating);
+        clientToggleBtn.textContent = cur.opt_client_seating ? 'On' : 'Off';
+        clientTypeRow.style.display = cur.opt_client_seating ? '' : 'none';
+      },
       reset() {
         _curSeatingKey = 'sofa';
         seatingGroup.setActive('sofa');
