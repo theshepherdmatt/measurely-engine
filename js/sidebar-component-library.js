@@ -279,6 +279,7 @@
     cinema: {
       room_type:           'cinema',
       speaker_type:        'floorstander',
+      screen_type:         'stand',   // 'stand' | 'wall' | 'projector' — cinema TV/screen mount
       spk_spacing_m:       2.2,
       spk_front_m:         0.3,
       spk_inset_m:         0.20,
@@ -573,6 +574,48 @@
       },
     };
   }
+
+  // ── Cinema screen-type selector ───────────────────────────────────────────
+  // Standalone control (not part of any always-mounted section) — a consumer
+  // mounts it only for the cinema room type, so it stays dormant elsewhere
+  // (e.g. web, which has no cinema room type). Follows the renderCeilingSection
+  // pattern: a 3-key _btnGroup whose callback writes cur.screen_type and fires
+  // onChange. screen_type is geometry-only (drives the TV/screen prop in
+  // room3d.js); it does not feed acoustics/analysis.
+  function renderScreenTypeSection(mountId, { state = {}, onChange } = {}) {
+    const mount = _mount(mountId);
+    if (!mount) return null;
+
+    const cur = {
+      screen_type: state.screen_type ?? 'stand',
+    };
+
+    const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:10px;' });
+
+    const typeGroup = _btnGroup(
+      [
+        { key: 'stand',     label: 'Stand'     },
+        { key: 'wall',      label: 'Wall'      },
+        { key: 'projector', label: 'Projector' },
+      ],
+      cur.screen_type,
+      key => {
+        cur.screen_type = key;
+        onChange?.({ ...cur });
+      }
+    );
+    wrap.appendChild(typeGroup.row);
+
+    mount.appendChild(wrap);
+
+    return {
+      reset() {
+        cur.screen_type = state.screen_type ?? 'stand';
+        typeGroup.setActive(cur.screen_type);
+      },
+    };
+  }
+
   // ── Section 4 — Speakers ──────────────────────────────────────────────────
 
   function renderSpeakersSection(mountId, { state = {}, roomType = 'home', onChange } = {}) {
@@ -1237,6 +1280,7 @@
     renderAnalysisOverlaySection,
     renderRoomSection,
     renderCeilingSection,
+    renderScreenTypeSection,
     renderSpeakersSection,
     renderFurnitureSection,
     renderFloorSection,

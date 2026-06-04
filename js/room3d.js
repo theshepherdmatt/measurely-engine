@@ -1232,6 +1232,8 @@ export function initRoom3D({
       ceiling_height_secondary_m: geo.ceiling_height_secondary_m || 2.0,
 
       speaker_type: setup.speaker_type,
+      // Cinema TV/screen mount — geometry only, never read by acoustics/analysis.
+      screen_type: setup.screen_type ?? 'stand',
       spk_placement: setup.spk_placement || 'desk',
       spk_spacing_m: setup.spk_spacing_m,
       // Studio-only: how far each speaker sits inward from its desk edge.
@@ -2581,6 +2583,74 @@ export function initRoom3D({
         }
       }
 
+    }
+
+    /* ------------------------------------------
+       CINEMA TV / SCREEN (cinema room only)
+       Front-wall-anchored display with three mount variants driven by
+       room.screen_type ('stand' | 'wall' | 'projector'). Built from _ghostBox
+       wireframe frames (charcoal furnEdgeMat) + a low-opacity fill plane for
+       the screen face — same plane treatment as the rug fill. Reuses only the
+       existing charcoal palette.
+       Predictive model: not a physical measurement. Geometry only — never read
+       by acoustics/analysis, so it cannot affect the simulation.
+    ------------------------------------------ */
+    if (room.room_type === 'cinema' && (renderStage === 'speakers' || renderStage === 'furnishings')) {
+      const floorY     = -room.height_m / 2;
+      const frontWallZ = -room.length_m / 2;
+      const screenType = room.screen_type || 'stand';
+
+      // Screen face — charcoal wireframe bezel + faint dark fill plane facing
+      // into the room (+z), mirroring the rug-fill pattern so the screen reads
+      // as a surface, not a hollow box.
+      function _screenFace(w, h) {
+        const grp = new THREE.Group();
+        grp.add(_ghostBox(w, h, 0.04));
+        const fill = new THREE.Mesh(
+          new THREE.PlaneGeometry(w * 0.96, h * 0.92),
+          new THREE.MeshBasicMaterial({ color: 0x2a2a2a, transparent: true, opacity: 0.85, depthWrite: false })
+        );
+        fill.position.z = 0.021;  // just in front of the bezel, facing into the room
+        grp.add(fill);
+        return grp;
+      }
+
+      if (screenType === 'stand') {
+        // Low media cabinet on the floor against the front wall, TV on top.
+        const cabW = 2.2, cabH = 0.5, cabD = 0.42;
+        const cabZ = frontWallZ + cabD / 2 + 0.05;  // small gap off the wall, like the rack
+        const cabinet = _ghostBox(cabW, cabH, cabD);
+        cabinet.position.set(offsetX, floorY + cabH / 2, cabZ);
+        roomGroup.add(cabinet);
+
+        const scrW = 1.5, scrH = 0.85;
+        const screen = _screenFace(scrW, scrH);
+        // Base of the screen sits on the cabinet top.
+        screen.position.set(offsetX, floorY + cabH + scrH / 2, cabZ);
+        roomGroup.add(screen);
+
+      } else if (screenType === 'wall') {
+        // TV flush on the front wall, no cabinet, centred ~1.3 m up.
+        const scrW = 1.5, scrH = 0.85;
+        const screen = _screenFace(scrW, scrH);
+        screen.position.set(offsetX, floorY + 1.3, frontWallZ + 0.03);
+        roomGroup.add(screen);
+
+      } else {
+        // Projector: larger screen flush near the front wall + a small
+        // projector box mounted high toward the room centre.
+        const scrW = 2.1, scrH = 1.2;
+        const screen = _screenFace(scrW, scrH);
+        screen.position.set(offsetX, floorY + 1.4, frontWallZ + 0.03);
+        roomGroup.add(screen);
+
+        const projW = 0.3, projH = 0.15, projD = 0.3;
+        const projector = _ghostBox(projW, projH, projD);
+        const projY = (room.height_m / 2) - 0.3;            // ~0.3 m below the ceiling
+        const projZ = frontWallZ + room.length_m * 0.45;     // high, toward room centre
+        projector.position.set(offsetX, projY, projZ);
+        roomGroup.add(projector);
+      }
     }
 
     {
