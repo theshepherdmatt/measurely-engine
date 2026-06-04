@@ -2600,47 +2600,109 @@ export function initRoom3D({
       const frontWallZ = -room.length_m / 2;
       const screenType = room.screen_type || 'stand';
 
-      // Screen face — charcoal wireframe bezel + faint dark fill plane facing
-      // into the room (+z), mirroring the rug-fill pattern so the screen reads
-      // as a surface, not a hollow box.
-      function _screenFace(w, h) {
+      // Screen face — charcoal wireframe bezel + a fill plane facing into the
+      // room (+z), mirroring the rug-fill pattern so the screen reads as a
+      // surface, not a hollow box. Fill colour/opacity default to the dark TV
+      // tone; the projector passes white (0xffffff) at low opacity for a lit look.
+      function _screenFace(w, h, fillColor = 0x2a2a2a, fillOpacity = 0.85) {
         const grp = new THREE.Group();
         grp.add(_ghostBox(w, h, 0.04));
         const fill = new THREE.Mesh(
           new THREE.PlaneGeometry(w * 0.96, h * 0.92),
-          new THREE.MeshBasicMaterial({ color: 0x2a2a2a, transparent: true, opacity: 0.85, depthWrite: false })
+          new THREE.MeshBasicMaterial({ color: fillColor, transparent: true, opacity: fillOpacity, depthWrite: false })
         );
         fill.position.z = 0.021;  // just in front of the bezel, facing into the room
         grp.add(fill);
         return grp;
       }
 
+      // ── Shared media cabinet (used by the stand and wall variants) ─────────
+      // Wireframe body on four legs, front face split into two doors with
+      // handles. Narrowed to 1.7 m so the floorstanders at ±1.1 m flank it
+      // rather than clip it (cabinet half-extent 0.85 m vs speaker inner edge
+      // ~0.98 m). All charcoal _ghostBox outlines — no solids, no new colours.
+      const CAB_W = 1.7, CAB_H = 0.5, CAB_D = 0.42;
+      const CAB_LEG_H = 0.12, CAB_LEG_W = 0.08, CAB_LEG_D = 0.08;
+      const cabZ    = frontWallZ + CAB_D / 2 + 0.05;   // small gap off the wall, like the rack
+      const cabTopY = floorY + CAB_LEG_H + CAB_H;       // world Y of the cabinet top surface
+
+      // Returns the cabinet as a Group in local coords (y = 0 at the floor,
+      // x = 0 centre, z = 0 cabinet centre); the caller places it at
+      // (offsetX, floorY, cabZ).
+      function _buildCabinet() {
+        const grp = new THREE.Group();
+
+        // Body — raised onto the legs.
+        const body = _ghostBox(CAB_W, CAB_H, CAB_D);
+        body.position.set(0, CAB_LEG_H + CAB_H / 2, 0);
+        grp.add(body);
+
+        // Four legs under the corners (slightly inset), like the rack/desk legs.
+        const legX = CAB_W / 2 - CAB_LEG_W / 2 - 0.04;
+        const legZ = CAB_D / 2 - CAB_LEG_D / 2 - 0.04;
+        [[-legX, -legZ], [legX, -legZ], [-legX, legZ], [legX, legZ]].forEach(([lx, lz]) => {
+          const leg = _ghostBox(CAB_LEG_W, CAB_LEG_H, CAB_LEG_D);
+          leg.position.set(lx, CAB_LEG_H / 2, lz);
+          grp.add(leg);
+        });
+
+        // Two door panels dividing the front face — thin wireframe outlines
+        // (NOT solids), with a small vertical handle bar near each inner edge.
+        const doorW = CAB_W / 2 - 0.04;
+        const doorH = CAB_H - 0.06;
+        const doorY = CAB_LEG_H + CAB_H / 2;
+        const doorZ = CAB_D / 2 - 0.011;  // thin door box front flush with the body front
+        [-1, 1].forEach(sx => {
+          const door = _ghostBox(doorW, doorH, 0.02);
+          door.position.set(sx * CAB_W / 4, doorY, doorZ);
+          grp.add(door);
+
+          const handle = _ghostBox(0.02, 0.12, 0.03);
+          handle.position.set(sx * 0.05, doorY, CAB_D / 2 + 0.015);  // just proud of the front
+          grp.add(handle);
+        });
+
+        return grp;
+      }
+
       if (screenType === 'stand') {
-        // Low media cabinet on the floor against the front wall, TV on top.
-        const cabW = 2.2, cabH = 0.5, cabD = 0.42;
-        const cabZ = frontWallZ + cabD / 2 + 0.05;  // small gap off the wall, like the rack
-        const cabinet = _ghostBox(cabW, cabH, cabD);
-        cabinet.position.set(offsetX, floorY + cabH / 2, cabZ);
+        // Media cabinet on the floor against the front wall, TV on small feet
+        // on the cabinet top.
+        const cabinet = _buildCabinet();
+        cabinet.position.set(offsetX, floorY, cabZ);
+        roomGroup.add(cabinet);
+
+        const scrW = 1.5, scrH = 0.85;
+        const FOOT_H = 0.06, FOOT_W = 0.05, FOOT_D = 0.10;
+        // TV base rests at cabinet-top + foot height; centre is half above that.
+        const screen = _screenFace(scrW, scrH);
+        screen.position.set(offsetX, cabTopY + FOOT_H + scrH / 2, cabZ);
+        roomGroup.add(screen);
+
+        // Two small feet under the TV, standing on the cabinet top.
+        [-1, 1].forEach(sx => {
+          const foot = _ghostBox(FOOT_W, FOOT_H, FOOT_D);
+          foot.position.set(offsetX + sx * scrW * 0.28, cabTopY + FOOT_H / 2, cabZ);
+          roomGroup.add(foot);
+        });
+
+      } else if (screenType === 'wall') {
+        // Same cabinet below + TV mounted flush on the front wall, clearing it.
+        const cabinet = _buildCabinet();
+        cabinet.position.set(offsetX, floorY, cabZ);
         roomGroup.add(cabinet);
 
         const scrW = 1.5, scrH = 0.85;
         const screen = _screenFace(scrW, scrH);
-        // Base of the screen sits on the cabinet top.
-        screen.position.set(offsetX, floorY + cabH + scrH / 2, cabZ);
-        roomGroup.add(screen);
-
-      } else if (screenType === 'wall') {
-        // TV flush on the front wall, no cabinet, centred ~1.3 m up.
-        const scrW = 1.5, scrH = 0.85;
-        const screen = _screenFace(scrW, scrH);
-        screen.position.set(offsetX, floorY + 1.3, frontWallZ + 0.03);
+        screen.position.set(offsetX, floorY + 1.3, frontWallZ + 0.03);  // ~1.3 m up, clears the cabinet (top ~0.62 m)
         roomGroup.add(screen);
 
       } else {
-        // Projector: larger screen flush near the front wall + a small
-        // projector box mounted high toward the room centre.
+        // Projector: larger LIT screen (white fill, low opacity) flush near the
+        // front wall + a small projector box mounted high toward the room
+        // centre. No cabinet.
         const scrW = 2.1, scrH = 1.2;
-        const screen = _screenFace(scrW, scrH);
+        const screen = _screenFace(scrW, scrH, 0xffffff, 0.15);
         screen.position.set(offsetX, floorY + 1.4, frontWallZ + 0.03);
         roomGroup.add(screen);
 
