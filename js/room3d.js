@@ -2875,6 +2875,56 @@ export function initRoom3D({
         station.add(seatingGroup);
       }
 
+      // ── Cinema: theatre recliner row (cinema room only) ────────────────────
+      // Three reclined seats facing the front-wall screen (−Z), with a chunky
+      // armrest between each seat and at both ends (4 total) so it reads as a
+      // theatre row. All charcoal _ghostBox, station-local (+Z toward the back
+      // wall, same convention as the sofa), parented to the listener station so
+      // it tracks the listener and uses the same back-wall clamp. Hardcoded
+      // 3 seats — no state field. Geometry only; never read by acoustics/analysis.
+      if (room.room_type === 'cinema') {
+        const reclinerRow = new THREE.Group();
+
+        const seatW = 0.55, armW = 0.12;
+        const seatXs = [-0.67, 0, 0.67];                 // centre seat at x=0, aligned with the listener
+        const armXs  = [-1.005, -0.335, 0.335, 1.005];   // dividers between seats + both ends
+
+        seatXs.forEach(sx => {
+          // Seat cushion / base.
+          const base = _ghostBox(seatW, 0.4, 0.85);
+          base.position.set(sx, 0.2, 0);
+          reclinerRow.add(base);
+
+          // Reclined back — tilted rearward, at the rear (+Z) of the base.
+          const back = _ghostBox(seatW, 0.55, 0.18);
+          back.rotation.x = +0.22;
+          back.position.set(sx, 0.55, 0.33);
+          reclinerRow.add(back);
+
+          // Headrest — small block above the back, sharing its lean.
+          const head = _ghostBox(0.5, 0.16, 0.12);
+          head.rotation.x = +0.22;
+          head.position.set(sx, 0.92, 0.40);
+          reclinerRow.add(head);
+        });
+
+        // Chunky armrests: between each seat and at both ends.
+        armXs.forEach(ax => {
+          const arm = _ghostBox(armW, 0.42, 0.85);
+          arm.position.set(ax, 0.21, 0);
+          reclinerRow.add(arm);
+        });
+
+        // Position exactly like the sofa: station-local, a small +Z offset so
+        // the centre recliner nestles around the listener sphere, with the same
+        // back-wall clamp so a deep recliner never breaches the rear wall.
+        // Y = 0 (cinema has no rug, so no rugRaise lift).
+        const _reclinerBackExtent = 0.55;  // furthest rear face behind the group origin
+        const _reclinerMaxLocalZ = (room.length_m / 2) - listenerZ - _reclinerBackExtent - 0.05;
+        reclinerRow.position.set(0, 0, Math.min(0.35, Math.max(0, _reclinerMaxLocalZ)));
+        station.add(reclinerRow);
+      }
+
       // ── Coffee table — anchored to listener station, in front of sofa ──
       if (VISIBILITY.furniture.coffeeTable && !isStudio && room.opt_coffee_table) {
         const ctGroup = new THREE.Group();
