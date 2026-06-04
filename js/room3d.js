@@ -2344,8 +2344,10 @@ export function initRoom3D({
        HI-FI RACK + SUBWOOFER (home room only)
        Rack sits centre against the front wall.
        Sub sits to the right of the rack when enabled.
+       Gated to 'home' explicitly — excluded for studio (as before) and for
+       cinema (a blank shell inherits no home furniture).
     ------------------------------------------ */
-    if (!isStudio && (renderStage === 'speakers' || renderStage === 'furnishings')) {
+    if (room.room_type === 'home' && (renderStage === 'speakers' || renderStage === 'furnishings')) {
       const floorY = -room.height_m / 2;
 
       // ── Hi-Fi rack — "High-End Stealth" aesthetic ──────────────────────────

@@ -270,6 +270,33 @@
       desk_width_m:        1.6,
       desk_depth_m:        0.7,
     },
+    // Cinema — blank shell for now. Mirrors home's placement numbers and
+    // speaker_type (placeholder; cinema speaker roles come later) and turns
+    // ALL furniture opts off so the room renders empty (placeholder speakers +
+    // listener still draw via the home path). Carries the full field set home
+    // and studio carry — incl. spk_inset_m (inert outside studio) and desk dims
+    // — so no downstream reader falls back to an inline default.
+    cinema: {
+      room_type:           'cinema',
+      speaker_type:        'floorstander',
+      spk_spacing_m:       2.2,
+      spk_front_m:         0.3,
+      spk_inset_m:         0.20,
+      tweeter_height_m:    0.95,
+      listener_front_m:    3.2,
+      toe_in_deg:          10,
+      opt_sofa:            false,
+      opt_area_rug:        false,
+      opt_coffee_table:    false,
+      opt_ottoman:         false,
+      opt_display:         false,
+      opt_mic:             false,
+      opt_keyboard:        false,
+      opt_client_seating:  false,
+      client_seating_type: 'sofa',
+      desk_width_m:        1.6,
+      desk_depth_m:        0.7,
+    },
   };
 
   function renderRoomTypeToggle(mountId, {
@@ -284,8 +311,8 @@
     const mount = _mount(mountId);
     if (!mount) return null;
 
-    const _TOGGLE_IDS = { home: 'select-hifi', studio: 'select-studio' };
-    const _LABELS     = { home: 'Hi-Fi', studio: 'Studio' };
+    const _TOGGLE_IDS = { home: 'select-hifi', studio: 'select-studio', cinema: 'select-cinema' };
+    const _LABELS     = { home: 'Hi-Fi', studio: 'Studio', cinema: 'Cinema' };
 
     // Live current key — fixes getActive() previously returning stale `initial`
     let currentKey = initial;
@@ -298,9 +325,10 @@
       [
         { key: 'home',   icon: 'hifi.svg',   label: _LABELS.home   },
         { key: 'studio', icon: 'studio.svg', label: _LABELS.studio },
+        { key: 'cinema', icon: 'cinema.svg', label: _LABELS.cinema },
       ],
       initial,
-      2,
+      3,
       key => {
         // Re-click of the active cell — no-op
         if (key === currentKey) return;
@@ -319,6 +347,7 @@
     const cells = gridResult.grid.children;
     if (cells[0]) cells[0].id = _TOGGLE_IDS.home;
     if (cells[1]) cells[1].id = _TOGGLE_IDS.studio;
+    if (cells[2]) cells[2].id = _TOGGLE_IDS.cinema;
 
     if (collapsible) {
       const details = document.createElement('details');
