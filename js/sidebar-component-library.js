@@ -282,6 +282,7 @@
       screen_type:         'stand',   // 'stand' | 'wall' | 'projector' — cinema TV/screen mount
       cinema_seat_count:   3,          // 3 | 4 | 5 — theatre recliner row length
       cinema_row_count:    1,          // 1 | 2 | 3 | 4 — elevated theatre rows (recliner row only)
+      speaker_layout:      '5_1',      // '5_1' | '7_2' — surround layout (extends: '7_2_4' | 'soundbar')
       cinema_seating_type: 'recliner_row',  // 'recliner_row' | 'corner_l' | 'corner_r'
       spk_spacing_m:       2.2,
       spk_front_m:         0.3,
@@ -615,6 +616,48 @@
       reset() {
         cur.screen_type = state.screen_type ?? 'stand';
         typeGroup.setActive(cur.screen_type);
+      },
+    };
+  }
+
+  // ── Cinema speaker-layout selector ────────────────────────────────────────
+  // Standalone control (not part of any always-mounted section) — a consumer
+  // mounts it only for the cinema room type, so it stays dormant elsewhere
+  // (e.g. web, which has no cinema room type). Mirrors renderScreenTypeSection:
+  // a labelled segmented _btnGroup whose callback writes cur.speaker_layout and
+  // fires onChange. speaker_layout is geometry/coverage-only (drives the surround
+  // speakers + subs in room3d.js); it does not feed acoustics/analysis. Options
+  // extend later ('7_2_4', 'soundbar') — keep the segmented-group shape.
+  function renderSpeakerLayoutSection(mountId, { state = {}, onChange } = {}) {
+    const mount = _mount(mountId);
+    if (!mount) return null;
+
+    const cur = {
+      speaker_layout: state.speaker_layout ?? '5_1',
+    };
+
+    const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:10px;' });
+    wrap.appendChild(_el('div', { class: 'demo-field-label' }, 'Speaker layout'));
+
+    const layoutGroup = _btnGroup(
+      [
+        { key: '5_1', label: '5.1' },
+        { key: '7_2', label: '7.2' },
+      ],
+      cur.speaker_layout,
+      key => {
+        cur.speaker_layout = key;
+        onChange?.({ ...cur });
+      }
+    );
+    wrap.appendChild(layoutGroup.row);
+
+    mount.appendChild(wrap);
+
+    return {
+      reset() {
+        cur.speaker_layout = state.speaker_layout ?? '5_1';
+        layoutGroup.setActive(cur.speaker_layout);
       },
     };
   }
@@ -1464,6 +1507,7 @@
     renderRoomSection,
     renderCeilingSection,
     renderScreenTypeSection,
+    renderSpeakerLayoutSection,
     renderSeatCountSection,
     renderRowCountSection,
     renderCinemaSeatingTypeSection,

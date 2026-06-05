@@ -1239,6 +1239,9 @@ export function initRoom3D({
       // Cinema elevated theatre-row count (1–4) — geometry only, recliner row only.
       // Analysis stays on the front/money seat; rows are never read by acoustics.
       cinema_row_count: setup.cinema_row_count ?? 1,
+      // Cinema surround layout ('5_1' | '7_2', extends to '7_2_4' | 'soundbar') —
+      // geometry/coverage only; drives surrounds + subs, never read by acoustics.
+      speaker_layout: setup.speaker_layout ?? '5_1',
       // Cinema seating type ('recliner_row' | 'corner_l' | 'corner_r') — geometry only.
       // Separate from the home seating_type to avoid cross-mode coupling.
       cinema_seating_type: setup.cinema_seating_type ?? 'recliner_row',
@@ -2740,6 +2743,90 @@ export function initRoom3D({
         const centreZ  = frontWallZ + (room.spk_front_m ?? 0.3);  // same front plane as the L/R pair
         centre.position.set(offsetX, floorY + 0.5, centreZ);      // ~0.5 m up, below the screen
         roomGroup.add(centre);
+      }
+
+      // ── Surround speakers + subwoofers (cinema only) — driven by speaker_layout ──
+      // Floor-level surrounds placed by bearing angle from the listener (0° faces
+      // the screen, angles open toward the rear), symmetric L/R, all equidistant
+      // from the listener at ear height, each yawed to face the listener. The
+      // front L / C / R (shared pair + the centre above) stay present in every
+      // layout; this only adds the surrounds + subs. Additive, geometry/coverage
+      // only: never read by acoustics/analysis, and it touches neither the shared
+      // pair nor any spk_* placement. Disposed on rebuild via the roomGroup traverse.
+      // Predictive model: not a physical measurement.
+      {
+        const layout   = room.speaker_layout || '5_1';
+        const sProfile = getSpeakerProfile(room.speaker_type);
+        const sColor   = sProfile.color;
+        const sOpacity = Math.max(OP_OBJ, 0.80);
+
+        const listX = offsetX + (room.listener_offset_m || 0);  // matches the listener station's X
+        const listZ = listenerZ;
+        const earY  = floorY + 1.05;                            // ~ear height, seated
+
+        const hW        = room.width_m / 2;
+        const backWallZ = room.length_m / 2;
+        const WALL_GAP  = 0.30;                                 // keep boxes off the walls
+        // Common (equidistant) radius — reaches toward the nearer of the side or
+        // rear wall; the per-axis clamp below keeps each box inside the room.
+        const r = Math.max(1.4, Math.min(hW, backWallZ - listZ));
+
+        // Surround bearings (deg) per layout, each placed symmetrically L + R.
+        //   5.1 → one pair at ~110° (just behind, to the side)
+        //   7.2 → side pair at ~100°, rear pair at ~140°
+        const SURR_BEARINGS = layout === '7_2' ? [100, 140] : [110];
+
+        SURR_BEARINGS.forEach(deg => {
+          const a = deg * Math.PI / 180;
+          [-1, 1].forEach(sideSign => {
+            // Bearing → offset from the listener: +X is right, −Z is toward the screen.
+            let sx = listX + sideSign * r * Math.sin(a);
+            let sz = listZ - r * Math.cos(a);
+            // Clamp inside the room (graceful — may slightly break equidistance for
+            // a speaker that would otherwise breach a wall).
+            sx = Math.max(-(hW - WALL_GAP), Math.min(hW - WALL_GAP, sx));
+            sz = Math.max(frontWallZ + WALL_GAP, Math.min(backWallZ - WALL_GAP, sz));
+
+            const surr = _buildStandmountSpeaker(0.22, 0.28, 0.20, sColor, sOpacity);
+            surr.position.set(sx, earY, sz);
+            surr.rotation.y = Math.atan2(listX - sx, listZ - sz);  // face the listener
+            roomGroup.add(surr);
+          });
+        });
+
+        // Subwoofers — front corners, count by layout. Self-contained box mirroring
+        // the home dual-sub style (body + edge outline + driver ring). Decorative,
+        // geometry-only — never read by acoustics/analysis.
+        // Predictive model: not a physical measurement.
+        const subW = 0.38, subH = 0.38, subD = 0.38;
+        const subBodyMat = new THREE.MeshStandardMaterial({
+          color: 0x3a3a3a, roughness: 0.55, metalness: 0.20,
+          transparent: true, opacity: Math.max(OP_OBJ, 0.82),
+        });
+        const subEdgeMat   = new THREE.LineBasicMaterial({ color: 0x666666, transparent: true, opacity: 0.70 });
+        const subDriverMat = new THREE.LineBasicMaterial({ color: 0x888888, transparent: true, opacity: 0.55 });
+        const _buildCinemaSub = () => {
+          const grp = new THREE.Group();
+          grp.add(new THREE.Mesh(new THREE.BoxGeometry(subW, subH, subD), subBodyMat));
+          grp.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(subW, subH, subD)), subEdgeMat));
+          const driverR = subW * 0.34, dpts = [];
+          for (let i = 0; i <= 36; i++) {
+            const ang = (i / 36) * Math.PI * 2;
+            dpts.push(new THREE.Vector3(Math.cos(ang) * driverR, Math.sin(ang) * driverR, subD / 2 + 0.003));
+          }
+          grp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(dpts), subDriverMat));
+          return grp;
+        };
+
+        const subX = hW - subW / 2 - WALL_GAP;
+        const subZ = frontWallZ + subD / 2 + WALL_GAP;
+        // 5.1 → one sub in the front-right corner; 7.2 → both front corners.
+        const subSides = layout === '7_2' ? [-1, 1] : [1];
+        subSides.forEach(sideSign => {
+          const sub = _buildCinemaSub();
+          sub.position.set(sideSign * subX, floorY + subH / 2, subZ);
+          roomGroup.add(sub);
+        });
       }
     }
 
