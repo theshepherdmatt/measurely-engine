@@ -282,7 +282,7 @@
       screen_type:         'stand',   // 'stand' | 'wall' | 'projector' — cinema TV/screen mount
       cinema_seat_count:   3,          // 3 | 4 | 5 — theatre recliner row length
       cinema_row_count:    1,          // 1 | 2 | 3 | 4 — elevated theatre rows (recliner row only)
-      speaker_layout:      '5_1',      // '5_1' | '7_2' — surround layout (extends: '7_2_4' | 'soundbar')
+      speaker_layout:      '5_1',      // '5_1' | '7_2' | '7_2_4' — surround layout (extends: 'soundbar')
       cinema_seating_type: 'recliner_row',  // 'recliner_row' | 'corner_l' | 'corner_r'
       spk_spacing_m:       2.2,
       spk_front_m:         0.3,
@@ -641,8 +641,9 @@
 
     const layoutGroup = _btnGroup(
       [
-        { key: '5_1', label: '5.1' },
-        { key: '7_2', label: '7.2' },
+        { key: '5_1',   label: '5.1'   },
+        { key: '7_2',   label: '7.2'   },
+        { key: '7_2_4', label: '7.2.4' },
       ],
       cur.speaker_layout,
       key => {

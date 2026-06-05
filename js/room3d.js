@@ -1239,8 +1239,9 @@ export function initRoom3D({
       // Cinema elevated theatre-row count (1–4) — geometry only, recliner row only.
       // Analysis stays on the front/money seat; rows are never read by acoustics.
       cinema_row_count: setup.cinema_row_count ?? 1,
-      // Cinema surround layout ('5_1' | '7_2', extends to '7_2_4' | 'soundbar') —
-      // geometry/coverage only; drives surrounds + subs, never read by acoustics.
+      // Cinema surround layout ('5_1' | '7_2' | '7_2_4', extends to 'soundbar') —
+      // geometry/coverage only; drives surrounds + subs + Atmos heights, never
+      // read by acoustics.
       speaker_layout: setup.speaker_layout ?? '5_1',
       // Cinema seating type ('recliner_row' | 'corner_l' | 'corner_r') — geometry only.
       // Separate from the home seating_type to avoid cross-mode coupling.
@@ -2756,6 +2757,10 @@ export function initRoom3D({
       // Predictive model: not a physical measurement.
       {
         const layout   = room.speaker_layout || '5_1';
+        // 7.2.4 (Atmos) reuses the 7.2 floor layer wholesale and adds 4 ceiling
+        // height speakers on top — so the floor layer keys off floorLayout, and
+        // the height block below keys off the raw layout.
+        const floorLayout = layout === '7_2_4' ? '7_2' : layout;
         const sProfile = getSpeakerProfile(room.speaker_type);
         const sColor   = sProfile.color;
         const sOpacity = Math.max(OP_OBJ, 0.80);
@@ -2772,9 +2777,10 @@ export function initRoom3D({
         const r = Math.max(1.4, Math.min(hW, backWallZ - listZ));
 
         // Surround bearings (deg) per layout, each placed symmetrically L + R.
-        //   5.1 → one pair at ~110° (just behind, to the side)
-        //   7.2 → side pair at ~100°, rear pair at ~140°
-        const SURR_BEARINGS = layout === '7_2' ? [100, 140] : [110];
+        //   5.1   → one pair at ~110° (just behind, to the side)
+        //   7.2   → side pair at ~100°, rear pair at ~140°
+        //   7.2.4 → same floor surrounds as 7.2 (heights added separately below)
+        const SURR_BEARINGS = floorLayout === '7_2' ? [100, 140] : [110];
 
         SURR_BEARINGS.forEach(deg => {
           const a = deg * Math.PI / 180;
@@ -2847,13 +2853,49 @@ export function initRoom3D({
 
         const subX = hW - subW / 2 - WALL_GAP;
         const subZ = frontWallZ + subD / 2 + WALL_GAP;
-        // 5.1 → one sub in the front-right corner; 7.2 → both front corners.
-        const subSides = layout === '7_2' ? [-1, 1] : [1];
+        // 5.1 → one sub in the front-right corner; 7.2 / 7.2.4 → both front corners.
+        const subSides = floorLayout === '7_2' ? [-1, 1] : [1];
         subSides.forEach(sideSign => {
           const sub = _buildCinemaSub();
           sub.position.set(sideSign * subX, floorY + subH / 2, subZ);
           roomGroup.add(sub);
         });
+
+        // ── Atmos height layer (7.2.4 only) — 4 ceiling speakers at ~45° elevation ──
+        // Four small ceiling-mounted speakers (no stands), anchored to the listener
+        // so they track the seating-position slider like the surrounds. Front pair
+        // forward of the seat aligned over the front L/R x; rear pair behind aligned
+        // over the side-surround x (~100°). Each is placed a horizontal run
+        // hd = (ceiling − ear) from the seat so the seat→speaker line is ~45°, and
+        // angled down to face the listener. Geometry/coverage only — never read by
+        // acoustics/analysis.
+        // Predictive model: not a physical measurement.
+        if (layout === '7_2_4') {
+          const ceilingY = floorY + room.height_m - 0.05;   // just below the ceiling
+          const hd       = ceilingY - earY;                 // horizontal run → ~45° elevation
+          const clampX = v => Math.max(-(hW - WALL_GAP), Math.min(hW - WALL_GAP, v));
+          const clampZ = v => Math.max(frontWallZ + WALL_GAP, Math.min(backWallZ - WALL_GAP, v));
+
+          const sideSurrDX = r * Math.sin(100 * Math.PI / 180);  // side-surround lateral offset
+          const HEIGHTS = [
+            { z: listZ - hd, dx: (room.spk_spacing_m ?? 2.2) / 2, xBase: offsetX },  // front pair, over front L/R
+            { z: listZ + hd, dx: sideSurrDX,                       xBase: listX   },  // rear pair, over side surrounds
+          ];
+
+          HEIGHTS.forEach(({ z, dx, xBase }) => {
+            [-1, 1].forEach(sideSign => {
+              const hx = clampX(xBase + sideSign * dx);
+              const hz = clampZ(z);
+              const grp = new THREE.Group();
+              grp.position.set(hx, ceilingY, hz);
+              grp.add(_buildStandmountSpeaker(0.20, 0.12, 0.20, sColor, sOpacity));  // small, no stand
+              // Aim the driver (+Z) down toward the listener.
+              const dir = new THREE.Vector3(listX - hx, earY - ceilingY, listZ - hz).normalize();
+              grp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
+              roomGroup.add(grp);
+            });
+          });
+        }
       }
     }
 
