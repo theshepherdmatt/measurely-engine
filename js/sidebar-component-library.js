@@ -702,6 +702,57 @@
     };
   }
 
+  // ── Cinema seating-position slider ────────────────────────────────────────
+  // Standalone control (not part of any always-mounted section) — a consumer
+  // mounts it only for the cinema room type, so it stays dormant elsewhere
+  // (e.g. web, which has no cinema room type). It reuses the existing
+  // listener_offset_m field rather than introducing a new one: that field is
+  // already threaded through room3d.js (it positions the listener station, and
+  // the cinema seating block is parented to that station, so sliding it moves
+  // the whole row + listening point together) and is acoustically live
+  // (acoustics.js reads it as list_x for the side-wall path difference). So,
+  // unlike the geometry-only seat-count / seating-type controls above, this one
+  // genuinely shifts the analysed seat off-centre and the score reflects it.
+  // The ±1.0 m range is the lateral clamp (narrower than the hidden Speakers
+  // slider's ±2.0 m); neither the threading, the station math, the acoustics
+  // path, nor the existing hidden slider are touched.
+  function renderSeatingPositionSection(mountId, { state = {}, onChange } = {}) {
+    const mount = _mount(mountId);
+    if (!mount) return null;
+
+    const cur = {
+      listener_offset_m: state.listener_offset_m ?? 0,
+    };
+
+    const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:10px;' });
+
+    const { wrap: posWrap, slider: posSlider, val: posVal } = _sliderField({
+      label: 'Seating position', id: 'scl-cinema-seating-position',
+      min: -1.0, max: 1.0, step: 0.1, decimals: 1, unit: 'm',
+      value: cur.listener_offset_m,
+      acoustic: 'reflection',
+    });
+    posSlider.addEventListener('input', () => {
+      const v = parseFloat(posSlider.value);
+      cur.listener_offset_m = v;
+      posVal.textContent = v.toFixed(1) + ' m';
+      _updateSliderFill(posSlider);
+      onChange?.({ ...cur });
+    });
+    wrap.appendChild(posWrap);
+
+    mount.appendChild(wrap);
+
+    return {
+      reset() {
+        cur.listener_offset_m = state.listener_offset_m ?? 0;
+        posSlider.value = String(cur.listener_offset_m);
+        posVal.textContent = cur.listener_offset_m.toFixed(1) + ' m';
+        _updateSliderFill(posSlider);
+      },
+    };
+  }
+
   // ── Section 4 — Speakers ──────────────────────────────────────────────────
 
   function renderSpeakersSection(mountId, { state = {}, roomType = 'home', onChange } = {}) {
@@ -1369,6 +1420,7 @@
     renderScreenTypeSection,
     renderSeatCountSection,
     renderCinemaSeatingTypeSection,
+    renderSeatingPositionSection,
     renderSpeakersSection,
     renderFurnitureSection,
     renderFloorSection,
