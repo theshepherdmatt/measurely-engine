@@ -1236,6 +1236,9 @@ export function initRoom3D({
       screen_type: setup.screen_type ?? 'stand',
       // Cinema theatre-row seat count (3–5) — geometry only, not read by acoustics/analysis.
       cinema_seat_count: setup.cinema_seat_count ?? 3,
+      // Cinema elevated theatre-row count (1–4) — geometry only, recliner row only.
+      // Analysis stays on the front/money seat; rows are never read by acoustics.
+      cinema_row_count: setup.cinema_row_count ?? 1,
       // Cinema seating type ('recliner_row' | 'corner_l' | 'corner_r') — geometry only.
       // Separate from the home seating_type to avoid cross-mode coupling.
       cinema_seating_type: setup.cinema_seating_type ?? 'recliner_row',
@@ -2916,7 +2919,13 @@ export function initRoom3D({
         station.add(seatingGroup);
 
       } else if (room.room_type === 'cinema') {
-        // ── recliner_row (default) — parametric N-seat theatre row ──
+        // ── recliner_row (default) — parametric N-seat theatre row(s) ──
+        // Up to 4 rows (cinema_row_count). The front row (row 0) sits exactly
+        // where the original single row sat — aligned to the listener/money seat
+        // at y=0. Each row behind is stepped back +Z by a fixed pitch and lifted
+        // +Y onto a riser, the way a tiered home cinema steps up. Geometry only:
+        // analysis stays on the front seat (no per-row scoring); the listener
+        // never moves back. The corner-couch branch above is unaffected.
         const reclinerRow = new THREE.Group();
 
         const seatW = 0.55, armW = 0.12;
@@ -2930,39 +2939,69 @@ export function initRoom3D({
         const armXs = [];
         for (let j = 0; j <= N; j++) armXs.push((j - N / 2) * seatPitch);
 
-        seatXs.forEach(sx => {
-          // Seat cushion / base.
-          const base = _ghostBox(seatW, 0.4, 0.85);
-          base.position.set(sx, 0.2, 0);
-          reclinerRow.add(base);
+        // Build one parametric N-seat row at a local Z offset (toward the back
+        // wall) and Y lift (riser height). Identical seat modules to the original
+        // single row, just translated by (zOff, yLift).
+        const _buildReclinerSeatRow = (zOff, yLift) => {
+          seatXs.forEach(sx => {
+            // Seat cushion / base.
+            const base = _ghostBox(seatW, 0.4, 0.85);
+            base.position.set(sx, 0.2 + yLift, zOff);
+            reclinerRow.add(base);
 
-          // Reclined back — tilted rearward, at the rear (+Z) of the base.
-          const back = _ghostBox(seatW, 0.55, 0.18);
-          back.rotation.x = +0.22;
-          back.position.set(sx, 0.55, 0.33);
-          reclinerRow.add(back);
+            // Reclined back — tilted rearward, at the rear (+Z) of the base.
+            const back = _ghostBox(seatW, 0.55, 0.18);
+            back.rotation.x = +0.22;
+            back.position.set(sx, 0.55 + yLift, 0.33 + zOff);
+            reclinerRow.add(back);
 
-          // Headrest — small block above the back, sharing its lean.
-          const head = _ghostBox(0.5, 0.16, 0.12);
-          head.rotation.x = +0.22;
-          head.position.set(sx, 0.92, 0.40);
-          reclinerRow.add(head);
-        });
+            // Headrest — small block above the back, sharing its lean.
+            const head = _ghostBox(0.5, 0.16, 0.12);
+            head.rotation.x = +0.22;
+            head.position.set(sx, 0.92 + yLift, 0.40 + zOff);
+            reclinerRow.add(head);
+          });
 
-        // Chunky armrests: between each seat and at both ends.
-        armXs.forEach(ax => {
-          const arm = _ghostBox(armW, 0.42, 0.85);
-          arm.position.set(ax, 0.21, 0);
-          reclinerRow.add(arm);
-        });
+          // Chunky armrests: between each seat and at both ends.
+          armXs.forEach(ax => {
+            const arm = _ghostBox(armW, 0.42, 0.85);
+            arm.position.set(ax, 0.21 + yLift, zOff);
+            reclinerRow.add(arm);
+          });
+        };
 
-        // Position exactly like the sofa: station-local, a small +Z offset so
-        // the centre recliner nestles around the listener sphere, with the same
-        // back-wall clamp so a deep recliner never breaches the rear wall.
+        // Front-row placement: same station-local +Z offset and back-wall clamp
+        // as the original single row, so row 0 is pixel-identical to before.
         // Y = 0 (cinema has no rug, so no rugRaise lift).
-        const _reclinerBackExtent = 0.55;  // furthest rear face behind the group origin
+        const _reclinerBackExtent = 0.55;  // furthest rear face behind a row's local origin
         const _reclinerMaxLocalZ = (room.length_m / 2) - listenerZ - _reclinerBackExtent - 0.05;
-        reclinerRow.position.set(0, 0, Math.min(0.35, Math.max(0, _reclinerMaxLocalZ)));
+        const _reclinerGroupZ = Math.min(0.35, Math.max(0, _reclinerMaxLocalZ));
+
+        // Tiered rows: stepped back ROW_PITCH and up RISER_H each. Build front to
+        // back and stop at the first row whose rear face would breach the back
+        // wall — short rooms simply show fewer rows. Pitch is never compressed to
+        // force the count, and no row is allowed through the back wall.
+        const ROW_PITCH = 1.4;   // m — row-to-row depth (recliners need the reach)
+        const RISER_H   = 0.30;  // m — riser lift per row (row r → r × 0.30)
+        const R = Math.max(1, Math.min(4, Math.round(room.cinema_row_count ?? 1)));
+        // A row's rear face, in station-local Z, must clear the back wall.
+        const _maxRowRearLocal = (room.length_m / 2) - listenerZ - 0.05;
+        for (let r = 0; r < R; r++) {
+          const rowZ = r * ROW_PITCH;
+          // Row 0 always renders (the money seat); a rear row only if it fits.
+          if (r > 0 && _reclinerGroupZ + rowZ + _reclinerBackExtent > _maxRowRearLocal) break;
+          const yLift = r * RISER_H;
+          // Riser step under each elevated row so it reads tiered, not floating.
+          // Spans the row width/depth, fills floor → seat base (top at yLift).
+          if (r > 0) {
+            const riser = _ghostBox(N * seatPitch + 0.2, yLift, 1.0);
+            riser.position.set(0, yLift / 2, rowZ);
+            reclinerRow.add(riser);
+          }
+          _buildReclinerSeatRow(rowZ, yLift);
+        }
+
+        reclinerRow.position.set(0, 0, _reclinerGroupZ);
         station.add(reclinerRow);
       }
 

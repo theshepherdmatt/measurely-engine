@@ -281,6 +281,7 @@
       speaker_type:        'floorstander',
       screen_type:         'stand',   // 'stand' | 'wall' | 'projector' — cinema TV/screen mount
       cinema_seat_count:   3,          // 3 | 4 | 5 — theatre recliner row length
+      cinema_row_count:    1,          // 1 | 2 | 3 | 4 — elevated theatre rows (recliner row only)
       cinema_seating_type: 'recliner_row',  // 'recliner_row' | 'corner_l' | 'corner_r'
       spk_spacing_m:       2.2,
       spk_front_m:         0.3,
@@ -657,6 +658,51 @@
         seatSlider.value = String(cur.cinema_seat_count);
         seatVal.textContent = String(cur.cinema_seat_count);
         _updateSliderFill(seatSlider);
+      },
+    };
+  }
+
+  // ── Cinema row-count selector ─────────────────────────────────────────────
+  // Standalone control (not part of any always-mounted section) — a consumer
+  // mounts it only for the cinema room type, and only for the recliner row
+  // (corner couches ignore rows), so it stays dormant elsewhere (e.g. web, which
+  // has no cinema room type). A single 1–4 slider whose value writes
+  // cur.cinema_row_count and fires onChange. cinema_row_count is geometry-only
+  // (drives the number of elevated theatre rows in room3d.js); it does not feed
+  // acoustics/analysis, which stays on the front/money seat. Short rooms render
+  // fewer rows than requested (the engine clamps to what fits the back wall).
+  function renderRowCountSection(mountId, { state = {}, onChange } = {}) {
+    const mount = _mount(mountId);
+    if (!mount) return null;
+
+    const cur = {
+      cinema_row_count: state.cinema_row_count ?? 1,
+    };
+
+    const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:10px;' });
+
+    const { wrap: rowWrap, slider: rowSlider, val: rowVal } = _sliderField({
+      label: 'Rows', id: 'scl-cinema-rows',
+      min: 1, max: 4, step: 1, decimals: 0,
+      value: cur.cinema_row_count,
+    });
+    rowSlider.addEventListener('input', () => {
+      const v = parseInt(rowSlider.value, 10);
+      cur.cinema_row_count = v;
+      rowVal.textContent = String(v);
+      _updateSliderFill(rowSlider);
+      onChange?.({ ...cur });
+    });
+    wrap.appendChild(rowWrap);
+
+    mount.appendChild(wrap);
+
+    return {
+      reset() {
+        cur.cinema_row_count = state.cinema_row_count ?? 1;
+        rowSlider.value = String(cur.cinema_row_count);
+        rowVal.textContent = String(cur.cinema_row_count);
+        _updateSliderFill(rowSlider);
       },
     };
   }
@@ -1419,6 +1465,7 @@
     renderCeilingSection,
     renderScreenTypeSection,
     renderSeatCountSection,
+    renderRowCountSection,
     renderCinemaSeatingTypeSection,
     renderSeatingPositionSection,
     renderSpeakersSection,
