@@ -2721,6 +2721,26 @@ export function initRoom3D({
         projector.position.set(offsetX, projY, projZ);
         roomGroup.add(projector);
       }
+
+      // ── Centre channel (cinema only) — horizontal speaker under the screen ──
+      // A wide, short speaker box on the centre axis (offsetX, same as the screen)
+      // coplanar with the shared L/R front pair (Z = frontWallZ + spk_front_m,
+      // read here — not hardcoded) and facing straight into the room toward the
+      // listener, like the front pair. Built with the same speaker builder and
+      // profile colour as the L/R pair so it reads as a speaker, not charcoal
+      // furniture. Additive and geometry-only: never read by acoustics/analysis,
+      // and it touches neither the shared pair nor any spk_* placement. Disposed
+      // on rebuild via the standard roomGroup traverse, like the screen props.
+      // Predictive model: not a physical measurement.
+      {
+        const cProfile = getSpeakerProfile(room.speaker_type);
+        const cColor   = cProfile.color;
+        const cOpacity = Math.max(OP_OBJ, 0.80);
+        const centre   = _buildStandmountSpeaker(0.5, 0.18, 0.25, cColor, cOpacity);
+        const centreZ  = frontWallZ + (room.spk_front_m ?? 0.3);  // same front plane as the L/R pair
+        centre.position.set(offsetX, floorY + 0.5, centreZ);      // ~0.5 m up, below the screen
+        roomGroup.add(centre);
+      }
     }
 
     {
