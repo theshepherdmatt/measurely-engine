@@ -2787,10 +2787,37 @@ export function initRoom3D({
             sx = Math.max(-(hW - WALL_GAP), Math.min(hW - WALL_GAP, sx));
             sz = Math.max(frontWallZ + WALL_GAP, Math.min(backWallZ - WALL_GAP, sz));
 
-            const surr = _buildStandmountSpeaker(0.22, 0.28, 0.20, sColor, sOpacity);
-            surr.position.set(sx, earY, sz);
-            surr.rotation.y = Math.atan2(listX - sx, listZ - sz);  // face the listener
-            roomGroup.add(surr);
+            // Wrap the speaker + its stand in a group placed at ear height and
+            // yawed to face the listener — the cabinet sits at the group origin
+            // (unchanged ear-height position/facing), the stand drops to the floor.
+            const surrH = 0.28;
+            const grp = new THREE.Group();
+            grp.position.set(sx, earY, sz);
+            grp.rotation.y = Math.atan2(listX - sx, listZ - sz);  // face the listener
+
+            const surr = _buildStandmountSpeaker(0.22, surrH, 0.20, sColor, sOpacity);
+            grp.add(surr);  // cabinet centred at the group origin (= ear height)
+
+            // Speaker stand — thin post + base plate down to the floor. These
+            // dealer surrounds are off-the-shelf standmounts on stands, not a
+            // custom in-wall install, so they get the same stand as the front
+            // standmount archetype (same box dims, material, opacity).
+            const standHeight = (earY - surrH / 2) - floorY;  // cabinet bottom → floor
+            const standMat = new THREE.LineBasicMaterial({
+              color: sColor, transparent: true, opacity: sOpacity * 0.65,
+            });
+            const post = new THREE.LineSegments(
+              new THREE.EdgesGeometry(new THREE.BoxGeometry(0.05, standHeight, 0.05)), standMat
+            );
+            post.position.y = -(surrH / 2) - standHeight / 2;
+            grp.add(post);
+            const base = new THREE.LineSegments(
+              new THREE.EdgesGeometry(new THREE.BoxGeometry(0.32, 0.03, 0.28)), standMat
+            );
+            base.position.y = -(surrH / 2) - standHeight + 0.015;
+            grp.add(base);
+
+            roomGroup.add(grp);
           });
         });
 
