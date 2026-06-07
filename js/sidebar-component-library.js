@@ -326,14 +326,21 @@
     let summaryEl = null;
     const _summaryText = key => collapsedLabel + ' · ' + _LABELS[key];
 
+    // Cinema is hidden for now — the room type is unfinished and needs more
+    // work. All cinema machinery (defaults, render functions, room3d geometry,
+    // legacy IDs) is left intact; flip _SHOW_CINEMA back to true to restore the
+    // toggle cell once the feature is ready.
+    const _SHOW_CINEMA = false;
+    const _cells = [
+      { key: 'home',   icon: 'hifi.svg',   label: _LABELS.home   },
+      { key: 'studio', icon: 'studio.svg', label: _LABELS.studio },
+    ];
+    if (_SHOW_CINEMA) _cells.push({ key: 'cinema', icon: 'cinema.svg', label: _LABELS.cinema });
+
     const gridResult = _iconGridSelect(
-      [
-        { key: 'home',   icon: 'hifi.svg',   label: _LABELS.home   },
-        { key: 'studio', icon: 'studio.svg', label: _LABELS.studio },
-        { key: 'cinema', icon: 'cinema.svg', label: _LABELS.cinema },
-      ],
+      _cells,
       initial,
-      3,
+      _cells.length,
       key => {
         // Re-click of the active cell — no-op
         if (key === currentKey) return;
