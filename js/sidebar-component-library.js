@@ -55,13 +55,50 @@
     slider.addEventListener('pointerup', off);
   }
 
+  // ── Unit system (display-layer only) ───────────────────────────────────────
+  // Imperial support is presentational: all state, slider min/max/step, and the
+  // values passed to onChange stay in metres. Only the readout STRINGS change.
+  // Default 'metric' so every existing consumer is unaffected with no change on
+  // their side. setUnitSystem affects readouts built AFTER it is called — call
+  // it before rendering a section (or re-render) to switch an existing panel.
+  let _unitSystem = 'metric';
+
+  function setUnitSystem(system) {
+    _unitSystem = system === 'imperial' ? 'imperial' : 'metric';
+    return _unitSystem;
+  }
+  function getUnitSystem() { return _unitSystem; }
+
+  // Pure formatter for a length readout. `metres` is the canonical value;
+  // `decimals` is the metric precision (1dp or 2dp per slider) and is preserved
+  // exactly as today so metric output is byte-identical. Imperial rounds to the
+  // nearest whole inch: under 36 in (3 ft) it reads as inches (e.g. '18 in');
+  // at or above 3 ft it reads feet + inches, dropping the inches part when it
+  // rounds to 0 (e.g. 14', 13' 9"). Negative values (listener/seat offset) keep
+  // their sign.
+  function formatLength(metres, decimals = 1) {
+    const m = parseFloat(metres);
+    if (_unitSystem === 'imperial') {
+      if (!isFinite(m)) return '0 in';
+      const sign = m < 0 ? '-' : '';
+      const totalIn = Math.round(Math.abs(m) * 39.3701);
+      if (totalIn < 36) return sign + totalIn + ' in';
+      const feet = Math.floor(totalIn / 12);
+      const inches = totalIn - feet * 12;
+      return sign + (inches === 0 ? feet + "'" : feet + "' " + inches + '"');
+    }
+    return m.toFixed(decimals) + ' m';
+  }
+
   // Builds a labelled slider field: label + value display + range input
   function _sliderField({ label, id, min, max, step, value, unit = '', decimals = 1, ariaLabel, acoustic }) {
     const wrap  = _el('div', { class: 'demo-field' });
     const hdr   = _el('div', { class: 'demo-field-header' });
     const lbl   = _el('span', { class: 'demo-field-label' }, label);
     const val   = _el('span', { class: 'demo-field-value', id: id + '-val' },
-                       (parseFloat(value).toFixed(decimals)) + (unit ? ' ' + unit : ''));
+                       unit === 'm'
+                         ? formatLength(value, decimals)
+                         : (parseFloat(value).toFixed(decimals)) + (unit ? ' ' + unit : ''));
     hdr.append(lbl, val);
 
     const slider = _el('input', {
@@ -476,7 +513,9 @@
       slider.addEventListener('input', () => {
         const v = parseFloat(slider.value);
         cur[def.key] = v;
-        val.textContent = v.toFixed(def.decimals) + ' ' + def.unit;
+        val.textContent = def.unit === 'm'
+          ? formatLength(v, def.decimals)
+          : v.toFixed(def.decimals) + ' ' + def.unit;
         _updateSliderFill(slider);
         onChange?.({ ...cur });
       });
@@ -491,7 +530,9 @@
         for (const [k, { slider, val, def }] of Object.entries(sliders)) {
           slider.value = String(state[k]);
           cur[k] = state[k];
-          val.textContent = parseFloat(state[k]).toFixed(def.decimals) + ' ' + def.unit;
+          val.textContent = def.unit === 'm'
+            ? formatLength(state[k], def.decimals)
+            : parseFloat(state[k]).toFixed(def.decimals) + ' ' + def.unit;
           _updateSliderFill(slider);
         }
       },
@@ -505,7 +546,9 @@
           const v = parseFloat(next[k]);
           slider.value = String(v);
           cur[k] = v;
-          val.textContent = v.toFixed(def.decimals) + ' ' + def.unit;
+          val.textContent = def.unit === 'm'
+            ? formatLength(v, def.decimals)
+            : v.toFixed(def.decimals) + ' ' + def.unit;
           _updateSliderFill(slider);
         }
       },
@@ -576,7 +619,7 @@
     secSlider.addEventListener('input', () => {
       const v = parseFloat(secSlider.value);
       cur.ceiling_height_secondary_m = v;
-      secVal.textContent = v.toFixed(1) + ' m';
+      secVal.textContent = formatLength(v, 1);
       _updateSliderFill(secSlider);
       onChange?.({ ...cur });
     });
@@ -604,7 +647,7 @@
         slantGroup.setActive(cur.ceiling_slant_direction);
         gableGroup.setActive(cur.ceiling_gable_axis);
         secSlider.value = String(cur.ceiling_height_secondary_m);
-        secVal.textContent = cur.ceiling_height_secondary_m.toFixed(1) + ' m';
+        secVal.textContent = formatLength(cur.ceiling_height_secondary_m, 1);
         _updateSliderFill(secSlider);
         _updateSubControls();
       },
@@ -857,7 +900,7 @@
     posSlider.addEventListener('input', () => {
       const v = parseFloat(posSlider.value);
       cur.listener_offset_m = v;
-      posVal.textContent = v.toFixed(1) + ' m';
+      posVal.textContent = formatLength(v, 1);
       _updateSliderFill(posSlider);
       onChange?.({ ...cur });
     });
@@ -869,7 +912,7 @@
       reset() {
         cur.listener_offset_m = state.listener_offset_m ?? 0;
         posSlider.value = String(cur.listener_offset_m);
-        posVal.textContent = cur.listener_offset_m.toFixed(1) + ' m';
+        posVal.textContent = formatLength(cur.listener_offset_m, 1);
         _updateSliderFill(posSlider);
       },
     };
@@ -987,7 +1030,9 @@
           sf.slider.addEventListener('input', function() {
             var v = parseFloat(sf.slider.value);
             cur[def.key] = v;
-            sf.val.textContent = v.toFixed(def.decimals) + (def.unit === '\u00b0' ? '\u00b0' : ' ' + def.unit);
+            sf.val.textContent = def.unit === 'm'
+              ? formatLength(v, def.decimals)
+              : v.toFixed(def.decimals) + (def.unit === '\u00b0' ? '\u00b0' : ' ' + def.unit);
             _updateSliderFill(sf.slider);
             onChange && onChange({ ...cur });
           });
@@ -1066,7 +1111,9 @@
           var rv = state[k] !== undefined ? state[k] : cur[k];
           s.slider.value = String(rv);
           cur[k] = rv;
-          s.val.textContent = parseFloat(rv).toFixed(s.def.decimals) + (s.def.unit === '\u00b0' ? '\u00b0' : ' ' + s.def.unit);
+          s.val.textContent = s.def.unit === 'm'
+            ? formatLength(rv, s.def.decimals)
+            : parseFloat(rv).toFixed(s.def.decimals) + (s.def.unit === '\u00b0' ? '\u00b0' : ' ' + s.def.unit);
           _updateSliderFill(s.slider);
         });
         cur.subwoofer      = state.subwoofer      ?? false;
@@ -1084,7 +1131,9 @@
             var v = newState[k];
             s.slider.value = String(v);
             cur[k] = v;
-            s.val.textContent = parseFloat(v).toFixed(s.def.decimals) + (s.def.unit === '\u00b0' ? '\u00b0' : ' ' + s.def.unit);
+            s.val.textContent = s.def.unit === 'm'
+              ? formatLength(v, s.def.decimals)
+              : parseFloat(v).toFixed(s.def.decimals) + (s.def.unit === '\u00b0' ? '\u00b0' : ' ' + s.def.unit);
             _updateSliderFill(s.slider);
           }
         });
@@ -1217,7 +1266,7 @@
     // Desk width slider
     const deskHdr = _el('div', { class: 'demo-field-header' });
     deskHdr.append(_el('span', { class: 'demo-field-label' }, 'Desk width'));
-    const deskValEl = _el('span', { class: 'demo-field-value' }, cur.desk_width_m.toFixed(2) + ' m');
+    const deskValEl = _el('span', { class: 'demo-field-value' }, formatLength(cur.desk_width_m, 2));
     deskHdr.appendChild(deskValEl);
     const deskSlider = _el('input', {
       type: 'range', id: 'scl-desk-width', min: '1.0', max: '2.5', step: '0.05',
@@ -1225,13 +1274,13 @@
     });
     _updateSliderFill(deskSlider);
     const deskTicks = _el('div', { class: 'demo-slider-ticks' });
-    ['1.0 m', '1.6 m', '2.5 m'].forEach(t => deskTicks.appendChild(_el('span', {}, t)));
+    [1.0, 1.6, 2.5].forEach(t => deskTicks.appendChild(_el('span', {}, formatLength(t, 1))));
     const deskField = _el('div', { class: 'demo-field' });
     deskField.append(deskHdr, deskSlider, deskTicks);
     studioBlock.appendChild(deskField);
     deskSlider.addEventListener('input', () => {
       cur.desk_width_m = parseFloat(deskSlider.value);
-      deskValEl.textContent = cur.desk_width_m.toFixed(2) + ' m';
+      deskValEl.textContent = formatLength(cur.desk_width_m, 2);
       _updateSliderFill(deskSlider);
       onChange?.({ ...cur });
     });
@@ -1239,7 +1288,7 @@
     // Desk depth slider
     const deskDHdr = _el('div', { class: 'demo-field-header' });
     deskDHdr.append(_el('span', { class: 'demo-field-label' }, 'Desk depth'));
-    const deskDValEl = _el('span', { class: 'demo-field-value' }, cur.desk_depth_m.toFixed(2) + ' m');
+    const deskDValEl = _el('span', { class: 'demo-field-value' }, formatLength(cur.desk_depth_m, 2));
     deskDHdr.appendChild(deskDValEl);
     const deskDSlider = _el('input', {
       type: 'range', id: 'scl-desk-depth', min: '0.5', max: '0.9', step: '0.05',
@@ -1247,13 +1296,13 @@
     });
     _updateSliderFill(deskDSlider);
     const deskDTicks = _el('div', { class: 'demo-slider-ticks' });
-    ['0.5 m', '0.7 m', '0.9 m'].forEach(t => deskDTicks.appendChild(_el('span', {}, t)));
+    [0.5, 0.7, 0.9].forEach(t => deskDTicks.appendChild(_el('span', {}, formatLength(t, 1))));
     const deskDField = _el('div', { class: 'demo-field' });
     deskDField.append(deskDHdr, deskDSlider, deskDTicks);
     studioBlock.appendChild(deskDField);
     deskDSlider.addEventListener('input', () => {
       cur.desk_depth_m = parseFloat(deskDSlider.value);
-      deskDValEl.textContent = cur.desk_depth_m.toFixed(2) + ' m';
+      deskDValEl.textContent = formatLength(cur.desk_depth_m, 2);
       _updateSliderFill(deskDSlider);
       onChange?.({ ...cur });
     });
@@ -1535,6 +1584,8 @@
   // ── Public API ─────────────────────────────────────────────────────────────
 
   return {
+    setUnitSystem,
+    getUnitSystem,
     renderRoomTypeToggle,
     renderAnalysisOverlaySection,
     renderRoomSection,
