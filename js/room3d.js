@@ -5746,10 +5746,12 @@ export function initRoom3D({
           )
         : [];
 
-      // Speaker archetype determines low-frequency energy injection.
-      // Bookshelf rolls off ~55 Hz; floorstander ~30 Hz; statement ~20 Hz.
-      const speakerArchetype = room.speaker_type || 'bookshelf';
-      const bassRolloffByType = { bookshelf: 55, floorstander: 30, statement: 20 };
+      // Speaker archetype determines low-frequency energy injection (Hz at
+      // which bass output starts rolling off): standmount ~55, floorstander ~30,
+      // statement ~20, panel ~45 (dipole — earlier than floorstanders, lower
+      // than standmounts), monitor ~55 (near-field, standmount-class extension).
+      const speakerArchetype = room.speaker_type || 'standmount';
+      const bassRolloffByType = { standmount: 55, floorstander: 30, statement: 20, panel: 45, monitor: 55 };
       const bassRolloffHz = bassRolloffByType[speakerArchetype] ?? 55;
 
       // Confidence multiplier — drives shader weight per mode.
