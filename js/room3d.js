@@ -3003,17 +3003,35 @@ export function initRoom3D({
             { z: listZ + hd, dx: sideSurrDX,                       xBase: listX   },  // rear pair, over side surrounds
           ];
 
+          // Flush in-ceiling Atmos units — round wireframe discs (outer bezel +
+          // inner driver ring) lying flat in the ceiling plane, like recessed
+          // in-wall speakers. No box, no stand, no aiming: they sit flush and
+          // fire straight down. Same speaker-profile colour/opacity as the
+          // surrounds. Geometry/coverage only — never read by acoustics/analysis.
+          // Predictive model: not a physical measurement.
+          const _buildCeilingDisc = (discRadius) => {
+            const grp = new THREE.Group();
+            const discMat = new THREE.LineBasicMaterial({ color: sColor, transparent: true, opacity: sOpacity });
+            const _ring = (ringRadius) => {
+              const pts = [];
+              for (let i = 0; i <= 48; i++) {
+                const ang = (i / 48) * Math.PI * 2;
+                pts.push(new THREE.Vector3(Math.cos(ang) * ringRadius, 0, Math.sin(ang) * ringRadius));  // flat in XZ → faces down
+              }
+              return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), discMat);
+            };
+            grp.add(_ring(discRadius));         // outer bezel
+            grp.add(_ring(discRadius * 0.6));   // inner driver ring
+            return grp;
+          };
+
           HEIGHTS.forEach(({ z, dx, xBase }) => {
             [-1, 1].forEach(sideSign => {
               const hx = clampX(xBase + sideSign * dx);
               const hz = clampZ(z);
-              const grp = new THREE.Group();
-              grp.position.set(hx, ceilingY, hz);
-              grp.add(_buildStandmountSpeaker(0.20, 0.12, 0.20, sColor, sOpacity));  // small, no stand
-              // Aim the driver (+Z) down toward the listener.
-              const dir = new THREE.Vector3(listX - hx, earY - ceilingY, listZ - hz).normalize();
-              grp.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
-              roomGroup.add(grp);
+              const disc = _buildCeilingDisc(0.16);
+              disc.position.set(hx, ceilingY, hz);  // flush in the ceiling plane
+              roomGroup.add(disc);
             });
           });
         }
