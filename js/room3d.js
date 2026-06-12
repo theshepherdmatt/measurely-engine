@@ -1266,6 +1266,10 @@ export function initRoom3D({
       // acoustics/analysis. When true (and the screen is a projector) the in-wall
       // panels tuck behind the acoustically-transparent projector screen.
       at_screen: setup.at_screen ?? false,
+      // Cinema surround placement ('box' | 'inwall') — geometry only, never read
+      // by acoustics/analysis. 'inwall' replaces the stand-mounted box surrounds
+      // with flush wireframe panels on the wall each surround belongs to.
+      surround_placement: setup.surround_placement ?? 'box',
       spk_placement: setup.spk_placement || 'desk',
       spk_spacing_m: setup.spk_spacing_m,
       // Studio-only: how far each speaker sits inward from its desk edge.
@@ -2903,10 +2907,53 @@ export function initRoom3D({
         //   7.2.4 → same floor surrounds as 7.2 (heights added separately below)
         const SURR_BEARINGS = floorLayout === '7_2' ? [100, 140] : [110];
 
+        // Cinema surround placement. 'inwall' replaces the stand-mounted box
+        // surrounds with a flush wireframe rectangle per surround, on whichever
+        // wall the surround's bearing ray meets first (side wall or rear wall).
+        // Same thin-box EdgesGeometry → LineSegments pattern, colour and opacity
+        // as the front in-wall panels. Geometry only — surround_placement is read
+        // here, never written, and never reaches acoustics/analysis.
+        const isInwallSurround = room.surround_placement === 'inwall';
+        const surrInwallMat = new THREE.LineBasicMaterial({
+          color: sColor, transparent: true, opacity: sOpacity,
+        });
+        const _surrPanel = (panelWidth, panelHeight) => new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.BoxGeometry(panelWidth, panelHeight, 0.02)),
+          surrInwallMat
+        );
+        const SURR_PANEL_W = 0.30, SURR_PANEL_H = 0.50;
+        const surrPanelY   = floorY + 1.40;  // vertical centre, 1.40 m off the floor
+        const SURR_WALL_OFFSET = 0.01;        // off the wall surface, clears z-fighting
+
         SURR_BEARINGS.forEach(deg => {
           const a = deg * Math.PI / 180;
           [-1, 1].forEach(sideSign => {
             // Bearing → offset from the listener: +X is right, −Z is toward the screen.
+
+            // In-wall surround: cast the bearing ray from the listener station to
+            // the first wall it meets — the side wall on this surround's side
+            // (x = ±hW) or the rear wall (z = +backWallZ), whichever has the
+            // smaller positive ray parameter t — and lay a flush panel there.
+            if (isInwallSurround) {
+              const dirX = sideSign * Math.sin(a);   // ray direction, X
+              const dirZ = -Math.cos(a);             // ray direction, Z (toward back for ≥90°)
+              const tSide = (sideSign * hW - listX) / dirX;   // hits x = ±hW
+              const tRear = (backWallZ - listZ) / dirZ;       // hits z = +backWallZ
+              const panel = _surrPanel(SURR_PANEL_W, SURR_PANEL_H);
+              if (tSide <= tRear) {
+                // Flat against the side wall — rotate 90° so the thin axis is X.
+                const wz = listZ + tSide * dirZ;
+                panel.rotation.y = Math.PI / 2;
+                panel.position.set(sideSign * (hW - SURR_WALL_OFFSET), surrPanelY, wz);
+              } else {
+                // Flat against the rear wall — default orientation (thin axis Z).
+                const wx = listX + tRear * dirX;
+                panel.position.set(wx, surrPanelY, backWallZ - SURR_WALL_OFFSET);
+              }
+              roomGroup.add(panel);
+              return;  // skip the stand-mounted box build for this surround
+            }
+
             let sx = listX + sideSign * r * Math.sin(a);
             let sz = listZ - r * Math.cos(a);
             // Clamp inside the room (graceful — may slightly break equidistance for
