@@ -248,6 +248,13 @@
       client_seating_type: 'sofa',
       desk_width_m:        1.6,
       desk_depth_m:        0.7,
+      // Per-room-type default geometry. Home is the spacious listening-room
+      // default; consumers apply these on a room-type switch so studio rooms
+      // start smaller (less empty space around the desk) and home round-trips
+      // back to its full size.
+      width_m:             4.2,
+      length_m:            5.5,
+      height_m:            2.6,
     },
     studio: {
       room_type:           'studio',
@@ -269,6 +276,10 @@
       client_seating_type: 'sofa',
       desk_width_m:        1.6,
       desk_depth_m:        0.7,
+      // Smaller near-field studio footprint — see note on home above.
+      width_m:             3.2,
+      length_m:            3.8,
+      height_m:            2.4,
     },
     // Cinema — blank shell for now. Mirrors home's placement numbers and
     // speaker_type (placeholder; cinema speaker roles come later) and turns
@@ -481,6 +492,20 @@
           slider.value = String(state[k]);
           cur[k] = state[k];
           val.textContent = parseFloat(state[k]).toFixed(def.decimals) + ' ' + def.unit;
+          _updateSliderFill(slider);
+        }
+      },
+      // Push new dimension values into the sliders (value, label, fill) without
+      // firing onChange — for re-syncing the UI after a programmatic geometry
+      // change, e.g. applying per-room-type default dimensions on a room-type
+      // switch. Only keys present in `next` are updated; others are left as-is.
+      setValues(next = {}) {
+        for (const [k, { slider, val, def }] of Object.entries(sliders)) {
+          if (next[k] === undefined) continue;
+          const v = parseFloat(next[k]);
+          slider.value = String(v);
+          cur[k] = v;
+          val.textContent = v.toFixed(def.decimals) + ' ' + def.unit;
           _updateSliderFill(slider);
         }
       },

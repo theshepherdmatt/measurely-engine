@@ -8247,6 +8247,31 @@ export function initRoom3D({
     },
 
     /**
+     * Frame the camera proportionally to the current room size. Pure viewport
+     * presentation — NOT acoustic logic and NOT a physical measurement. The
+     * default overview position (DEFAULT_CAMERA.pos) is tuned for the 5.5 m
+     * reference room; scaling it by the current room's largest dimension keeps
+     * the room filling roughly the same fraction of the viewport regardless of
+     * size, so a smaller room (e.g. studio) doesn't sit tiny in the frame.
+     * Instant — no fly animation. Consumers call this after a geometry change
+     * such as applying per-room-type default dimensions on a room-type switch.
+     */
+    frameRoom() {
+      flyAnim = null;
+      const r = _lastRoom || {};
+      const longest = Math.max(r.width_m || 5.5, r.length_m || 5.5, r.height_m || 5.5);
+      const scale = longest / 5.5;
+      camera.position.set(
+        DEFAULT_CAMERA.pos.x * scale,
+        DEFAULT_CAMERA.pos.y * scale,
+        DEFAULT_CAMERA.pos.z * scale
+      );
+      controls.target.set(DEFAULT_CAMERA.target.x, DEFAULT_CAMERA.target.y, DEFAULT_CAMERA.target.z);
+      controls.enabled = true;
+      controls.update();
+    },
+
+    /**
      * Force a re-fit of the camera and renderer to the current container size.
      * The engine already wires _onContainerResize to a ResizeObserver and a
      * deferred rAF at init; this exposes it so consumers can also trigger it
