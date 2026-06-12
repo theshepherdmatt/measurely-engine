@@ -418,6 +418,10 @@ export function initRoom3D({
   });
 
   renderer.setSize(container.clientWidth, container.clientHeight);
+  // Per-material clipping planes (Material.clippingPlanes) require this flag.
+  // Used only by the Sound Waves rings to contain them inside the room walls;
+  // no other material in the scene sets clippingPlanes.
+  renderer.localClippingEnabled = true;
   // Cap DPR at 1.5 on small viewports — halves framebuffer cost on mobile
   // retina screens where the GPU runs out of headroom much faster than the
   // visual gain at 2x DPR is worth.
@@ -555,6 +559,14 @@ export function initRoom3D({
   let _autoToe = false; // Auto-toe disabled by default; use toe_in_deg from room data
   let _autoToeAngle = 0;     // Last computed angle (radians) — readable via API
   let _waveRings = [];       // Expanding wave ring Meshes, repopulated on rebuild
+  // Four side-wall clipping planes that contain the Sound Waves rings inside
+  // the room. Created once (lazily) and reused across rebuilds — only their
+  // .constant is updated when room dimensions change. THREE clipping planes are
+  // WORLD-space; the room shell lives at ±width/2 / ±length/2 in roomGroup-local
+  // space and roomGroup applies a uniform `baseScale`, so the constants bake in
+  // baseScale. Inward-facing normals (interior is the kept half-space). No top/
+  // bottom planes — rings sit at a fixed Y well inside the room height.
+  let _waveClipPlanes = null;
   // SBIR energy-stream FX (in roomGroup → freed by the rebuild traverse).
   let _sbirParticles = null;  // InstancedMesh — glowing stream particles
   let _sbirTrails    = null;  // InstancedMesh — comet trails (desktop tier only)
@@ -2185,6 +2197,31 @@ export function initRoom3D({
           const NUM_RINGS = 5;
           const maxR = Math.max(room.length_m, room.width_m) * WAVE_EXTENT_FACTOR;
           const waveY = baseY + room.tweeter_height_m;
+
+          // ── Side-wall clipping planes — contain the rings inside the room ──
+          // World-space planes matching the room shell's side walls (±width/2,
+          // ±length/2 in roomGroup-local, scaled by baseScale into world space).
+          // The shell is centred at local x=0/z=0 (offsetX shifts only the
+          // speakers/listener, never the shell — see shell verts at ~hW/hL), so
+          // the planes are too. Created once and reused; only .constant changes
+          // when dimensions change, so no per-rebuild allocation. The maxR cap
+          // above is left as a generous outer limit; these planes do the real
+          // containment. This block runs once per side (L/R) — updating the
+          // shared constants twice is harmless and allocates nothing.
+          const clipHalfW = (room.width_m / 2) * baseScale;
+          const clipHalfL = (room.length_m / 2) * baseScale;
+          if (!_waveClipPlanes) {
+            _waveClipPlanes = [
+              new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0), // +X wall
+              new THREE.Plane(new THREE.Vector3( 1, 0, 0), 0), // -X wall
+              new THREE.Plane(new THREE.Vector3(0, 0, -1), 0), // +Z wall
+              new THREE.Plane(new THREE.Vector3(0, 0,  1), 0), // -Z wall
+            ];
+          }
+          _waveClipPlanes[0].constant = clipHalfW;
+          _waveClipPlanes[1].constant = clipHalfW;
+          _waveClipPlanes[2].constant = clipHalfL;
+          _waveClipPlanes[3].constant = clipHalfL;
           const waveZ = -room.length_m / 2 + room.spk_front_m;
           const waveX = offsetX + (side === 'L' ? -1 : 1) * room.spk_spacing_m / 2;
 
@@ -2239,6 +2276,10 @@ export function initRoom3D({
               transparent: true,
               opacity: 0,
               depthWrite: false,
+              // Contain the expanding ring at the room's side walls. Shared,
+              // reused Plane objects — see _waveClipPlanes. Only this material
+              // type carries clippingPlanes in the whole scene.
+              clippingPlanes: _waveClipPlanes,
             });
             const ring = new THREE.Mesh(ringGeo, ringMat);
             ring.position.set(waveX, waveY, waveZ);
