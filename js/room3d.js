@@ -1258,6 +1258,14 @@ export function initRoom3D({
       // Cinema seating type ('recliner_row' | 'corner_l' | 'corner_r') — geometry only.
       // Separate from the home seating_type to avoid cross-mode coupling.
       cinema_seating_type: setup.cinema_seating_type ?? 'recliner_row',
+      // Cinema front-stage placement ('box' | 'inwall') — geometry only, never
+      // read by acoustics/analysis. 'inwall' replaces the box L/C/R with flush
+      // wireframe panels on the front wall (see the cinema prop block).
+      front_placement: setup.front_placement ?? 'box',
+      // Cinema in-wall "at screen" flag — geometry only, never read by
+      // acoustics/analysis. When true (and the screen is a projector) the in-wall
+      // panels tuck behind the acoustically-transparent projector screen.
+      at_screen: setup.at_screen ?? false,
       spk_placement: setup.spk_placement || 'desk',
       spk_spacing_m: setup.spk_spacing_m,
       // Studio-only: how far each speaker sits inward from its desk edge.
@@ -2028,6 +2036,13 @@ export function initRoom3D({
       const baseY = -room.height_m / 2;
 
       ["L", "R"].forEach(side => {
+        // Cinema in-wall front stage: the L/C/R are redrawn as flush wireframe
+        // panels on the front wall (in the cinema prop block below), so the shared
+        // box front pair is suppressed here. Cinema-gated — hi-fi, studio and
+        // treatment never carry front_placement 'inwall', so their path is
+        // unchanged. Refs left null are tolerated by every consumer (auto-toe,
+        // cables, slider) via their existing null guards.
+        if (room.room_type === 'cinema' && room.front_placement === 'inwall') return;
         const profile = getSpeakerProfile(room.speaker_type);
         const isSpkHighlit = highlightTarget === 'speakers';
 
@@ -2653,6 +2668,17 @@ export function initRoom3D({
       const frontWallZ = -room.length_m / 2;
       const screenType = room.screen_type || 'stand';
 
+      // Cinema front-stage placement (geometry only). 'inwall' replaces the box
+      // L/R pair (suppressed in the speaker block above) and the box centre below
+      // with flush wireframe panels on the front wall. "At screen" tucks them
+      // behind the screen — only valid for the projector, whose 0.15-opacity fill
+      // reads through; any other screen type falls back to the on-wall layout.
+      const isInwallFront = room.front_placement === 'inwall';
+      const atScreenFront = isInwallFront && room.at_screen === true && screenType === 'projector';
+      // Captured by each screen branch below so the in-wall panels can anchor to
+      // the screen's centre Y / bottom edge / width without recomputing them.
+      let screenCenterY = 0, screenWidth = 0, screenHeight = 0;
+
       // Screen face — charcoal wireframe bezel + a fill plane facing into the
       // room (+z), mirroring the rug-fill pattern so the screen reads as a
       // surface, not a hollow box. Fill colour/opacity default to the dark TV
@@ -2731,6 +2757,7 @@ export function initRoom3D({
         const screen = _screenFace(scrW, scrH);
         screen.position.set(offsetX, cabTopY + FOOT_H + scrH / 2, cabZ);
         roomGroup.add(screen);
+        screenCenterY = screen.position.y; screenWidth = scrW; screenHeight = scrH;
 
         // Two small feet under the TV, standing on the cabinet top.
         [-1, 1].forEach(sx => {
@@ -2749,6 +2776,7 @@ export function initRoom3D({
         const screen = _screenFace(scrW, scrH);
         screen.position.set(offsetX, floorY + 1.3, frontWallZ + 0.03);  // ~1.3 m up, clears the cabinet (top ~0.62 m)
         roomGroup.add(screen);
+        screenCenterY = screen.position.y; screenWidth = scrW; screenHeight = scrH;
 
       } else {
         // Projector: larger LIT screen (white fill, low opacity) flush near the
@@ -2758,6 +2786,7 @@ export function initRoom3D({
         const screen = _screenFace(scrW, scrH, 0xffffff, 0.15);
         screen.position.set(offsetX, floorY + 1.4, frontWallZ + 0.03);
         roomGroup.add(screen);
+        screenCenterY = screen.position.y; screenWidth = scrW; screenHeight = scrH;
 
         const projW = 0.3, projH = 0.15, projD = 0.3;
         const projector = _ghostBox(projW, projH, projD);
@@ -2777,7 +2806,9 @@ export function initRoom3D({
       // and it touches neither the shared pair nor any spk_* placement. Disposed
       // on rebuild via the standard roomGroup traverse, like the screen props.
       // Predictive model: not a physical measurement.
-      {
+      // Suppressed when the front stage is in-wall — the centre is then one of
+      // the flush wireframe panels built below.
+      if (!isInwallFront) {
         const cProfile = getSpeakerProfile(room.speaker_type);
         const cColor   = cProfile.color;
         const cOpacity = Math.max(OP_OBJ, 0.80);
@@ -2785,6 +2816,55 @@ export function initRoom3D({
         const centreZ  = frontWallZ + (room.spk_front_m ?? 0.3);  // same front plane as the L/R pair
         centre.position.set(offsetX, floorY + 0.5, centreZ);      // ~0.5 m up, below the screen
         roomGroup.add(centre);
+      }
+
+      // ── In-wall front stage (cinema only) — flush wireframe L/C/R panels ──────
+      // Replaces the suppressed box L/R pair + box centre with thin-box wireframe
+      // rectangles on the front wall (EdgesGeometry → LineSegments, speaker-profile
+      // colour like the box fronts). Rectangles only — no fills, no driver detail.
+      // X reads spk_spacing_m for the on-wall L/R only; nothing is written back, and
+      // none of this is read by acoustics/analysis. Added to roomGroup so the
+      // standard rebuild() disposal traverse frees it. Geometry only.
+      // Predictive model: not a physical measurement.
+      if (isInwallFront) {
+        const inwallProfile = getSpeakerProfile(room.speaker_type);
+        const inwallColor   = inwallProfile.color;
+        const inwallOpacity = Math.max(OP_OBJ, 0.80);
+        const inwallMat = new THREE.LineBasicMaterial({
+          color: inwallColor, transparent: true, opacity: inwallOpacity,
+        });
+        const inwallZ = frontWallZ + 0.01;  // flush on the front wall; +0.01 clears z-fighting
+        // Thin-box wireframe rectangle facing into the room (depth 0.02 m).
+        const _inwallPanel = (panelWidth, panelHeight) => new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.BoxGeometry(panelWidth, panelHeight, 0.02)),
+          inwallMat
+        );
+
+        if (atScreenFront) {
+          // Behind the projector screen (its 0.15-opacity fill reads through):
+          // three vertical panels — L/R behind the screen's edges, centre behind
+          // its middle — all vertically centred on the screen centre.
+          const screenEdgeX = screenWidth / 2;
+          [-screenEdgeX, 0, screenEdgeX].forEach(panelDX => {
+            const panel = _inwallPanel(0.30, 1.00);
+            panel.position.set(offsetX + panelDX, screenCenterY, inwallZ);
+            roomGroup.add(panel);
+          });
+        } else {
+          // On the front wall, screen unobstructed. L/R vertical panels at the box
+          // pair's X positions; centre horizontal panel just below the screen's
+          // bottom edge with a 0.10 m gap.
+          const panelRailY = floorY + 1.2;  // vertical centre of the L/R panels
+          [-1, 1].forEach(sideSign => {
+            const panel = _inwallPanel(0.30, 1.00);
+            panel.position.set(offsetX + sideSign * room.spk_spacing_m / 2, panelRailY, inwallZ);
+            roomGroup.add(panel);
+          });
+          const screenBottomY = screenCenterY - screenHeight / 2;
+          const centrePanel = _inwallPanel(0.60, 0.20);
+          centrePanel.position.set(offsetX, screenBottomY - 0.10 - 0.20 / 2, inwallZ);
+          roomGroup.add(centrePanel);
+        }
       }
 
       // ── Surround speakers + subwoofers (cinema only) — driven by speaker_layout ──
