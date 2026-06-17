@@ -8,21 +8,27 @@
 
   The engine was deliberately stripped to JS-only in commit 33f4a51
   ("strip repo to engine-only"). This tool re-introduces a single
-  HTML file for the narrow purpose of capturing 6-second WebM clips
-  of three named overlays (SBIR, Bass Modes, Reflections) for the
-  measurely.uk marketing site's Translate cards. It is tools-only,
-  not part of the engine's library surface, and is not deployed
-  anywhere — open it directly in Chrome (file:// or a static
-  server pointed at the engine repo root).
+  HTML file for capturing short WebM clips of the 3D room for the
+  measurely.uk marketing site. It is tools-only, not part of the
+  engine's library surface, and is not deployed anywhere — open it
+  directly in Chrome (file:// or a static server pointed at the
+  engine repo root).
 
-  Boot pattern mirrors measurely-web/demo.html — same importmap
-  for the Three.js ESM bridge, same classic-script order for the
-  analysis pipeline, same ES-module import of room3d.js. The
-  engine API is reached via window.room3D, which initRoom3D() sets
-  internally.
+  Captures are configurable:
+    - Mode:       Home / Studio (studio swaps to monitor speakers + desk)
+    - Desk:       Plain / Production (studio only — the desk_style flag)
+    - Treatments: wall / side / bass-trap / ceiling panel modes
+    - Overlay:    None (clean scene) / SBIR / Bass Modes / Reflections
+    - Auto-spin:  slow orbit, good for showing a desk from angles
+
+  Boot pattern mirrors measurely-web/demo.html — same importmap for
+  the Three.js ESM bridge, same classic-script order for the analysis
+  pipeline, same ES-module import of room3d.js. The engine API is
+  reached via window.room3D, which initRoom3D() sets internally.
 
   Output: video/webm;codecs=vp9 at 8 Mbps from a 1200×800 mount.
-  Re-encode to mp4 separately with ffmpeg if required for delivery.
+  Re-encode to mp4 separately with ffmpeg if required for delivery, e.g.
+    ffmpeg -i scene-xxx.webm -c:v libx264 -pix_fmt yuv420p -crf 18 scene-xxx.mp4
 -->
 <style>
   *, *::before, *::after { box-sizing: border-box; }
@@ -63,6 +69,8 @@
     top: 16px;
     left: 16px;
     width: 240px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
     background: rgba(20, 20, 20, 0.94);
     border: 1px solid #333;
     border-radius: 6px;
@@ -103,9 +111,29 @@
     line-height: 1.4;
   }
 
-  fieldset input[type="radio"] {
+  fieldset input[type="radio"],
+  fieldset input[type="checkbox"] {
     margin-right: 6px;
     vertical-align: middle;
+  }
+
+  fieldset label.sel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  fieldset select {
+    flex: 1 1 auto;
+    max-width: 120px;
+    background: #2a2a2a;
+    color: #e0e0e0;
+    border: 1px solid #444;
+    border-radius: 3px;
+    padding: 3px 4px;
+    font-family: inherit;
+    font-size: 12px;
   }
 
   button {
@@ -181,11 +209,64 @@
 <aside id="controls">
   <h1>Record Tool</h1>
 
-  <fieldset id="sceneFieldset">
-    <legend>Scene</legend>
-    <label><input type="radio" name="scene" value="sbir" checked> SBIR</label>
-    <label><input type="radio" name="scene" value="bass-modes"> Bass Modes</label>
-    <label><input type="radio" name="scene" value="reflections"> Reflections</label>
+  <fieldset id="modeFieldset">
+    <legend>Mode</legend>
+    <label><input type="radio" name="mode" value="home" checked> Home</label>
+    <label><input type="radio" name="mode" value="studio"> Studio</label>
+  </fieldset>
+
+  <fieldset id="deskFieldset">
+    <legend>Desk (studio)</legend>
+    <label><input type="radio" name="desk" value="plain" checked> Plain</label>
+    <label><input type="radio" name="desk" value="production"> Production</label>
+  </fieldset>
+
+  <fieldset id="treatFieldset">
+    <legend>Treatments</legend>
+    <label class="sel">Wall
+      <select name="wall_panel_mode">
+        <option value="none">none</option>
+        <option value="front">front</option>
+        <option value="rear">rear</option>
+        <option value="both">both</option>
+      </select>
+    </label>
+    <label class="sel">Side
+      <select name="side_panel_mode">
+        <option value="none">none</option>
+        <option value="left">left</option>
+        <option value="right">right</option>
+        <option value="both">both</option>
+      </select>
+    </label>
+    <label class="sel">Bass traps
+      <select name="bass_trap_mode">
+        <option value="none">none</option>
+        <option value="front">front</option>
+        <option value="rear">rear</option>
+        <option value="all">all</option>
+      </select>
+    </label>
+    <label class="sel">Ceiling
+      <select name="ceiling_panel_mode">
+        <option value="none">none</option>
+        <option value="cloud">cloud</option>
+        <option value="flush">flush</option>
+      </select>
+    </label>
+  </fieldset>
+
+  <fieldset id="overlayFieldset">
+    <legend>Overlay</legend>
+    <label><input type="radio" name="overlay" value="none" checked> None (clean scene)</label>
+    <label><input type="radio" name="overlay" value="sbir"> SBIR</label>
+    <label><input type="radio" name="overlay" value="bandwidth"> Bass Modes</label>
+    <label><input type="radio" name="overlay" value="side_reflections"> Reflections</label>
+  </fieldset>
+
+  <fieldset id="camFieldset">
+    <legend>Camera</legend>
+    <label><input type="checkbox" name="spin"> Auto-spin</label>
   </fieldset>
 
   <button id="setupBtn">Setup scene</button>
@@ -199,93 +280,73 @@
 import { initRoom3D } from './js/room3d.js';
 
 // ─────────────────────────────────────────────────────────────────────
-//  Scene configurations
-//
-//  overlayId values are the engine-internal keys (per OVERLAY_META in
-//  room3d.js): 'bandwidth' for the Bass Modes UI label, 'side_reflections'
-//  for the Reflections UI label.
+//  Per-mode geometry + setup. Home mirrors the original recorder; Studio
+//  mirrors the SCL studio room-type preset (monitor speakers on a desk,
+//  smaller near-field room). The engine overrides spk_spacing_m /
+//  listener_front_m in studio from the desk width + chair geometry, so the
+//  studio spacing value here is only a fallback.
 // ─────────────────────────────────────────────────────────────────────
-// Shared room geometry + setup applied to every scene so the three clips
-// read as a matched set on the marketing site. Per-scene differences are
-// limited to overlayId and (for bass-modes) the synthetic measurementContext.
-const SHARED_ROOM = {
-  geometry: { width_m: 4.0, length_m: 5.0, height_m: 2.5 },
-  setup:    { spk_spacing_m: 2.2, spk_front_m: 0.6, toe_in_deg: 12, listener_front_m: 3.0 },
+const HOME_GEO   = { width_m: 4.0, length_m: 5.0, height_m: 2.5, ceiling_type: 'flat' };
+const STUDIO_GEO = { width_m: 3.2, length_m: 3.8, height_m: 2.4, ceiling_type: 'flat' };
+
+const HOME_SETUP = {
+  speaker_type: 'floorstander', spk_placement: 'stands',
+  spk_spacing_m: 2.2, spk_front_m: 0.4, tweeter_height_m: 0.95,
+  toe_in_deg: 12, listener_front_m: 3.0, listener_offset_m: 0,
+  subwoofer: 'none', subwoofer_dual: false,
+};
+const STUDIO_SETUP = {
+  speaker_type: 'monitor', spk_placement: 'desk',
+  spk_spacing_m: 1.8, spk_front_m: 0.6, spk_inset_m: 0.20, tweeter_height_m: 1.1,
+  toe_in_deg: 15, listener_front_m: 1.4, listener_offset_m: 0,
+  subwoofer: 'none', subwoofer_dual: false,
 };
 
-const SCENE_CONFIG = {
-  'sbir': {
-    label:              'SBIR',
-    overlayId:          'sbir',
-    room:               SHARED_ROOM,
-    measurementContext: null,
-    useAutoSpin:        false,
-  },
-  'bass-modes': {
-    label:     'Bass Modes',
-    overlayId: 'bandwidth',
-    room:      SHARED_ROOM,
-    // Synthetic measurement context — drives the volumetric pressure
-    // field to render confirmed (coloured) modes instead of muted-grey
-    // predicted-only markers. Engine reads .modes[].{type, freq_hz,
-    // delta_db} per the setMeasurementContext shape in room3d.js.
-    measurementContext: {
-      modes: [
-        { type: 'axial', freq_hz:  35, delta_db:  8 },
-        { type: 'axial', freq_hz:  67, delta_db:  6 },
-        { type: 'axial', freq_hz: 110, delta_db: 10 },
-        { type: 'axial', freq_hz: 165, delta_db:  4 },
-      ],
-    },
-    useAutoSpin: false,
-  },
-  'reflections': {
-    label:              'Reflections',
-    overlayId:          'side_reflections',
-    room:               SHARED_ROOM,
-    measurementContext: null,
-    useAutoSpin:        false,
-  },
+// Synthetic measurement context for the Bass Modes overlay — drives the
+// volumetric pressure field to render confirmed (coloured) modes instead of
+// muted-grey predicted-only markers. Engine reads .modes[].{type, freq_hz,
+// delta_db} per the setMeasurementContext shape in room3d.js.
+const BASS_MODES_CONTEXT = {
+  modes: [
+    { type: 'axial', freq_hz:  35, delta_db:  8 },
+    { type: 'axial', freq_hz:  67, delta_db:  6 },
+    { type: 'axial', freq_hz: 110, delta_db: 10 },
+    { type: 'axial', freq_hz: 165, delta_db:  4 },
+  ],
+};
+
+const OVERLAY_LABELS = {
+  none:             'Clean scene',
+  sbir:             'SBIR',
+  bandwidth:        'Bass Modes',
+  side_reflections: 'Reflections',
 };
 
 // ─────────────────────────────────────────────────────────────────────
-//  Base room state — engine reads this via getRoomData. Per-scene
-//  setup mutates the geometry / setup fields and forces treatment to
-//  'none' so the overlay reads cleanly.
+//  Base room state — engine reads this via getRoomData. applyConfig()
+//  mutates it from the control panel before each Setup.
 // ─────────────────────────────────────────────────────────────────────
 const BASE_STATE = {
   room_type: 'home',
-  geometry: {
-    width_m: 4.0, length_m: 5.0, height_m: 2.5,
-    ceiling_type: 'flat',
-  },
-  setup: {
-    speaker_type: 'floorstander',
-    spk_placement: 'stands',
-    spk_spacing_m: 2.2,
-    spk_front_m:   0.4,
-    tweeter_height_m: 0.95,
-    toe_in_deg:    12,
-    listener_front_m:  3.0,
-    listener_offset_m: 0,
-    subwoofer:        'none',
-    subwoofer_dual:   false,
-  },
+  geometry: { ...HOME_GEO },
+  setup:    { ...HOME_SETUP },
   environment: {
     floor_material: 'hard',
     furniture: {
-      opt_sofa:          true,
-      opt_area_rug:      false,
-      opt_coffee_table:  false,
-      opt_ottoman:       false,
-      opt_display:       false,
-      opt_mic:           false,
-      opt_keyboard:      false,
+      opt_sofa:           true,
+      opt_area_rug:       false,
+      opt_coffee_table:   false,
+      opt_ottoman:        false,
+      opt_display:        false,
+      opt_mic:            false,
+      opt_keyboard:       false,
       opt_client_seating: false,
       client_seating_type: 'sofa',
       seating_type:        'sofa',
       sofa_width_m:        2.0,
       desk_width_m:        1.6,
+      desk_depth_m:        0.7,
+      desk_style:          'plain',
     },
     treatment: {
       wall_panel_mode:    'none',
@@ -320,9 +381,8 @@ engine.getRenderer().setClearColor(0xF7F7F7, 1);
 
 engine.setStage('furnishings');
 // Waves off — the expanding ring simulation layered busy concentric circles
-// on top of every scene. The SBIR overlay's own null-band shader is gated
-// independently by focusIssue('sbir'), so disabling waves only kills the
-// rings, not the diagnostic visual.
+// on top of every scene. Overlay-specific shaders are gated independently by
+// focusIssue(), so disabling waves only kills the rings.
 engine.setWaves(false);
 
 // ─────────────────────────────────────────────────────────────────────
@@ -333,36 +393,74 @@ const setupBtn    = document.getElementById('setupBtn');
 const recordBtn   = document.getElementById('recordBtn');
 const downloadBtn = document.getElementById('downloadBtn');
 const statusEl    = document.getElementById('status');
-const sceneInputs = document.querySelectorAll('input[name="scene"]');
+const allInputs   = document.querySelectorAll('#controls input, #controls select');
 
-let armedScene = null;        // scene id ready to record (cleared on radio change)
-let lastTake   = null;        // { sceneId, url, blob }
+let armedLabel = null;        // scene label ready to record (cleared on any control change)
+let armedSlug  = null;        // filename slug for the armed scene
+let lastTake   = null;        // { slug, url, blob }
 let recorder   = null;
 let recordingTimers = [];
 
 // ─────────────────────────────────────────────────────────────────────
 //  Helpers
 // ─────────────────────────────────────────────────────────────────────
-function getSelectedSceneId() {
-  return document.querySelector('input[name="scene"]:checked').value;
-}
-
 function setStatus(text, cls = '') {
   statusEl.textContent = text;
   statusEl.className   = cls;
 }
 
-function applySceneState(sceneId) {
-  const cfg = SCENE_CONFIG[sceneId];
-  if (!cfg) throw new Error(`Unknown scene: ${sceneId}`);
-  Object.assign(recordState.geometry, cfg.room.geometry);
-  Object.assign(recordState.setup,    cfg.room.setup);
-  recordState.environment.treatment = {
-    wall_panel_mode:    'none',
-    side_panel_mode:    'none',
-    bass_trap_mode:     'none',
-    ceiling_panel_mode: 'none',
+function readControls() {
+  const val = sel => document.querySelector(sel).value;
+  return {
+    mode:    document.querySelector('input[name="mode"]:checked').value,
+    desk:    document.querySelector('input[name="desk"]:checked').value,
+    overlay: document.querySelector('input[name="overlay"]:checked').value,
+    spin:    document.querySelector('input[name="spin"]').checked,
+    treat: {
+      wall_panel_mode:    val('select[name="wall_panel_mode"]'),
+      side_panel_mode:    val('select[name="side_panel_mode"]'),
+      bass_trap_mode:     val('select[name="bass_trap_mode"]'),
+      ceiling_panel_mode: val('select[name="ceiling_panel_mode"]'),
+    },
   };
+}
+
+// Mutate recordState from the control panel. The engine reads recordState
+// fresh on every rebuild, so this only needs to set fields — the rebuild is
+// triggered by the setRoom* / focusIssue calls in the Setup handler.
+function applyConfig(cfg) {
+  const isStudio = cfg.mode === 'studio';
+  recordState.room_type = cfg.mode;
+  recordState.geometry  = { ...(isStudio ? STUDIO_GEO   : HOME_GEO) };
+  recordState.setup     = { ...(isStudio ? STUDIO_SETUP : HOME_SETUP) };
+
+  const f = recordState.environment.furniture;
+  if (isStudio) {
+    f.opt_display = true;  f.opt_keyboard = true;  f.opt_mic = false;
+    f.opt_sofa = false; f.opt_area_rug = false; f.opt_coffee_table = false; f.opt_ottoman = false;
+    f.desk_width_m = 1.6; f.desk_depth_m = 0.7; f.desk_style = cfg.desk;
+  } else {
+    f.opt_display = false; f.opt_keyboard = false; f.opt_mic = false;
+    f.opt_sofa = true; f.opt_area_rug = false; f.opt_coffee_table = false; f.opt_ottoman = false;
+  }
+
+  recordState.environment.treatment = { ...cfg.treat };
+}
+
+function describe(cfg) {
+  const base = cfg.mode === 'studio' ? `Studio · ${cfg.desk} desk` : 'Home';
+  return `${base} · ${OVERLAY_LABELS[cfg.overlay]}`;
+}
+
+function slugify(cfg) {
+  const parts = [cfg.mode];
+  if (cfg.mode === 'studio') parts.push(cfg.desk);
+  parts.push(cfg.overlay === 'none' ? 'clean' : cfg.overlay);
+  const t = cfg.treat;
+  const anyTreat = [t.wall_panel_mode, t.side_panel_mode, t.bass_trap_mode, t.ceiling_panel_mode]
+    .some(v => v !== 'none');
+  if (anyTreat) parts.push('treated');
+  return parts.join('-');
 }
 
 function formatTimestamp(d) {
@@ -398,19 +496,18 @@ function getCanvasEl() {
 //  Setup scene — load room state, configure overlay, position camera
 // ─────────────────────────────────────────────────────────────────────
 setupBtn.addEventListener('click', () => {
-  const sceneId = getSelectedSceneId();
-  const cfg     = SCENE_CONFIG[sceneId];
+  const cfg = readControls();
   setStatus('Setting up scene…');
   recordBtn.disabled = true;
-  armedScene = null;
+  armedLabel = null;
 
   try {
     // Cleanup from any previous scene
     engine.stopAutoSpin();
     engine.resetCamera();
 
-    // Mutate the room state recordState the engine reads each rebuild
-    applySceneState(sceneId);
+    // Mutate the room state the engine reads each rebuild
+    applyConfig(cfg);
 
     // Sync the engine's geometry overrides + trigger rebuilds. These
     // setters also re-centre OrbitControls.target on the origin, which
@@ -420,59 +517,43 @@ setupBtn.addEventListener('click', () => {
     engine.setRoomLength(g.length_m);
     engine.setRoomHeight(g.height_m);
 
-    // Tighter framing for the 1200×800 capture. The DEFAULT_CAMERA pose
-    // restored by resetCamera() above frames the 4×5×2.5m room with
-    // wide #F7F7F7 margins in the actual recording — the on-load
-    // preview only LOOKS full because the control panel overlays the
-    // left ~240px of the canvas, so we never see the empty left margin.
-    // camera.zoom enlarges the rendered image without dollying the
-    // camera position, avoiding the corner-clipping problems every
-    // prior dolly attempt hit. 1.5 keeps the near floor corner safely
-    // inside; the back-top ceiling corner crops slightly, but it was
-    // already near the frame edge at zoom 1.0.
+    // Tighter framing for the 1200×800 capture. zoom enlarges the rendered
+    // image without dollying the camera, avoiding corner-clipping. Must run
+    // AFTER setRoomWidth/Length/Height — each of those resets the target.
     const cam   = engine.getCamera();
     const ctrls = engine.getControls();
     cam.zoom = 1.5;
     cam.updateProjectionMatrix();
-
-    // Float the room up in the frame. DEFAULT_CAMERA targets (0,0,0) —
-    // floor-centre — which sits the room low in the capture once
-    // zoom 1.5 enlarges it. Pulling the look-at down to y=-0.4 tilts
-    // the camera ~2.6° further down, lifting the room ~80px off the
-    // bottom edge without changing camera position. Must run AFTER
-    // setRoomWidth/Length/Height — each of those resets the target
-    // back to the origin.
     ctrls.target.set(0, -0.4, 0);
     ctrls.update();
 
     // Bass Modes needs synthetic measurement data to render confirmed
-    // (severity-coloured) modes; the other two scenes use behavioural
-    // simulation only.
-    engine.setMeasurementContext(cfg.measurementContext);
+    // (severity-coloured) modes; everything else uses behavioural sim only.
+    engine.setMeasurementContext(cfg.overlay === 'bandwidth' ? BASS_MODES_CONTEXT : null);
 
     // focusIssue is the exclusive single-overlay path used by demo.html
-    // (clears other overlays, sets focusedOverlay, rebuilds). Score 8
-    // pushes the overlay to its most visually dramatic intensity.
-    engine.focusIssue(cfg.overlayId, 8);
+    // (clears other overlays, sets focusedOverlay, rebuilds). null clears
+    // all overlays for a clean scene. Score 8 = most dramatic intensity.
+    engine.focusIssue(cfg.overlay === 'none' ? null : cfg.overlay, 8);
 
-    if (cfg.useAutoSpin) {
+    if (cfg.spin) {
       // 360° / 60s = 6°/s at 1.0, so 2.0 → 12°/s → ~60° of swing across
-      // the 5s usable capture window. Camera orbits around (0,0,0),
-      // which setRoomWidth/Length re-centred above.
+      // the 5s usable capture window. Camera orbits around the target.
       engine.setSpinSpeed(2.0);
       engine.startAutoSpin();
     }
 
     // Wait one rAF for the rebuild's first frame to land before arming
     requestAnimationFrame(() => {
-      armedScene = sceneId;
+      armedLabel = describe(cfg);
+      armedSlug  = slugify(cfg);
       recordBtn.disabled = false;
-      setStatus(`Scene ready: ${cfg.label} — click Record 6s`, 'ready');
+      setStatus(`Scene ready: ${armedLabel} — click Record 6s`, 'ready');
     });
   } catch (err) {
     console.error('[record] Setup failed:', err);
     setStatus(`Setup failed: ${err.message || err}`, 'error');
-    armedScene = null;
+    armedLabel = null;
     recordBtn.disabled = true;
   }
 });
@@ -481,7 +562,7 @@ setupBtn.addEventListener('click', () => {
 //  Record — 1s settle + 5s capture, then build a downloadable blob
 // ─────────────────────────────────────────────────────────────────────
 recordBtn.addEventListener('click', () => {
-  if (!armedScene) return;
+  if (!armedLabel) return;
   if (!checkRecorderSupport()) {
     recordBtn.disabled = true;
     return;
@@ -545,7 +626,7 @@ recordBtn.addEventListener('click', () => {
 
     const blob = new Blob(chunks, { type: 'video/webm' });
     const url  = URL.createObjectURL(blob);
-    lastTake = { sceneId: armedScene, url, blob };
+    lastTake = { slug: armedSlug, url, blob };
     downloadBtn.disabled = false;
     setStatus('Recording complete — ready to download', 'ready');
   };
@@ -584,28 +665,28 @@ recordBtn.addEventListener('click', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
-//  Download — most recent take, filename includes scene + YYYYMMDD-HHmm
+//  Download — most recent take, filename includes config slug + timestamp
 // ─────────────────────────────────────────────────────────────────────
 downloadBtn.addEventListener('click', () => {
   if (!lastTake) return;
   const ts = formatTimestamp(new Date());
   const a  = document.createElement('a');
   a.href     = lastTake.url;
-  a.download = `scene-${lastTake.sceneId}-${ts}.webm`;
+  a.download = `scene-${lastTake.slug}-${ts}.webm`;
   document.body.appendChild(a);
   a.click();
   a.remove();
 });
 
 // ─────────────────────────────────────────────────────────────────────
-//  Switching scenes invalidates the armed state — force a fresh Setup
+//  Any control change invalidates the armed state — force a fresh Setup
 // ─────────────────────────────────────────────────────────────────────
-sceneInputs.forEach(input => {
+allInputs.forEach(input => {
   input.addEventListener('change', () => {
-    if (armedScene !== input.value) {
-      armedScene = null;
+    if (armedLabel !== null) {
+      armedLabel = null;
       recordBtn.disabled = true;
-      setStatus('Idle — click Setup scene');
+      setStatus('Settings changed — click Setup scene');
     }
   });
 });
@@ -614,7 +695,7 @@ sceneInputs.forEach(input => {
 //  Boot
 // ─────────────────────────────────────────────────────────────────────
 if (checkRecorderSupport()) {
-  setStatus('Idle — pick a scene and click Setup');
+  setStatus('Idle — configure a scene and click Setup');
 } else {
   setupBtn.disabled  = true;
   recordBtn.disabled = true;
