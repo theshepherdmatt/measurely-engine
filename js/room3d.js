@@ -10,6 +10,15 @@
    ========================================================== */
 import THREE from 'three';
 
+// Production studio desk: height of the back riser (desk surface → riser top).
+// Shared by the desk builder (_buildDesk) and the monitor Y placement so the
+// near-field monitors sit exactly on the riser top and can never drift apart.
+const RISER_H = 0.20;
+// How far the two speaker posts rise ABOVE the riser top. The monitors perch on
+// the post tops, so the speaker loop lifts them by RISER_H + POST_RISE. Shared
+// with _buildDesk so the posts and the speakers can never drift apart.
+const POST_RISE = 0.12;
+
 /* ----------------------------------------------------------
    DEBUG LOGGING
    Engine info-level logs are silenced by default. To enable
@@ -1186,7 +1195,8 @@ export function initRoom3D({
           opt_coffee_table: false, opt_desk: false, opt_chair: false,
           seating_type: 'sofa', opt_display: true, opt_mic: false,
           opt_keyboard: false, opt_client_seating: false,
-          client_seating_type: 'sofa', desk_width_m: 1.6, desk_depth_m: 0.7
+          client_seating_type: 'sofa', desk_width_m: 1.6, desk_depth_m: 0.7,
+          desk_style: 'plain'
         },
         treatment: {
           wall_panel_mode: 'none', side_panel_mode: 'none',
@@ -1304,6 +1314,7 @@ export function initRoom3D({
       client_seating_type: furn.client_seating_type ?? env.client_seating_type ?? data.client_seating_type ?? 'sofa',
       desk_width_m: furn.desk_width_m ?? env.desk_width_m ?? data.desk_width_m ?? 1.6,
       desk_depth_m: furn.desk_depth_m ?? env.desk_depth_m ?? data.desk_depth_m ?? 0.7,
+      desk_style: furn.desk_style ?? env.desk_style ?? data.desk_style ?? 'plain',
 
       // TREATMENT: Digging into data.environment.treatment
       wall_panel_mode: treat.wall_panel_mode ?? env.wall_panel_mode ?? "none",
@@ -2085,15 +2096,21 @@ export function initRoom3D({
           y = baseY + standTweeterH + tweeterOffsetFromCenter;
           z = speakerZ;
         } else if (profile.onDesk && room.spk_placement === 'desk_stands') {
-          // Short isolation stands on the desk surface — raises monitor ~7 cm
+          // Short isolation stands on the desk surface — raises monitor ~7 cm.
+          // Production desk style lifts the whole stand onto the back riser so
+          // the isolation pad rests on the platform top (same RISER_H as 'desk').
           const riserH = 0.07;
-          const deskSurface = baseY + 0.775;
+          const prodLift = (room.desk_style === 'production') ? (RISER_H + POST_RISE) : 0;
+          const deskSurface = baseY + 0.775 + prodLift;
           y = deskSurface + riserH + profile.h / 2;
           z = speakerZ;
         } else if (profile.onDesk) {
-          // Desk monitors: snap to desk surface (desk top at 0.775 m above floor)
+          // Desk monitors: snap to desk surface (desk top at 0.775 m above floor).
+          // Production desk style raises them onto the back riser; RISER_H is the
+          // same constant the desk builder uses so monitor and riser never drift.
           const deskSurface = baseY + 0.775;
-          y = deskSurface + profile.h / 2;
+          const riserLift = (room.desk_style === 'production') ? (RISER_H + POST_RISE) : 0;
+          y = deskSurface + riserLift + profile.h / 2;
           z = speakerZ;
         } else if (profile.floorStand) {
           // Floor-standing panels / statement: plinth bottom sits on rug
@@ -3431,39 +3448,163 @@ export function initRoom3D({
         const rigGroup = new THREE.Group();
         rigGroup.position.set(offsetX, -room.height_m / 2, rigZ);
 
-        // ── Desk ──
-        const deskGroup = new THREE.Group();
-        const deskTop = _ghostBox(deskW, 0.05, deskD);
-        deskTop.position.y = 0.775;
-        deskGroup.add(deskTop);
-        [[-halfW + 0.04, 0.375, -deskD / 2 + 0.04], [halfW - 0.04, 0.375, -deskD / 2 + 0.04],
-        [-halfW + 0.04, 0.375, deskD / 2 - 0.04], [halfW - 0.04, 0.375, deskD / 2 - 0.04]]
-          .forEach(p => { const l = _ghostBox(0.04, 0.775, 0.04); l.position.set(...p); deskGroup.add(l); });
+        // ── Desk (parametric; 'plain' = the original build, 'production'
+        //    adds a back riser + 19" rack bay + open shelf + pull-out
+        //    keyboard tray) ──
+        // _buildDesk works in desk-centre-local coordinates (origin = desk
+        // centre at floor level). The returned group is positioned at
+        // RIG_DESK_CENTRE_LZ so every part keeps the EXACT rig-local Z it had
+        // before this refactor:
+        //   desk-local z = -deskD/2  ⇄  RIG_DESK_BACK_LZ
+        //   desk-local z =  0        ⇄  RIG_DESK_CENTRE_LZ
+        //   desk-local z = +deskD/2  ⇄  RIG_DESK_FRONT_LZ
+        // Every WIDTH and left-right position derives from deskW / halfW;
+        // heights, depths and the rack-unit count are literals.
+        // spacing       = studio speaker spacing (= room.spk_spacing_m, already
+        //                 desk-width-derived upstream); uprights + monitors share it.
+        // monitorLocalZ = the monitors' Z expressed in desk-local coords, so the
+        //                 production riser can be centred under them front-to-back.
+        function _buildDesk(deskW, deskD, style, spacing, monitorLocalZ) {
+          const group = new THREE.Group();
+          const halfW = deskW / 2;
+          const isProduction = style === 'production';
+
+          // Surface + four legs (identical in both styles)
+          const deskTop = _ghostBox(deskW, 0.05, deskD);
+          deskTop.position.y = 0.775;
+          group.add(deskTop);
+          [[-halfW + 0.04, 0.375, -deskD / 2 + 0.04], [halfW - 0.04, 0.375, -deskD / 2 + 0.04],
+          [-halfW + 0.04, 0.375, deskD / 2 - 0.04], [halfW - 0.04, 0.375, deskD / 2 - 0.04]]
+            .forEach(p => { const l = _ghostBox(0.04, 0.775, 0.04); l.position.set(...p); group.add(l); });
+
+          // Display monitor on a stand — gated by opt_display. Geometry is the
+          // same in both styles; only the placement differs (plain: on the desk
+          // surface at the back; production: lifted onto the riser top).
+          let dispGroup = null;
+          if (room.opt_display !== false) {
+            dispGroup = new THREE.Group();
+            const standBase = _ghostBox(0.22, 0.04, 0.18);
+            standBase.position.y = 0.795;
+            dispGroup.add(standBase);
+            const standPole = _ghostBox(0.04, 0.22, 0.04);
+            standPole.position.set(0, 0.915, 0.02);
+            dispGroup.add(standPole);
+            const monitor = _ghostBox(Math.min(deskW * 0.70, 0.68), 0.38, 0.032);
+            monitor.position.set(0, 1.10, 0.01);
+            dispGroup.add(monitor);
+          }
+
+          if (!isProduction) {
+            // Plain: display on the desk surface (back edge + 0.12), keyboard on
+            // the desk front edge. Byte-for-byte the original build.
+            if (dispGroup) {
+              dispGroup.position.set(0, 0, -deskD / 2 + 0.12);
+              group.add(dispGroup);
+            }
+            if (room.opt_keyboard) {
+              const kb = _ghostBox(Math.min(deskW * 0.30, 0.44), 0.02, 0.16);
+              kb.position.set(0, 0.795, deskD / 2 - 0.12);
+              group.add(kb);
+            }
+            return group;
+          }
+
+          // ── Production: raised riser carrying the monitors + display ──
+          // The riser top FACE sits exactly RISER_H above the surface reference
+          // (0.775 m) so the monitors — lifted by the same RISER_H in the speaker
+          // loop — rest flush on it (no sink, no float). The riser is centred
+          // front-to-back on the monitor plane (monitorLocalZ) and the two
+          // uprights sit under the monitor X positions (±spacing/2) so the
+          // speakers land on solid posts. Decluttered: riser-top shelf + back
+          // panel + two uprights + one central divider + 3 rack rails only.
+          const SHELF_T = 0.02;              // riser-top shelf thickness
+          const PANEL_T = 0.02;              // back panel / divider thickness
+          const UP_T    = 0.05;              // upright post cross-section
+          const riserD        = 0.30;        // front-to-back depth of the riser
+          const riserBotY     = 0.775;
+          const riserTopFaceY = riserBotY + RISER_H;        // monitor + display base plane
+          const riserCY       = riserBotY + RISER_H / 2;
+          const riserCZ       = monitorLocalZ;              // centred on the monitor plane
+          const riserFrontZ   = riserCZ + riserD / 2;
+          const riserBackZ    = riserCZ - riserD / 2;
+
+          // Riser-top shelf (full width) — top face at riserTopFaceY
+          const riserTop = _ghostBox(deskW, SHELF_T, riserD);
+          riserTop.position.set(0, riserTopFaceY - SHELF_T / 2, riserCZ);
+          group.add(riserTop);
+
+          // Back panel (full width) closing the rear of the riser
+          const backPanel = _ghostBox(deskW, RISER_H, PANEL_T);
+          backPanel.position.set(0, riserCY, riserBackZ + PANEL_T / 2);
+          group.add(backPanel);
+
+          // Two posts directly under the monitor X positions (±spacing/2). They
+          // rise POST_RISE above the platform top so the speakers perch on the
+          // post tops (the speaker loop lifts monitors by RISER_H + POST_RISE to
+          // match, so base sits flush on the post top — no float, no sink).
+          const postH  = RISER_H + POST_RISE;
+          const postCY = riserBotY + postH / 2;
+          [-spacing / 2, spacing / 2].forEach(ux => {
+            const up = _ghostBox(UP_T, postH, UP_T);
+            up.position.set(ux, postCY, riserCZ);
+            group.add(up);
+          });
+
+          // One central divider splitting rack bay (left) from open shelf (right)
+          const divider = _ghostBox(PANEL_T, RISER_H, riserD);
+          divider.position.set(0, riserCY, riserCZ);
+          group.add(divider);
+
+          // Rack-unit rails — 3 shallow horizontal outlines on the bay FRONT face
+          // only (left half), spaced through the riser height so they don't stack
+          // into a dense block. Width is parametric off deskW.
+          const RACK_U = 3;
+          const rackCX = deskW * 0.25;       // centre of the left (rack) half
+          const rackW  = deskW * 0.30;       // parametric rail width
+          for (let i = 0; i < RACK_U; i++) {
+            const ry = riserBotY + RISER_H * ((i + 1) / (RACK_U + 1));
+            const rail = _ghostBox(rackW, 0.025, 0.02);
+            rail.position.set(-rackCX, ry, riserFrontZ - 0.01);
+            group.add(rail);
+          }
+
+          // Display lifted onto the riser top: base on the same top face the
+          // speakers use, centred at desk X between the two monitors, Z on the
+          // riser top, facing the listener (+Z). Not also drawn on the surface.
+          if (dispGroup) {
+            dispGroup.position.set(0, RISER_H, riserCZ);
+            group.add(dispGroup);
+          }
+
+          // ── Pull-out keyboard shelf under the front of the surface ──
+          // Wide pull-out shelf sized for an electronic music keyboard, which
+          // lives on the shelf and slides under the desk when not in use. The
+          // shelf is always part of the production desk; the two keyboards
+          // (PC on the surface, music on the shelf) are gated by opt_keyboard.
+          const trayW = Math.min(deskW * 0.72, 1.40);       // wide pull-out shelf (parametric)
+          const trayD = 0.30;                               // deep enough for a music keyboard
+          const trayY = 0.70;                               // below the 0.775 surface
+          const trayZ = deskD / 2 - 0.02;                   // pulled forward near front edge
+          const tray = _ghostBox(trayW, 0.02, trayD);
+          tray.position.set(0, trayY, trayZ);
+          group.add(tray);
+          if (room.opt_keyboard) {
+            // PC keyboard — small slab on the desk surface near the front edge
+            const pcKb = _ghostBox(Math.min(deskW * 0.30, 0.44), 0.02, 0.16);
+            pcKb.position.set(0, 0.795, deskD / 2 - 0.12);
+            group.add(pcKb);
+            // Electronic music keyboard — wide + shallow, resting on the shelf
+            const musicKb = _ghostBox(Math.min(deskW * 0.65, 1.30), 0.05, 0.22);
+            musicKb.position.set(0, trayY + 0.035, trayZ);  // sits on the shelf top face
+            group.add(musicKb);
+          }
+
+          return group;
+        }
+
+        const deskGroup = _buildDesk(deskW, deskD, room.desk_style, room.spk_spacing_m, -RIG_DESK_CENTRE_LZ);
         deskGroup.position.set(0, 0, RIG_DESK_CENTRE_LZ);
         rigGroup.add(deskGroup);
-
-        // ── Display monitor (sits at back of desk, on a stand) ──
-        if (room.opt_display !== false) {
-          const dispGroup = new THREE.Group();
-          const standBase = _ghostBox(0.22, 0.04, 0.18);
-          standBase.position.y = 0.795;
-          dispGroup.add(standBase);
-          const standPole = _ghostBox(0.04, 0.22, 0.04);
-          standPole.position.set(0, 0.915, 0.02);
-          dispGroup.add(standPole);
-          const monitor = _ghostBox(Math.min(deskW * 0.70, 0.68), 0.38, 0.032);
-          monitor.position.set(0, 1.10, 0.01);
-          dispGroup.add(monitor);
-          dispGroup.position.set(0, 0, RIG_DESK_BACK_LZ + 0.12);
-          rigGroup.add(dispGroup);
-        }
-
-        // ── Keyboard (thin slab on desk front edge) ──
-        if (room.opt_keyboard) {
-          const kb = _ghostBox(Math.min(deskW * 0.30, 0.44), 0.02, 0.16);
-          kb.position.set(0, 0.795, RIG_DESK_FRONT_LZ - 0.12);
-          rigGroup.add(kb);
-        }
 
         // ── Mic on boom stand (outside left edge of desk) ──
         if (room.opt_mic) {

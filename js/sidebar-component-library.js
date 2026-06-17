@@ -313,6 +313,7 @@
       client_seating_type: 'sofa',
       desk_width_m:        1.6,
       desk_depth_m:        0.7,
+      desk_style:          'plain',
       // Smaller near-field studio footprint — see note on home above.
       width_m:             3.2,
       length_m:            3.8,
@@ -1176,6 +1177,7 @@
       client_seating_type: state.client_seating_type  ?? 'sofa',
       desk_width_m:        state.desk_width_m         ?? 1.6,
       desk_depth_m:        state.desk_depth_m         ?? 0.7,
+      desk_style:          state.desk_style           ?? 'plain',
     };
 
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:10px;' });
@@ -1307,6 +1309,20 @@
       onChange?.({ ...cur });
     });
 
+    // Desk style selector (plain / production) — mirrors the placement btn-group
+    const deskStyleHdr = _el('div', { class: 'demo-field-header' });
+    deskStyleHdr.append(_el('span', { class: 'demo-field-label' }, 'Desk style'));
+    studioBlock.appendChild(deskStyleHdr);
+    const deskStyleGroup = _btnGroup(
+      [
+        { key: 'plain',      label: 'Plain' },
+        { key: 'production', label: 'Production' },
+      ],
+      cur.desk_style ?? 'plain',
+      function (key) { cur.desk_style = key; onChange?.({ ...cur }); }
+    );
+    studioBlock.appendChild(deskStyleGroup.row);
+
     // Studio furniture icon grid (3-col: Display | Mic | Keys | Rug)
     const studioGrid = _iconGridToggle(
       [
@@ -1383,7 +1399,7 @@
         const FURN_KEYS = ['opt_area_rug', 'opt_sofa', 'opt_coffee_table',
                            'seating_type', 'sofa_width_m', 'opt_ottoman',
                            'opt_display', 'opt_mic', 'opt_keyboard',
-                           'opt_client_seating', 'client_seating_type'];
+                           'opt_client_seating', 'client_seating_type', 'desk_style'];
         for (const k of FURN_KEYS) {
           if (flags[k] !== undefined) cur[k] = flags[k];
         }
@@ -1405,6 +1421,7 @@
         studioGrid.setActive('opt_mic',        cur.opt_mic);
         studioGrid.setActive('opt_keyboard',   cur.opt_keyboard);
         studioGrid.setActive('opt_area_rug',   cur.opt_area_rug);
+        deskStyleGroup.setActive(cur.desk_style ?? 'plain');
         clientToggleBtn.classList.toggle('active', cur.opt_client_seating);
         clientToggleBtn.textContent = cur.opt_client_seating ? 'On' : 'Off';
         clientTypeRow.style.display = cur.opt_client_seating ? '' : 'none';
@@ -1421,6 +1438,7 @@
         cur.opt_keyboard        = state.opt_keyboard        ?? false;
         cur.opt_client_seating  = state.opt_client_seating  ?? false;
         cur.client_seating_type = state.client_seating_type ?? 'sofa';
+        cur.desk_style          = state.desk_style          ?? 'plain';
         // Restore icon grid states
         hifiGrid.setActive('opt_area_rug',     cur.opt_area_rug);
         hifiGrid.setActive('opt_coffee_table', cur.opt_coffee_table);
@@ -1429,6 +1447,7 @@
         studioGrid.setActive('opt_mic',        cur.opt_mic);
         studioGrid.setActive('opt_keyboard',   cur.opt_keyboard);
         studioGrid.setActive('opt_area_rug',   cur.opt_area_rug);
+        deskStyleGroup.setActive(cur.desk_style ?? 'plain');
         clientToggleBtn.classList.toggle('active', cur.opt_client_seating);
         clientToggleBtn.textContent = cur.opt_client_seating ? 'On' : 'Off';
         clientTypeRow.style.display = cur.opt_client_seating ? '' : 'none';
