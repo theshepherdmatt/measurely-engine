@@ -1319,6 +1319,10 @@ export function initRoom3D({
       // TREATMENT: Digging into data.environment.treatment
       wall_panel_mode: treat.wall_panel_mode ?? env.wall_panel_mode ?? "none",
       side_panel_mode: treat.side_panel_mode ?? env.side_panel_mode ?? "none",
+      // Optional per-side panel count. Absent (null) for every current
+      // caller (web, retail), so the length-derived formula at the
+      // side-panel build block is used unchanged.
+      side_panel_count: treat.side_panel_count ?? env.side_panel_count ?? null,
       bass_trap_mode: treat.bass_trap_mode ?? env.bass_trap_mode ?? "none",
       // Optional shape override. Absent for every current caller (web,
       // retail), so this always resolves to 'triangle' — existing renders
@@ -4199,8 +4203,13 @@ export function initRoom3D({
           room.length_m * 0.45          // never more than 45 % of the wall length
         );
 
-        // Panel count + centred span — same formula as the front/rear builder
-        const spCount = Math.max(1, Math.floor((spLength + spGap) / (spW + spGap)));
+        // Panel count + centred span — same formula as the front/rear builder.
+        // side_panel_count lets a consumer pin the per-side panel count;
+        // absent (null) preserves the original length-derived scaling so
+        // web and retail render identically.
+        const spCount = (room.side_panel_count != null)
+          ? Math.max(1, Math.floor(room.side_panel_count))
+          : Math.max(1, Math.floor((spLength + spGap) / (spW + spGap)));
         const spTotalSpan = spCount * spW + (spCount - 1) * spGap;
         // spGeo3 is the full-height geometry — may be replaced per-panel below if ceiling clips
         const spGeo3Full = new THREE.BoxGeometry(spThickness, spH_panel, spW);
