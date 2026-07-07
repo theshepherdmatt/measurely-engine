@@ -36,7 +36,7 @@
       shape:          'box',
       panelWidth:     0.60,              // metres — individual panel width (standard 600mm)
       panelHeight:    1.20,              // metres — individual panel height (standard 1200mm)
-      panelGap:       0.04,              // metres — gap between panels
+      panelGap:       0.02,              // metres — gap between panels (front/rear wall only)
       maxWidthFrac:   0.80,              // max coverage as fraction of room width
       thickness:      0.06,              // metres — panel depth
     },

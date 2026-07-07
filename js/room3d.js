@@ -3831,7 +3831,7 @@ export function initRoom3D({
       const wpGeo = window.MeasurelyTreatment?.GEOMETRY?.wall_panel;
       const wpW = wpGeo?.panelWidth ?? 0.60;
       const wpH = wpGeo?.panelHeight ?? 1.20;
-      const wpGap = wpGeo?.panelGap ?? 0.04;
+      const wpGap = wpGeo?.panelGap ?? 0.02;
       const wpThickness = wpGeo?.thickness ?? 0.06;
 
       // Panel count is now an explicit user choice (2 or 4) — see
