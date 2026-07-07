@@ -1320,6 +1320,12 @@ export function initRoom3D({
       wall_panel_mode: treat.wall_panel_mode ?? env.wall_panel_mode ?? "none",
       side_panel_mode: treat.side_panel_mode ?? env.side_panel_mode ?? "none",
       bass_trap_mode: treat.bass_trap_mode ?? env.bass_trap_mode ?? "none",
+      // Optional shape override. Absent for every current caller (web,
+      // retail), so this always resolves to 'triangle' — existing renders
+      // are unaffected. Unrecognised values also fall back to 'triangle'
+      // (validated at the point of use in the bass-trap build block, not
+      // here, since ?? only catches null/undefined).
+      bass_trap_shape: treat.bass_trap_shape ?? env.bass_trap_shape ?? 'triangle',
       ceiling_panel_mode: treat.ceiling_panel_mode ?? env.ceiling_panel_mode ?? "none",
       wall_panel_count: treat.wall_panel_count ?? env.wall_panel_count ?? 4,
       panel_color: data.panel_color ?? null,  // optional hex string e.g. '#c8a882'
@@ -3944,11 +3950,46 @@ export function initRoom3D({
           : room.height_m);
         localCeilH = Math.min(localCeilH, maxSafeH * 0.95); // 5% clearance from ceiling
 
-        const geo = _makeCornerTrapGeo(trapLeg, localCeilH);
+        // Shape branch — localCeilH (height) is identical across all three
+        // shapes; only footprint geometry and rotation differ below.
+        // Any value other than 'column'/'cylinder' falls back to the
+        // existing triangle (the ?? at unpack time only catches
+        // null/undefined, not an unrecognised string, so that fallback
+        // is enforced here).
+        const trapShape = (room.bass_trap_shape === 'column' || room.bass_trap_shape === 'cylinder')
+          ? room.bass_trap_shape
+          : 'triangle';
+
+        let geo;
+        if (trapShape === 'column') {
+          // Square column: ~0.3m x 0.3m footprint — approximate, pending
+          // real Anthill dimensions.
+          geo = new THREE.BoxGeometry(0.3, localCeilH, 0.3);
+        } else if (trapShape === 'cylinder') {
+          // ~0.15m radius — approximate, pending real Anthill dimensions.
+          // r128 has no CapsuleGeometry, so CylinderGeometry is correct here.
+          geo = new THREE.CylinderGeometry(0.15, 0.15, localCeilH, 24);
+        } else {
+          geo = _makeCornerTrapGeo(trapLeg, localCeilH);
+        }
+
         const mesh = new THREE.Mesh(geo, panelMat);
-        // Right-angle vertex sits exactly at the wall corner; no box-centre offset needed
-        mesh.position.set(offsetX + cx, floorY, cz);
-        mesh.rotation.y = rotY;
+        if (trapShape === 'triangle') {
+          // Right-angle vertex sits exactly at the wall corner; no box-centre offset needed
+          mesh.position.set(offsetX + cx, floorY, cz);
+          mesh.rotation.y = rotY;
+        } else {
+          // Column / cylinder: BoxGeometry and CylinderGeometry are both
+          // centre-origin (unlike the triangle, whose vertices start at its
+          // own bottom), so lifting by localCeilH/2 puts the base at the
+          // floor. No rotation: the column is symmetric about its own
+          // centre and the cylinder is rotationally symmetric about Y, so
+          // neither needs rotY — that value exists only to compensate for
+          // the triangle's off-centre origin, which these shapes don't have.
+          // Centred on the same corner point (cx, cz), so it straddles both
+          // walls symmetrically, same as the triangle's corner placement.
+          mesh.position.set(offsetX + cx, floorY + localCeilH / 2, cz);
+        }
         roomGroup.add(mesh);
         // Bass traps straddle two walls + the floor. Phase 1 picks one
         // primary surface per trap, aligned with bass_trap_mode semantics:
