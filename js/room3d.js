@@ -3986,9 +3986,21 @@ export function initRoom3D({
           // centre and the cylinder is rotationally symmetric about Y, so
           // neither needs rotY — that value exists only to compensate for
           // the triangle's off-centre origin, which these shapes don't have.
-          // Centred on the same corner point (cx, cz), so it straddles both
-          // walls symmetrically, same as the triangle's corner placement.
-          mesh.position.set(offsetX + cx, floorY + localCeilH / 2, cz);
+          //
+          // Unlike the triangle (whose vertex-at-origin geometry already
+          // sits flush at the corner), a centre-origin shape placed AT the
+          // raw corner point pokes half its footprint through both walls.
+          // Nudge it inward by half its footprint — column: half its 0.3m
+          // width (0.15m); cylinder: its 0.15m radius — tied to the same
+          // literals used above, so this inset stays correct once real
+          // Anthill dimensions replace the approximations. Math.sign(cx)/
+          // (cz) is the direction from room centre to this corner;
+          // subtracting it moves the centre back toward the room, correctly
+          // for all 4 corners.
+          const inset = trapShape === 'column' ? 0.3 / 2 : 0.15;
+          const cxIn = cx - Math.sign(cx) * inset;
+          const czIn = cz - Math.sign(cz) * inset;
+          mesh.position.set(offsetX + cxIn, floorY + localCeilH / 2, czIn);
         }
         roomGroup.add(mesh);
         // Bass traps straddle two walls + the floor. Phase 1 picks one
