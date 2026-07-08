@@ -4126,6 +4126,12 @@ export function initRoom3D({
         thickness = 0.14;
       }
 
+      if (room.ceiling_direction === 'portrait') {
+        const temp = cpW;
+        cpW = cpL;
+        cpL = temp;
+      }
+
       const spkZ = -room.length_m / 2 + (room.spk_front_m ?? 0.45);
       const midZ = (spkZ + listenerZ) / 2;
 
