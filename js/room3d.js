@@ -1317,22 +1317,36 @@ export function initRoom3D({
       desk_style: furn.desk_style ?? env.desk_style ?? data.desk_style ?? 'plain',
 
       // TREATMENT: Digging into data.environment.treatment
-      wall_panel_mode: treat.wall_panel_mode ?? env.wall_panel_mode ?? "none",
-      side_panel_mode: treat.side_panel_mode ?? env.side_panel_mode ?? "none",
-      // Optional per-side panel count. Absent (null) for every current
-      // caller (web, retail), so the length-derived formula at the
-      // side-panel build block is used unchanged.
-      side_panel_count: treat.side_panel_count ?? env.side_panel_count ?? null,
-      bass_trap_mode: treat.bass_trap_mode ?? env.bass_trap_mode ?? "none",
-      // Optional shape override. Absent for every current caller (web,
-      // retail), so this always resolves to 'triangle' — existing renders
-      // are unaffected. Unrecognised values also fall back to 'triangle'
-      // (validated at the point of use in the bass-trap build block, not
-      // here, since ?? only catches null/undefined).
-      bass_trap_shape: treat.bass_trap_shape ?? env.bass_trap_shape ?? 'triangle',
-      ceiling_panel_mode: treat.ceiling_panel_mode ?? env.ceiling_panel_mode ?? "none",
-      wall_panel_count: treat.wall_panel_count ?? env.wall_panel_count ?? 4,
-      panel_color: data.panel_color ?? null,  // optional hex string e.g. '#c8a882'
+      front_wall_mode: treat.front_wall_mode ?? env.front_wall_mode ?? "none",
+      front_wall_style: treat.front_wall_style ?? env.front_wall_style ?? "broadband_pro",
+      front_wall_count: treat.front_wall_count ?? env.front_wall_count ?? 4,
+
+      rear_wall_mode: treat.rear_wall_mode ?? env.rear_wall_mode ?? "none",
+      rear_wall_style: treat.rear_wall_style ?? env.rear_wall_style ?? "broadband_pro",
+      rear_wall_count: treat.rear_wall_count ?? env.rear_wall_count ?? 4,
+
+      side_wall_mode: treat.side_wall_mode ?? env.side_wall_mode ?? "none",
+      side_wall_style: treat.side_wall_style ?? env.side_wall_style ?? "fusion_slim",
+      side_wall_count: treat.side_wall_count ?? env.side_wall_count ?? null,
+
+      ceiling_mode: treat.ceiling_mode ?? env.ceiling_mode ?? "none",
+      ceiling_style: treat.ceiling_style ?? env.ceiling_style ?? "cloud",
+      ceiling_count: treat.ceiling_count ?? env.ceiling_count ?? 1,
+      ceiling_size: treat.ceiling_size ?? env.ceiling_size ?? "mini",
+      ceiling_drop_m: treat.ceiling_drop_m ?? env.ceiling_drop_m ?? 0.4,
+
+      front_corners_mode: treat.front_corners_mode ?? env.front_corners_mode ?? "none",
+      front_corners_shape: treat.front_corners_shape ?? env.front_corners_shape ?? 'triangle',
+
+      rear_corners_mode: treat.rear_corners_mode ?? env.rear_corners_mode ?? "none",
+      rear_corners_shape: treat.rear_corners_shape ?? env.rear_corners_shape ?? 'triangle',
+
+      front_wall_color: treat.front_wall_color ?? data.front_wall_color ?? null,
+      rear_wall_color: treat.rear_wall_color ?? data.rear_wall_color ?? null,
+      side_wall_color: treat.side_wall_color ?? data.side_wall_color ?? null,
+      ceiling_color: treat.ceiling_color ?? data.ceiling_color ?? null,
+      front_corners_color: treat.front_corners_color ?? data.front_corners_color ?? null,
+      rear_corners_color: treat.rear_corners_color ?? data.rear_corners_color ?? null,
 
       // FLOOR: read from env (data.environment.floor_material) with hard fallback
       floor_material: env.floor_material ?? data.floor_material ?? 'hard',
@@ -3780,14 +3794,7 @@ export function initRoom3D({
     const _panelHex = room.panel_color
       ? parseInt(room.panel_color.replace('#', ''), 16)
       : 0x0f766e;
-    const panelMat = new THREE.MeshBasicMaterial({
-      color: _panelHex,
-      transparent: true,
-      opacity: room.panel_color ? 0.55 : 0.28,
-      depthTest: true,
-      depthWrite: false,
-      side: THREE.DoubleSide
-    });
+
 
     // Phase 1 panel-aware reflection flash: every treatment panel gets a
     // sibling cyan overlay tagged with userData.isPanelCyanFlash. The
@@ -3801,9 +3808,10 @@ export function initRoom3D({
     // Added directly to roomGroup — the animator iterates roomGroup
     // children non-recursively and would skip anything nested inside
     // panelGroup (gable flush ceiling case).
-    const _addPanelCyanFlash = (panelMesh, surface) => {
+    const _addPanelCyanFlash = (obj, surface) => {
+      const targetMesh = obj.isGroup ? obj.userData.flashTarget : obj;
       const flash = new THREE.Mesh(
-        panelMesh.geometry,
+        targetMesh.geometry,
         new THREE.MeshBasicMaterial({
           color: new THREE.Color(OC.TREATED_CYAN).multiplyScalar(3.0),
           transparent: true,
@@ -3813,9 +3821,15 @@ export function initRoom3D({
           side: THREE.DoubleSide,
         })
       );
-      flash.position.copy(panelMesh.position);
-      flash.rotation.copy(panelMesh.rotation);
-      flash.scale.copy(panelMesh.scale).multiplyScalar(1.01);
+      if (obj.isGroup) {
+        flash.position.copy(obj.position).add(targetMesh.position);
+        flash.rotation.copy(obj.rotation);
+        flash.scale.copy(obj.scale).multiplyScalar(1.01);
+      } else {
+        flash.position.copy(obj.position);
+        flash.rotation.copy(obj.rotation);
+        flash.scale.copy(obj.scale).multiplyScalar(1.01);
+      }
       flash.renderOrder = 1;
       flash.userData.isPanelCyanFlash = { surface };
       roomGroup.add(flash);
@@ -3824,78 +3838,179 @@ export function initRoom3D({
 
     // Helper: panel mesh + edge outline for embed mode
 
+    // --- PROCEDURAL PANEL GENERATOR ---
+    const _materialCache = {};
+    function getPanelMat(hexColor) {
+      const colorStr = hexColor || '#1A1A1A';
+      if (!_materialCache[colorStr]) {
+        _materialCache[colorStr] = new THREE.MeshBasicMaterial({ color: colorStr });
+      }
+      return _materialCache[colorStr];
+    }
+
+    const _textureCache = {};
+
+    function _getPanelTexture(style, hexColor) {
+      const cacheKey = style + '_' + (hexColor || 'default');
+      if (_textureCache[cacheKey]) return _textureCache[cacheKey];
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 1024;
+      const ctx = canvas.getContext('2d');
+
+      if (style === 'fusion_slim') {
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = '#000000';
+        
+        const cols = 4;
+        const rows = 8;
+        const cellW = canvas.width / cols;
+        const cellH = canvas.height / rows;
+
+        let seed = 42;
+        function rand() {
+          seed = (seed * 9301 + 49297) % 233280;
+          return seed / 233280;
+        }
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const x = c * cellW + cellW / 2 + (rand() - 0.5) * cellW * 0.5;
+            const y = r * cellH + cellH / 2 + (rand() - 0.5) * cellH * 0.5;
+            const radius = 15 + rand() * 35;
+            
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      } else if (style === 'fusion_pro') {
+        const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        grad.addColorStop(0, '#d2a679');
+        grad.addColorStop(0.5, '#c69c6d');
+        grad.addColorStop(1, '#b58b5c');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.fillStyle = '#000000';
+
+        const slotWidths = [16, 32, 12, 48, 20, 12, 28, 16, 36, 12];
+        let x = 32;
+        for (let i = 0; i < slotWidths.length; i++) {
+          const sw = slotWidths[i];
+          ctx.fillRect(x, 64, sw, canvas.height - 128);
+          ctx.clearRect(0, canvas.height / 2 - 20, canvas.width, 40);
+          x += sw + 24;
+          if (x > canvas.width - 32) break;
+        }
+      }
+
+      const tex = new THREE.CanvasTexture(canvas);
+      if (renderer) tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      _textureCache[cacheKey] = tex;
+      return tex;
+    }
+
+    function createPanelGroup(style, width, height, thickness, hexColor) {
+      const group = new THREE.Group();
+      
+      const isBroadband = style.startsWith('broadband');
+
+      if (isBroadband) {
+        const geo = new THREE.BoxGeometry(width, height, thickness);
+        const mesh = new THREE.Mesh(geo, getPanelMat(hexColor));
+        mesh.userData.isFace = true;
+        group.add(mesh);
+        group.userData.flashTarget = mesh;
+        return group;
+      }
+
+      const isWood = style === 'fusion_pro';
+      const foamColor = isWood ? 0x111111 : 0xdddddd;
+      
+      const foamMat = new THREE.MeshStandardMaterial({ color: foamColor, roughness: 0.9, metalness: 0.1 });
+      const foamGeo = new THREE.BoxGeometry(width, height, thickness - 0.005);
+      const foamMesh = new THREE.Mesh(foamGeo, foamMat);
+      foamMesh.position.z = -0.0025;
+      group.add(foamMesh);
+
+      const tex = _getPanelTexture(style, hexColor);
+      const faceMat = new THREE.MeshStandardMaterial({ 
+        map: tex, 
+        transparent: true, 
+        opacity: 0.85,
+        alphaTest: 0.5,
+        roughness: 0.8,
+        metalness: 0.1,
+        side: THREE.DoubleSide
+      });
+
+      const faceGeo = new THREE.PlaneGeometry(width, height);
+      const faceMesh = new THREE.Mesh(faceGeo, faceMat);
+      faceMesh.position.z = thickness / 2;
+      group.add(faceMesh);
+
+      group.userData.isProceduralPanel = true;
+      group.userData.flashTarget = faceMesh;
+
+      return group;
+    }
+
     // --- WALL PANELS (front & rear walls) ---
     // Canonical geometry from treatment-registry.js — individual standard-size panels.
     // Identical rendering on all pages regardless of embed_mode.
-    if (room.wall_panel_mode !== "none") {
-      const wpGeo = window.MeasurelyTreatment?.GEOMETRY?.wall_panel;
-      const wpW = wpGeo?.panelWidth ?? 0.60;
-      const wpH = wpGeo?.panelHeight ?? 1.20;
-      const wpGap = wpGeo?.panelGap ?? 0.02;
-      const wpThickness = wpGeo?.thickness ?? 0.06;
+    const wpGeo = window.MeasurelyTreatment?.GEOMETRY?.wall_panel;
+    const wpW = wpGeo?.panelWidth ?? 0.60;
+    const wpH = wpGeo?.panelHeight ?? 1.20;
+    const wpGap = wpGeo?.panelGap ?? 0.02;
+    const wpThickness = wpGeo?.thickness ?? 0.06;
 
-      // Panel count is now an explicit user choice (2 or 4) — see
-      // treatment-registry.js TREATMENT_TYPES.wall_panel.extras. The
-      // previous width-derived adaptive count (floor((width × maxFrac)
-      // / (panelW + gap)) → 3..6) is replaced; wider rooms now show 4
-      // panels by default instead of scaling up.
-      //
-      // Visualisation-only in v1: surfaces.js: getRoomSurfaceMaterials
-      // swaps the whole-wall material on wall_panel_mode (no area term),
-      // so changing wall_panel_count does NOT change predictRT60.
-      // Acoustic-honest area-Sabine is a future enhancement.
-      const panelCount = room.wall_panel_count ?? 4;
-      // Per-panel X offsets in room coordinates (relative to offsetX).
-      //   count === 2  → one panel under each speaker, anchored to
-      //                  room.spk_spacing_m so the layout tracks the
-      //                  speakers live as the user drags the spacing
-      //                  slider. Acoustically motivated: each panel
-      //                  damps the SBIR null behind its own speaker.
-      //                  Same X positions used on both front and rear
-      //                  for visual symmetry under mode='both'.
-      //   otherwise    → original centred tight-row math (preserved
-      //                  bit-identically for the 4-panel default and
-      //                  any future odd counts that may want a band).
-      const panelOffsetsX = panelCount === 2
+    const buildWallPanels = (mode, count, style, hexColor, wallZ, facingDir, panelH = wpH, panelCenterY = null) => {
+      if (mode === "none") return;
+      const c = count ?? 4;
+      
+      const panelOffsetsX = c === 2
         ? [-room.spk_spacing_m / 2, room.spk_spacing_m / 2]
-        : Array.from({ length: panelCount }, (_, i) => {
-            const totalSpan = panelCount * wpW + (panelCount - 1) * wpGap;
+        : Array.from({ length: c }, (_, i) => {
+            const totalSpan = c * wpW + (c - 1) * wpGap;
             return -totalSpan / 2 + wpW / 2 + i * (wpW + wpGap);
           });
-      // Panels centred at tweeter/ear height — acoustically correct and stays fixed
-      // relative to the floor regardless of room height slider changes.
+          
       const floorInWorld = -room.height_m / 2;
-      const panelY = floorInWorld + (room.tweeter_height_m ?? 0.95);
+      const pY = panelCenterY !== null ? panelCenterY : (floorInWorld + (room.tweeter_height_m ?? 0.95));
 
-      // panelH / panelCenterY can be overridden for client sofa sizing
-      const addWallPanels = (wallZ, facingDir, panelH = wpH, panelCenterY = panelY) => {
-        const geo = new THREE.BoxGeometry(wpW, panelH, wpThickness);
-        const surface = wallZ < 0 ? 'front' : 'back';
-        for (const dx of panelOffsetsX) {
-          const px = offsetX + dx;
-          const mesh = new THREE.Mesh(geo, panelMat);
-          mesh.position.set(px, panelCenterY, wallZ + facingDir * wpThickness / 2);
-          roomGroup.add(mesh);
-          _addPanelCyanFlash(mesh, surface);
+      const surface = wallZ < 0 ? 'front' : 'back';
+      for (const dx of panelOffsetsX) {
+        const px = offsetX + dx;
+        const panelGroup = createPanelGroup(style, wpW, panelH, wpThickness, hexColor);
+        panelGroup.position.set(px, pY, wallZ + facingDir * wpThickness / 2);
+        
+        // Ensure child meshes are rotated 180 degrees if facing forward (wallZ > 0)
+        if (facingDir === -1) {
+          panelGroup.rotation.y = Math.PI;
         }
-      };
 
-      if (room.wall_panel_mode === "front" || room.wall_panel_mode === "both") {
-        addWallPanels(-room.length_m / 2, 1);
+        roomGroup.add(panelGroup);
+        _addPanelCyanFlash(panelGroup, surface);
       }
-      if (room.wall_panel_mode === "rear" || room.wall_panel_mode === "both") {
-        // When a client sofa is at the rear wall, raise panels above the sofa back
-        // (sofa back top ≈ 0.80 m from floor; panels sit just above it).
-        const hasSofaAtRear = room.opt_client_seating && (room.client_seating_type || 'sofa') === 'sofa';
-        const rearH = hasSofaAtRear ? 0.72 : wpH;
-        const floorInWorld = -room.height_m / 2;
-        // Sofa back top in world Y: floorInWorld + 0.80. Panel centre = sofa_top + rearH/2 + 0.05 gap.
-        const rearCentreY = hasSofaAtRear
-          ? floorInWorld + 0.80 + rearH / 2 + 0.05
-          : panelY;
-        addWallPanels(room.length_m / 2, -1, rearH, rearCentreY);
-      }
-    }
+    };
+
+    buildWallPanels(room.front_wall_mode, room.front_wall_count, room.front_wall_style, room.front_wall_color, -room.length_m / 2, 1);
+
+    // When a client sofa is at the rear wall, raise panels above the sofa back
+    // (sofa back top ≈ 0.80 m from floor; panels sit just above it).
+    const hasSofaAtRear = room.opt_client_seating && (room.client_seating_type || 'sofa') === 'sofa';
+    const rearH = hasSofaAtRear ? 0.72 : wpH;
+    const floorInWorld = -room.height_m / 2;
+    const rearCentreY = hasSofaAtRear
+      ? floorInWorld + 0.80 + rearH / 2 + 0.05
+      : null;
+    buildWallPanels(room.rear_wall_mode, room.rear_wall_count, room.rear_wall_style, room.rear_wall_color, room.length_m / 2, -1, rearH, rearCentreY);
 
     // --- BASS TRAPS — right-angle triangular corner prisms ---
     // Canonical geometry params from treatment-registry.js; fallback matches registry defaults.
@@ -3938,8 +4053,11 @@ export function initRoom3D({
 
       cornerDefs.forEach(({ cx, cz, rotY }) => {
         const isFront = cz < 0;
-        if (room.bass_trap_mode === 'front' && !isFront) return;
-        if (room.bass_trap_mode === 'rear' && isFront) return;
+        const mode = isFront ? room.front_corners_mode : room.rear_corners_mode;
+        if (mode === "none") return;
+
+        let trapShape = isFront ? room.front_corners_shape : room.rear_corners_shape;
+        const hexColor = isFront ? room.front_corners_color : room.rear_corners_color;
 
         // Height: scale to sloped ceiling at this exact corner
         const rawTrapH = room.height_m * trapHFr;
@@ -3960,8 +4078,8 @@ export function initRoom3D({
         // existing triangle (the ?? at unpack time only catches
         // null/undefined, not an unrecognised string, so that fallback
         // is enforced here).
-        const trapShape = (room.bass_trap_shape === 'column' || room.bass_trap_shape === 'cylinder')
-          ? room.bass_trap_shape
+        trapShape = (trapShape === 'column' || trapShape === 'cylinder')
+          ? trapShape
           : 'triangle';
 
         let geo;
@@ -3977,7 +4095,7 @@ export function initRoom3D({
           geo = _makeCornerTrapGeo(trapLeg, localCeilH);
         }
 
-        const mesh = new THREE.Mesh(geo, panelMat);
+        const mesh = new THREE.Mesh(geo, getPanelMat(hexColor));
         if (trapShape === 'triangle') {
           // Right-angle vertex sits exactly at the wall corner; no box-centre offset needed
           mesh.position.set(offsetX + cx, floorY, cz);
@@ -4017,142 +4135,141 @@ export function initRoom3D({
     }
 
     // --- CEILING PANELS ---
-    if (room.ceiling_panel_mode === "cloud" || room.ceiling_panel_mode === "flush") {
+    if (room.ceiling_mode === "cloud" || room.ceiling_mode === "flush") {
 
-      const cpW = Math.min(room.spk_spacing_m * 1.6, room.width_m * 0.8);
-      const cpL = room.length_m * 0.28;
-      const thickness = 0.10;  // 100mm (4") — GIK 244 / Primacoustic London 16 standard
+      let cpW, cpL, thickness;
+      if (room.ceiling_size === 'mini') {
+        cpW = 1.04;
+        cpL = 0.64;
+        thickness = 0.12;
+      } else {
+        // standard
+        cpW = 1.52;
+        cpL = 1.08;
+        thickness = 0.14;
+      }
 
       const spkZ = -room.length_m / 2 + (room.spk_front_m ?? 0.45);
       const midZ = (spkZ + listenerZ) / 2;
 
       // Industry standard: 300–460mm air gap when hanging (400mm = 16" midpoint)
-      const isFlush = room.ceiling_panel_mode === 'flush';
+      const isFlush = room.ceiling_mode === 'flush';
       const dropGap = isFlush ? 0 : 0.40;
 
-      if (isFlush) {
-        // ── FLUSH: panels follow the ceiling surface ──────────────────────────
-        if (isGable) {
-          // Two angled panels, one on each pitched face
-          const panelGroup = new THREE.Group();
-          if (gableAxis === "depth") {
-            const slopeAngle = Math.atan2(room.height_m - lowH, room.width_m / 2);
-            const halfWidth = cpW / 2;
-            const leftX = offsetX - halfWidth / 2;
-            const rightX = offsetX + halfWidth / 2;
-            const lp = new THREE.Mesh(new THREE.BoxGeometry(halfWidth - 0.05, thickness, cpL), panelMat);
-            lp.position.set(leftX, ceilingYAt(leftX, midZ) - thickness / 2, midZ);
-            lp.rotation.z = slopeAngle;
-            const rp = new THREE.Mesh(new THREE.BoxGeometry(halfWidth - 0.05, thickness, cpL), panelMat);
-            rp.position.set(rightX, ceilingYAt(rightX, midZ) - thickness / 2, midZ);
-            rp.rotation.z = -slopeAngle;
-            panelGroup.add(lp, rp);
-            _addPanelCyanFlash(lp, 'ceiling');
-            _addPanelCyanFlash(rp, 'ceiling');
-          } else {
-            const slopeAngle = Math.atan2(room.height_m - lowH, room.length_m / 2);
-            const halfLength = cpL / 2;
-            const frontZ = midZ - halfLength / 2;
-            const backZ = midZ + halfLength / 2;
-            const fp = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, halfLength - 0.05), panelMat);
-            fp.position.set(offsetX, ceilingYAt(offsetX, frontZ) - thickness / 2, frontZ);
-            fp.rotation.x = -slopeAngle;
-            const bp = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, halfLength - 0.05), panelMat);
-            bp.position.set(offsetX, ceilingYAt(offsetX, backZ) - thickness / 2, backZ);
-            bp.rotation.x = slopeAngle;
-            panelGroup.add(fp, bp);
-            _addPanelCyanFlash(fp, 'ceiling');
-            _addPanelCyanFlash(bp, 'ceiling');
-          }
-          roomGroup.add(panelGroup);
+      const cCount = room.ceiling_count || 1;
+      const cGap = 0.2;
+      const cTotalL = cCount * cpL + (cCount - 1) * cGap;
+      
+      const frontClearance = 0.05;
+      const rearClearance = 0.05;
+      const minZ = -room.length_m / 2 + cTotalL / 2 + frontClearance;
+      const maxZ =  room.length_m / 2 - cTotalL / 2 - rearClearance;
+      const groupCenterZ = (minZ > maxZ) ? 0 : Math.max(minZ, Math.min(maxZ, midZ));
+      
+      const startZ = groupCenterZ - cTotalL / 2 + cpL / 2;
 
-        } else if (isSlanted) {
-          // Single panel tilted to follow the slope
-          const panelCeilY = ceilingYAt(offsetX, midZ);
-          const panel = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, cpL), panelMat);
-          panel.position.set(offsetX, panelCeilY - thickness / 2, midZ);
-          const isZSlant = slantDir === "front_to_back" || slantDir === "back_to_front";
-          const span = isZSlant ? room.length_m : room.width_m;
-          const slopeAngle = Math.atan2(room.height_m - lowH, span);
-          if (isZSlant) panel.rotation.x = (slantDir === "back_to_front" ? -1 : 1) * slopeAngle;
-          else panel.rotation.z = (slantDir === "left_to_right" ? 1 : -1) * slopeAngle;
-          roomGroup.add(panel);
-          _addPanelCyanFlash(panel, 'ceiling');
+      for (let i = 0; i < cCount; i++) {
+        const pZ = startZ + i * (cpL + cGap);
+
+        if (isFlush) {
+          // ── FLUSH: panels follow the ceiling surface ──────────────────────────
+          if (isGable) {
+            // Two angled panels, one on each pitched face
+            const panelGroup = new THREE.Group();
+            if (gableAxis === "depth") {
+              const slopeAngle = Math.atan2(room.height_m - lowH, room.width_m / 2);
+              const halfWidth = cpW / 2;
+              const leftX = offsetX - halfWidth / 2;
+              const rightX = offsetX + halfWidth / 2;
+              const lp = new THREE.Mesh(new THREE.BoxGeometry(halfWidth - 0.05, thickness, cpL), getPanelMat(room.ceiling_color));
+              lp.position.set(leftX, ceilingYAt(leftX, pZ) - thickness / 2, pZ);
+              lp.rotation.z = slopeAngle;
+              const rp = new THREE.Mesh(new THREE.BoxGeometry(halfWidth - 0.05, thickness, cpL), getPanelMat(room.ceiling_color));
+              rp.position.set(rightX, ceilingYAt(rightX, pZ) - thickness / 2, pZ);
+              rp.rotation.z = -slopeAngle;
+              panelGroup.add(lp, rp);
+              _addPanelCyanFlash(lp, 'ceiling');
+              _addPanelCyanFlash(rp, 'ceiling');
+            } else {
+              const slopeAngle = Math.atan2(room.height_m - lowH, room.length_m / 2);
+              const halfLength = cpL / 2;
+              const frontZ = pZ - halfLength / 2;
+              const backZ = pZ + halfLength / 2;
+              const fp = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, halfLength - 0.05), getPanelMat(room.ceiling_color));
+              fp.position.set(offsetX, ceilingYAt(offsetX, frontZ) - thickness / 2, frontZ);
+              fp.rotation.x = -slopeAngle;
+              const bp = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, halfLength - 0.05), getPanelMat(room.ceiling_color));
+              bp.position.set(offsetX, ceilingYAt(offsetX, backZ) - thickness / 2, backZ);
+              bp.rotation.x = slopeAngle;
+              panelGroup.add(fp, bp);
+              _addPanelCyanFlash(fp, 'ceiling');
+              _addPanelCyanFlash(bp, 'ceiling');
+            }
+            roomGroup.add(panelGroup);
+
+          } else if (isSlanted) {
+            // Single panel tilted to follow the slope
+            const panelCeilY = ceilingYAt(offsetX, pZ);
+            const panel = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, cpL), getPanelMat(room.ceiling_color));
+            panel.position.set(offsetX, panelCeilY - thickness / 2, pZ);
+            const isZSlant = slantDir === "front_to_back" || slantDir === "back_to_front";
+            const span = isZSlant ? room.length_m : room.width_m;
+            const slopeAngle = Math.atan2(room.height_m - lowH, span);
+            if (isZSlant) panel.rotation.x = (slantDir === "back_to_front" ? -1 : 1) * slopeAngle;
+            else panel.rotation.z = (slantDir === "left_to_right" ? 1 : -1) * slopeAngle;
+            roomGroup.add(panel);
+            _addPanelCyanFlash(panel, 'ceiling');
+
+          } else {
+            // Flat: horizontal panel pressed against ceiling
+            const panel = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, cpL), getPanelMat(room.ceiling_color));
+            panel.position.set(offsetX, room.height_m / 2 - thickness / 2, pZ);
+            roomGroup.add(panel);
+            _addPanelCyanFlash(panel, 'ceiling');
+          }
 
         } else {
-          // Flat: horizontal panel pressed against ceiling
-          const panel = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, cpL), panelMat);
-          panel.position.set(offsetX, room.height_m / 2 - thickness / 2, midZ);
+          // ── HANGING (cloud): always a single HORIZONTAL panel ────────────────
+          const footprintCeilMin = Math.min(
+            ceilingYAt(offsetX - cpW / 2, pZ - cpL / 2),
+            ceilingYAt(offsetX + cpW / 2, pZ - cpL / 2),
+            ceilingYAt(offsetX - cpW / 2, pZ + cpL / 2),
+            ceilingYAt(offsetX + cpW / 2, pZ + cpL / 2)
+          );
+          const drop = room.ceiling_drop_m || 0.4;
+          const cloudY = footprintCeilMin - drop - thickness / 2;
+
+          const panel = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, cpL), getPanelMat(room.ceiling_color));
+          panel.rotation.set(0, 0, 0);
+          panel.position.set(offsetX, cloudY, pZ);
           roomGroup.add(panel);
           _addPanelCyanFlash(panel, 'ceiling');
+
+          const wireMat = new THREE.LineBasicMaterial({ color: 0x999999, transparent: true, opacity: 0.55 });
+          const panelTopY = cloudY + thickness / 2;
+          const hW2 = cpW / 2, hL2 = cpL / 2;
+          [
+            [offsetX - hW2, pZ - hL2],
+            [offsetX + hW2, pZ - hL2],
+            [offsetX - hW2, pZ + hL2],
+            [offsetX + hW2, pZ + hL2],
+          ].forEach(([wx, wz]) => {
+            const wireTop = ceilingYAt(wx, wz);
+            if (wireTop <= panelTopY) return;
+            roomGroup.add(new THREE.LineSegments(
+              new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(wx, panelTopY, wz),
+                new THREE.Vector3(wx, wireTop, wz),
+              ]),
+              wireMat
+            ));
+          });
         }
-
-      } else {
-        // ── HANGING (cloud): always a single HORIZONTAL panel ────────────────
-        // Position is LISTENER-RELATIVE, not ceiling-relative.
-        // ITU-R BS.1116: seated ear height = 1.1m above floor.
-        // Primacoustic / GIK / RPG: cloud bottom 0.6m above ears = 1.7m above floor.
-        // Cloud centre = 1.7m + thickness/2 = 1.75m above floor.
-        //
-        // Ceiling-relative approaches (e.g. ceilTop - 0.4m) put the cloud at
-        // 3.5m in a 4m room — far too high to intercept ceiling reflections.
-        const SEATED_EAR_H = 1.10;   // m above floor (ITU-R BS.1116 standard)
-        const EAR_CLEARANCE = 1.10;  // m above ears to cloud bottom (2.2m above floor)
-        const floorY = -room.height_m / 2;
-        // Lowest ceiling height under the cloud's actual footprint. ceilingYAt()
-        // returns the correct height for flat, slanted, and gable ceilings, so
-        // sampling the four footprint corners and taking the minimum clamps the
-        // (horizontal) cloud below the LOW edge of a slope — not the apex.
-        const footprintCeilMin = Math.min(
-          ceilingYAt(offsetX - cpW / 2, midZ - cpL / 2),
-          ceilingYAt(offsetX + cpW / 2, midZ - cpL / 2),
-          ceilingYAt(offsetX - cpW / 2, midZ + cpL / 2),
-          ceilingYAt(offsetX + cpW / 2, midZ + cpL / 2)
-        );
-        // Clamp: keep a small 0.08m clearance below the lowest ceiling point
-        // so the cloud rides close to the low edge of the slope (short wires)
-        const cloudY = Math.min(
-          floorY + SEATED_EAR_H + EAR_CLEARANCE + thickness / 2,
-          footprintCeilMin - 0.08 - thickness / 2
-        );
-
-        const panel = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, cpL), panelMat);
-        panel.rotation.set(0, 0, 0);   // always horizontal
-        panel.position.set(offsetX, cloudY, midZ);
-        roomGroup.add(panel);
-        // Cloud cyan flash tagged 'ceiling'. Known limitation: the
-        // image-source model bounces off the geometric ceiling, not the
-        // cloud — so a ceiling bounce can fire the cloud flash even when
-        // the bounce point is well to one side of the cloud's footprint.
-        _addPanelCyanFlash(panel, 'ceiling');
-
-        // Suspension wires: 4 corner wires, vertical, length driven by ceilingYAt.
-        // Works for flat / slanted / gabled — ceilingYAt returns the correct ceiling Y
-        // at any (x,z), so wires automatically lengthen as ceiling height increases.
-        const wireMat = new THREE.LineBasicMaterial({ color: 0x999999, transparent: true, opacity: 0.55 });
-        const panelTopY = cloudY + thickness / 2;
-        const hW2 = cpW / 2, hL2 = cpL / 2;
-        [
-          [offsetX - hW2, midZ - hL2],
-          [offsetX + hW2, midZ - hL2],
-          [offsetX - hW2, midZ + hL2],
-          [offsetX + hW2, midZ + hL2],
-        ].forEach(([wx, wz]) => {
-          const wireTop = ceilingYAt(wx, wz);
-          if (wireTop <= panelTopY) return;  // defensive: skip if ceiling at/below panel
-          roomGroup.add(new THREE.LineSegments(
-            new THREE.BufferGeometry().setFromPoints([
-              new THREE.Vector3(wx, panelTopY, wz),
-              new THREE.Vector3(wx, wireTop, wz),
-            ]),
-            wireMat
-          ));
-        });
       }
     }
 
     // --- SIDE PANELS ---
-    if (room.side_panel_mode !== "none" || simulatePanels) {
+    if (room.side_wall_mode !== "none" || simulatePanels) {
 
       const wallX = room.width_m / 2;
       const earY = -(room.height_m / 2) + (room.tweeter_height_m ?? 0.9);
@@ -4166,11 +4283,9 @@ export function initRoom3D({
       for (const side of [-1, 1]) {
 
         if (!simulatePanels) {
-
-          if (room.side_panel_mode === "left" && side === 1) continue;
-          if (room.side_panel_mode === "right" && side === -1) continue;
-          if (room.side_panel_mode === "none") continue;
-
+          if (room.side_wall_mode === "left" && side === 1) continue;
+          if (room.side_wall_mode === "right" && side === -1) continue;
+          if (room.side_wall_mode === "none") continue;
         }
 
         const spkZ = -room.length_m / 2 + room.spk_front_m;
@@ -4196,43 +4311,49 @@ export function initRoom3D({
         const spGap = spGeo?.panelGap ?? 0.04;
         const spThickness = spGeo?.thickness ?? 0.06;
         const spBaseLen = spGeo?.length ?? 0.90;
-        // Scale count with room length (same pattern as front/rear scaling by width):
-        //   ≤4 m → 1 panel   |   ~6 m → 2 panels   |   ~9 m → 3 panels
+        
         const spLength = Math.min(
           spBaseLen * Math.max(1, room.length_m / 4.0),
-          room.length_m * 0.45          // never more than 45 % of the wall length
+          room.length_m * 0.45
         );
 
-        // Panel count + centred span — same formula as the front/rear builder.
-        // side_panel_count lets a consumer pin the per-side panel count;
-        // absent (null) preserves the original length-derived scaling so
-        // web and retail render identically.
-        const spCount = (room.side_panel_count != null)
-          ? Math.max(1, Math.floor(room.side_panel_count))
+        const spCount = (room.side_wall_count != null)
+          ? Math.max(1, Math.floor(room.side_wall_count))
           : Math.max(1, Math.floor((spLength + spGap) / (spW + spGap)));
         const spTotalSpan = spCount * spW + (spCount - 1) * spGap;
-        // spGeo3 is the full-height geometry — may be replaced per-panel below if ceiling clips
-        const spGeo3Full = new THREE.BoxGeometry(spThickness, spH_panel, spW);
+
+        // Clamp the group center so panels don't clip through the front or rear walls,
+        // or through the bass traps if they are present in the corners.
+        const trapLeg = window.MeasurelyTreatment?.GEOMETRY?.bass_trap?.legSize ?? 0.3;
+        const frontClearance = (room.bass_trap_mode === 'front' || room.bass_trap_mode === 'all') ? trapLeg + 0.05 : 0.05;
+        const rearClearance = (room.bass_trap_mode === 'rear' || room.bass_trap_mode === 'all') ? trapLeg + 0.05 : 0.05;
+
+        const minZ = -room.length_m / 2 + spTotalSpan / 2 + frontClearance;
+        const maxZ =  room.length_m / 2 - spTotalSpan / 2 - rearClearance;
+        
+        // If the span is longer than the entire room, center it to minimise clipping.
+        const groupCenterZ = (minZ > maxZ) 
+          ? 0 
+          : Math.max(minZ, Math.min(maxZ, bouncePoint.z));
 
         for (let i = 0; i < spCount; i++) {
-          const pz = bouncePoint.z - spTotalSpan / 2 + spW / 2 + i * (spW + spGap);
+          const pz = groupCenterZ - spTotalSpan / 2 + spW / 2 + i * (spW + spGap);
 
-          // Clamp panel top to ceiling at this exact wall + Z position.
-          // ceilingYAt() handles flat, slanted, and gabled profiles correctly.
           const wallCeilY = ceilingYAt(side * (wallX - spThickness / 2), pz);
           const spFloor = -room.height_m / 2;
-          const spCentreY = spFloor + (room.tweeter_height_m ?? 0.95); // ear height from floor
-          const panelBot = spCentreY - spH_panel / 2;                 // bottom of full-height panel
+          const spCentreY = spFloor + (room.tweeter_height_m ?? 0.95);
+          const panelBot = spCentreY - spH_panel / 2;
           const panelTop = Math.min(spCentreY + spH_panel / 2, wallCeilY - 0.04);
           const effH = Math.max(0.10, panelTop - panelBot);
-          const geo = effH < spH_panel - 0.01
-            ? new THREE.BoxGeometry(spThickness, effH, spW)  // ceiling-clamped geometry
-            : spGeo3Full;                                     // full height — reuse shared geometry
 
-          const mesh = new THREE.Mesh(geo, panelMat);
-          mesh.position.set(side * (wallX - spThickness / 2), panelBot + effH / 2, pz);
-          roomGroup.add(mesh);
-          _addPanelCyanFlash(mesh, side === -1 ? 'left' : 'right');
+          const panelGroup = createPanelGroup(room.side_wall_style, spW, effH, spThickness, room.side_wall_color);
+          panelGroup.position.set(side * (wallX - spThickness / 2), panelBot + effH / 2, pz);
+          
+          // Left wall faces +X (Math.PI/2), Right wall faces -X (-Math.PI/2)
+          panelGroup.rotation.y = side === -1 ? Math.PI / 2 : -Math.PI / 2;
+
+          roomGroup.add(panelGroup);
+          _addPanelCyanFlash(panelGroup, side === -1 ? 'left' : 'right');
         }
       }
 
