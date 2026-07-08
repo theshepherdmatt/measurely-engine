@@ -4059,67 +4059,44 @@ export function initRoom3D({
         let trapShape = isFront ? room.front_corners_shape : room.rear_corners_shape;
         const hexColor = isFront ? room.front_corners_color : room.rear_corners_color;
 
-        // Height: scale to sloped ceiling at this exact corner
-        const rawTrapH = room.height_m * trapHFr;
+        const isHalf = trapShape === 'triangle_half' || trapShape === 'square_half';
+        const isSquare = trapShape === 'two_towers' || trapShape === 'square_half';
+
+        // Height: half-traps are ~1.2m, full traps scale to ceiling
+        const rawTrapH = isHalf ? 1.2 : room.height_m * trapHFr;
         let localCeilH = rawTrapH;
-        if (hasSlopedCeiling) {
+        
+        if (!isHalf && hasSlopedCeiling) {
           const localCeilY = ceilingYAt(cx, cz);
           const localHeight = localCeilY - floorY;
           localCeilH = Math.max(0.1, localHeight * trapHFr);
         }
-        const maxSafeH = Math.max(0.1, hasSlopedCeiling
-          ? ceilingYAt(cx, cz) - floorY
-          : room.height_m);
-        localCeilH = Math.min(localCeilH, maxSafeH * 0.95); // 5% clearance from ceiling
-
-        // Shape branch — localCeilH (height) is identical across all three
-        // shapes; only footprint geometry and rotation differ below.
-        // Any value other than 'column'/'cylinder' falls back to the
-        // existing triangle (the ?? at unpack time only catches
-        // null/undefined, not an unrecognised string, so that fallback
-        // is enforced here).
-        trapShape = (trapShape === 'column' || trapShape === 'cylinder')
-          ? trapShape
-          : 'triangle';
+        
+        if (isHalf) {
+          localCeilH = Math.min(localCeilH, room.height_m * 0.95);
+        } else {
+          const maxSafeH = Math.max(0.1, hasSlopedCeiling
+            ? ceilingYAt(cx, cz) - floorY
+            : room.height_m);
+          localCeilH = Math.min(localCeilH, maxSafeH * 0.95); // 5% clearance from ceiling
+        }
 
         let geo;
-        if (trapShape === 'column') {
-          // Square column: ~0.3m x 0.3m footprint — approximate, pending
-          // real Anthill dimensions.
+        if (isSquare) {
+          // Square column: ~0.3m x 0.3m footprint
           geo = new THREE.BoxGeometry(0.3, localCeilH, 0.3);
-        } else if (trapShape === 'cylinder') {
-          // ~0.15m radius — approximate, pending real Anthill dimensions.
-          // r128 has no CapsuleGeometry, so CylinderGeometry is correct here.
-          geo = new THREE.CylinderGeometry(0.15, 0.15, localCeilH, 24);
         } else {
           geo = _makeCornerTrapGeo(trapLeg, localCeilH);
         }
 
         const mesh = new THREE.Mesh(geo, getPanelMat(hexColor));
-        if (trapShape === 'triangle') {
-          // Right-angle vertex sits exactly at the wall corner; no box-centre offset needed
+        if (!isSquare) {
+          // Triangle sits exactly at the wall corner; no box-centre offset needed
           mesh.position.set(offsetX + cx, floorY, cz);
           mesh.rotation.y = rotY;
         } else {
-          // Column / cylinder: BoxGeometry and CylinderGeometry are both
-          // centre-origin (unlike the triangle, whose vertices start at its
-          // own bottom), so lifting by localCeilH/2 puts the base at the
-          // floor. No rotation: the column is symmetric about its own
-          // centre and the cylinder is rotationally symmetric about Y, so
-          // neither needs rotY — that value exists only to compensate for
-          // the triangle's off-centre origin, which these shapes don't have.
-          //
-          // Unlike the triangle (whose vertex-at-origin geometry already
-          // sits flush at the corner), a centre-origin shape placed AT the
-          // raw corner point pokes half its footprint through both walls.
-          // Nudge it inward by half its footprint — column: half its 0.3m
-          // width (0.15m); cylinder: its 0.15m radius — tied to the same
-          // literals used above, so this inset stays correct once real
-          // Anthill dimensions replace the approximations. Math.sign(cx)/
-          // (cz) is the direction from room centre to this corner;
-          // subtracting it moves the centre back toward the room, correctly
-          // for all 4 corners.
-          const inset = trapShape === 'column' ? 0.3 / 2 : 0.15;
+          // Square BoxGeometry is centre-origin
+          const inset = 0.3 / 2;
           const cxIn = cx - Math.sign(cx) * inset;
           const czIn = cz - Math.sign(cz) * inset;
           mesh.position.set(offsetX + cxIn, floorY + localCeilH / 2, czIn);
