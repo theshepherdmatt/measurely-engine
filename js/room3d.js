@@ -1406,6 +1406,13 @@ export function initRoom3D({
       if (room.desk_style === 'production') {
         room.desk_width_m = Math.max(room.desk_width_m, 2.4);
       }
+
+      // Studio chair sits exactly 1.0m behind the speakers, so it moves when the 
+      // desk moves back and forth, but NOT when the speakers are made wider.
+      room.listener_front_m = Math.min(
+        (room.spk_front_m ?? 0.45) + 1.0,
+        room.length_m - 0.30
+      );
     }
 
     // 3. MASTER SWITCHES
@@ -3629,8 +3636,8 @@ export function initRoom3D({
             const standBase = _ghostBox(0.30, 0.02, 0.20);
             standBase.position.y = riserBotY + THICK/2 + 0.01;
             uwGroup.add(standBase);
-            const standPole = _ghostBox(0.04, 0.15, 0.04);
-            standPole.position.set(0, riserBotY + THICK/2 + 0.08, -0.05);
+            const standPole = _ghostBox(0.04, 0.30, 0.04);
+            standPole.position.set(0, riserBotY + THICK/2 + 0.15, -0.05);
             uwGroup.add(standPole);
             
             // Calculate max width for monitor so it doesn't clip into the racks
@@ -3639,7 +3646,7 @@ export function initRoom3D({
             const safeMonitorW = Math.max(0.4, Math.min(1.10, availableGap - 0.1));
             
             const uwMonitor = _ghostBox(safeMonitorW, 0.38, 0.03); 
-            uwMonitor.position.set(0, riserBotY + THICK/2 + 0.20, 0.0);
+            uwMonitor.position.set(0, riserBotY + THICK/2 + 0.35, 0.0);
             uwMonitor.rotation.x = -Math.PI / 32; // tilted up slightly
             uwGroup.add(uwMonitor);
             
