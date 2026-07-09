@@ -4089,7 +4089,7 @@ export function initRoom3D({
 
     const buildWallPanels = (mode, count, style, hexColor, wallZ, facingDir, panelH = wpH, panelCenterY = null) => {
       if (mode === "none") return;
-      const c = count ?? 4;
+      let c = count ?? 4;
       
       const isFront = wallZ < 0;
       const trapLeg = window.MeasurelyTreatment?.GEOMETRY?.bass_trap?.legSize ?? 0.42;
@@ -4097,21 +4097,24 @@ export function initRoom3D({
         ? (room.front_corners_mode && room.front_corners_mode !== 'none') || room.bass_trap_mode === 'front' || room.bass_trap_mode === 'all'
         : (room.rear_corners_mode && room.rear_corners_mode !== 'none') || room.bass_trap_mode === 'rear' || room.bass_trap_mode === 'all';
       const availableW = room.width_m - (hasTraps ? trapLeg * 2 : 0) - 0.1; // 10cm padding total
+      
+      // Reduce panel count until they fit without overlapping
+      while (c > 1 && (c * wpW + (c - 1) * wpGap) > availableW) {
+        c--;
+      }
+
       const maxOffset = (availableW - wpW) / 2;
 
       let panelOffsetsX;
       if (c === 2) {
         const offset = Math.min(room.spk_spacing_m / 2, maxOffset);
-        panelOffsetsX = [-offset, offset];
+        const minOffset = (wpW + wpGap) / 2;
+        const finalOffset = Math.max(offset, minOffset);
+        panelOffsetsX = [-finalOffset, finalOffset];
       } else {
-        const idealSpan = c * wpW + (c - 1) * wpGap;
-        let actualGap = wpGap;
-        if (idealSpan > availableW && c > 1) {
-          actualGap = (availableW - c * wpW) / (c - 1);
-        }
-        const totalSpan = c * wpW + (c - 1) * actualGap;
+        const totalSpan = c * wpW + (c - 1) * wpGap;
         panelOffsetsX = Array.from({ length: c }, (_, i) => {
-          return -totalSpan / 2 + wpW / 2 + i * (wpW + actualGap);
+          return -totalSpan / 2 + wpW / 2 + i * (wpW + wpGap);
         });
       }
           
