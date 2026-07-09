@@ -5615,7 +5615,7 @@ export function initRoom3D({
       // so the user can preview treatment.
       const sideMode = room.side_panel_mode    || 'none';
       const wallMode = room.wall_panel_mode    || 'none';
-      const ceilMode = room.ceiling_panel_mode || 'none';
+      const ceilMode = room.ceiling_panel_mode || room.ceiling_mode || 'none';
       const floorMat = room.floor_material     || 'hard';
 
       // Floor treatment = whole-floor carpet OR a discrete area rug between
@@ -5626,10 +5626,10 @@ export function initRoom3D({
         : {
             floor:   floorMat === 'carpet' || (room.opt_area_rug ?? false),
             ceiling: ceilMode !== 'none',
-            left:    sideMode === 'left'  || sideMode === 'both',
-            right:   sideMode === 'right' || sideMode === 'both',
-            front:   wallMode === 'front' || wallMode === 'both',
-            back:    wallMode === 'rear'  || wallMode === 'both',
+            left:    sideMode === 'left'  || sideMode === 'both' || room.side_wall_mode === 'left' || room.side_wall_mode === 'both',
+            right:   sideMode === 'right' || sideMode === 'both' || room.side_wall_mode === 'right' || room.side_wall_mode === 'both',
+            front:   wallMode === 'front' || wallMode === 'both' || (room.front_wall_mode && room.front_wall_mode !== 'none'),
+            back:    wallMode === 'rear'  || wallMode === 'both' || (room.rear_wall_mode && room.rear_wall_mode !== 'none'),
           };
 
       // ── Measurement context ─────────────────────────────────────────────
