@@ -2128,7 +2128,7 @@ export function initRoom3D({
         const spkColor = isSpkHighlit ? 0x0f766e : profile.color;
         const spkOpacity = isSpkHighlit ? 0.9 : Math.max(OP_OBJ, 0.80);
 
-        const speaker = (room.room_type === 'studio' && room.desk_style === 'production')
+        const speaker = (room.room_type === 'studio' && room.speaker_orientation === 'horizontal')
           ? _buildHorizontalStudioMonitor(0.64, 0.26, 0.32, spkColor, spkOpacity)
           : profile.isStatement
             ? _buildStatementSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
