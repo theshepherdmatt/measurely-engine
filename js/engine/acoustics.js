@@ -194,6 +194,12 @@ function computeRoomModes(room, maxModes = 15, maxFreqHz = 600) {
  */
 function computeSbir(room) {
     const d_front = parseFloat(_get(room, 'spk_front_m', 0));
+    let d_list = parseFloat(_get(room, 'listener_front_m', 0));
+    if (d_list <= 0) {
+        const spacing = parseFloat(_get(room, 'spk_spacing_m', 2.0));
+        d_list = d_front + (spacing * Math.sqrt(3)) / 2;
+    }
+    
     const result  = {
         front_wall: { distance_m: null, nulls_hz: [] },
         ceiling:    { distance_m: null, nulls_hz: [] },
@@ -242,7 +248,11 @@ function computeSbir(room) {
 
     if (d_ceil > 0) {
         let pathDiff = 0;
-        const d_list = parseFloat(_get(room, 'listener_front_m', 0));
+        let d_list = parseFloat(_get(room, 'listener_front_m', 0));
+        if (d_list <= 0) {
+            const spacing = parseFloat(_get(room, 'spk_spacing_m', 2.0));
+            d_list = d_front + (spacing * Math.sqrt(3)) / 2;
+        }
         const spk_x = parseFloat(_get(room, 'spk_spacing_m', 0)) / 2;
         const list_x = parseFloat(_get(room, 'listener_offset_m', 0));
         const D_horiz = Math.hypot(spk_x - list_x, Math.abs(d_list - d_front));
@@ -278,19 +288,21 @@ function computeSbir(room) {
  * @returns {{ ideal: boolean, ratio: number|null, penalty: number }}
  */
 function computeTriangle(room) {
-    const spacing  = parseFloat(_get(room, 'spk_spacing_m', 0));
-    const listener_front = parseFloat(_get(room, 'listener_front_m', 0));
-    const spk_front = parseFloat(_get(room, 'spk_front_m', 0));
+    const d_front = parseFloat(_get(room, 'spk_front_m', 0));
+    let d_list = parseFloat(_get(room, 'listener_front_m', 0));
+    const spk_w = parseFloat(_get(room, 'spk_spacing_m', 0));
     
-    // Triangle depth is the orthogonal distance from listener to speaker baseline
-    const depth = listener_front - spk_front;
+    if (d_list <= 0 && spk_w > 0) {
+        d_list = d_front + (spk_w * Math.sqrt(3)) / 2;
+    }
 
-    if (spacing <= 0 || depth <= 0) {
+    const depth = d_list - d_front;
+    if (spk_w <= 0 || depth <= 0) {
         return { ideal: false, ratio: null, penalty: 2 };
     }
 
     // Ideal ratio for an equilateral triangle is sqrt(3)/2 ≈ 0.866
-    const ratio = depth / spacing;
+    const ratio = depth / spk_w;
     let penalty;
     if      (ratio >= 0.76 && ratio <= 0.96) penalty = 0; // +/- 0.1 from 0.866
     else if (ratio >= 0.65 && ratio <= 1.10) penalty = 1;
@@ -526,14 +538,23 @@ function predictRT60(dimensions, surfaceMaterials, options = {}) {
     };
     const V = length * width * height;
 
-    // Resolve a material object per surface, with fallback for null/unresolved IDs.
+    // Resolve materials. A surface can be a single material ID (string) covering 100% of the area,
+    // or an array of patches: [{ id: 'mat1', area: 5 }, { id: 'mat2', area: 3 }].
     const resolved = {};
     for (const key of Object.keys(areas)) {
-        const id = surfaceMaterials ? surfaceMaterials[key] : null;
-        let mat = null;
-        if (typeof id === 'string' && id.length) mat = mats.getMaterial(id) || null;
-        if (!mat) mat = fallbackMat || null;
-        resolved[key] = mat;
+        const entry = surfaceMaterials ? surfaceMaterials[key] : null;
+        if (Array.isArray(entry)) {
+            resolved[key] = entry.map(patch => ({
+                mat: mats.getMaterial(patch.id) || fallbackMat || null,
+                area: patch.area
+            }));
+        } else {
+            const id = entry;
+            let mat = null;
+            if (typeof id === 'string' && id.length) mat = mats.getMaterial(id) || null;
+            if (!mat) mat = fallbackMat || null;
+            resolved[key] = [{ mat, area: areas[key] }];
+        }
     }
 
     const out = {};
@@ -541,11 +562,13 @@ function predictRT60(dimensions, surfaceMaterials, options = {}) {
         let A = 0;
         let degenerate = false;
         for (const key of Object.keys(areas)) {
-            const mat = resolved[key];
-            if (!mat) { degenerate = true; break; }
-            const alpha = mats.alphaAt(mat, f, { clamp: true });
-            if (alpha === null || !Number.isFinite(alpha)) { degenerate = true; break; }
-            A += areas[key] * alpha;
+            for (const patch of resolved[key]) {
+                if (!patch.mat) { degenerate = true; break; }
+                const alpha = mats.alphaAt(patch.mat, f, { clamp: true });
+                if (alpha === null || !Number.isFinite(alpha)) { degenerate = true; break; }
+                A += patch.area * alpha;
+            }
+            if (degenerate) break;
         }
         out[String(f)] = (degenerate || !(A > 0)) ? null : (0.161 * V / A);
     }

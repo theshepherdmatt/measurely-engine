@@ -1334,6 +1334,7 @@ export function initRoom3D({
       ceiling_count: treat.ceiling_count ?? env.ceiling_count ?? 1,
       ceiling_size: treat.ceiling_size ?? env.ceiling_size ?? "mini",
       ceiling_drop_m: treat.ceiling_drop_m ?? env.ceiling_drop_m ?? 0.4,
+      ceiling_direction: treat.ceiling_direction ?? env.ceiling_direction ?? "landscape",
 
       front_corners_mode: treat.front_corners_mode ?? env.front_corners_mode ?? "none",
       front_corners_shape: treat.front_corners_shape ?? env.front_corners_shape ?? 'triangle',
@@ -1396,16 +1397,16 @@ export function initRoom3D({
     if (isStudio) {
       if (room.spk_placement === 'stands') room.spk_placement = 'desk_stands';
 
-      // The production desk is massive; force the base desk width so speakers scale out
+      const SPEAKER_X_INSET = 0.10; // m — fixed structural margin, speaker centre to desk edge
+      
+      // Let the user's "Speaker spacing" slider drive the width of the desk,
+      // rather than locking the speakers to a fixed desk width.
+      room.desk_width_m = (room.spk_spacing_m ?? 2.0) + 2 * SPEAKER_X_INSET + 2 * (room.spk_inset_m ?? 0.20);
+      
       if (room.desk_style === 'production') {
-        room.desk_width_m = Math.max(room.desk_width_m ?? 1.6, 2.4);
+        room.desk_width_m = Math.max(room.desk_width_m, 2.4);
       }
 
-      const SPEAKER_X_INSET = 0.10; // m — fixed structural margin, speaker centre to desk edge
-      room.spk_spacing_m = Math.max(
-        0.20,
-        (room.desk_width_m ?? 1.6) - 2 * SPEAKER_X_INSET - 2 * room.spk_inset_m
-      );
       const _studioChairOffset = room.spk_spacing_m * Math.sqrt(3) / 2;
       // Clamp the chair against the back wall — 30 cm clearance.
       room.listener_front_m = Math.min(
@@ -4257,18 +4258,36 @@ export function initRoom3D({
 
       const cCount = room.ceiling_count || 1;
       const cGap = 0.2;
-      const cTotalL = cCount * cpL + (cCount - 1) * cGap;
+      let startZ, startX, stepZ, stepX;
       
       const frontClearance = 0.05;
       const rearClearance = 0.05;
-      const minZ = -room.length_m / 2 + cTotalL / 2 + frontClearance;
-      const maxZ =  room.length_m / 2 - cTotalL / 2 - rearClearance;
-      const groupCenterZ = (minZ > maxZ) ? 0 : Math.max(minZ, Math.min(maxZ, midZ));
-      
-      const startZ = groupCenterZ - cTotalL / 2 + cpL / 2;
+
+      if (room.ceiling_direction === 'portrait') {
+        const cTotalW = cCount * cpW + (cCount - 1) * cGap;
+        const minZ = -room.length_m / 2 + cpL / 2 + frontClearance;
+        const maxZ =  room.length_m / 2 - cpL / 2 - rearClearance;
+        const groupCenterZ = (minZ > maxZ) ? 0 : Math.max(minZ, Math.min(maxZ, midZ));
+        
+        startZ = groupCenterZ;
+        startX = offsetX - cTotalW / 2 + cpW / 2;
+        stepZ = 0;
+        stepX = cpW + cGap;
+      } else {
+        const cTotalL = cCount * cpL + (cCount - 1) * cGap;
+        const minZ = -room.length_m / 2 + cTotalL / 2 + frontClearance;
+        const maxZ =  room.length_m / 2 - cTotalL / 2 - rearClearance;
+        const groupCenterZ = (minZ > maxZ) ? 0 : Math.max(minZ, Math.min(maxZ, midZ));
+        
+        startZ = groupCenterZ - cTotalL / 2 + cpL / 2;
+        startX = offsetX;
+        stepZ = cpL + cGap;
+        stepX = 0;
+      }
 
       for (let i = 0; i < cCount; i++) {
-        const pZ = startZ + i * (cpL + cGap);
+        const pZ = startZ + i * stepZ;
+        const pX = startX + i * stepX;
 
         if (isFlush) {
           // ── FLUSH: panels follow the ceiling surface ──────────────────────────
@@ -4278,8 +4297,8 @@ export function initRoom3D({
             if (gableAxis === "depth") {
               const slopeAngle = Math.atan2(room.height_m - lowH, room.width_m / 2);
               const halfWidth = cpW / 2;
-              const leftX = offsetX - halfWidth / 2;
-              const rightX = offsetX + halfWidth / 2;
+              const leftX = pX - halfWidth / 2;
+              const rightX = pX + halfWidth / 2;
               const lp = new THREE.Mesh(new THREE.BoxGeometry(halfWidth - 0.05, thickness, cpL), getPanelMat(room.ceiling_color));
               lp.position.set(leftX, ceilingYAt(leftX, pZ) - thickness / 2, pZ);
               lp.rotation.z = slopeAngle;
@@ -4295,10 +4314,10 @@ export function initRoom3D({
               const frontZ = pZ - halfLength / 2;
               const backZ = pZ + halfLength / 2;
               const fp = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, halfLength - 0.05), getPanelMat(room.ceiling_color));
-              fp.position.set(offsetX, ceilingYAt(offsetX, frontZ) - thickness / 2, frontZ);
+              fp.position.set(pX, ceilingYAt(pX, frontZ) - thickness / 2, frontZ);
               fp.rotation.x = -slopeAngle;
               const bp = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, halfLength - 0.05), getPanelMat(room.ceiling_color));
-              bp.position.set(offsetX, ceilingYAt(offsetX, backZ) - thickness / 2, backZ);
+              bp.position.set(pX, ceilingYAt(pX, backZ) - thickness / 2, backZ);
               bp.rotation.x = slopeAngle;
               panelGroup.add(fp, bp);
               _addPanelCyanFlash(fp, 'ceiling');
@@ -4308,9 +4327,9 @@ export function initRoom3D({
 
           } else if (isSlanted) {
             // Single panel tilted to follow the slope
-            const panelCeilY = ceilingYAt(offsetX, pZ);
+            const panelCeilY = ceilingYAt(pX, pZ);
             const panel = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, cpL), getPanelMat(room.ceiling_color));
-            panel.position.set(offsetX, panelCeilY - thickness / 2, pZ);
+            panel.position.set(pX, panelCeilY - thickness / 2, pZ);
             const isZSlant = slantDir === "front_to_back" || slantDir === "back_to_front";
             const span = isZSlant ? room.length_m : room.width_m;
             const slopeAngle = Math.atan2(room.height_m - lowH, span);
@@ -4322,7 +4341,7 @@ export function initRoom3D({
           } else {
             // Flat: horizontal panel pressed against ceiling
             const panel = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, cpL), getPanelMat(room.ceiling_color));
-            panel.position.set(offsetX, room.height_m / 2 - thickness / 2, pZ);
+            panel.position.set(pX, room.height_m / 2 - thickness / 2, pZ);
             roomGroup.add(panel);
             _addPanelCyanFlash(panel, 'ceiling');
           }
@@ -4330,17 +4349,17 @@ export function initRoom3D({
         } else {
           // ── HANGING (cloud): always a single HORIZONTAL panel ────────────────
           const footprintCeilMin = Math.min(
-            ceilingYAt(offsetX - cpW / 2, pZ - cpL / 2),
-            ceilingYAt(offsetX + cpW / 2, pZ - cpL / 2),
-            ceilingYAt(offsetX - cpW / 2, pZ + cpL / 2),
-            ceilingYAt(offsetX + cpW / 2, pZ + cpL / 2)
+            ceilingYAt(pX - cpW / 2, pZ - cpL / 2),
+            ceilingYAt(pX + cpW / 2, pZ - cpL / 2),
+            ceilingYAt(pX - cpW / 2, pZ + cpL / 2),
+            ceilingYAt(pX + cpW / 2, pZ + cpL / 2)
           );
           const drop = room.ceiling_drop_m || 0.4;
           const cloudY = footprintCeilMin - drop - thickness / 2;
 
           const panel = new THREE.Mesh(new THREE.BoxGeometry(cpW, thickness, cpL), getPanelMat(room.ceiling_color));
           panel.rotation.set(0, 0, 0);
-          panel.position.set(offsetX, cloudY, pZ);
+          panel.position.set(pX, cloudY, pZ);
           roomGroup.add(panel);
           _addPanelCyanFlash(panel, 'ceiling');
 
@@ -4348,10 +4367,10 @@ export function initRoom3D({
           const panelTopY = cloudY + thickness / 2;
           const hW2 = cpW / 2, hL2 = cpL / 2;
           [
-            [offsetX - hW2, pZ - hL2],
-            [offsetX + hW2, pZ - hL2],
-            [offsetX - hW2, pZ + hL2],
-            [offsetX + hW2, pZ + hL2],
+            [pX - hW2, pZ - hL2],
+            [pX + hW2, pZ - hL2],
+            [pX - hW2, pZ + hL2],
+            [pX + hW2, pZ + hL2],
           ].forEach(([wx, wz]) => {
             const wireTop = ceilingYAt(wx, wz);
             if (wireTop <= panelTopY) return;

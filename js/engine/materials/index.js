@@ -22,6 +22,8 @@ function _loadDatabase() {
     if (_database !== null) return _database;
     if (typeof require !== 'undefined') {
         _database = require('./database.json');
+    } else if (typeof window !== 'undefined' && window.MeasurelyMaterialsDB) {
+        _database = window.MeasurelyMaterialsDB;
     } else {
         _database = [];
     }
@@ -218,6 +220,17 @@ if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.m
 // ---------------------------------------------------------------------------
 if (typeof module !== 'undefined') {
     module.exports = {
+        getMaterial,
+        listMaterials,
+        alphaAt,
+        reflectionMagnitude,
+        OCTAVE_BANDS,
+        ALPHA_CLAMP_MAX,
+    };
+}
+
+if (typeof window !== 'undefined') {
+    window.MeasurelyMaterials = {
         getMaterial,
         listMaterials,
         alphaAt,

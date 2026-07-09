@@ -59,44 +59,90 @@ function _extractTreatment(demoState) {
 }
 
 function getRoomSurfaceMaterials(demoState) {
-    const out = {
-        floor:     FLOOR_ID,
-        ceiling:   DRYWALL_ID,
-        frontWall: DRYWALL_ID,
-        backWall:  DRYWALL_ID,
-        leftWall:  DRYWALL_ID,
-        rightWall: DRYWALL_ID,
-    };
-
     const T = _treatmentsModule();
     const profiles = (T && T.TREATMENT_PROFILES) || {};
     const wallId = profiles.wall_panel    && profiles.wall_panel.materialId    || null;
     const sideId = profiles.side_panel    && profiles.side_panel.materialId    || null;
     const ceilId = profiles.ceiling_panel && profiles.ceiling_panel.materialId || null;
+    const bassId = profiles.bass_trap     && profiles.bass_trap.materialId     || null;
 
     const t = _extractTreatment(demoState);
 
+    const L = (demoState && demoState.geometry && demoState.geometry.length_m) || 5;
+    const W = (demoState && demoState.geometry && demoState.geometry.width_m) || 4;
+    const H = (demoState && demoState.geometry && demoState.geometry.height_m) || 3;
+    const spkSpacing = (demoState && demoState.setup && demoState.setup.spk_spacing_m) || 1.2;
+
+    const out = {
+        floor:     [{ id: FLOOR_ID, area: L * W }],
+        ceiling:   [{ id: DRYWALL_ID, area: L * W }],
+        frontWall: [{ id: DRYWALL_ID, area: W * H }],
+        backWall:  [{ id: DRYWALL_ID, area: W * H }],
+        leftWall:  [{ id: DRYWALL_ID, area: L * H }],
+        rightWall: [{ id: DRYWALL_ID, area: L * H }],
+    };
+
+    function addTreatment(surface, id, area) {
+        if (!id) return;
+        let base = out[surface].find(p => p.id === DRYWALL_ID);
+        if (base) {
+            base.area = Math.max(0, base.area - area);
+        }
+        out[surface].push({ id, area });
+    }
+
+    // Front Wall / Rear Wall
     if (wallId) {
-        if (t.wall_panel_mode === 'front' || t.wall_panel_mode === 'both') out.frontWall = wallId;
-        if (t.wall_panel_mode === 'rear'  || t.wall_panel_mode === 'both') out.backWall  = wallId;
-    }
-    if (sideId) {
-        if (t.side_panel_mode === 'left'  || t.side_panel_mode === 'both') out.leftWall  = sideId;
-        if (t.side_panel_mode === 'right' || t.side_panel_mode === 'both') out.rightWall = sideId;
-    }
-    if (ceilId) {
-        // TODO: 'cloud' is acoustically an air-gap mount (≈ ASTM E-mount)
-        // and 'flush' is a direct-attach mount (≈ A/B). They should resolve
-        // to different mounted variants of the same product. For this first
-        // cut both collapse to the same ceiling-panel materialId.
-        if (t.ceiling_panel_mode === 'cloud' || t.ceiling_panel_mode === 'flush') {
-            out.ceiling = ceilId;
+        const legacyWall = t.wall_panel_mode && t.wall_panel_mode !== 'none';
+        const fwOn = (t.front_wall_mode === 'on') || (legacyWall && (t.wall_panel_mode === 'front' || t.wall_panel_mode === 'both'));
+        const rwOn = (t.rear_wall_mode === 'on') || (legacyWall && (t.wall_panel_mode === 'rear' || t.wall_panel_mode === 'both'));
+
+        if (fwOn) {
+            const count = t.front_wall_count || t.wall_panel_count || 4;
+            addTreatment('frontWall', wallId, count * (0.6 * 1.2));
+        }
+        if (rwOn) {
+            const count = t.rear_wall_count || t.wall_panel_count || 4;
+            addTreatment('backWall', wallId, count * (0.6 * 1.2));
         }
     }
-    // TODO: bass_trap_mode is intentionally ignored in this first cut.
-    // Corner bass traps add absorption area beyond a flat-surface S·α model
-    // (a "J-mount" Sabin-per-unit term), which predictRT60 does not yet
-    // expose. The retail UI also hides this toggle today.
+
+    // Side Walls
+    if (sideId) {
+        const legacySide = t.side_panel_mode && t.side_panel_mode !== 'none';
+        const lOn = (t.side_wall_mode === 'left' || t.side_wall_mode === 'both') || (legacySide && (t.side_panel_mode === 'left' || t.side_panel_mode === 'both'));
+        const rOn = (t.side_wall_mode === 'right' || t.side_wall_mode === 'both') || (legacySide && (t.side_panel_mode === 'right' || t.side_panel_mode === 'both'));
+        const countPerSide = t.side_wall_count || 1;
+        const area = countPerSide * (0.6 * 1.2);
+        
+        if (lOn) addTreatment('leftWall', sideId, area);
+        if (rOn) addTreatment('rightWall', sideId, area);
+    }
+
+    // Ceiling
+    if (ceilId) {
+        const cOn = (t.ceiling_mode === 'cloud' || t.ceiling_mode === 'flush' || t.ceiling_mode === 'on') || 
+                    (t.ceiling_panel_mode === 'cloud' || t.ceiling_panel_mode === 'flush');
+        if (cOn) {
+            const cpW = Math.min(spkSpacing * 1.6, W * 0.8);
+            const cpL = L * 0.28;
+            addTreatment('ceiling', ceilId, cpW * cpL);
+        }
+    }
+
+    // Bass Traps
+    if (bassId) {
+        const legacyBass = t.bass_trap_mode && t.bass_trap_mode !== 'none';
+        const frontBassOn = (t.front_corners_mode && t.front_corners_mode !== 'none') || (legacyBass && (t.bass_trap_mode === 'front' || t.bass_trap_mode === 'all'));
+        const rearBassOn = (t.rear_corners_mode && t.rear_corners_mode !== 'none') || (legacyBass && (t.bass_trap_mode === 'rear' || t.bass_trap_mode === 'all'));
+        
+        const hypotenuse = Math.sqrt(0.42 * 0.42 + 0.42 * 0.42);
+        const trapHeight = H * 0.75;
+        const areaPerTrap = hypotenuse * trapHeight;
+        
+        if (frontBassOn) addTreatment('frontWall', bassId, areaPerTrap * 2);
+        if (rearBassOn)  addTreatment('backWall', bassId, areaPerTrap * 2);
+    }
 
     return out;
 }
@@ -141,12 +187,12 @@ if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.m
     // (1) Untreated demoState → drywall walls/ceiling, hardwood floor.
     {
         const a = getRoomSurfaceMaterials(baseDemo);
-        if (a.floor     !== 'hardwood-floor')   fail('(1) floor = '     + a.floor);
-        if (a.ceiling   !== 'painted-drywall')  fail('(1) ceiling = '   + a.ceiling);
-        if (a.frontWall !== 'painted-drywall')  fail('(1) frontWall = ' + a.frontWall);
-        if (a.backWall  !== 'painted-drywall')  fail('(1) backWall = '  + a.backWall);
-        if (a.leftWall  !== 'painted-drywall')  fail('(1) leftWall = '  + a.leftWall);
-        if (a.rightWall !== 'painted-drywall')  fail('(1) rightWall = ' + a.rightWall);
+        if (a.floor[0].id     !== 'hardwood-floor')   fail('(1) floor = '     + a.floor[0].id);
+        if (a.ceiling[0].id   !== 'painted-drywall')  fail('(1) ceiling = '   + a.ceiling[0].id);
+        if (a.frontWall[0].id !== 'painted-drywall')  fail('(1) frontWall = ' + a.frontWall[0].id);
+        if (a.backWall[0].id  !== 'painted-drywall')  fail('(1) backWall = '  + a.backWall[0].id);
+        if (a.leftWall[0].id  !== 'painted-drywall')  fail('(1) leftWall = '  + a.leftWall[0].id);
+        if (a.rightWall[0].id !== 'painted-drywall')  fail('(1) rightWall = ' + a.rightWall[0].id);
         if (failures === 0) pass('(1) untreated demoState → drywall walls+ceiling, hardwood floor');
     }
 
@@ -155,26 +201,26 @@ if (typeof require !== 'undefined' && typeof module !== 'undefined' && require.m
         const before = failures;
         const b = getRoomSurfaceMaterials({
             ...baseDemo,
-            environment: { treatment: { ...untreatedTreat, wall_panel_mode: 'both' } },
+            environment: { treatment: { ...untreatedTreat, wall_panel_mode: 'both', wall_panel_count: 4 } },
         });
-        if (b.frontWall !== WALL_ID)           fail('(2) frontWall = ' + b.frontWall + ' (expected ' + WALL_ID + ')');
-        if (b.backWall  !== WALL_ID)           fail('(2) backWall = '  + b.backWall  + ' (expected ' + WALL_ID + ')');
-        if (b.leftWall  !== 'painted-drywall') fail('(2) leftWall = '  + b.leftWall);
-        if (b.rightWall !== 'painted-drywall') fail('(2) rightWall = ' + b.rightWall);
-        if (b.ceiling   !== 'painted-drywall') fail('(2) ceiling = '   + b.ceiling);
-        if (failures === before) pass('(2) wall_panel_mode=both → front+back = ' + WALL_ID + '; sides+ceiling untouched');
+        if (!b.frontWall.find(p => p.id === WALL_ID)) fail('(2) frontWall missing ' + WALL_ID);
+        if (!b.backWall.find(p => p.id === WALL_ID))  fail('(2) backWall missing ' + WALL_ID);
+        if (b.leftWall[0].id  !== 'painted-drywall') fail('(2) leftWall = '  + b.leftWall[0].id);
+        if (b.rightWall[0].id !== 'painted-drywall') fail('(2) rightWall = ' + b.rightWall[0].id);
+        if (b.ceiling[0].id   !== 'painted-drywall') fail('(2) ceiling = '   + b.ceiling[0].id);
+        if (failures === before) pass('(2) wall_panel_mode=both → front+back has ' + WALL_ID + '; sides+ceiling untouched');
     }
 
-    // (3) side_panel_mode 'left' → leftWall = SIDE_ID; rightWall stays drywall.
+    // (3) side_panel_mode 'left' → leftWall has SIDE_ID; rightWall stays drywall.
     {
         const before = failures;
         const c = getRoomSurfaceMaterials({
             ...baseDemo,
             environment: { treatment: { ...untreatedTreat, side_panel_mode: 'left' } },
         });
-        if (c.leftWall  !== SIDE_ID)           fail('(3) leftWall = '  + c.leftWall + ' (expected ' + SIDE_ID + ')');
-        if (c.rightWall !== 'painted-drywall') fail('(3) rightWall = ' + c.rightWall);
-        if (failures === before) pass('(3) side_panel_mode=left → leftWall = ' + SIDE_ID + '; rightWall stays drywall');
+        if (!c.leftWall.find(p => p.id === SIDE_ID))   fail('(3) leftWall missing ' + SIDE_ID);
+        if (c.rightWall[0].id !== 'painted-drywall') fail('(3) rightWall = ' + c.rightWall[0].id);
+        if (failures === before) pass('(3) side_panel_mode=left → leftWall has ' + SIDE_ID + '; rightWall stays drywall');
     }
 
     // (4) analyseRoom on untreated 5×4×3 → rt60 with all six bands finite > 0.
