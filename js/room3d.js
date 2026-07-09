@@ -3636,8 +3636,8 @@ export function initRoom3D({
             const standBase = _ghostBox(0.30, 0.02, 0.20);
             standBase.position.y = riserBotY + THICK/2 + 0.01;
             uwGroup.add(standBase);
-            const standPole = _ghostBox(0.04, 0.30, 0.04);
-            standPole.position.set(0, riserBotY + THICK/2 + 0.15, -0.05);
+            const standPole = _ghostBox(0.04, 0.40, 0.04);
+            standPole.position.set(0, riserBotY + THICK/2 + 0.20, -0.05);
             uwGroup.add(standPole);
             
             // Calculate max width for monitor so it doesn't clip into the racks
@@ -3646,7 +3646,7 @@ export function initRoom3D({
             const safeMonitorW = Math.max(0.4, Math.min(1.10, availableGap - 0.1));
             
             const uwMonitor = _ghostBox(safeMonitorW, 0.38, 0.03); 
-            uwMonitor.position.set(0, riserBotY + THICK/2 + 0.35, 0.0);
+            uwMonitor.position.set(0, riserBotY + THICK/2 + 0.45, 0.0);
             uwMonitor.rotation.x = -Math.PI / 32; // tilted up slightly
             uwGroup.add(uwMonitor);
             
