@@ -1254,6 +1254,12 @@ export function initRoom3D({
       ceiling_height_secondary_m: geo.ceiling_height_secondary_m || 2.0,
 
       speaker_type: setup.speaker_type,
+      // Studio-only: 'vertical' | 'horizontal' monitor orientation. Was
+      // missing from this merge entirely — app.js set state.setup.speaker_
+      // orientation and the UI toggled it, but room.speaker_orientation
+      // (what the speaker-build check at ~line 2131 actually reads) was
+      // always undefined, so the horizontal monitor variant never rendered.
+      speaker_orientation: setup.speaker_orientation ?? 'vertical',
       // Cinema TV/screen mount — geometry only, never read by acoustics/analysis.
       screen_type: setup.screen_type ?? 'stand',
       // Cinema theatre-row seat count (3–5) — geometry only, not read by acoustics/analysis.
@@ -2197,6 +2203,18 @@ export function initRoom3D({
           z = -room.length_m / 2 + room.spk_front_m;
         }
 
+        // True world-space tweeter height, derived the same way for every
+        // mounting branch above: cabinet bottom (y - h/2) + cabinet height
+        // × the archetype's tweeterPos fraction. The wave rings below use
+        // this instead of the raw tweeter_height_m slider value — that
+        // value only matches reality for the 'onDesk + stands' branch
+        // (which solves for y FROM the slider); desk-surface, floorstander,
+        // statement and panel mounts all derive y from the desk height, a
+        // plinth, or a fixed stand height, so the slider alone silently put
+        // the rings at the wrong height for those configs (e.g. every
+        // Studio desk-mounted monitor).
+        const tweeterY = (y - profile.h / 2) + profile.h * (profile.tweeterPos ?? 0.5);
+
         // Wrap cabinet (+ optional stand) in a group so toe rotation is shared
         const spkGroup = new THREE.Group();
         spkGroup.position.set(x, y, z);
@@ -2298,7 +2316,7 @@ export function initRoom3D({
         if (_wavesEnabled) {
           const NUM_RINGS = 5;
           const maxR = Math.max(room.length_m, room.width_m) * WAVE_EXTENT_FACTOR;
-          const waveY = baseY + room.tweeter_height_m;
+          const waveY = tweeterY;
 
           // ── Side-wall clipping planes — contain the rings inside the room ──
           // World-space planes matching the room shell's side walls (±width/2,
@@ -3196,7 +3214,24 @@ export function initRoom3D({
       // Hi-Fi: rug added to roomGroup in world coords (speaker-anchored, grows with listener).
       // Dark fill slab + edge outline so the rug is visible as an actual rug, not a hollow box.
       if (isStudio && VISIBILITY.furniture.rug && room.opt_area_rug) {
-        const rugW = room.width_m * 0.45, rugD = room.length_m * 0.35;
+        const rugW = room.width_m * 0.45;
+        // Depth is anchored to the chair, not just scaled off room length.
+        // The office chair (built later, in the rigGroup block) always sits
+        // exactly at this station's local (0,0) — its 5-star caster base
+        // reaches out to a ~0.35 m radius (0.32 m arm + half the 0.055 m
+        // caster box). The old rugD/centre (room.length_m*0.35, centre
+        // -0.80) was sized off room length alone with no reference to that
+        // footprint, so on most rooms the rug's rear edge landed well short
+        // of local Z=0 and the chair's back half rendered hanging off the
+        // rug (only the front casters touched it). Rear edge is now pinned
+        // CHAIR_CLEAR_Z beyond the chair centre regardless of room size;
+        // front reach keeps the old room-length scaling so it still reads
+        // as "under the desk" in bigger rooms.
+        const CHAIR_CLEAR_Z = 0.50; // chair footprint radius (~0.35 m) + margin
+        const rugFrontReach = room.length_m * 0.35;
+        const rugFrontZ = -rugFrontReach;
+        const rugRearZ  = CHAIR_CLEAR_Z;
+        const rugD = rugRearZ - rugFrontZ;
         const rug = _ghostBox(rugW, 0.02, rugD);
         const rugFill = new THREE.Mesh(
           new THREE.PlaneGeometry(rugW, rugD),
@@ -3206,8 +3241,12 @@ export function initRoom3D({
         rugFill.position.y = 0.011;
         rug.add(rugFill);
         const rugHalfD = rugD / 2;
+        const rawCenterZ = (rugFrontZ + rugRearZ) / 2;
         const minLocalZ = (-room.length_m / 2) - listenerZ + rugHalfD + 0.06;
-        const rugLocalZ = Math.max(-0.80, minLocalZ);
+        // Clamp only ever pushes the rug *toward* the chair (rawCenterZ is
+        // already as far forward as the desk-reach wants it), so chair
+        // clearance holds even when a short room forces the clamp to win.
+        const rugLocalZ = Math.max(rawCenterZ, minLocalZ);
         rug.position.set(0, 0.01, rugLocalZ);
         station.add(rug);
       }
@@ -8277,10 +8316,6 @@ export function initRoom3D({
       );
       dot.position.set(lx, ly, lz);
       grp.add(dot);
-      const verdict = seatP >= 0.6 ? 'peak' : seatP <= 0.3 ? 'dip' : 'mid';
-      const lbl = _makeLabelSprite(`Seat · ${Math.round(_peaksFreq)} Hz · ${verdict}`, seatP >= 0.6 ? '#c4b5fd' : '#5eead4');
-      lbl.position.set(lx, ly + 0.4, lz);
-      grp.add(lbl);
       grp.userData.isPeaksSeat = true;
       roomGroup.add(grp);
       _peaksSeat = grp;
