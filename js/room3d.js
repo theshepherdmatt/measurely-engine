@@ -4091,17 +4091,34 @@ export function initRoom3D({
       if (mode === "none") return;
       const c = count ?? 4;
       
-      const panelOffsetsX = c === 2
-        ? [-room.spk_spacing_m / 2, room.spk_spacing_m / 2]
-        : Array.from({ length: c }, (_, i) => {
-            const totalSpan = c * wpW + (c - 1) * wpGap;
-            return -totalSpan / 2 + wpW / 2 + i * (wpW + wpGap);
-          });
+      const isFront = wallZ < 0;
+      const trapLeg = window.MeasurelyTreatment?.GEOMETRY?.bass_trap?.legSize ?? 0.42;
+      const hasTraps = isFront 
+        ? (room.front_corners_mode && room.front_corners_mode !== 'none') || room.bass_trap_mode === 'front' || room.bass_trap_mode === 'all'
+        : (room.rear_corners_mode && room.rear_corners_mode !== 'none') || room.bass_trap_mode === 'rear' || room.bass_trap_mode === 'all';
+      const availableW = room.width_m - (hasTraps ? trapLeg * 2 : 0) - 0.1; // 10cm padding total
+      const maxOffset = (availableW - wpW) / 2;
+
+      let panelOffsetsX;
+      if (c === 2) {
+        const offset = Math.min(room.spk_spacing_m / 2, maxOffset);
+        panelOffsetsX = [-offset, offset];
+      } else {
+        const idealSpan = c * wpW + (c - 1) * wpGap;
+        let actualGap = wpGap;
+        if (idealSpan > availableW && c > 1) {
+          actualGap = (availableW - c * wpW) / (c - 1);
+        }
+        const totalSpan = c * wpW + (c - 1) * actualGap;
+        panelOffsetsX = Array.from({ length: c }, (_, i) => {
+          return -totalSpan / 2 + wpW / 2 + i * (wpW + actualGap);
+        });
+      }
           
       const floorInWorld = -room.height_m / 2;
       const pY = panelCenterY !== null ? panelCenterY : (floorInWorld + (room.tweeter_height_m ?? 0.95));
 
-      const surface = wallZ < 0 ? 'front' : 'back';
+      const surface = isFront ? 'front' : 'back';
       for (const dx of panelOffsetsX) {
         const px = offsetX + dx;
         const panelGroup = createPanelGroup(style, wpW, panelH, wpThickness, hexColor);
@@ -4442,9 +4459,11 @@ export function initRoom3D({
 
         // Clamp the group center so panels don't clip through the front or rear walls,
         // or through the bass traps if they are present in the corners.
-        const trapLeg = window.MeasurelyTreatment?.GEOMETRY?.bass_trap?.legSize ?? 0.3;
-        const frontClearance = (room.bass_trap_mode === 'front' || room.bass_trap_mode === 'all') ? trapLeg + 0.05 : 0.05;
-        const rearClearance = (room.bass_trap_mode === 'rear' || room.bass_trap_mode === 'all') ? trapLeg + 0.05 : 0.05;
+        const trapLeg = window.MeasurelyTreatment?.GEOMETRY?.bass_trap?.legSize ?? 0.42;
+        const hasFrontTraps = (room.front_corners_mode && room.front_corners_mode !== 'none') || room.bass_trap_mode === 'front' || room.bass_trap_mode === 'all';
+        const hasRearTraps = (room.rear_corners_mode && room.rear_corners_mode !== 'none') || room.bass_trap_mode === 'rear' || room.bass_trap_mode === 'all';
+        const frontClearance = hasFrontTraps ? trapLeg + 0.05 : 0.05;
+        const rearClearance = hasRearTraps ? trapLeg + 0.05 : 0.05;
 
         const minZ = -room.length_m / 2 + spTotalSpan / 2 + frontClearance;
         const maxZ =  room.length_m / 2 - spTotalSpan / 2 - rearClearance;
