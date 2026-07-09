@@ -76,7 +76,7 @@ const SECONDARY_BOOST = 0.9;
 const TREATMENT_PROFILES = {
     bass_trap: {
         name: 'Bass traps',
-        materialId: 'gik-244-flexrange-full-range',
+        materialId: 'anthill-triangle-trap',
         affects: { peaks_dips: 'primary', smoothness: 'secondary' },
         absorptionBands: [
             { freqLo:  40, freqHi:  100, absorptionDb: -3.0 },
@@ -87,7 +87,7 @@ const TREATMENT_PROFILES = {
     },
     wall_panel: {
         name: 'Front wall panels',
-        materialId: 'primacoustic-broadway-2in-amount',
+        materialId: 'anthill-broadband-pro',
         affects: { peaks_dips: 'primary', reflections: 'secondary' },
         absorptionBands: [
             { freqLo:  200, freqHi:  500, absorptionDb: -2.0 },
@@ -98,7 +98,7 @@ const TREATMENT_PROFILES = {
     },
     side_panel: {
         name: 'Side panels',
-        materialId: 'primacoustic-broadway-2in-amount',
+        materialId: 'anthill-broadband-pro',
         affects: { reflections: 'primary', clarity: 'secondary' },
         absorptionBands: [
             { freqLo:  500, freqHi: 2000, absorptionDb: -2.5 },

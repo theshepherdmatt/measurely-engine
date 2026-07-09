@@ -29,7 +29,7 @@
   const GEOMETRY = {
     bass_trap: {
       shape:          'triangle_prism',  // right-angle triangular prism — fills corner flush
-      legSize:        0.3,               // metres — each leg of the right-angle triangle
+      legSize:        0.42,              // metres — matches Anthill Triangle Trap (42cm legs)
       heightFraction: 0.75,              // fraction of local room height
     },
     wall_panel: {
@@ -122,7 +122,7 @@
   // ═══════════════════════════════════════════════════════════════
 
   const PANEL_COLOURS = [
-    { id: 'black',      hex: '#1A1714', label: 'Matte Black' },
+    { id: 'black',      hex: '#2C2926', label: 'Matte Black' },
     { id: 'anthracite', hex: '#3D3D3D', label: 'Anthracite'  },
     { id: 'concrete',   hex: '#AEAAA5', label: 'Concrete'    },
     { id: 'white',      hex: '#FFFFFF', label: 'Pure White'  },

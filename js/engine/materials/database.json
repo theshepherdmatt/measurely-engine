@@ -1,5 +1,205 @@
 [
   {
+    "id": "anthill-square-trap",
+    "name": "Anthill Square Trap",
+    "manufacturer": "Anthill Audio Factory",
+    "product_line": "Bass Traps",
+    "category": "porous_absorber",
+    "subcategory": "thick_bass_trap",
+    "dimensions_mm": { "w": 440, "h": 1040, "d": 440 },
+    "thickness_mm": 440,
+    "density_kgm3": 30,
+    "facing": "fabric",
+    "construction_notes": "Ecose rock mineral wool, density 30kg/m3, gas flow resistivity 5000 Pa*s/m2. Square pillar 440x440mm. Textum Kabal fabric (295 g/m2). Sturdy wooden frame with top and bottom 8mm HDF covers.",
+    "absorption": {
+      "measurement_type": "random_incidence_sabine",
+      "standard": "EN_ISO_354_ESTIMATED",
+      "mounting": "J",
+      "lab": "Estimated",
+      "report_id": null,
+      "test_date": "2024",
+      "coefficients": {
+        "63": 1.10,
+        "125": 1.20,
+        "250": 1.15,
+        "500": 1.10,
+        "1000": 1.05,
+        "2000": 1.05,
+        "4000": 1.00,
+        "8000": null
+      },
+      "nrc": 1.05,
+      "saa": null
+    },
+    "provenance": "estimated",
+    "source": {
+      "type": "empirical_estimation",
+      "url": "website",
+      "citation": "Estimated from physical properties: 440mm thick square pillar, 30kg/m3 density, 5000 Pa*s/m2 flow resistivity."
+    },
+    "tags": ["bass-trap", "anthill", "studio", "corner", "rockwool"]
+  },
+  {
+    "id": "anthill-triangle-trap",
+    "name": "Anthill Triangle Trap",
+    "manufacturer": "Anthill Audio Factory",
+    "product_line": "Bass Traps",
+    "category": "porous_absorber",
+    "subcategory": "corner_trap",
+    "dimensions_mm": { "w": 570, "h": 1040, "d": 420 },
+    "thickness_mm": 420,
+    "density_kgm3": 30,
+    "facing": "fabric",
+    "construction_notes": "Ecose rock mineral wool, density 30kg/m3, gas flow resistivity 5000 Pa*s/m2. Right-angle triangle prism with 420mm legs and 570mm hypotenuse. Textum Kabal fabric (295 g/m2). Sturdy wooden frame with top and bottom 8mm HDF covers.",
+    "absorption": {
+      "measurement_type": "random_incidence_sabine",
+      "standard": "EN_ISO_354_ESTIMATED",
+      "mounting": "J",
+      "lab": "Estimated",
+      "report_id": null,
+      "test_date": "2024",
+      "coefficients": {
+        "63": 0.60,
+        "125": 1.00,
+        "250": 1.15,
+        "500": 1.10,
+        "1000": 1.05,
+        "2000": 1.05,
+        "4000": 1.00,
+        "8000": null
+      },
+      "nrc": 1.05,
+      "saa": null
+    },
+    "provenance": "estimated",
+    "source": {
+      "type": "empirical_estimation",
+      "url": "website",
+      "citation": "Estimated from physical properties: 420mm leg triangular prism, 30kg/m3 density, 5000 Pa*s/m2 flow resistivity."
+    },
+    "tags": ["bass-trap", "anthill", "studio", "corner", "rockwool"]
+  },
+  {
+    "id": "anthill-bass-trap",
+    "name": "Anthill Bass Trap",
+    "manufacturer": "Anthill Audio Factory",
+    "product_line": "Bass Traps",
+    "category": "porous_absorber",
+    "subcategory": "thick_bass_trap",
+    "dimensions_mm": { "w": 640, "h": 1040, "d": 240 },
+    "thickness_mm": 220,
+    "density_kgm3": 30,
+    "facing": "fabric",
+    "construction_notes": "Ecose rock mineral wool, density 30kg/m3, gas flow resistivity 5000 Pa*s/m2. Textum Kabal fabric (295 g/m2). Sturdy wooden frame with built-in 2cm air gap in the back.",
+    "absorption": {
+      "measurement_type": "random_incidence_sabine",
+      "standard": "EN_ISO_354_ESTIMATED",
+      "mounting": "A",
+      "lab": "Estimated",
+      "report_id": null,
+      "test_date": "2024",
+      "coefficients": {
+        "63": 0.60,
+        "125": 1.05,
+        "250": 1.15,
+        "500": 1.10,
+        "1000": 1.05,
+        "2000": 1.00,
+        "4000": 1.00,
+        "8000": null
+      },
+      "nrc": 1.05,
+      "saa": null
+    },
+    "provenance": "estimated",
+    "source": {
+      "type": "empirical_estimation",
+      "url": "website",
+      "citation": "Estimated from physical properties: 220mm thickness, 30kg/m3 density, 5000 Pa*s/m2 flow resistivity, 20mm air gap."
+    },
+    "tags": ["bass-trap", "anthill", "studio", "rockwool"]
+  },
+  {
+    "id": "anthill-fusion-slim",
+    "name": "Anthill Fusion Slim Panel",
+    "manufacturer": "Anthill Audio Factory",
+    "product_line": "Fusion",
+    "category": "porous_absorber",
+    "subcategory": "thin_broadband_panel",
+    "dimensions_mm": { "w": 640, "h": 1040, "d": 70 },
+    "thickness_mm": 70,
+    "density_kgm3": 50,
+    "facing": "fabric",
+    "construction_notes": "Ecose rock mineral wool, density 50kg/m3, gas flow resistivity >10000 Pa*s/m2. Textum Kabal fabric (295 g/m2). Sturdy wooden frame with built-in 2cm air gap in the back.",
+    "absorption": {
+      "measurement_type": "random_incidence_sabine",
+      "standard": "EN_ISO_354",
+      "mounting": "A",
+      "lab": "IGH Institut in Zagreb, Croatia",
+      "report_id": null,
+      "test_date": "2022",
+      "coefficients": {
+        "63": null,
+        "125": 0.26,
+        "250": 0.74,
+        "500": 0.93,
+        "1000": 0.92,
+        "2000": 0.88,
+        "4000": 0.88,
+        "8000": null
+      },
+      "nrc": 0.85,
+      "saa": null
+    },
+    "provenance": "measured",
+    "source": {
+      "type": "manufacturer_datasheet",
+      "url": "website",
+      "citation": "Tested at IGH Institut in Zagreb, Croatia 2022."
+    },
+    "tags": ["mid-high", "anthill", "studio", "rockwool"]
+  },
+  {
+    "id": "anthill-broadband-pro",
+    "name": "Anthill Broadband Pro Panel",
+    "manufacturer": "Anthill Audio Factory",
+    "product_line": "Broadband",
+    "category": "porous_absorber",
+    "subcategory": "broadband_panel",
+    "dimensions_mm": { "w": 640, "h": 1040, "d": 120 },
+    "thickness_mm": 120,
+    "density_kgm3": 50,
+    "facing": "fabric",
+    "construction_notes": "Ecose rock mineral wool, density 50kg/m3, gas flow resistivity >10000 Pa*s/m2. Textum Kabal fabric (295 g/m2). Sturdy wooden frame with built-in 2cm air gap in the back.",
+    "absorption": {
+      "measurement_type": "random_incidence_sabine",
+      "standard": "EN_ISO_354",
+      "mounting": "A",
+      "lab": "IGH Institut in Zagreb, Croatia",
+      "report_id": null,
+      "test_date": "2022",
+      "coefficients": {
+        "63": null,
+        "125": 0.58,
+        "250": 1.10,
+        "500": 0.95,
+        "1000": 0.90,
+        "2000": 0.91,
+        "4000": 0.86,
+        "8000": null
+      },
+      "nrc": 0.95,
+      "saa": null
+    },
+    "provenance": "measured",
+    "source": {
+      "type": "manufacturer_datasheet",
+      "url": "website",
+      "citation": "Tested at IGH Institut in Zagreb, Croatia 2022."
+    },
+    "tags": ["broadband", "anthill", "studio", "rockwool"]
+  },
+  {
     "id": "primacoustic-broadway-1in-amount",
     "name": "Primacoustic Broadway 1\" Panel",
     "manufacturer": "Primacoustic",

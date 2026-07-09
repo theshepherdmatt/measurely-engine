@@ -1394,13 +1394,12 @@ export function initRoom3D({
     // not spk_spacing_m — inset is desk-relative, so it never needs to
     // change when the desk is resized.
     if (isStudio) {
-      // Floor-stand placement was removed from the studio SCL placement
-      // selector — the stand pole would punch through the desk surface.
-      // Coerce stale 'stands' state here (e.g. from a saved session
-      // before the removal, or a PocketBase record loaded directly).
-      // The 'stands' branches in the speaker placement code below stay
-      // in place defensively but never fire in studio after this coerce.
       if (room.spk_placement === 'stands') room.spk_placement = 'desk_stands';
+
+      // The production desk is massive; force the base desk width so speakers scale out
+      if (room.desk_style === 'production') {
+        room.desk_width_m = Math.max(room.desk_width_m ?? 1.6, 2.4);
+      }
 
       const SPEAKER_X_INSET = 0.10; // m — fixed structural margin, speaker centre to desk edge
       room.spk_spacing_m = Math.max(
@@ -1892,6 +1891,46 @@ export function initRoom3D({
     }
 
     /* ------------------------------------------
+       HORIZONTAL STUDIO MONITOR BUILDER
+       Wide box, dual woofers, center tweeter.
+    ------------------------------------------ */
+    function _buildHorizontalStudioMonitor(W, H, D, color, opacity) {
+      const grp = new THREE.Group();
+      const edgeMat = useFatEdges
+        ? new THREE.MeshBasicMaterial({ color, transparent: true, opacity })
+        : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+
+      function _ebox(w, h, d) {
+        const g = new THREE.Group();
+        if (useFatEdges) {
+          const hw = w / 2, hh = h / 2, hd = d / 2;
+          const v = [
+            new THREE.Vector3(-hw, -hh, -hd), new THREE.Vector3(hw, -hh, -hd),
+            new THREE.Vector3(hw, -hh, hd), new THREE.Vector3(-hw, -hh, hd),
+            new THREE.Vector3(-hw, hh, -hd), new THREE.Vector3(hw, hh, -hd),
+            new THREE.Vector3(hw, hh, hd), new THREE.Vector3(-hw, hh, hd),
+          ];
+          const pairs = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
+          g.add(_fatEdgeGroup(v, pairs, EDGE_TUBE_T * 0.55, edgeMat));
+        } else {
+          g.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(w, h, d)), edgeMat));
+        }
+        return g;
+      }
+
+      grp.add(_ebox(W, H, D));
+      const front = D / 2 + 0.002;
+      
+      const wooferR = H * 0.35;
+      const tweeterR = H * 0.15;
+      _makeConeDriver(-W * 0.28, 0, front, wooferR, false, color, opacity).forEach(o => grp.add(o));
+      _makeConeDriver( W * 0.28, 0, front, wooferR, false, color, opacity).forEach(o => grp.add(o));
+      _makeConeDriver( 0,        0, front, tweeterR, true,  color, opacity).forEach(o => grp.add(o));
+
+      return grp;
+    }
+
+    /* ------------------------------------------
        STATEMENT SPEAKER BUILDER
        Tapered monolith: wide at base, narrows toward top, front baffle
        angled back for time-alignment. Chamfered front corners. Wilson-style.
@@ -2088,13 +2127,15 @@ export function initRoom3D({
         const spkColor = isSpkHighlit ? 0x0f766e : profile.color;
         const spkOpacity = isSpkHighlit ? 0.9 : Math.max(OP_OBJ, 0.80);
 
-        const speaker = profile.isStatement
-          ? _buildStatementSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
-          : profile.isPanel
-            ? _buildElectrostaticSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
-            : profile.detailed
-              ? _buildDetailedSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
-              : _buildStandmountSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity);
+        const speaker = (room.room_type === 'studio' && room.desk_style === 'production')
+          ? _buildHorizontalStudioMonitor(0.64, 0.26, 0.32, spkColor, spkOpacity)
+          : profile.isStatement
+            ? _buildStatementSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
+            : profile.isPanel
+              ? _buildElectrostaticSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
+              : profile.detailed
+                ? _buildDetailedSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
+                : _buildStandmountSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity);
 
         // X position — every speaker sits at ±spk_spacing_m/2 from
         // offsetX. In studio mode room.spk_spacing_m is overridden
@@ -3488,39 +3529,36 @@ export function initRoom3D({
         //                 desk-width-derived upstream); uprights + monitors share it.
         // monitorLocalZ = the monitors' Z expressed in desk-local coords, so the
         //                 production riser can be centred under them front-to-back.
-        function _buildDesk(deskW, deskD, style, spacing, monitorLocalZ) {
+        function _buildDesk(baseDeskW, baseDeskD, style, spacing, monitorLocalZ) {
           const group = new THREE.Group();
-          const halfW = deskW / 2;
           const isProduction = style === 'production';
-
-          // Surface + four legs (identical in both styles)
-          const deskTop = _ghostBox(deskW, 0.05, deskD);
-          deskTop.position.y = 0.775;
-          group.add(deskTop);
-          [[-halfW + 0.04, 0.375, -deskD / 2 + 0.04], [halfW - 0.04, 0.375, -deskD / 2 + 0.04],
-          [-halfW + 0.04, 0.375, deskD / 2 - 0.04], [halfW - 0.04, 0.375, deskD / 2 - 0.04]]
-            .forEach(p => { const l = _ghostBox(0.04, 0.775, 0.04); l.position.set(...p); group.add(l); });
-
-          // Display monitor on a stand — gated by opt_display. Geometry is the
-          // same in both styles; only the placement differs (plain: on the desk
-          // surface at the back; production: lifted onto the riser top).
-          let dispGroup = null;
-          if (room.opt_display !== false) {
-            dispGroup = new THREE.Group();
-            const standBase = _ghostBox(0.22, 0.04, 0.18);
-            standBase.position.y = 0.795;
-            dispGroup.add(standBase);
-            const standPole = _ghostBox(0.04, 0.22, 0.04);
-            standPole.position.set(0, 0.915, 0.02);
-            dispGroup.add(standPole);
-            const monitor = _ghostBox(Math.min(deskW * 0.70, 0.68), 0.38, 0.032);
-            monitor.position.set(0, 1.10, 0.01);
-            dispGroup.add(monitor);
-          }
-
+          
           if (!isProduction) {
-            // Plain: display on the desk surface (back edge + 0.12), keyboard on
-            // the desk front edge. Byte-for-byte the original build.
+            // ── Standard Plain Desk ──
+            const deskW = baseDeskW;
+            const deskD = baseDeskD;
+            const halfW = deskW / 2;
+            
+            const deskTop = _ghostBox(deskW, 0.05, deskD);
+            deskTop.position.y = 0.775;
+            group.add(deskTop);
+            [[-halfW + 0.04, 0.375, -deskD / 2 + 0.04], [halfW - 0.04, 0.375, -deskD / 2 + 0.04],
+            [-halfW + 0.04, 0.375, deskD / 2 - 0.04], [halfW - 0.04, 0.375, deskD / 2 - 0.04]]
+              .forEach(p => { const l = _ghostBox(0.04, 0.775, 0.04); l.position.set(...p); group.add(l); });
+
+            let dispGroup = null;
+            if (room.opt_display !== false) {
+              dispGroup = new THREE.Group();
+              const standBase = _ghostBox(0.22, 0.04, 0.18);
+              standBase.position.y = 0.795;
+              dispGroup.add(standBase);
+              const standPole = _ghostBox(0.04, 0.22, 0.04);
+              standPole.position.set(0, 0.915, 0.02);
+              dispGroup.add(standPole);
+              const monitor = _ghostBox(Math.min(deskW * 0.70, 0.68), 0.38, 0.032);
+              monitor.position.set(0, 1.10, 0.01);
+              dispGroup.add(monitor);
+            }
             if (dispGroup) {
               dispGroup.position.set(0, 0, -deskD / 2 + 0.12);
               group.add(dispGroup);
@@ -3533,94 +3571,162 @@ export function initRoom3D({
             return group;
           }
 
-          // ── Production: raised riser carrying the monitors + display ──
-          // The riser top FACE sits exactly RISER_H above the surface reference
-          // (0.775 m) so the monitors — lifted by the same RISER_H in the speaker
-          // loop — rest flush on it (no sink, no float). The riser is centred
-          // front-to-back on the monitor plane (monitorLocalZ) and the two
-          // uprights sit under the monitor X positions (±spacing/2) so the
-          // speakers land on solid posts. Decluttered: riser-top shelf + back
-          // panel + two uprights + one central divider + 3 rack rails only.
-          const SHELF_T = 0.02;              // riser-top shelf thickness
-          const PANEL_T = 0.02;              // back panel / divider thickness
-          const UP_T    = 0.05;              // upright post cross-section
-          const riserD        = 0.30;        // front-to-back depth of the riser
-          const riserBotY     = 0.775;
-          const riserTopFaceY = riserBotY + RISER_H;        // monitor + display base plane
-          const riserCY       = riserBotY + RISER_H / 2;
-          const riserCZ       = monitorLocalZ;              // centred on the monitor plane
-          const riserFrontZ   = riserCZ + riserD / 2;
-          const riserBackZ    = riserCZ - riserD / 2;
+          // ── High-End Studio Production Desk ──
+          const rackW = 0.64; // Massive 19" rack bay with thick wooden trim
+          // Make the desk dynamically wide enough to support the speaker racks near the edges
+          const deskW = Math.max(baseDeskW, spacing + rackW + 0.10); 
+          const deskD = Math.max(baseDeskD, 0.9);
+          const halfW = deskW / 2;
+          const riserBotY = 0.775;
+          const THICK = 0.04;
 
-          // Riser-top shelf (full width) — top face at riserTopFaceY
-          const riserTop = _ghostBox(deskW, SHELF_T, riserD);
-          riserTop.position.set(0, riserTopFaceY - SHELF_T / 2, riserCZ);
-          group.add(riserTop);
+          // 1. Z-Frame Wooden Legs (built from 3 ghost boxes per side)
+          const legZLength = deskD - 0.1;
+          [-halfW + 0.06, halfW - 0.06].forEach(lx => {
+            const legTop = _ghostBox(THICK, THICK, legZLength);
+            legTop.position.set(lx, riserBotY - THICK/2, 0);
+            group.add(legTop);
 
-          // Back panel (full width) closing the rear of the riser
-          const backPanel = _ghostBox(deskW, RISER_H, PANEL_T);
-          backPanel.position.set(0, riserCY, riserBackZ + PANEL_T / 2);
-          group.add(backPanel);
+            const legBot = _ghostBox(THICK, THICK, legZLength + 0.1);
+            legBot.position.set(lx, THICK/2, 0.05);
+            group.add(legBot);
 
-          // Two posts directly under the monitor X positions (±spacing/2). They
-          // rise POST_RISE above the platform top so the speakers perch on the
-          // post tops (the speaker loop lifts monitors by RISER_H + POST_RISE to
-          // match, so base sits flush on the post top — no float, no sink).
-          const postH  = RISER_H + POST_RISE;
-          const postCY = riserBotY + postH / 2;
-          [-spacing / 2, spacing / 2].forEach(ux => {
-            const up = _ghostBox(UP_T, postH, UP_T);
-            up.position.set(ux, postCY, riserCZ);
-            group.add(up);
+            const legPillar = _ghostBox(THICK, riserBotY - THICK, 0.2);
+            legPillar.position.set(lx, riserBotY/2, 0);
+            legPillar.rotation.x = Math.PI / 12; // Forward tilt for Z shape
+            group.add(legPillar);
           });
 
-          // One central divider splitting rack bay (left) from open shelf (right)
-          const divider = _ghostBox(PANEL_T, RISER_H, riserD);
-          divider.position.set(0, riserCY, riserCZ);
-          group.add(divider);
+          // 2. Thick, deep curved main desktop
+          const deskTop = _ghostBox(deskW, THICK, deskD);
+          deskTop.position.set(0, riserBotY, 0);
+          group.add(deskTop);
 
-          // Rack-unit rails — 3 shallow horizontal outlines on the bay FRONT face
-          // only (left half), spaced through the riser height so they don't stack
-          // into a dense block. Width is parametric off deskW.
-          const RACK_U = 3;
-          const rackCX = deskW * 0.25;       // centre of the left (rack) half
-          const rackW  = deskW * 0.30;       // parametric rail width
-          for (let i = 0; i < RACK_U; i++) {
-            const ry = riserBotY + RISER_H * ((i + 1) / (RACK_U + 1));
-            const rail = _ghostBox(rackW, 0.025, 0.02);
-            rail.position.set(-rackCX, ry, riserFrontZ - 0.01);
-            group.add(rail);
+          // 3. Dual Angled Rack Bays & Speaker Posts
+          // Lift speakers by exactly RISER_H + POST_RISE above the desk surface (0.775)
+          const postH = RISER_H + POST_RISE; // 0.25 total lift
+          const rackD = 0.40;
+          const rackCY = riserBotY + postH/2 + THICK/2;
+          const rackCZ = monitorLocalZ;
+
+          [-spacing/2, spacing/2].forEach(rx => {
+            // Flat rack box
+            const rackBox = _ghostBox(rackW, postH, rackD);
+            rackBox.position.set(rx, rackCY, rackCZ);
+            group.add(rackBox);
+
+            // Rack rails on the front face of the angled rack
+            for(let i=0; i<3; i++) {
+              const rail = _ghostBox(rackW - 0.06, 0.02, 0.02);
+              const rYLocal = (i - 1) * 0.06;
+              rail.position.set(0, rYLocal, rackD/2);
+              rackBox.add(rail);
+            }
+            
+            // Speaker pad exactly at the required height so the visualizer speakers don't float/sink
+            const speakerPad = _ghostBox(rackW - 0.04, 0.02, rackD - 0.04);
+            speakerPad.position.set(rx, riserBotY + postH - 0.01 + THICK/2, rackCZ);
+            group.add(speakerPad);
+          });
+
+          // 4. Center Monitor
+          if (room.opt_display !== false) {
+            const uwGroup = new THREE.Group();
+            const standBase = _ghostBox(0.30, 0.02, 0.20);
+            standBase.position.y = riserBotY + THICK/2 + 0.01;
+            uwGroup.add(standBase);
+            const standPole = _ghostBox(0.04, 0.15, 0.04);
+            standPole.position.set(0, riserBotY + THICK/2 + 0.08, -0.05);
+            uwGroup.add(standPole);
+            
+            // Calculate max width for monitor so it doesn't clip into the racks
+            // The available gap is 'spacing' minus the width of one full rack (since racks are at +/- spacing/2)
+            const availableGap = spacing - rackW;
+            const safeMonitorW = Math.max(0.4, Math.min(1.10, availableGap - 0.1));
+            
+            const uwMonitor = _ghostBox(safeMonitorW, 0.38, 0.03); 
+            uwMonitor.position.set(0, riserBotY + THICK/2 + 0.20, 0.0);
+            uwMonitor.rotation.x = -Math.PI / 32; // tilted up slightly
+            uwGroup.add(uwMonitor);
+            
+            uwGroup.position.set(0, 0, rackCZ - 0.05);
+            group.add(uwGroup);
+
+            // Secondary Vertical Monitor (left of main display)
+            const vertMonW = 0.26;
+            const vertMonH = 0.45;
+            // Only add if there is enough space between the racks
+            if (safeMonitorW + vertMonW + 0.05 < availableGap) {
+                const vertMonGroup = new THREE.Group();
+                const vertStand = _ghostBox(0.18, 0.02, 0.15);
+                vertStand.position.y = riserBotY + THICK/2 + 0.01;
+                vertMonGroup.add(vertStand);
+                
+                const vertPole = _ghostBox(0.04, 0.25, 0.04);
+                vertPole.position.set(0, riserBotY + THICK/2 + 0.13, -0.02);
+                vertMonGroup.add(vertPole);
+
+                const vertScreen = _ghostBox(vertMonW, vertMonH, 0.03);
+                vertScreen.position.set(0, riserBotY + THICK/2 + 0.25, 0.02);
+                vertScreen.rotation.y = Math.PI / 12; // Angle inward toward producer
+                vertMonGroup.add(vertScreen);
+
+                vertMonGroup.position.set(-safeMonitorW/2 - vertMonW/2 - 0.05, 0, rackCZ - 0.05);
+                group.add(vertMonGroup);
+            }
           }
 
-          // Display lifted onto the riser top: base on the same top face the
-          // speakers use, centred at desk X between the two monitors, Z on the
-          // riser top, facing the listener (+Z). Not also drawn on the surface.
-          if (dispGroup) {
-            dispGroup.position.set(0, RISER_H, riserCZ);
-            group.add(dispGroup);
-          }
+          // 5. Desktop Accessories (Mixer + Laptop)
+          // Angled Mixing Console / Fader Bank in the center of the desk
+          const mixer = _ghostBox(0.60, 0.06, 0.30);
+          mixer.position.set(0, riserBotY + THICK/2 + 0.03, 0.05);
+          mixer.rotation.x = Math.PI / 24; // Angle up towards the user
+          group.add(mixer);
 
-          // ── Pull-out keyboard shelf under the front of the surface ──
-          // Wide pull-out shelf sized for an electronic music keyboard, which
-          // lives on the shelf and slides under the desk when not in use. The
-          // shelf is always part of the production desk; the two keyboards
-          // (PC on the surface, music on the shelf) are gated by opt_keyboard.
-          const trayW = Math.min(deskW * 0.72, 1.40);       // wide pull-out shelf (parametric)
-          const trayD = 0.30;                               // deep enough for a music keyboard
-          const trayY = 0.70;                               // below the 0.775 surface
-          const trayZ = deskD / 2 - 0.02;                   // pulled forward near front edge
+          // Laptop on a chunky stand on the right side
+          const laptopGroup = new THREE.Group();
+          const laptopStand = _ghostBox(0.20, 0.12, 0.20);
+          laptopStand.position.set(0, riserBotY + THICK/2 + 0.06, 0);
+          laptopStand.rotation.x = Math.PI / 12; // Angled stand
+          laptopGroup.add(laptopStand);
+          
+          const laptopBase = _ghostBox(0.32, 0.02, 0.22);
+          laptopBase.position.set(0, riserBotY + THICK/2 + 0.13, 0.02);
+          laptopBase.rotation.x = Math.PI / 12;
+          laptopGroup.add(laptopBase);
+
+          const laptopScreen = _ghostBox(0.32, 0.22, 0.02);
+          laptopScreen.position.set(0, riserBotY + THICK/2 + 0.23, -0.08);
+          laptopScreen.rotation.x = -Math.PI / 16; // Open screen
+          laptopGroup.add(laptopScreen);
+          
+          // Position laptop group on the right side of the desk surface
+          laptopGroup.position.set(halfW - 0.40, 0, 0.35);
+          laptopGroup.rotation.y = -Math.PI / 8; // Point slightly inwards
+          group.add(laptopGroup);
+
+          // 6. Pull-out Keyboard Tray & MIDI Keyboard
+          const trayW = deskW - 0.20;
+          const trayD = 0.35;
+          const trayY = riserBotY - 0.12; 
+          const trayZ = deskD/2 - 0.05;
+          
           const tray = _ghostBox(trayW, 0.02, trayD);
           tray.position.set(0, trayY, trayZ);
           group.add(tray);
+
           if (room.opt_keyboard) {
-            // PC keyboard — small slab on the desk surface near the front edge
-            const pcKb = _ghostBox(Math.min(deskW * 0.30, 0.44), 0.02, 0.16);
-            pcKb.position.set(0, 0.795, deskD / 2 - 0.12);
+            const pcKb = _ghostBox(0.44, 0.02, 0.16);
+            pcKb.position.set(-0.15, riserBotY + THICK/2 + 0.01, deskD/2 - 0.10);
             group.add(pcKb);
-            // Electronic music keyboard — wide + shallow, resting on the shelf
-            const musicKb = _ghostBox(Math.min(deskW * 0.65, 1.30), 0.05, 0.22);
-            musicKb.position.set(0, trayY + 0.035, trayZ);  // sits on the shelf top face
-            group.add(musicKb);
+            
+            const mouse = _ghostBox(0.06, 0.02, 0.10);
+            mouse.position.set(0.15, riserBotY + THICK/2 + 0.01, deskD/2 - 0.10);
+            group.add(mouse);
+
+            const midiKb = _ghostBox(1.35, 0.06, 0.26); // Large 88-key controller
+            midiKb.position.set(0, trayY + 0.04, trayZ);
+            group.add(midiKb);
           }
 
           return group;
@@ -3843,7 +3949,11 @@ export function initRoom3D({
     function getPanelMat(hexColor) {
       const colorStr = hexColor || '#1A1A1A';
       if (!_materialCache[colorStr]) {
-        _materialCache[colorStr] = new THREE.MeshBasicMaterial({ color: colorStr });
+        _materialCache[colorStr] = new THREE.MeshBasicMaterial({ 
+          color: colorStr,
+          transparent: true,
+          opacity: 0.85
+        });
       }
       return _materialCache[colorStr];
     }
@@ -3933,7 +4043,13 @@ export function initRoom3D({
       const isWood = style === 'fusion_pro';
       const foamColor = isWood ? 0x111111 : 0xdddddd;
       
-      const foamMat = new THREE.MeshStandardMaterial({ color: foamColor, roughness: 0.9, metalness: 0.1 });
+      const foamMat = new THREE.MeshStandardMaterial({ 
+        color: foamColor, 
+        roughness: 0.9, 
+        metalness: 0.1,
+        transparent: true,
+        opacity: 0.85
+      });
       const foamGeo = new THREE.BoxGeometry(width, height, thickness - 0.005);
       const foamMesh = new THREE.Mesh(foamGeo, foamMat);
       foamMesh.position.z = -0.0025;
