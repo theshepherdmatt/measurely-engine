@@ -1371,54 +1371,48 @@ export function initRoom3D({
     const rugRaise = (!isStudio && (room.opt_area_rug ?? true)) ? 0.02 : 0;
 
     // ── Studio rig anchoring ──────────────────────────────────────────────
-    // In studio mode the desk + monitors + speakers + mic + keys + chair
-    // move as a single unit driven by spk_front_m. The chair sits an
-    // equilateral-triangle distance behind the speaker plane.
+    // In studio mode the desk + monitors + speakers + mic + keys move as a
+    // single unit driven by spk_front_m. The chair/listener position is
+    // NOT part of that unit — it's independently user-controlled via the
+    // Listening Position slider (setup.listener_front_m), same as Hi-Fi
+    // mode. (Previously this block force-derived listener_front_m as
+    // spk_front_m + a fixed 1.0 m offset on every rebuild, which silently
+    // discarded whatever the Listening Position slider — and the Acoustics
+    // tab's Bass Modes corrective slider, which writes the same field —
+    // had set. The default state already happens to start at 1.45 m
+    // (0.45 + 1.0), so dropping the override doesn't move the initial
+    // render; it just stops re-clobbering the value on every rebuild.)
     //
-    // Two `room` mutations happen here, before listenerZ (line ~1701),
-    // speaker placement (line ~1457), and the overlay code that reads
-    // these values. Every downstream consumer (six call sites for
-    // spk_spacing_m, half a dozen for listener_front_m) resolves to the
-    // studio-appropriate value without each needing to branch on
-    // room_type. The user's stored slider values are preserved on
-    // `setup` (not mutated upstream), so switching back to a non-studio
-    // room type restores them.
+    // One `room` mutation happens here, before speaker placement
+    // (line ~1457) and the overlay code that reads it:
     //
-    //   1. room.spk_spacing_m → desk_width_m - 2*SPEAKER_X_INSET
+    //   room.spk_spacing_m → desk_width_m - 2*SPEAKER_X_INSET
     //      - 2*spk_inset_m. Speakers start just inside the desk edges
     //      (SPEAKER_X_INSET, a fixed 10 cm structural margin) and the
     //      "Speaker inset" slider (spk_inset_m) moves each speaker
     //      further INWARD from there. spk_spacing_m therefore stays the
-    //      TRUE geometric spacing, so every downstream reader (chair
-    //      offset below, wall/ceiling panels, reflection overlays)
-    //      stays correct with no branching. The Math.max floor stops
-    //      the speakers crossing over on a narrow desk.
-    //
-    //   2. room.listener_front_m → spk_front_m + chair equilateral
-    //      offset, clamped against the back wall (30 cm clearance).
+    //      TRUE geometric spacing, so every downstream reader (wall/
+    //      ceiling panels, reflection overlays) stays correct with no
+    //      branching. The Math.max floor stops the speakers crossing
+    //      over on a narrow desk.
     //
     // The Block B slider in studio drives spk_inset_m ("Speaker inset"),
     // not spk_spacing_m — inset is desk-relative, so it never needs to
-    // change when the desk is resized.
+    // change when the desk is resized. The user's stored slider values
+    // are preserved on `setup` (not mutated upstream), so switching back
+    // to a non-studio room type restores them.
     if (isStudio) {
       if (room.spk_placement === 'stands') room.spk_placement = 'desk_stands';
 
       const SPEAKER_X_INSET = 0.10; // m — fixed structural margin, speaker centre to desk edge
-      
+
       // Let the user's "Speaker spacing" slider drive the width of the desk,
       // rather than locking the speakers to a fixed desk width.
       room.desk_width_m = (room.spk_spacing_m ?? 2.0) + 2 * SPEAKER_X_INSET + 2 * (room.spk_inset_m ?? 0.20);
-      
+
       if (room.desk_style === 'production') {
         room.desk_width_m = Math.max(room.desk_width_m, 2.4);
       }
-
-      // Studio chair sits exactly 1.0m behind the speakers, so it moves when the 
-      // desk moves back and forth, but NOT when the speakers are made wider.
-      room.listener_front_m = Math.min(
-        (room.spk_front_m ?? 0.45) + 1.0,
-        room.length_m - 0.30
-      );
     }
 
     // 3. MASTER SWITCHES
