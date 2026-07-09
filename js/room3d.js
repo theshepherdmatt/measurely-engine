@@ -1406,13 +1406,6 @@ export function initRoom3D({
       if (room.desk_style === 'production') {
         room.desk_width_m = Math.max(room.desk_width_m, 2.4);
       }
-
-      const _studioChairOffset = room.spk_spacing_m * Math.sqrt(3) / 2;
-      // Clamp the chair against the back wall — 30 cm clearance.
-      room.listener_front_m = Math.min(
-        (room.spk_front_m ?? 0.45) + _studioChairOffset,
-        room.length_m - 0.30
-      );
     }
 
     // 3. MASTER SWITCHES
