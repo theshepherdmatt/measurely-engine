@@ -3920,7 +3920,7 @@ export function initRoom3D({
       const flash = new THREE.Mesh(
         targetMesh.geometry,
         new THREE.MeshBasicMaterial({
-          color: new THREE.Color(OC.TREATED_CYAN).multiplyScalar(3.0),
+          color: new THREE.Color(0x22c55e).multiplyScalar(3.0),
           transparent: true,
           opacity: 0,
           blending: THREE.AdditiveBlending,
@@ -5860,8 +5860,10 @@ export function initRoom3D({
         // off — a bass-heavy return still registers. (The per-band return
         // cluster, built below, carries the full r(band) detail.)
         const _bMeanR = surfaceMeanR[b.surface] * SIM_SCALE;
+        const isTreated = surfaceTreated[b.surface] === true;
+        const _flashStrength = isTreated ? SIM_SCALE : _bMeanR;
         flashEventsBySurface[b.surface].push({
-          start: b.flashStart, duration: FLASH_DUR, strength: _bMeanR,
+          start: b.flashStart, duration: FLASH_DUR, strength: _flashStrength,
         });
         // Shared surface-impact: fire impactAt() once per cycle as the pulse
         // reaches this wall (cycle-crossing detected in animate). Energy is the
@@ -6083,13 +6085,9 @@ export function initRoom3D({
       for (const [surf, meta] of Object.entries(surfaceMeta)) {
         const events = flashEventsBySurface[surf];
         if (!events.length) continue;
-        // Phase 2 panel-aware flash: treated surfaces don't get a wall
-        // flash at all — the panels on this surface own the visual via
-        // their cyan flash (wired below). Untreated surfaces keep the
-        // pink wall flash. surfaceTreated is recomputed on every
-        // rebuild() so toggling treatment on/off updates this gate
-        // without a stale-state path.
-        if (surfaceTreated[surf]) continue;
+        // Phase 2 panel-aware flash: treated surfaces get a green wall
+        // flash, untreated surfaces get a pink wall flash.
+        const isTreated = surfaceTreated[surf] === true;
         const flash = new THREE.Mesh(
           meta.vertical
             ? _buildVerticalFlashGeom(surf)
@@ -6097,7 +6095,7 @@ export function initRoom3D({
               ? _buildCeilingFlashGeom()
               : new THREE.PlaneGeometry(meta.w * 0.92, meta.h * 0.92),
           new THREE.MeshBasicMaterial({
-            color: OC.PRESSURE_PEAK,
+            color: isTreated ? 0x22c55e : OC.PRESSURE_PEAK,
             transparent: true,
             opacity: 0,
             blending: THREE.AdditiveBlending,
@@ -6109,7 +6107,8 @@ export function initRoom3D({
           flash.position.set(...meta.pos);
           if (meta.rot) flash.rotation[meta.rot[0]] = meta.rot[1];
         }
-        flash.userData.isReflectionFlash = { events, surfaceStrength: surfaceMeanR[surf] * SIM_SCALE };
+        const _surfStrength = isTreated ? SIM_SCALE : surfaceMeanR[surf] * SIM_SCALE;
+        flash.userData.isReflectionFlash = { events, surfaceStrength: _surfStrength };
         roomGroup.add(flash);
       }
 
@@ -6125,7 +6124,9 @@ export function initRoom3D({
         if (!tag) return;
         const events = flashEventsBySurface[tag.surface];
         if (!events?.length) return;
-        obj.userData.isReflectionFlash = { events, surfaceStrength: surfaceMeanR[tag.surface] * SIM_SCALE };
+        const isTreated = surfaceTreated[tag.surface] === true;
+        const _surfStrength = isTreated ? SIM_SCALE : surfaceMeanR[tag.surface] * SIM_SCALE;
+        obj.userData.isReflectionFlash = { events, surfaceStrength: _surfStrength };
       });
 
       // ── Frequency-banded pulse clusters (InstancedMesh — one draw call) ──
@@ -6137,7 +6138,7 @@ export function initRoom3D({
       // single InstancedMesh (one draw call) so iPad stays smooth; the animate
       // loop only mutates matrices/colours.
       const _pinkCol = new THREE.Color(OC.PRESSURE_PEAK);   // #FF107A — hero (return)
-      const _tealCol = new THREE.Color(OC.DIRECT_SIGNAL);   // teal — quieter companion (out)
+      const _tealCol = new THREE.Color(0x22c55e);           // green — quieter companion (out)
       // Room-scaled radius envelope (clamped): 125 Hz biggest, 8 kHz smallest.
       const _ballK = Math.min(1.5, Math.max(0.7, Math.max(room.width_m, room.length_m) / 5));
       const _rMax  = 0.130 * _ballK;   // low band
