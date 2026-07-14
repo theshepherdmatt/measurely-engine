@@ -2461,12 +2461,16 @@ export function initRoom3D({
           // entirely (an ~164° rotation instead of ~15°), not just a sign flip.
           const forwardDist = isRear ? (z - targetZ) : (targetZ - z);
           const tiltRad = Math.atan2(y - targetY, forwardDist);
-          // +tiltRad, not -tiltRad: the cabinet's forward axis is local +Z
-          // (same axis the directivity beam extends along, and where the
-          // driver faces are built), and a positive X-rotation tips that
-          // axis downward as Z increases into the room. The negated sign
-          // tipped it up through the ceiling instead.
-          spkGroup.rotation.x = tiltRad;
+          // +tiltRad tips the forward axis (local +Z) downward for the
+          // front pair (no yaw). For the rear pair, THREE's Euler 'XYZ'
+          // composes as Rx * Ry * Rz applied to the local vector -- i.e.
+          // the 180° yaw (rotation.y, set above) is applied to the vector
+          // BEFORE the tilt, not after. That reverses which sign of
+          // rotation.x reads as "down" once the yaw has flipped the local
+          // forward axis, so the rear pair needs the negated angle here,
+          // not the same sign as front. (Verified against THREE's actual
+          // Matrix4.makeRotationFromEuler formula, not assumed.)
+          spkGroup.rotation.x = isRear ? -tiltRad : tiltRad;
 
           const bracketMat = new THREE.LineBasicMaterial({
             color: spkColor, transparent: true, opacity: spkOpacity * 0.65
