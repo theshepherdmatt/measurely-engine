@@ -3405,7 +3405,11 @@ export function initRoom3D({
         monGroup.add(cabinet);
       });
 
-      // DJ Avatar
+      // DJ Avatar — gated on the same Crowd toggle as the dance floor:
+      // with the crowd off the view is "empty venue / rig inspection",
+      // and a lone bobbing DJ in an empty room reads as a glitch.
+      // setCrowd() rebuilds, so this picks up the toggle immediately.
+      if (_crowdEnabled) {
       const djHeadGeo = new THREE.SphereGeometry(0.15, 10, 8);
       const djBodyGeo = new THREE.CylinderGeometry(0.2, 0.25, 1.4, 8);
       djBodyGeo.translate(0, 0.7, 0); // anchor at feet
@@ -3464,6 +3468,7 @@ export function initRoom3D({
       djHead.userData.phase = phase;
       
       roomGroup.add(djGroup);
+      } // end _crowdEnabled (DJ avatar)
 
       // --- MIRROR BALL ---
       if (_discoEnabled) {
