@@ -1396,6 +1396,9 @@ export function initRoom3D({
       // derived automatically (aimed at ear height on the dance floor
       // centre), not a user field — see the isWallMount bracket block.
       pa_mount_height_m: data.pa_mount_height_m ?? 3.0,
+      // Club only: adds RearL/RearR pa_top speakers at the back wall
+      // (4-speaker layout) — read by the speakerSides branch below.
+      rear_pa: data.rear_pa ?? false,
 
       room_type: data.room_type || env.room_type || "home",
       opt_area_rug: furn.opt_area_rug ?? env.opt_area_rug ?? data.opt_area_rug,
@@ -2264,7 +2267,10 @@ export function initRoom3D({
       const toeRad = (room.toe_in_deg || 0) * Math.PI / 180;
       const baseY = -room.height_m / 2;
 
-      ["L", "R"].forEach(side => {
+      const speakerSides = (room.room_type === 'club' && room.rear_pa) ? ["L", "R", "RearL", "RearR"] : ["L", "R"];
+      speakerSides.forEach(side => {
+        const isRear = side.startsWith("Rear");
+        const logicalSide = isRear ? side.slice(4) : side;
         // Cinema in-wall front stage: the L/C/R are redrawn as flush wireframe
         // panels on the front wall (in the cinema prop block below), so the shared
         // box front pair is suppressed here. Cinema-gated — hi-fi, studio and
@@ -2295,7 +2301,7 @@ export function initRoom3D({
         // upstream (~line 770, Option B) to derive from desk_width_m,
         // so speakers track the desk edges at 10 cm inset. In Hi-Fi
         // mode room.spk_spacing_m is the user's slider value.
-        const x = offsetX + (side === "L" ? -1 : 1) * room.spk_spacing_m / 2;
+        const x = offsetX + (logicalSide === "L" ? -1 : 1) * room.spk_spacing_m / 2;
 
         // Z anchor — every placement honours spk_front_m so the visible
         // speakers sit at the same Z the overlay code assumes
@@ -2304,7 +2310,7 @@ export function initRoom3D({
         // world space (not parented under rigGroup) — same world Z
         // gets the same visual co-location as parenting would, with
         // zero churn to the toe-rotation / beam / cable code below.
-        const speakerZ = -room.length_m / 2 + room.spk_front_m;
+        const speakerZ = isRear ? (room.length_m / 2 - 0.35) : (-room.length_m / 2 + room.spk_front_m);
 
         let y, z;
         if (profile.onDesk && room.spk_placement === 'stands') {
@@ -2427,7 +2433,7 @@ export function initRoom3D({
         }
 
         // Initial toe-in (may be overridden by _applyAutoToe after rebuild)
-        spkGroup.rotation.y = (side === "L" ? 1 : -1) * toeRad;
+        spkGroup.rotation.y = (logicalSide === "L" ? 1 : -1) * toeRad;
 
         // Wall bracket: plate flush to the front wall + a diagonal arm to
         // the cabinet back, plus the downward tilt a permanent install
@@ -2533,7 +2539,9 @@ export function initRoom3D({
           _waveClipPlanes[2].constant = clipHalfL;
           _waveClipPlanes[3].constant = clipHalfL;
           const waveZ = -room.length_m / 2 + room.spk_front_m;
-          const waveX = offsetX + (side === 'L' ? -1 : 1) * room.spk_spacing_m / 2;
+          // logicalSide (not raw side) so RearL/RearR mirror the same way
+          // as L/R instead of both landing on the +X side.
+          const waveX = offsetX + (logicalSide === 'L' ? -1 : 1) * room.spk_spacing_m / 2;
 
           // ── Per-ring amplitude from REW mags (0..1) ───────────────────────
           // Geometric SBIR null: f₀ = c / (4d), then one octave per ring.
@@ -2605,7 +2613,7 @@ export function initRoom3D({
           // Stash this speaker's tweeter position for the per-frame
           // interference calc in animate(). Build the MLP indicator once
           // per rebuild, gated to the L pass so it doesn't double-spawn.
-          if (side === 'L') {
+          if (side === 'L' && !isRear) {
             _spkLeftLocalPos.set(waveX, waveY, waveZ);
 
             // MLP math inlined from the side-reflections overlay
@@ -3161,25 +3169,25 @@ export function initRoom3D({
       roomGroup.add(djGroup);
 
       // --- MIRROR BALL ---
-      const mballRadius = 0.3;
-      const mballGeo = new THREE.SphereGeometry(mballRadius, 16, 12);
-      const mballMat = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        roughness: 0.1,
-        metalness: 0.9,
-        flatShading: true
-      });
-      _mirrorBall = new THREE.Mesh(mballGeo, mballMat);
-      const ceilY = room.height_m / 2;
-      _mirrorBall.position.set(0, ceilY - mballRadius - 0.2, 0);
-      const mstringGeo = new THREE.CylinderGeometry(0.005, 0.005, 0.2);
-      const mstringMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
-      const mstring = new THREE.Mesh(mstringGeo, mstringMat);
-      mstring.position.set(0, mballRadius + 0.1, 0);
-      _mirrorBall.add(mstring);
-      
-      // LASERS
       if (_discoEnabled) {
+        const mballRadius = 0.3;
+        const mballGeo = new THREE.SphereGeometry(mballRadius, 16, 12);
+        const mballMat = new THREE.MeshStandardMaterial({
+          color: 0xffffff,
+          roughness: 0.1,
+          metalness: 0.9,
+          flatShading: true
+        });
+        _mirrorBall = new THREE.Mesh(mballGeo, mballMat);
+        const ceilY = room.height_m / 2;
+        _mirrorBall.position.set(0, ceilY - mballRadius - 0.2, 0);
+        const mstringGeo = new THREE.CylinderGeometry(0.005, 0.005, 0.2);
+        const mstringMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
+        const mstring = new THREE.Mesh(mstringGeo, mstringMat);
+        mstring.position.set(0, mballRadius + 0.1, 0);
+        _mirrorBall.add(mstring);
+        
+        // LASERS
         const laserCount = 60;
         const pts = [];
         const colors = [];
@@ -3217,9 +3225,10 @@ export function initRoom3D({
         });
         const laserLines = new THREE.LineSegments(laserGeo, laserMat);
         _mirrorBall.add(laserLines);
+        roomGroup.add(_mirrorBall);
+      } else {
+        _mirrorBall = null;
       }
-
-      roomGroup.add(_mirrorBall);
     }
 
     /* ------------------------------------------
@@ -3728,7 +3737,7 @@ export function initRoom3D({
 
       // ── Listener sphere (always visible) ──
       const isListHighlit = highlightTarget === 'listener';
-      const sphereColor = isListHighlit ? 0x0f766e : colors.accent;
+      const sphereColor = isListHighlit ? 0x0f766e : 0x00e5ff; // Bright cyan
       const sphere = new THREE.Mesh(
         new THREE.SphereGeometry(isListHighlit ? 0.22 : 0.18, 24, 24),
         new THREE.MeshBasicMaterial({

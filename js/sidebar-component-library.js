@@ -1617,42 +1617,26 @@
     if (!mount) return null;
 
     const cur = {
-      density: state.density ?? 'comfortable',      // 'comfortable' 2/m² | 'packed' 4/m²
+      crowd_limit: state.crowd_limit ?? 200,
       crowd_bpm: state.crowd_bpm ?? 126,
     };
     let areaM2 = state.area_m2 ?? 0;
 
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
 
-    const capWrap = _el('div', { class: 'demo-field' });
-    const capHdr  = _el('div', { class: 'demo-field-header' });
-    const capLbl  = _el('span', { class: 'demo-field-label' }, 'Dance floor capacity');
-    const capVal  = _el('span', { class: 'demo-field-value' }, '—');
-    capHdr.append(capLbl, capVal);
-    capWrap.appendChild(capHdr);
-    wrap.appendChild(capWrap);
-
-    function _densityFactor(d) { return d === 'packed' ? 4 : 2; }
-    function _updateCapacity() {
-      capVal.textContent = areaM2 > 0
-        ? Math.round(areaM2 * _densityFactor(cur.density)) + ' people'
-        : '—';
-    }
-
-    const densityGroup = _btnGroup(
-      [
-        { key: 'comfortable', label: 'Comfortable', title: '~2 people/m²' },
-        { key: 'packed',      label: 'Packed',      title: '~4 people/m²' },
-      ],
-      cur.density,
-      (key) => {
-        cur.density = key;
-        _updateCapacity();
-        onChange?.({ ...cur });
-      }
-    );
-    wrap.appendChild(densityGroup.row);
-    _updateCapacity();
+    const { wrap: limitWrap, slider: limitSlider, val: limitVal } = _sliderField({
+      label: 'Crowd limit', id: 'scl-crowd-limit',
+      min: 50, max: 500, step: 50, value: cur.crowd_limit, unit: ' people', decimals: 0,
+      ariaLabel: 'Crowd limit',
+    });
+    limitSlider.addEventListener('input', () => {
+      const v = parseInt(limitSlider.value, 10);
+      cur.crowd_limit = v;
+      limitVal.textContent = String(v) + ' people';
+      _updateSliderFill(limitSlider);
+      onChange?.({ ...cur });
+    });
+    wrap.appendChild(limitWrap);
 
     const { wrap: bpmWrap, slider: bpmSlider, val: bpmVal } = _sliderField({
       label: 'Crowd animation BPM', id: 'scl-crowd-bpm',
@@ -1672,13 +1656,14 @@
 
     return {
       reset() {
-        cur.density = state.density ?? 'comfortable';
+        cur.crowd_limit = state.crowd_limit ?? 200;
         cur.crowd_bpm = state.crowd_bpm ?? 126;
-        densityGroup.setActive(cur.density);
+        limitSlider.value = String(cur.crowd_limit);
+        limitVal.textContent = String(cur.crowd_limit) + ' people';
+        _updateSliderFill(limitSlider);
         bpmSlider.value = String(cur.crowd_bpm);
         bpmVal.textContent = String(cur.crowd_bpm) + ' BPM';
         _updateSliderFill(bpmSlider);
-        _updateCapacity();
       },
       // Pushed by the caller whenever room width/length change — the dance
       // floor area comes from the room geometry section, not a slider here.
@@ -1710,6 +1695,7 @@
       spk_front_m:       state.spk_front_m       ?? 1.0,
       booth_front_m:     state.booth_front_m     ?? 0.75,
       pa_mount_height_m: state.pa_mount_height_m ?? 3.0,
+      rear_pa:           state.rear_pa           ?? false,
     };
 
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
@@ -1721,6 +1707,26 @@
       { key: 'spk_front_m',       label: 'Bass bins from front wall', min: 0.2, max: 3.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
       { key: 'booth_front_m',     label: 'Booth from front wall',  min: 0.2, max: 2.5,  step: 0.1, unit: 'm',   decimals: 1, hl: 'speakers' },
     ];
+
+    const rearPaWrap = _el('div', { class: 'demo-field', style: 'margin-top:4px;' });
+    const rearPaHdr = _el('div', { class: 'demo-field-header' });
+    const rearPaLbl = _el('span', { class: 'demo-field-label' }, 'Rear PA (4-Point)');
+    rearPaHdr.appendChild(rearPaLbl);
+    rearPaWrap.appendChild(rearPaHdr);
+
+    const rearPaGroup = _btnGroup(
+      [
+        { key: 'off', label: 'Off', title: 'Front PA only' },
+        { key: 'on',  label: 'On',  title: 'Add mirrored PA at rear wall' }
+      ],
+      cur.rear_pa ? 'on' : 'off',
+      (key) => {
+        cur.rear_pa = key === 'on';
+        onChange?.({ ...cur });
+      }
+    );
+    rearPaWrap.appendChild(rearPaGroup.row);
+    wrap.appendChild(rearPaWrap);
 
     const sliders = {};
     for (const def of defs) {
