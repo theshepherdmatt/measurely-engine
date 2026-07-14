@@ -1307,6 +1307,9 @@ export function initRoom3D({
       // BASS BIN STACK render block for why this is a separate path from
       // the home hi-fi subwoofer fields above.
       bass_bin_count: data.bass_bin_count ?? 2,
+      // Club only: DJ booth distance from the front wall (cable-run
+      // clearance). Same merge pattern as bass_bin_count above.
+      booth_front_m: data.booth_front_m ?? 0.75,
 
       room_type: data.room_type || env.room_type || "home",
       opt_area_rug: furn.opt_area_rug ?? env.opt_area_rug ?? data.opt_area_rug,
@@ -2979,7 +2982,7 @@ export function initRoom3D({
       // already-realistic value. X and Z share one factor so the platter/
       // vinyl circles stay circular rather than becoming ellipses.
       const BOOTH_FOOTPRINT_SCALE = 0.42;
-      const boothZ = -room.length_m / 2 + 0.75 * BOOTH_FOOTPRINT_SCALE;
+      const boothZ = -room.length_m / 2 + (room.booth_front_m ?? 0.75) * BOOTH_FOOTPRINT_SCALE;
       const booth = _buildDJBooth();
       booth.scale.set(BOOTH_FOOTPRINT_SCALE, 1, BOOTH_FOOTPRINT_SCALE);
       booth.position.set(offsetX, boothFloorY + rugRaise, boothZ);

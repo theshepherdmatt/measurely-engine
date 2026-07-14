@@ -1698,7 +1698,7 @@
   // two pa_top cabinets either side of the booth, spk_front_m moves the
   // entire rig (tops + bass_bin stack, which renders at the same Z) off the
   // front wall.
-  //   renderClubSpeakersSection(mountId, { state: { spk_spacing_m, spk_front_m }, onChange })
+  //   renderClubSpeakersSection(mountId, { state: { spk_spacing_m, spk_front_m, booth_front_m }, onChange })
   function renderClubSpeakersSection(mountId, { state = {}, onChange } = {}) {
     const mount = _mount(mountId);
     if (!mount) return null;
@@ -1706,13 +1706,15 @@
     const cur = {
       spk_spacing_m: state.spk_spacing_m ?? 6.0,
       spk_front_m:   state.spk_front_m   ?? 1.0,
+      booth_front_m: state.booth_front_m ?? 0.75,
     };
 
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
 
     const defs = [
-      { key: 'spk_spacing_m', label: 'Top spacing',       min: 2.0, max: 10.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
-      { key: 'spk_front_m',   label: 'Rig from front wall', min: 0.2, max: 3.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
+      { key: 'spk_spacing_m', label: 'Top spacing',         min: 2.0, max: 10.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
+      { key: 'spk_front_m',   label: 'Rig from front wall',  min: 0.2, max: 3.0,  step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
+      { key: 'booth_front_m', label: 'Booth from front wall', min: 0.2, max: 2.5, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
     ];
 
     const sliders = {};
