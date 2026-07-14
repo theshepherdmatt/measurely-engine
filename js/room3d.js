@@ -3179,11 +3179,19 @@ export function initRoom3D({
         const stackZ = -room.length_m / 2 + room.spk_front_m;
         const floorY = -room.height_m / 2;
 
+        const maxCols = 4;
+        const cols = Math.min(stackCount, maxCols);
+        const totalW = cols * binProfile.w;
+        const startX = offsetX - totalW / 2 + binProfile.w / 2;
+
         for (let i = 0; i < stackCount; i++) {
+          const row = Math.floor(i / cols);
+          const col = i % cols;
           const bin = _buildBassBinSpeaker(binProfile.w, binProfile.h, binProfile.d, binColor, binOpacity);
+          bin.rotation.z = Math.PI / 2;
           bin.position.set(
-            offsetX,
-            floorY + rugRaise + binProfile.h / 2 + i * binProfile.h,
+            startX + col * binProfile.h,
+            floorY + rugRaise + binProfile.w / 2 + row * binProfile.w,
             stackZ
           );
           roomGroup.add(bin);
@@ -6717,7 +6725,7 @@ export function initRoom3D({
         sideMat
       );
       sideField.rotation.x = -Math.PI / 2;
-      sideField.position.set(0, -halfH + _sphereY, 0);
+      sideField.position.set(0, -halfH + 1.6, 0);
       sideField.userData.isSideRefField = true;
       roomGroup.add(sideField);
 
