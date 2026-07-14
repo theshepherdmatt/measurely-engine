@@ -3153,12 +3153,18 @@ export function initRoom3D({
       // DJ monitor wedge — sits on the table top on the DJ's side (-Z,
       // opposite the crowd-facing facade at +0.76), tilted back so the
       // driver faces up toward the DJ standing behind the booth.
-      const monitor = _ghostBox(0.28, 0.16, 0.22);
-      monitor.position.set(0, 1.06 + 0.08, -0.55);
+      // Width/depth (not height — booth.scale only touches X/Z, see
+      // BOOTH_FOOTPRINT_SCALE) are authored at 1/0.42 of the real target
+      // size so they land at a small-but-visible ~0.25m wide once the
+      // booth's own footprint scale is applied — sizing them at the real
+      // target directly (as a first pass did) rendered at ~40% of that,
+      // effectively invisible.
+      const monitor = _ghostBox(0.60, 0.18, 0.48);
+      monitor.position.set(0, 1.06 + 0.09, -0.55);
       monitor.rotation.x = -0.3;
-      const monitorDriver = _edges(new THREE.CylinderGeometry(0.06, 0.06, 0.02, 24));
+      const monitorDriver = _edges(new THREE.CylinderGeometry(0.12, 0.12, 0.03, 24));
       monitorDriver.rotation.x = Math.PI / 2;
-      monitorDriver.position.z = -0.121;
+      monitorDriver.position.z = -0.29;
       monitor.add(monitorDriver);
       grp.add(monitor);
 
