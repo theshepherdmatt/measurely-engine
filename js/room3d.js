@@ -5582,10 +5582,16 @@ export function initRoom3D({
         if (ring.userData.baseY === undefined) ring.userData.baseY = ring.position.y;
         let phase = (_wt / WAVE_CYCLE + ring.userData.wavePhase) % 1.0;
         if (ring.userData.speakerSide === 'SUB') {
-          const beatRate = 45 / 60;
+          // Shockwave pulse, not a continuously-cycling ring: fast
+          // expand+fade over PULSE_DUR seconds, then silent until the next
+          // beat -- reads as a "thump" instead of a slow repeating wave.
+          const beatRate = 45 / 60; // Hz
+          const beatPeriod = 1 / beatRate;
+          const PULSE_DUR = 0.5; // seconds the pulse stays visible
           const bob = Math.abs(Math.sin(_nowT * beatRate * Math.PI)) * 0.09;
           ring.position.y = ring.userData.baseY + bob;
-          phase = ((_nowT * beatRate / 4.0) + ring.userData.wavePhase) % 1.0;
+          const tSincePulse = ((_nowT + ring.userData.wavePhase * beatPeriod) % beatPeriod);
+          phase = Math.min(1, tSincePulse / PULSE_DUR); // clamps at 1 (invisible) between pulses
         }
         const r = phase * ring.userData.waveMaxR;
         ring.scale.set(r, 1, r);
