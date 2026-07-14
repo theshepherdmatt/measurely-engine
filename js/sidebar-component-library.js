@@ -1684,7 +1684,7 @@
   // position. No tilt slider — room3d.js derives the downward aim from
   // mount height + distance so the tops always point at ear height on the
   // dance floor centre, not an arbitrary fixed angle.
-  //   renderClubSpeakersSection(mountId, { state: { spk_spacing_m, spk_front_m, booth_front_m, booth_offset_m, pa_mount_height_m, toe_in_deg, rear_pa, bass_bin_count, bass_bin_placement }, onChange })
+  //   renderClubSpeakersSection(mountId, { state: { spk_spacing_m, spk_front_m, booth_front_m, booth_offset_m, pa_mount_height_m, toe_in_deg, rear_pa, bass_bin_count, bass_bin_placement, deck_config }, onChange })
   function renderClubSpeakersSection(mountId, { state = {}, onChange } = {}) {
     const mount = _mount(mountId);
     if (!mount) return null;
@@ -1699,6 +1699,7 @@
       toe_in_deg:        state.toe_in_deg        ?? 10,
       rear_pa:           state.rear_pa           ?? false,
       bass_bin_placement: state.bass_bin_placement ?? 'centre',
+      deck_config:       state.deck_config       ?? 'both',
     };
 
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
@@ -1718,6 +1719,27 @@
       // booth.
       { key: 'booth_offset_m',    label: 'Booth left / right',     min: -3.0, max: 3.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
     ];
+
+    const deckConfigWrap = _el('div', { class: 'demo-field', style: 'margin-top:4px;' });
+    const deckConfigHdr = _el('div', { class: 'demo-field-header' });
+    const deckConfigLbl = _el('span', { class: 'demo-field-label' }, 'Decks');
+    deckConfigHdr.appendChild(deckConfigLbl);
+    deckConfigWrap.appendChild(deckConfigHdr);
+
+    const deckConfigGroup = _btnGroup(
+      [
+        { key: 'turntables', label: 'Turntables', title: '2 turntables' },
+        { key: 'cdj',        label: 'CDJs',        title: '2 CDJs, no tonearm' },
+        { key: 'both',       label: '4 (Both)',    title: '4-deck mixed layout: 2 turntables + 2 CDJs' },
+      ],
+      cur.deck_config,
+      (key) => {
+        cur.deck_config = key;
+        onChange?.({ ...cur });
+      }
+    );
+    deckConfigWrap.appendChild(deckConfigGroup.row);
+    wrap.appendChild(deckConfigWrap);
 
     const binPlacementWrap = _el('div', { class: 'demo-field', style: 'margin-top:4px;' });
     const binPlacementHdr = _el('div', { class: 'demo-field-header' });

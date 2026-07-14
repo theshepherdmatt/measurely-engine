@@ -1406,6 +1406,9 @@ export function initRoom3D({
       // Club only: 'centre' (under the booth) or 'corners' (flanking each
       // front corner) -- read by the BASS BIN STACK render block.
       bass_bin_placement: data.bass_bin_placement ?? 'centre',
+      // Club only: 'turntables' (2), 'cdj' (2), or 'both' (4, the standard
+      // mixed layout) -- read by _buildDJBooth()'s deck-building calls.
+      deck_config: data.deck_config ?? 'both',
 
       room_type: data.room_type || env.room_type || "home",
       opt_area_rug: furn.opt_area_rug ?? env.opt_area_rug ?? data.opt_area_rug,
@@ -3136,13 +3139,24 @@ export function initRoom3D({
         btn.position.set(-0.55, 0.08, 0.42);
         g.add(btn);
       }
-      // Standard 4-deck club layout: two decks flanking the mixer each
-      // side (deck-deck-mixer-deck-deck), not stacked/tiered pairs. Inner
-      // pair are turntables (tonearm), outer pair are CDJs (no tonearm).
-      _makeTurntable(-1.35);
-      _makeTurntable(1.35);
-      _makeTurntable(-2.75, false);
-      _makeTurntable(2.75, false);
+      // deck_config: 'both' is the standard 4-deck mixed layout (two
+      // turntables flanking the mixer, two CDJs further out) --
+      // 'turntables'/'cdj' keep the same inner deck slots (±1.35) but
+      // only build two, matching what installers actually quote rather
+      // than always showing a fixed 4-deck rig.
+      const deckConfig = room.deck_config || 'both';
+      if (deckConfig === 'both') {
+        _makeTurntable(-1.35);
+        _makeTurntable(1.35);
+        _makeTurntable(-2.75, false);
+        _makeTurntable(2.75, false);
+      } else if (deckConfig === 'turntables') {
+        _makeTurntable(-1.35);
+        _makeTurntable(1.35);
+      } else { // 'cdj'
+        _makeTurntable(-1.35, false);
+        _makeTurntable(1.35, false);
+      }
 
       const mixer = new THREE.Group();
       mixer.position.set(0, 1.06, 0.05);
