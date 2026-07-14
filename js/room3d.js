@@ -3575,10 +3575,13 @@ export function initRoom3D({
         // in a single column — a floor-standing tower reads correctly
         // tucked into a corner, whereas the wide horizontal row doesn't
         // fit the tighter corner footprint.
-        function _buildStackAt(centerX, centerZ, vertical) {
+        // Rear-wall stacks face the opposite way from front-wall stacks
+        // (both fire back into the room, toward the crowd) — 180° turn.
+        function _buildStackAt(centerX, centerZ, vertical, facingRear) {
           if (vertical) {
             for (let i = 0; i < stackCount; i++) {
               const bin = _buildBassBinSpeaker(binProfile.w, binProfile.h, binProfile.d, binColor, binOpacity);
+              if (facingRear) bin.rotation.y = Math.PI;
               bin.position.set(
                 centerX,
                 floorY + rugRaise + binProfile.h / 2 + i * binProfile.h,
@@ -3594,6 +3597,7 @@ export function initRoom3D({
             const col = i % cols;
             const bin = _buildBassBinSpeaker(binProfile.w, binProfile.h, binProfile.d, binColor, binOpacity);
             bin.rotation.z = Math.PI / 2;
+            if (facingRear) bin.rotation.y = Math.PI;
             bin.position.set(
               startX + col * binProfile.h,
               floorY + rugRaise + binProfile.w / 2 + row * binProfile.w,
@@ -3616,7 +3620,8 @@ export function initRoom3D({
           stackCentres.push(offsetX + (room.booth_offset_m ?? 0));
         }
         for (const z of stackZs) {
-          stackCentres.forEach(cx => _buildStackAt(cx, z, isCorners));
+          const facingRear = z === rearZ;
+          stackCentres.forEach(cx => _buildStackAt(cx, z, isCorners, facingRear));
         }
 
         if (_wavesEnabled && _subWavesOn) {

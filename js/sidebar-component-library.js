@@ -1781,14 +1781,19 @@
     binPlacementWrap.appendChild(binPlacementHdr);
     const binPlacementGroup = _btnGroup(
       [
-        { key: 'centre',       label: 'Centre',      title: 'Single mono stack under the booth' },
-        { key: 'corners',      label: 'Front Corners', title: 'Split the stack to both front corners' },
-        { key: 'rear_corners', label: 'Rear Corners',  title: 'Split the stack to both rear corners (fill for a long floor)' },
-        { key: 'both_corners', label: 'Both',          title: 'Stack at all four corners (front + rear)' },
+        { key: 'centre',       label: 'Centre', title: 'Single mono stack under the booth' },
+        { key: 'corners',      label: 'Front',   title: 'Split the stack to both front corners' },
+        { key: 'rear_corners', label: 'Rear',    title: 'Split the stack to both rear corners (fill for a long floor)' },
+        { key: 'both_corners', label: 'Both',    title: 'Stack at all four corners (front + rear)' },
       ],
       cur.bass_bin_placement,
       (key) => { cur.bass_bin_placement = key; onChange?.({ ...cur }); }
     );
+    // Even 4-across grid instead of the default flex-wrap, which broke
+    // into a lopsided 2x2 once a 4th ("Both") option was added.
+    binPlacementGroup.row.style.display = 'grid';
+    binPlacementGroup.row.style.gridTemplateColumns = 'repeat(4, 1fr)';
+    binPlacementGroup.row.style.gap = '5px';
     binPlacementWrap.appendChild(binPlacementGroup.row);
     wrap.appendChild(binPlacementWrap);
 
