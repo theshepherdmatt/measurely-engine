@@ -1409,6 +1409,7 @@ export function initRoom3D({
       // Club only: 'turntables' (2), 'cdj' (2), or 'both' (4, the standard
       // mixed layout) -- read by _buildDJBooth()'s deck-building calls.
       deck_config: data.deck_config ?? 'both',
+      dj_riser_enabled: data.dj_riser_enabled ?? true,
 
       room_type: data.room_type || env.room_type || "home",
       opt_area_rug: furn.opt_area_rug ?? env.opt_area_rug ?? data.opt_area_rug,
@@ -3045,10 +3046,16 @@ export function initRoom3D({
       // wraps every desk element (table, facade, legs, decks, mixer) so
       // raising the platform is one offset instead of editing every
       // individual y position by hand.
-      const RISER_H = 0.15;
-      const riser = _ghostBox(8.4, RISER_H, 3.6);
-      riser.position.set(0, RISER_H / 2, 0); // centred, generous depth covers both the table area and DJ standing room behind on either side of the 180° flip
-      grp.add(riser);
+      // Toggleable: off means the desk sits flush on the floor (no
+      // elevation, no visible platform), not just a hidden box at the old
+      // height -- RISER_H itself drops to 0 so deskGroup's offset and the
+      // riser mesh agree.
+      const RISER_H = room.dj_riser_enabled !== false ? 0.15 : 0;
+      if (RISER_H > 0) {
+        const riser = _ghostBox(8.4, RISER_H, 3.6);
+        riser.position.set(0, RISER_H / 2, 0); // centred, generous depth covers both the table area and DJ standing room behind on either side of the 180° flip
+        grp.add(riser);
+      }
 
       const deskGroup = new THREE.Group();
       deskGroup.position.y = RISER_H;
@@ -3239,10 +3246,10 @@ export function initRoom3D({
       const MONITOR_YAW = 0.55; // ~31°, inward toward table centre
       const monCabW = 0.20, monCabD = 0.20, monCabH = 0.24;
       const monPoleH = 0.16, monPoleFootprint = 0.04;
-      // Matches _buildDJBooth()'s RISER_H (0.15) -- the desk it's duplicated
-      // for the same reason BOOTH_FOOTPRINT_SCALE is: that constant lives
-      // in the other function's scope.
-      const monRiserH = 0.15;
+      // Matches _buildDJBooth()'s RISER_H -- duplicated for the same
+      // reason BOOTH_FOOTPRINT_SCALE is: that constant lives in the other
+      // function's scope. Must track the same dj_riser_enabled toggle.
+      const monRiserH = room.dj_riser_enabled !== false ? 0.15 : 0;
       const monCabMat = new THREE.LineBasicMaterial({ color: 0x2a2a28, transparent: true, opacity: Math.max(OP_OBJ, 0.80) });
       [-1, 1].forEach(sign => {
         // localX matches the widened 4-deck table's outer leg position

@@ -1674,92 +1674,35 @@
     };
   }
 
-  // ── Section — Club: PA rig placement (tops + bass bin stack) ──────────────
-  // Club-only. Coverage-driven placement, not imaging — no toe-in or
-  // tweeter-height sliders (those assume a stereo sweet spot, which doesn't
-  // apply here). pa_top is wall-bracket mounted (permanent install), not
-  // floor/pole-stood — spk_front_m therefore only moves the bass_bin stack
-  // off the front wall now, not the tops; pa_mount_height_m is separate
-  // since a wall bracket's height is independent of the sub stack's floor
-  // position. No tilt slider — room3d.js derives the downward aim from
-  // mount height + distance so the tops always point at ear height on the
-  // dance floor centre, not an arbitrary fixed angle.
-  //   renderClubSpeakersSection(mountId, { state: { spk_spacing_m, spk_front_m, booth_front_m, booth_offset_m, pa_mount_height_m, toe_in_deg, rear_pa, bass_bin_count, bass_bin_placement, deck_config }, onChange })
+  // ── Section — Club: PA rig placement (tops only) ──────────────────────────
+  // Club-only. Coverage-driven placement, not imaging — no tweeter-height
+  // slider (assumes a stereo sweet spot, which doesn't apply here). No tilt
+  // slider — room3d.js derives the downward aim from mount height +
+  // distance so the tops always point at ear height on the dance floor
+  // centre, not an arbitrary fixed angle. Booth/deck/bass-bin controls live
+  // in renderClubBoothSection instead — this section is PA tops only.
+  //   renderClubSpeakersSection(mountId, { state: { spk_spacing_m, pa_mount_height_m, toe_in_deg, rear_pa }, onChange })
   function renderClubSpeakersSection(mountId, { state = {}, onChange } = {}) {
     const mount = _mount(mountId);
     if (!mount) return null;
 
     const cur = {
-      bass_bin_count:    state.bass_bin_count    ?? 2,
       spk_spacing_m:     state.spk_spacing_m     ?? 6.0,
-      spk_front_m:       state.spk_front_m       ?? 1.0,
-      booth_front_m:     state.booth_front_m     ?? 0.75,
-      booth_offset_m:    state.booth_offset_m    ?? 0,
       pa_mount_height_m: state.pa_mount_height_m ?? 3.0,
       toe_in_deg:        state.toe_in_deg        ?? 10,
       rear_pa:           state.rear_pa           ?? false,
-      bass_bin_placement: state.bass_bin_placement ?? 'centre',
-      deck_config:       state.deck_config       ?? 'both',
     };
 
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
 
     const defs = [
-      { key: 'bass_bin_count',    label: 'Bass bins (mono stack)', min: 2, max: 4, step: 1, unit: '', decimals: 0, hl: 'speakers' },
-      { key: 'spk_spacing_m',     label: 'Top spacing',            min: 2.0, max: 10.0, step: 0.1, unit: 'm',   decimals: 1, hl: 'speakers' },
-      { key: 'pa_mount_height_m', label: 'Top mount height',       min: 1.5, max: 4.5,  step: 0.1, unit: 'm',   decimals: 1, hl: 'speakers' },
+      { key: 'spk_spacing_m',     label: 'Top spacing',      min: 2.0, max: 10.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
+      { key: 'pa_mount_height_m', label: 'Top mount height', min: 1.5, max: 4.5,  step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
       // Coverage-driven, not imaging -- kept modest (0-25°) so it tunes
       // side-wall/centre coverage evenness rather than a hi-fi stereo
       // triangle toe angle.
-      { key: 'toe_in_deg',        label: 'Top toe-in',             min: 0,   max: 25,   step: 1,   unit: '°',  decimals: 0, hl: 'speakers' },
-      { key: 'spk_front_m',       label: 'Bass bins from front wall', min: 0.2, max: 3.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
-      { key: 'booth_front_m',     label: 'Booth from front wall',  min: 0.2, max: 2.5,  step: 0.1, unit: 'm',   decimals: 1, hl: 'speakers' },
-      // Moves the booth (and centre-placed bass bins) left/right -- the
-      // wall-mounted pa_top rig stays put, it doesn't need to track the
-      // booth.
-      { key: 'booth_offset_m',    label: 'Booth left / right',     min: -3.0, max: 3.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
+      { key: 'toe_in_deg',        label: 'Top toe-in',       min: 0,   max: 25,   step: 1,   unit: '°', decimals: 0, hl: 'speakers' },
     ];
-
-    const deckConfigWrap = _el('div', { class: 'demo-field', style: 'margin-top:4px;' });
-    const deckConfigHdr = _el('div', { class: 'demo-field-header' });
-    const deckConfigLbl = _el('span', { class: 'demo-field-label' }, 'Decks');
-    deckConfigHdr.appendChild(deckConfigLbl);
-    deckConfigWrap.appendChild(deckConfigHdr);
-
-    const deckConfigGroup = _btnGroup(
-      [
-        { key: 'turntables', label: 'Turntables', title: '2 turntables' },
-        { key: 'cdj',        label: 'CDJs',        title: '2 CDJs, no tonearm' },
-        { key: 'both',       label: '4 (Both)',    title: '4-deck mixed layout: 2 turntables + 2 CDJs' },
-      ],
-      cur.deck_config,
-      (key) => {
-        cur.deck_config = key;
-        onChange?.({ ...cur });
-      }
-    );
-    deckConfigWrap.appendChild(deckConfigGroup.row);
-    wrap.appendChild(deckConfigWrap);
-
-    const binPlacementWrap = _el('div', { class: 'demo-field', style: 'margin-top:4px;' });
-    const binPlacementHdr = _el('div', { class: 'demo-field-header' });
-    const binPlacementLbl = _el('span', { class: 'demo-field-label' }, 'Bass Bin Placement');
-    binPlacementHdr.appendChild(binPlacementLbl);
-    binPlacementWrap.appendChild(binPlacementHdr);
-
-    const binPlacementGroup = _btnGroup(
-      [
-        { key: 'centre',  label: 'Centre',  title: 'Single mono stack under the booth' },
-        { key: 'corners', label: 'Corners', title: 'Split the stack to both front corners' },
-      ],
-      cur.bass_bin_placement,
-      (key) => {
-        cur.bass_bin_placement = key;
-        onChange?.({ ...cur });
-      }
-    );
-    binPlacementWrap.appendChild(binPlacementGroup.row);
-    wrap.appendChild(binPlacementWrap);
 
     const rearPaWrap = _el('div', { class: 'demo-field', style: 'margin-top:4px;' });
     const rearPaHdr = _el('div', { class: 'demo-field-header' });
@@ -1814,6 +1757,105 @@
     };
   }
 
+  // ── Section — Club: DJ booth (decks, bass bins, position, riser) ──────────
+  // Club-only. Everything anchored to the booth rather than the wall PA
+  // rig: deck type/count, bass bin placement + count + distance from wall,
+  // booth position, and the riser platform toggle.
+  //   renderClubBoothSection(mountId, { state: { deck_config, dj_riser_enabled, bass_bin_placement, bass_bin_count, spk_front_m, booth_front_m, booth_offset_m }, onChange })
+  function renderClubBoothSection(mountId, { state = {}, onChange } = {}) {
+    const mount = _mount(mountId);
+    if (!mount) return null;
+
+    const cur = {
+      deck_config:        state.deck_config        ?? 'both',
+      dj_riser_enabled:   state.dj_riser_enabled    ?? true,
+      bass_bin_placement: state.bass_bin_placement  ?? 'centre',
+      bass_bin_count:     state.bass_bin_count      ?? 2,
+      spk_front_m:        state.spk_front_m         ?? 1.0,
+      booth_front_m:      state.booth_front_m       ?? 0.75,
+      booth_offset_m:     state.booth_offset_m      ?? 0,
+    };
+
+    const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
+
+    function _toggleField(label, options, activeKey, onPick) {
+      const fWrap = _el('div', { class: 'demo-field', style: 'margin-top:4px;' });
+      const fHdr = _el('div', { class: 'demo-field-header' });
+      fHdr.appendChild(_el('span', { class: 'demo-field-label' }, label));
+      fWrap.appendChild(fHdr);
+      const group = _btnGroup(options, activeKey, onPick);
+      fWrap.appendChild(group.row);
+      wrap.appendChild(fWrap);
+      return group;
+    }
+
+    _toggleField('Decks', [
+      { key: 'turntables', label: 'Turntables', title: '2 turntables' },
+      { key: 'cdj',        label: 'CDJs',        title: '2 CDJs, no tonearm' },
+      { key: 'both',       label: '4 (Both)',    title: '4-deck mixed layout: 2 turntables + 2 CDJs' },
+    ], cur.deck_config, (key) => { cur.deck_config = key; onChange?.({ ...cur }); });
+
+    _toggleField('Riser Platform', [
+      { key: 'off', label: 'Off', title: 'Desk sits flush on the floor' },
+      { key: 'on',  label: 'On',  title: 'Raised platform under the desk and DJ' },
+    ], cur.dj_riser_enabled ? 'on' : 'off', (key) => {
+      cur.dj_riser_enabled = key === 'on';
+      onChange?.({ ...cur });
+    });
+
+    _toggleField('Bass Bin Placement', [
+      { key: 'centre',  label: 'Centre',  title: 'Single mono stack under the booth' },
+      { key: 'corners', label: 'Corners', title: 'Split the stack to both front corners' },
+    ], cur.bass_bin_placement, (key) => { cur.bass_bin_placement = key; onChange?.({ ...cur }); });
+
+    // Buttons, not a slider -- 2/3/4 is a small, discrete set (matching
+    // real cabinet-count options), not a continuous range.
+    _toggleField('Bass Bins (Mono Stack)', [
+      { key: '2', label: '2' }, { key: '3', label: '3' }, { key: '4', label: '4' },
+    ], String(cur.bass_bin_count), (key) => {
+      cur.bass_bin_count = parseInt(key, 10);
+      onChange?.({ ...cur });
+    });
+
+    const defs = [
+      { key: 'spk_front_m',    label: 'Bass bins from front wall', min: 0.2,  max: 3.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
+      { key: 'booth_front_m',  label: 'Booth from front wall',     min: 0.2,  max: 2.5, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
+      { key: 'booth_offset_m', label: 'Booth left / right',        min: -3.0, max: 3.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
+    ];
+
+    const sliders = {};
+    for (const def of defs) {
+      const { wrap: fw, slider, val } = _sliderField({
+        label: def.label, id: 'scl-club-booth-' + def.key,
+        min: def.min, max: def.max, step: def.step,
+        value: cur[def.key], unit: def.unit, decimals: def.decimals,
+      });
+      _attachHighlight(slider, def.hl);
+      slider.addEventListener('input', () => {
+        const v = parseFloat(slider.value);
+        cur[def.key] = v;
+        val.textContent = formatLength(v, def.decimals);
+        _updateSliderFill(slider);
+        onChange?.({ ...cur });
+      });
+      sliders[def.key] = { slider, val, def };
+      wrap.appendChild(fw);
+    }
+
+    mount.appendChild(wrap);
+
+    return {
+      reset() {
+        for (const [k, { slider, val, def }] of Object.entries(sliders)) {
+          slider.value = String(state[k] ?? cur[k]);
+          cur[k] = parseFloat(slider.value);
+          val.textContent = formatLength(cur[k], def.decimals);
+          _updateSliderFill(slider);
+        }
+      },
+    };
+  }
+
   // ── Public API ─────────────────────────────────────────────────────────────
 
   return {
@@ -1838,5 +1880,6 @@
     renderPeaksFreqSlider,
     renderClubSection,
     renderClubSpeakersSection,
+    renderClubBoothSection,
   };
 });
