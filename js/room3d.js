@@ -3538,8 +3538,10 @@ export function initRoom3D({
       // where a single centre stack can't cover the corners evenly.
       // 'rear_corners': same two-stack layout, mirrored to the back wall
       // instead — fill/reinforcement for the far end of a long, deep floor.
+      // 'both_corners': all four corners at once (front + rear stacked).
       const placement = room.bass_bin_placement === 'corners' ? 'corners'
         : room.bass_bin_placement === 'rear_corners' ? 'rear_corners'
+        : room.bass_bin_placement === 'both_corners' ? 'both_corners'
         : 'centre';
 
       if (stackCount > 0) {
@@ -3553,11 +3555,15 @@ export function initRoom3D({
         // "Bass bins from front wall" slider. Corners mode keeps the
         // independent slider -- corner-stacked subs are about room/corner
         // loading, not the booth's position.
-        const stackZ = placement === 'centre'
-          ? -room.length_m / 2 + (room.booth_front_m ?? 0.75) * 0.42
-          : placement === 'rear_corners'
-          ? room.length_m / 2 - room.spk_front_m
-          : -room.length_m / 2 + room.spk_front_m;
+        const frontZ = -room.length_m / 2 + room.spk_front_m;
+        const rearZ  =  room.length_m / 2 - room.spk_front_m;
+        // Z positions to stack at: centre uses the booth-tracked spot,
+        // front/rear-corners use one wall, both_corners uses both.
+        const stackZs = placement === 'centre'
+          ? [-room.length_m / 2 + (room.booth_front_m ?? 0.75) * 0.42]
+          : placement === 'rear_corners' ? [rearZ]
+          : placement === 'both_corners' ? [frontZ, rearZ]
+          : [frontZ];
         const floorY = -room.height_m / 2;
 
         const maxCols = 4;
@@ -3569,14 +3575,14 @@ export function initRoom3D({
         // in a single column — a floor-standing tower reads correctly
         // tucked into a corner, whereas the wide horizontal row doesn't
         // fit the tighter corner footprint.
-        function _buildStackAt(centerX, vertical) {
+        function _buildStackAt(centerX, centerZ, vertical) {
           if (vertical) {
             for (let i = 0; i < stackCount; i++) {
               const bin = _buildBassBinSpeaker(binProfile.w, binProfile.h, binProfile.d, binColor, binOpacity);
               bin.position.set(
                 centerX,
                 floorY + rugRaise + binProfile.h / 2 + i * binProfile.h,
-                stackZ
+                centerZ
               );
               roomGroup.add(bin);
             }
@@ -3591,25 +3597,27 @@ export function initRoom3D({
             bin.position.set(
               startX + col * binProfile.h,
               floorY + rugRaise + binProfile.w / 2 + row * binProfile.w,
-              stackZ
+              centerZ
             );
             roomGroup.add(bin);
           }
         }
 
         const stackCentres = [];
-        const isCorners = placement === 'corners' || placement === 'rear_corners';
+        const isCorners = placement !== 'centre';
         if (isCorners) {
           const cornerInset = binProfile.w / 2 + 0.2; // clearance off the side wall, upright footprint
           const halfW = room.width_m / 2;
           stackCentres.push(-(halfW - cornerInset), (halfW - cornerInset));
         } else {
           // Centre stack sits under the booth, so it follows the booth's
-          // left/right offset too. Corners mode (above) is anchored to the
-          // room's side walls instead and ignores this.
+          // left/right offset too. Corners modes (above) are anchored to
+          // the room's side walls instead and ignore this.
           stackCentres.push(offsetX + (room.booth_offset_m ?? 0));
         }
-        stackCentres.forEach(cx => _buildStackAt(cx, isCorners));
+        for (const z of stackZs) {
+          stackCentres.forEach(cx => _buildStackAt(cx, z, isCorners));
+        }
 
         if (_wavesEnabled && _subWavesOn) {
           const NUM_RINGS = 10;
@@ -3623,7 +3631,7 @@ export function initRoom3D({
           const ringCurve = new THREE.CatmullRomCurve3(circleCurvePts, true);
           const ringGeo   = new THREE.TubeGeometry(ringCurve, 72, 0.04, 8, true);
 
-          stackCentres.forEach(centerX => {
+          stackCentres.forEach(centerX => stackZs.forEach(centerZ => {
             for (let ri = 0; ri < NUM_RINGS; ri++) {
               const ringMat = new THREE.MeshBasicMaterial({
                 color: new THREE.Color(0xff2d78),
@@ -3633,7 +3641,7 @@ export function initRoom3D({
                 clippingPlanes: _waveClipPlanes,
               });
               const ring = new THREE.Mesh(ringGeo, ringMat);
-              ring.position.set(centerX, floorY + rugRaise + (stackCount * binProfile.h) / 2, stackZ);
+              ring.position.set(centerX, floorY + rugRaise + (stackCount * binProfile.h) / 2, centerZ);
               ring.userData.wavePhase   = ri / NUM_RINGS;
               ring.userData.waveMaxR    = maxR;
               ring.userData.waveAmp     = 1.0;
@@ -3641,7 +3649,7 @@ export function initRoom3D({
               roomGroup.add(ring);
               _waveRings.push(ring);
             }
-          });
+          }));
         }
       }
     }

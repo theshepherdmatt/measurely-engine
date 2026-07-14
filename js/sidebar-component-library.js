@@ -1784,6 +1784,7 @@
         { key: 'centre',       label: 'Centre',      title: 'Single mono stack under the booth' },
         { key: 'corners',      label: 'Front Corners', title: 'Split the stack to both front corners' },
         { key: 'rear_corners', label: 'Rear Corners',  title: 'Split the stack to both rear corners (fill for a long floor)' },
+        { key: 'both_corners', label: 'Both',          title: 'Stack at all four corners (front + rear)' },
       ],
       cur.bass_bin_placement,
       (key) => { cur.bass_bin_placement = key; onChange?.({ ...cur }); }
