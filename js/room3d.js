@@ -1114,6 +1114,7 @@ export function initRoom3D({
   const _spkRightLocalPos = new THREE.Vector3();
   let _wavesEnabled = false;  // Off by default; toggled via api.setWaves()
   let _mirrorBall = null;
+  let _discoEnabled = false;
   let _crowdEnabled = true;   // On by default; toggled via api.setCrowd()
   let _sbirFieldVisible = true; // SBIR heatmap field on by default; toggled via api.setSbirField()
   // ── REW live measurement data ─────────────────────────────────────────────
@@ -1213,6 +1214,7 @@ export function initRoom3D({
      REBUILD SCENE (GEOMETRY ONLY)
   ------------------------------------------ */
   function rebuild() {
+    if (typeof ambientLight !== 'undefined') ambientLight.intensity = _discoEnabled ? 0.15 : 1.35;
     // renderStage is set externally via setStage() — never override here.
     _dbg("[Room3D] 🔧 rebuild() | stage:", renderStage, "| mode:", currentMode);
 
@@ -3175,6 +3177,31 @@ export function initRoom3D({
       const mstring = new THREE.Mesh(mstringGeo, mstringMat);
       mstring.position.set(0, mballRadius + 0.1, 0);
       _mirrorBall.add(mstring);
+      
+      // LASERS
+      if (_discoEnabled) {
+        const laserCount = 60;
+        const pts = [];
+        const colors = [];
+        const c1 = new THREE.Color(0x00ffff);
+        const c2 = new THREE.Color(0xff00ff);
+        const c3 = new THREE.Color(0x00ff00);
+        for(let i=0; i<laserCount; i++) {
+          pts.push(new THREE.Vector3(0,0,0));
+          const u = Math.random(); const v = Math.random();
+          const theta = u * 2.0 * Math.PI; const phi = Math.acos(2.0 * v - 1.0);
+          const r = 8.0;
+          pts.push(new THREE.Vector3(r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi)));
+          const col = Math.random() < 0.33 ? c1 : (Math.random() < 0.5 ? c2 : c3);
+          colors.push(col.r, col.g, col.b, col.r, col.g, col.b);
+        }
+        const laserGeo = new THREE.BufferGeometry().setFromPoints(pts);
+        laserGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        const laserMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.6, depthWrite: false });
+        const laserLines = new THREE.LineSegments(laserGeo, laserMat);
+        _mirrorBall.add(laserLines);
+      }
+
       roomGroup.add(_mirrorBall);
     }
 
@@ -9335,6 +9362,11 @@ export function initRoom3D({
 
       }
 
+      rebuild();
+    },
+
+    setDisco(enabled) {
+      _discoEnabled = !!enabled;
       rebuild();
     },
 
