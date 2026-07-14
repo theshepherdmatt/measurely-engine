@@ -2612,7 +2612,7 @@ export function initRoom3D({
             const _seatType = room.seating_type || 'sofa';
             const _effHead  = isStudio ? 1.22 : 0.82;
             const _sphereZ  = isStudio ? 0.20    : (_seatType === 'lounge' ? 0.38 : 0.28);
-            const _sphereY  = isStudio ? _effHead : (_seatType === 'lounge' ? 1.00 : 0.96);
+            const _sphereY  = room.room_type === 'club' ? 2.4 : (isStudio ? _effHead : (_seatType === 'lounge' ? 1.00 : 0.96));
             const _halfH    = room.height_m / 2;
             const _halfL    = room.length_m / 2;
             _mlpLocalPos.set(
@@ -3677,7 +3677,7 @@ export function initRoom3D({
       // Home: shift sphere into seat. Studio: shift sphere back to match reclined backrest.
       const _seatType = room.seating_type || 'sofa';
       const _sphereZ = isStudio ? 0.20 : (_seatType === 'lounge' ? 0.38 : 0.28);
-      const _sphereY = isStudio ? effectiveHeadHeight : (_seatType === 'lounge' ? 1.00 : 0.96);
+      const _sphereY = room.room_type === 'club' ? 2.4 : (isStudio ? effectiveHeadHeight : (_seatType === 'lounge' ? 1.00 : 0.96));
       sphere.position.set(0, _sphereY, _sphereZ);
       station.add(sphere);
 
