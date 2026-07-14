@@ -1690,6 +1690,28 @@
   // placement mode visually sits under the booth — booth-only controls
   // (decks, riser, booth position) are in renderClubBoothSection instead.
   //   renderClubSpeakersSection(mountId, { state: { spk_spacing_m, pa_mount_height_m, toe_in_deg, rear_pa, bass_bin_placement, bass_bin_count, spk_front_m }, onChange })
+  //
+  // ── PA sizing estimate ──────────────────────────────────────────────────
+  // Ballpark sound-reinforcement design math, not a measured prediction:
+  // inverse-square throw loss + a rough crowd-absorption penalty (packed
+  // bodies eat high-frequency energy), solved for box count via power
+  // summation (+10*log10(N) per doubling, the conservative/incoherent
+  // assumption). Sub count is a straight people-per-box rule of thumb.
+  // Intended as a starting-point readout, not a spec.
+  function _paRecommendation(width_m, length_m, crowd_limit) {
+    const TARGET_SPL_DB = 105;       // dB(C) average at the back of the crowd
+    const TOP_RATING_1M_DB = 126;    // typical mid-size 2-way top, continuous @1m
+    const throw_m = Math.max(1, length_m * 0.9);
+    const density = crowd_limit / Math.max(1, width_m * length_m); // people/m2
+    const crowdLossDb = Math.min(4, density * 1.0);
+    const required1mDb = TARGET_SPL_DB + 20 * Math.log10(throw_m) + crowdLossDb;
+    const deficitDb = required1mDb - TOP_RATING_1M_DB;
+    const topsPerSide = deficitDb <= 0 ? 1 : Math.ceil(Math.pow(10, deficitDb / 10));
+    const subCount = Math.max(2, Math.ceil(crowd_limit / 65));
+    const coverageDeg = Math.round(2 * Math.atan((width_m / 2) / throw_m) * 180 / Math.PI);
+    return { topsPerSide, subCount, coverageDeg, throw_m };
+  }
+
   function renderClubSpeakersSection(mountId, { state = {}, onChange } = {}) {
     const mount = _mount(mountId);
     if (!mount) return null;
@@ -1702,9 +1724,26 @@
       bass_bin_placement: state.bass_bin_placement ?? 'centre',
       bass_bin_count:     state.bass_bin_count     ?? 2,
       spk_front_m:        state.spk_front_m        ?? 1.0,
+      width_m:            state.width_m             ?? 10,
+      length_m:           state.length_m            ?? 10,
+      crowd_limit:        state.crowd_limit         ?? 200,
     };
 
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
+
+    // Readout box -- recalculated whenever room dims, crowd limit, or
+    // the sliders below change, via _paRecommendation().
+    const paRecWrap = _el('div', {
+      style: 'background:#f7f7f7;border:1px solid #e0e0e0;padding:10px 12px;font-size:0.78rem;line-height:1.6;color:#1a1a1a;'
+    });
+    wrap.appendChild(paRecWrap);
+    function _renderPaRec() {
+      const rec = _paRecommendation(cur.width_m, cur.length_m, cur.crowd_limit);
+      paRecWrap.innerHTML =
+        `<div style="font-weight:700;text-transform:uppercase;font-size:0.68rem;letter-spacing:0.5px;color:#888;margin-bottom:4px;">PA Estimate</div>` +
+        `${rec.topsPerSide}× top per side · ${rec.subCount}× dual-18&quot; sub · ~${rec.coverageDeg}&deg; coverage`;
+    }
+    _renderPaRec();
 
     const defs = [
       { key: 'spk_spacing_m',     label: 'Top spacing',      min: 2.0, max: 10.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
@@ -1794,6 +1833,14 @@
           val.textContent = def.unit ? (def.unit === 'm' ? formatLength(cur[k], def.decimals) : cur[k].toFixed(def.decimals) + ' ' + def.unit) : String(cur[k]);
           _updateSliderFill(slider);
         }
+      },
+      // Called by app.js whenever room dimensions or crowd_limit change
+      // elsewhere in the sidebar, so the PA estimate stays live.
+      setRoomContext(width_m, length_m, crowd_limit) {
+        cur.width_m = width_m;
+        cur.length_m = length_m;
+        cur.crowd_limit = crowd_limit;
+        _renderPaRec();
       },
     };
   }
