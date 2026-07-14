@@ -1424,10 +1424,6 @@ export function initRoom3D({
       // room.crowd_limit was always undefined and the slider had no effect
       // on the actual crowd shown.
       crowd_limit: data.crowd_limit ?? 200,
-      // Club only: distance from the front wall where the crowd zone
-      // starts -- lets the floor be pulled back toward centre or pushed
-      // up near the booth. Read directly by the CROWD block.
-      crowd_start_m: data.crowd_start_m,
 
       room_type: data.room_type || env.room_type || "home",
       opt_area_rug: furn.opt_area_rug ?? env.opt_area_rug ?? data.opt_area_rug,
@@ -6295,12 +6291,12 @@ export function initRoom3D({
 
       const width = room.width_m || 4.0;
       const length = room.length_m || 5.0;
-      // Crowd zone start is now user-controlled (room.crowd_start_m,
-      // distance from the front wall) instead of always being pinned
-      // 0.5m behind the speakers -- lets the floor be pulled back toward
-      // room centre or pushed up to the front wall. Falls back to the
-      // old fixed offset if not set.
-      const zStart = -length / 2 + (room.crowd_start_m ?? ((room.spk_front_m || 0.5) + 0.5));
+      // Start 0.5m back from speakers, end 0.5m from back wall. The booth
+      // exclusion zone below (using booth_front_m/booth_offset_m) is what
+      // actually keeps the crowd off the desk regardless of where the
+      // booth sits -- moving the existing "Booth from front wall" slider
+      // is how the booth itself slides forward into the crowd.
+      const zStart = -length / 2 + (room.spk_front_m || 0.5) + 0.5;
       const zEnd = length / 2 - 0.5;
       // Leave 0.5m on sides
       const xStart = -width / 2 + 0.5;
@@ -6476,12 +6472,12 @@ export function initRoom3D({
 
       const width = room.width_m || 4.0;
       const length = room.length_m || 5.0;
-      // Crowd zone start is now user-controlled (room.crowd_start_m,
-      // distance from the front wall) instead of always being pinned
-      // 0.5m behind the speakers -- lets the floor be pulled back toward
-      // room centre or pushed up to the front wall. Falls back to the
-      // old fixed offset if not set.
-      const zStart = -length / 2 + (room.crowd_start_m ?? ((room.spk_front_m || 0.5) + 0.5));
+      // Start 0.5m back from speakers, end 0.5m from back wall. The booth
+      // exclusion zone below (using booth_front_m/booth_offset_m) is what
+      // actually keeps the crowd off the desk regardless of where the
+      // booth sits -- moving the existing "Booth from front wall" slider
+      // is how the booth itself slides forward into the crowd.
+      const zStart = -length / 2 + (room.spk_front_m || 0.5) + 0.5;
       const zEnd = length / 2 - 0.5;
       // Leave 0.5m on sides
       const xStart = -width / 2 + 0.5;
@@ -6657,12 +6653,12 @@ export function initRoom3D({
 
       const width = room.width_m || 4.0;
       const length = room.length_m || 5.0;
-      // Crowd zone start is now user-controlled (room.crowd_start_m,
-      // distance from the front wall) instead of always being pinned
-      // 0.5m behind the speakers -- lets the floor be pulled back toward
-      // room centre or pushed up to the front wall. Falls back to the
-      // old fixed offset if not set.
-      const zStart = -length / 2 + (room.crowd_start_m ?? ((room.spk_front_m || 0.5) + 0.5));
+      // Start 0.5m back from speakers, end 0.5m from back wall. The booth
+      // exclusion zone below (using booth_front_m/booth_offset_m) is what
+      // actually keeps the crowd off the desk regardless of where the
+      // booth sits -- moving the existing "Booth from front wall" slider
+      // is how the booth itself slides forward into the crowd.
+      const zStart = -length / 2 + (room.spk_front_m || 0.5) + 0.5;
       const zEnd = length / 2 - 0.5;
       // Leave 0.5m on sides
       const xStart = -width / 2 + 0.5;
