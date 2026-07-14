@@ -10246,6 +10246,40 @@ export function initRoom3D({
       };
     },
 
+    /* ------------------------------------------
+      GENERIC CAMERA FLY (consumer view presets)
+    ------------------------------------------ */
+    // pos/look are in ROOM METRES (same centred coordinate space the room
+    // is built in: y=0 at mid-height, floor at -height/2). The engine
+    // multiplies by roomGroup's scale so consumers never need to know
+    // about baseScale. Same ease-in-out-quad lerp as focusOn().
+    flyToRoomPos({ pos, look, duration = 700 } = {}) {
+      if (!pos || !look) return;
+      const s = roomGroup.scale.x || 1;
+      const FROM_POS = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
+      const FROM_LOOK = { x: controls.target.x, y: controls.target.y, z: controls.target.z };
+      const TO_POS = { x: pos.x * s, y: pos.y * s, z: pos.z * s };
+      const TO_LOOK = { x: look.x * s, y: look.y * s, z: look.z * s };
+      const t0 = performance.now();
+      flyAnim = {
+        tick(now) {
+          const raw = Math.min((now - t0) / duration, 1);
+          const t = raw < 0.5 ? 2 * raw * raw : -1 + (4 - 2 * raw) * raw;
+          camera.position.set(
+            FROM_POS.x + (TO_POS.x - FROM_POS.x) * t,
+            FROM_POS.y + (TO_POS.y - FROM_POS.y) * t,
+            FROM_POS.z + (TO_POS.z - FROM_POS.z) * t,
+          );
+          controls.target.set(
+            FROM_LOOK.x + (TO_LOOK.x - FROM_LOOK.x) * t,
+            FROM_LOOK.y + (TO_LOOK.y - FROM_LOOK.y) * t,
+            FROM_LOOK.z + (TO_LOOK.z - FROM_LOOK.z) * t,
+          );
+          if (raw >= 1) flyAnim = null; // done
+        }
+      };
+    },
+
 
 
     /* ------------------------------------------
