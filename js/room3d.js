@@ -3772,7 +3772,10 @@ export function initRoom3D({
 
       // ── Listener sphere (always visible) ──
       const isListHighlit = highlightTarget === 'listener';
-      const sphereColor = isListHighlit ? 0x0f766e : 0x00e5ff; // Bright cyan
+      // Light grey per the engine's colour lockdown (COLOR_LISTENER,
+      // 0xCCCCCC) -- was bright cyan, which is indistinguishable from the
+      // crowd heatmap's teal "low SPL" end in club's Crowd overlay.
+      const sphereColor = isListHighlit ? 0x0f766e : 0xcccccc;
       const sphere = new THREE.Mesh(
         new THREE.SphereGeometry(isListHighlit ? 0.22 : 0.18, 24, 24),
         new THREE.MeshBasicMaterial({
