@@ -1684,7 +1684,7 @@
   // position. No tilt slider — room3d.js derives the downward aim from
   // mount height + distance so the tops always point at ear height on the
   // dance floor centre, not an arbitrary fixed angle.
-  //   renderClubSpeakersSection(mountId, { state: { spk_spacing_m, spk_front_m, booth_front_m, pa_mount_height_m }, onChange })
+  //   renderClubSpeakersSection(mountId, { state: { spk_spacing_m, spk_front_m, booth_front_m, pa_mount_height_m, toe_in_deg, rear_pa, bass_bin_count }, onChange })
   function renderClubSpeakersSection(mountId, { state = {}, onChange } = {}) {
     const mount = _mount(mountId);
     if (!mount) return null;
@@ -1695,6 +1695,7 @@
       spk_front_m:       state.spk_front_m       ?? 1.0,
       booth_front_m:     state.booth_front_m     ?? 0.75,
       pa_mount_height_m: state.pa_mount_height_m ?? 3.0,
+      toe_in_deg:        state.toe_in_deg        ?? 10,
       rear_pa:           state.rear_pa           ?? false,
     };
 
@@ -1704,6 +1705,10 @@
       { key: 'bass_bin_count',    label: 'Bass bins (mono stack)', min: 2, max: 4, step: 1, unit: '', decimals: 0, hl: 'speakers' },
       { key: 'spk_spacing_m',     label: 'Top spacing',            min: 2.0, max: 10.0, step: 0.1, unit: 'm',   decimals: 1, hl: 'speakers' },
       { key: 'pa_mount_height_m', label: 'Top mount height',       min: 1.5, max: 4.5,  step: 0.1, unit: 'm',   decimals: 1, hl: 'speakers' },
+      // Coverage-driven, not imaging -- kept modest (0-25°) so it tunes
+      // side-wall/centre coverage evenness rather than a hi-fi stereo
+      // triangle toe angle.
+      { key: 'toe_in_deg',        label: 'Top toe-in',             min: 0,   max: 25,   step: 1,   unit: '°',  decimals: 0, hl: 'speakers' },
       { key: 'spk_front_m',       label: 'Bass bins from front wall', min: 0.2, max: 3.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
       { key: 'booth_front_m',     label: 'Booth from front wall',  min: 0.2, max: 2.5,  step: 0.1, unit: 'm',   decimals: 1, hl: 'speakers' },
     ];
