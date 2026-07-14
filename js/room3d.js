@@ -1113,6 +1113,7 @@ export function initRoom3D({
   const _spkLeftLocalPos  = new THREE.Vector3();
   const _spkRightLocalPos = new THREE.Vector3();
   let _wavesEnabled = false;  // Off by default; toggled via api.setWaves()
+  let _mirrorBall = null;
   let _crowdEnabled = true;   // On by default; toggled via api.setCrowd()
   let _sbirFieldVisible = true; // SBIR heatmap field on by default; toggled via api.setSbirField()
   // ── REW live measurement data ─────────────────────────────────────────────
@@ -3156,6 +3157,25 @@ export function initRoom3D({
       djHead.userData.phase = phase;
       
       roomGroup.add(djGroup);
+
+      // --- MIRROR BALL ---
+      const mballRadius = 0.3;
+      const mballGeo = new THREE.SphereGeometry(mballRadius, 16, 12);
+      const mballMat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 0.1,
+        metalness: 0.9,
+        flatShading: true
+      });
+      _mirrorBall = new THREE.Mesh(mballGeo, mballMat);
+      const ceilY = room.height_m / 2;
+      _mirrorBall.position.set(0, ceilY - mballRadius - 0.2, 0);
+      const mstringGeo = new THREE.CylinderGeometry(0.005, 0.005, 0.2);
+      const mstringMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
+      const mstring = new THREE.Mesh(mstringGeo, mstringMat);
+      mstring.position.set(0, mballRadius + 0.1, 0);
+      _mirrorBall.add(mstring);
+      roomGroup.add(_mirrorBall);
     }
 
     /* ------------------------------------------
