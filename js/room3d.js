@@ -2339,9 +2339,12 @@ export function initRoom3D({
         } else if (profile.isWallMount) {
           // Club pa_top: wall bracket at height, small standoff from the
           // front wall for the bracket arm — not floor-anchored, not a
-          // pole/hi-fi stand.
+          // pole/hi-fi stand. Rear pair (rear_pa) mounts on the back wall
+          // instead — was hardcoded to the front wall for every pa_top,
+          // which put RearL/RearR at the exact same position as L/R
+          // (invisible overlap, not actually missing).
           y = baseY + (room.pa_mount_height_m ?? 3.0);
-          z = -room.length_m / 2 + 0.35;
+          z = isRear ? (room.length_m / 2 - 0.35) : (-room.length_m / 2 + 0.35);
         } else if (profile.floorStand) {
           // Floor-standing panels / statement: plinth bottom sits on rug
           // surface, cabinet bottom sits on top of plinth.
@@ -2434,6 +2437,12 @@ export function initRoom3D({
 
         // Initial toe-in (may be overridden by _applyAutoToe after rebuild)
         spkGroup.rotation.y = (logicalSide === "L" ? 1 : -1) * toeRad;
+        // Rear pair mounts on the back wall facing the opposite direction
+        // from the front pair (into the room from the other end) — without
+        // this flip they'd face into the back wall, firing away from the
+        // floor entirely. The bracket below is a child of spkGroup, so it
+        // inherits this flip and points at the correct (rear) wall too.
+        if (profile.isWallMount && isRear) spkGroup.rotation.y += Math.PI;
 
         // Wall bracket: plate flush to the front wall + a diagonal arm to
         // the cabinet back, plus the downward tilt a permanent install
@@ -2446,7 +2455,12 @@ export function initRoom3D({
           const EAR_HEIGHT_M = 1.7;
           const targetY = baseY + EAR_HEIGHT_M;
           const targetZ = -room.length_m / 2 + (room.listener_front_m || room.length_m / 2);
-          const tiltRad = Math.atan2(y - targetY, targetZ - z);
+          // Rear pair faces the opposite way (180° yaw above), so its local
+          // forward distance to the target runs the other direction —
+          // without this the atan2 below picks up the wrong quadrant
+          // entirely (an ~164° rotation instead of ~15°), not just a sign flip.
+          const forwardDist = isRear ? (z - targetZ) : (targetZ - z);
+          const tiltRad = Math.atan2(y - targetY, forwardDist);
           // +tiltRad, not -tiltRad: the cabinet's forward axis is local +Z
           // (same axis the directivity beam extends along, and where the
           // driver faces are built), and a positive X-rotation tips that
