@@ -1391,6 +1391,10 @@ export function initRoom3D({
       // Club only: DJ booth distance from the front wall (cable-run
       // clearance). Same merge pattern as bass_bin_count above.
       booth_front_m: data.booth_front_m ?? 0.75,
+      // Club only: booth left/right offset from room centre. Moves the
+      // booth and (in 'centre' bass_bin_placement) the bins under it; the
+      // wall-mounted pa_top rig stays fixed regardless.
+      booth_offset_m: data.booth_offset_m ?? 0,
       // Club only: pa_top wall-bracket mount height (off the floor) —
       // permanent install, not a floor stand or pole-on-sub. Tilt is
       // derived automatically (aimed at ear height on the dance floor
@@ -3172,9 +3176,14 @@ export function initRoom3D({
       // vinyl circles stay circular rather than becoming ellipses.
       const BOOTH_FOOTPRINT_SCALE = 0.42;
       const boothZ = -room.length_m / 2 + (room.booth_front_m ?? 0.75) * BOOTH_FOOTPRINT_SCALE;
+      // Booth left/right offset -- moves the booth (and, when bass bins are
+      // in 'centre' mode, the bins underneath it) independently of the
+      // wall-mounted PA tops, which stay put: they're fixed for room
+      // coverage and don't need to track the booth's position.
+      const boothX = offsetX + (room.booth_offset_m ?? 0);
       const booth = _buildDJBooth();
       booth.scale.set(BOOTH_FOOTPRINT_SCALE, 1, BOOTH_FOOTPRINT_SCALE);
-      booth.position.set(offsetX, boothFloorY + rugRaise, boothZ);
+      booth.position.set(boothX, boothFloorY + rugRaise, boothZ);
       roomGroup.add(booth);
 
       // DJ Avatar
@@ -3339,7 +3348,10 @@ export function initRoom3D({
           const halfW = room.width_m / 2;
           stackCentres.push(-(halfW - cornerInset), (halfW - cornerInset));
         } else {
-          stackCentres.push(offsetX);
+          // Centre stack sits under the booth, so it follows the booth's
+          // left/right offset too. Corners mode (above) is anchored to the
+          // room's side walls instead and ignores this.
+          stackCentres.push(offsetX + (room.booth_offset_m ?? 0));
         }
         stackCentres.forEach(cx => _buildStackAt(cx, isCorners));
 
