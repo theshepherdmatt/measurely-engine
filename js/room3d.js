@@ -3016,6 +3016,11 @@ export function initRoom3D({
     function _buildDJBooth() {
       const grp = new THREE.Group();
       const accentMat = new THREE.LineBasicMaterial({ color: colors.accent });
+      // Must match the BOOTH_FOOTPRINT_SCALE the caller applies to the
+      // whole booth group (booth.scale.set) -- that constant lives in the
+      // calling scope, not here, so it's duplicated for the monitor
+      // pre-scale-compensation math below.
+      const BOOTH_FOOTPRINT_SCALE = 0.42;
 
       function _edges(geo) {
         return new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), furnEdgeMat);
@@ -3056,12 +3061,12 @@ export function initRoom3D({
         g.position.set(x, 1.06, 0);
         grp.add(g);
 
-        const plinth = _ghostBox(1.35, 0.14, 1.1);
-        plinth.position.y = 0.07;
+        const plinth = _ghostBox(1.35, 0.07, 1.1);
+        plinth.position.y = 0.035;
         g.add(plinth);
 
         const platter = new THREE.Group();
-        platter.position.set(-0.12, 0.15, 0);
+        platter.position.set(-0.12, 0.08, 0);
         g.add(platter);
 
         platter.add(_edges(new THREE.CylinderGeometry(0.44, 0.44, 0.04, 40)));
@@ -3086,7 +3091,7 @@ export function initRoom3D({
         platter.add(spoke);
 
         const armPivot = new THREE.Group();
-        armPivot.position.set(0.5, 0.26, -0.38);
+        armPivot.position.set(0.5, 0.19, -0.38);
         g.add(armPivot);
 
         armPivot.add(new THREE.Line(
@@ -3101,15 +3106,15 @@ export function initRoom3D({
         armPivot.add(head);
 
         const armBase = _edges(new THREE.CylinderGeometry(0.07, 0.08, 0.1, 16));
-        armBase.position.set(0.5, 0.19, -0.38);
+        armBase.position.set(0.5, 0.12, -0.38);
         g.add(armBase);
 
         const pitchKnob = _accentEdges(new THREE.BoxGeometry(0.06, 0.03, 0.05));
-        pitchKnob.position.set(0.55, 0.16, 0.1);
+        pitchKnob.position.set(0.55, 0.09, 0.1);
         g.add(pitchKnob);
 
         const btn = _accentEdges(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 16));
-        btn.position.set(-0.55, 0.15, 0.42);
+        btn.position.set(-0.55, 0.08, 0.42);
         g.add(btn);
       }
       _makeTurntable(-1.35);
@@ -3119,25 +3124,25 @@ export function initRoom3D({
       mixer.position.set(0, 1.06, 0.05);
       grp.add(mixer);
 
-      const mixerBody = _ghostBox(0.9, 0.14, 1.0);
-      mixerBody.position.y = 0.07;
+      const mixerBody = _ghostBox(0.9, 0.07, 1.0);
+      mixerBody.position.y = 0.035;
       mixer.add(mixerBody);
 
       [-0.18, 0.18].forEach((x, i) => {
         const fader = _accentEdges(new THREE.BoxGeometry(0.06, 0.035, 0.045));
-        fader.position.set(x, 0.16, 0.22 + i * 0.1);
+        fader.position.set(x, 0.09, 0.22 + i * 0.1);
         mixer.add(fader);
       });
 
       const xFader = _ghostBox(0.05, 0.035, 0.06);
-      xFader.position.set(0, 0.16, 0.42);
+      xFader.position.set(0, 0.09, 0.42);
       mixer.add(xFader);
 
       const knobGeo = new THREE.CylinderGeometry(0.028, 0.028, 0.035, 12);
       for (let row = 0; row < 3; row++) {
         [-0.18, 0.18].forEach(x => {
           const k = _edges(knobGeo);
-          k.position.set(x, 0.155, -0.05 - row * 0.14);
+          k.position.set(x, 0.085, -0.05 - row * 0.14);
           mixer.add(k);
         });
       }
@@ -3145,37 +3150,44 @@ export function initRoom3D({
       [-0.36, 0.36].forEach(x => {
         for (let i = 0; i < 6; i++) {
           const led = _edges(new THREE.BoxGeometry(0.03, 0.012, 0.03));
-          led.position.set(x, 0.145, 0.05 - i * 0.055);
+          led.position.set(x, 0.075, 0.05 - i * 0.055);
           mixer.add(led);
         }
       });
 
-      // DJ monitor wedges — one at each outer corner of the table (DJ
+      // DJ monitors — pole-mounted at each outer corner of the table (DJ
       // side, -Z, opposite the crowd-facing facade at +0.76), angled
-      // inward toward the DJ standing centre-table, tilted back so the
-      // driver faces up. Two, not one centred — a single centre monitor
-      // sat awkwardly between the turntables/mixer; corner-mounted wedges
-      // pointed inward is the real-world DJ booth convention.
+      // inward toward the DJ standing centre-table. Same cabinet builder
+      // and colour as the wall-mounted pa_top rig (_buildStandmountSpeaker:
+      // box + two driver rings), just on a desk pole instead of a wall
+      // bracket — reads as a matching pair of the same PA product line,
+      // not a different speaker. Two, not one centred — a single centre
+      // monitor sat awkwardly between the turntables/mixer.
       // Width/depth (not height — booth.scale only touches X/Z, see
       // BOOTH_FOOTPRINT_SCALE) are authored at 1/0.42 of the real target
-      // size so they land at a small-but-visible ~0.25m wide once the
-      // booth's own footprint scale is applied — sizing them at the real
-      // target directly (as a first pass did) rendered at ~40% of that,
-      // effectively invisible.
+      // size so they land at a small-but-visible size once the booth's
+      // own footprint scale is applied.
       const MONITOR_YAW = 0.55; // ~31°, inward toward table centre
+      const monCabW = 0.3 / BOOTH_FOOTPRINT_SCALE, monCabD = 0.3 / BOOTH_FOOTPRINT_SCALE;
+      const monCabH = 0.4;   // Y unscaled — real height directly
+      const monPoleH = 0.35; // Y unscaled — real height directly
+      const monPoleFootprint = 0.05 / BOOTH_FOOTPRINT_SCALE;
       [-1, 1].forEach(sign => {
-        const monitor = _ghostBox(0.60, 0.18, 0.48);
-        monitor.position.set(sign * 1.9, 1.06 + 0.09, -0.65);
-        // Driver faces local -Z; rotation.y = -sign*MONITOR_YAW turns that
-        // face toward table centre (negative x for the +x monitor and
-        // vice versa) rather than straight ahead down the DJ side.
-        monitor.rotation.y = -sign * MONITOR_YAW;
-        monitor.rotation.x = -0.3;
-        const monitorDriver = _edges(new THREE.CylinderGeometry(0.12, 0.12, 0.03, 24));
-        monitorDriver.rotation.x = Math.PI / 2;
-        monitorDriver.position.z = -0.29;
-        monitor.add(monitorDriver);
-        grp.add(monitor);
+        const monGroup = new THREE.Group();
+        monGroup.position.set(sign * 1.9, 1.06, -0.65);
+        grp.add(monGroup);
+
+        const pole = _edges(new THREE.BoxGeometry(monPoleFootprint, monPoleH, monPoleFootprint));
+        pole.position.y = monPoleH / 2;
+        monGroup.add(pole);
+
+        const cabinet = _buildStandmountSpeaker(monCabW, monCabH, monCabD, 0x2a2a28, Math.max(OP_OBJ, 0.80));
+        cabinet.position.y = monPoleH + monCabH / 2;
+        // _buildStandmountSpeaker's drivers face local +Z; rotation.y =
+        // -sign*MONITOR_YAW turns that face toward table centre (negative
+        // x for the +x monitor and vice versa).
+        cabinet.rotation.y = -sign * MONITOR_YAW;
+        monGroup.add(cabinet);
       });
 
       return grp;
