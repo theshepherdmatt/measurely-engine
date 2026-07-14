@@ -1694,27 +1694,32 @@
   // ── Section — Club: PA rig placement (tops + bass bin stack) ──────────────
   // Club-only. Coverage-driven placement, not imaging — no toe-in or
   // tweeter-height sliders (those assume a stereo sweet spot, which doesn't
-  // apply here). Both fields move the whole rig: spk_spacing_m spreads the
-  // two pa_top cabinets either side of the booth, spk_front_m moves the
-  // entire rig (tops + bass_bin stack, which renders at the same Z) off the
-  // front wall.
-  //   renderClubSpeakersSection(mountId, { state: { spk_spacing_m, spk_front_m, booth_front_m }, onChange })
+  // apply here). pa_top is wall-bracket mounted (permanent install), not
+  // floor/pole-stood — spk_front_m therefore only moves the bass_bin stack
+  // off the front wall now, not the tops; top height/tilt are separate
+  // fields (pa_mount_height_m, pa_tilt_deg) since a wall bracket's height
+  // and aim are independent of the sub stack's floor position.
+  //   renderClubSpeakersSection(mountId, { state: { spk_spacing_m, spk_front_m, booth_front_m, pa_mount_height_m, pa_tilt_deg }, onChange })
   function renderClubSpeakersSection(mountId, { state = {}, onChange } = {}) {
     const mount = _mount(mountId);
     if (!mount) return null;
 
     const cur = {
-      spk_spacing_m: state.spk_spacing_m ?? 6.0,
-      spk_front_m:   state.spk_front_m   ?? 1.0,
-      booth_front_m: state.booth_front_m ?? 0.75,
+      spk_spacing_m:     state.spk_spacing_m     ?? 6.0,
+      spk_front_m:       state.spk_front_m       ?? 1.0,
+      booth_front_m:     state.booth_front_m     ?? 0.75,
+      pa_mount_height_m: state.pa_mount_height_m ?? 3.0,
+      pa_tilt_deg:       state.pa_tilt_deg       ?? 15,
     };
 
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
 
     const defs = [
-      { key: 'spk_spacing_m', label: 'Top spacing',         min: 2.0, max: 10.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
-      { key: 'spk_front_m',   label: 'Rig from front wall',  min: 0.2, max: 3.0,  step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
-      { key: 'booth_front_m', label: 'Booth from front wall', min: 0.2, max: 2.5, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
+      { key: 'spk_spacing_m',     label: 'Top spacing',            min: 2.0, max: 10.0, step: 0.1, unit: 'm',   decimals: 1, hl: 'speakers' },
+      { key: 'pa_mount_height_m', label: 'Top mount height',       min: 1.5, max: 4.5,  step: 0.1, unit: 'm',   decimals: 1, hl: 'speakers' },
+      { key: 'pa_tilt_deg',       label: 'Top tilt (down)',        min: 0,   max: 30,   step: 1,   unit: '°', decimals: 0, hl: 'speakers' },
+      { key: 'spk_front_m',       label: 'Bass bins from front wall', min: 0.2, max: 3.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
+      { key: 'booth_front_m',     label: 'Booth from front wall',  min: 0.2, max: 2.5,  step: 0.1, unit: 'm',   decimals: 1, hl: 'speakers' },
     ];
 
     const sliders = {};
@@ -1728,7 +1733,7 @@
       slider.addEventListener('input', () => {
         const v = parseFloat(slider.value);
         cur[def.key] = v;
-        val.textContent = formatLength(v, def.decimals);
+        val.textContent = def.unit === 'm' ? formatLength(v, def.decimals) : v.toFixed(def.decimals) + ' ' + def.unit;
         _updateSliderFill(slider);
         onChange?.({ ...cur });
       });
@@ -1743,7 +1748,7 @@
         for (const [k, { slider, val, def }] of Object.entries(sliders)) {
           slider.value = String(state[k] ?? cur[k]);
           cur[k] = parseFloat(slider.value);
-          val.textContent = formatLength(cur[k], def.decimals);
+          val.textContent = def.unit === 'm' ? formatLength(cur[k], def.decimals) : cur[k].toFixed(def.decimals) + ' ' + def.unit;
           _updateSliderFill(slider);
         }
       },
