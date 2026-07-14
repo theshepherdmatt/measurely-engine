@@ -1600,6 +1600,91 @@
     };
   }
 
+  // ── Section — Club: dance floor capacity + bass bin count ─────────────────
+  // Club-only. Capacity is a derived readout (area × density-per-m²), not a
+  // slider — caller pushes floor area in via setArea() whenever the room
+  // width/length sliders (renderRoomSection) change, since the dance floor
+  // *is* the room floor for this room_type. bass_bin_count (2-4) drives the
+  // mono centre-stack renderer in room3d.js — always mono, never a left/right
+  // pair (spaced subs cause power-alley cancellation across the floor).
+  //   renderClubSection(mountId, { state: { density, bass_bin_count, area_m2 }, onChange })
+  function renderClubSection(mountId, { state = {}, onChange } = {}) {
+    const mount = _mount(mountId);
+    if (!mount) return null;
+
+    const cur = {
+      density: state.density ?? 'comfortable',      // 'comfortable' 2/m² | 'packed' 4/m²
+      bass_bin_count: state.bass_bin_count ?? 2,
+    };
+    let areaM2 = state.area_m2 ?? 0;
+
+    const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
+
+    const capWrap = _el('div', { class: 'demo-field' });
+    const capHdr  = _el('div', { class: 'demo-field-header' });
+    const capLbl  = _el('span', { class: 'demo-field-label' }, 'Dance floor capacity');
+    const capVal  = _el('span', { class: 'demo-field-value' }, '—');
+    capHdr.append(capLbl, capVal);
+    capWrap.appendChild(capHdr);
+    wrap.appendChild(capWrap);
+
+    function _densityFactor(d) { return d === 'packed' ? 4 : 2; }
+    function _updateCapacity() {
+      capVal.textContent = areaM2 > 0
+        ? Math.round(areaM2 * _densityFactor(cur.density)) + ' people'
+        : '—';
+    }
+
+    const densityGroup = _btnGroup(
+      [
+        { key: 'comfortable', label: 'Comfortable', title: '~2 people/m²' },
+        { key: 'packed',      label: 'Packed',      title: '~4 people/m²' },
+      ],
+      cur.density,
+      (key) => {
+        cur.density = key;
+        _updateCapacity();
+        onChange?.({ ...cur });
+      }
+    );
+    wrap.appendChild(densityGroup.row);
+    _updateCapacity();
+
+    const { wrap: binWrap, slider: binSlider, val: binVal } = _sliderField({
+      label: 'Bass bins (mono stack)', id: 'scl-bass-bin-count',
+      min: 2, max: 4, step: 1, value: cur.bass_bin_count, unit: '', decimals: 0,
+      ariaLabel: 'Bass bin count',
+    });
+    binSlider.addEventListener('input', () => {
+      const v = parseInt(binSlider.value, 10);
+      cur.bass_bin_count = v;
+      binVal.textContent = String(v);
+      _updateSliderFill(binSlider);
+      onChange?.({ ...cur });
+    });
+    wrap.appendChild(binWrap);
+
+    mount.appendChild(wrap);
+
+    return {
+      reset() {
+        cur.density = state.density ?? 'comfortable';
+        cur.bass_bin_count = state.bass_bin_count ?? 2;
+        densityGroup.setActive(cur.density);
+        binSlider.value = String(cur.bass_bin_count);
+        binVal.textContent = String(cur.bass_bin_count);
+        _updateSliderFill(binSlider);
+        _updateCapacity();
+      },
+      // Pushed by the caller whenever room width/length change — the dance
+      // floor area comes from the room geometry section, not a slider here.
+      setArea(area_m2) {
+        areaM2 = area_m2;
+        _updateCapacity();
+      },
+    };
+  }
+
   // ── Public API ─────────────────────────────────────────────────────────────
 
   return {
@@ -1622,5 +1707,6 @@
     renderWaveToggle,
     renderSoundBurstSection,
     renderPeaksFreqSlider,
+    renderClubSection,
   };
 });
