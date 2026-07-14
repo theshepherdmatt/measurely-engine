@@ -1804,8 +1804,8 @@
   // renderClubSpeakersSection instead (they're part of the PA system, not
   // booth furniture, even though 'centre' placement visually sits under
   // the booth).
-  //   renderClubBoothSection(mountId, { state: { deck_config, dj_riser_enabled, booth_front_m, booth_offset_m }, onChange })
-  function renderClubBoothSection(mountId, { state = {}, onChange } = {}) {
+  //   renderClubBoothSection(mountId, { state: { deck_config, dj_riser_enabled, booth_front_m, booth_offset_m }, onChange, maxBoothFront })
+  function renderClubBoothSection(mountId, { state = {}, onChange, maxBoothFront } = {}) {
     const mount = _mount(mountId);
     if (!mount) return null;
 
@@ -1843,8 +1843,14 @@
       onChange?.({ ...cur });
     });
 
+    // "Booth forward / back" -- was capped at a fixed 2.5m, which didn't
+    // let the booth slide all the way to room centre on anything but a
+    // small floor. Max is now dynamic (maxBoothFront, defaults to 2.5 if
+    // not passed) -- the caller recomputes and calls setMaxBoothFront()
+    // whenever room length changes, same live-update pattern
+    // renderClubSection uses for crowd-limit's area-derived max.
     const defs = [
-      { key: 'booth_front_m',  label: 'Booth from front wall', min: 0.2,  max: 2.5, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
+      { key: 'booth_front_m',  label: 'Booth forward / back', min: 0.2,  max: maxBoothFront ?? 2.5, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
       { key: 'booth_offset_m', label: 'Booth left / right',    min: -3.0, max: 3.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
     ];
 
@@ -1876,6 +1882,22 @@
           cur[k] = parseFloat(slider.value);
           val.textContent = formatLength(cur[k], def.decimals);
           _updateSliderFill(slider);
+        }
+      },
+      // Called by the caller whenever room length changes -- widens (or
+      // shrinks) the "Booth forward / back" ceiling so it always reaches
+      // room centre, clamping the current value down if it's now past
+      // the new max.
+      setMaxBoothFront(maxM) {
+        const { slider, val, def } = sliders.booth_front_m;
+        def.max = maxM;
+        slider.max = String(maxM);
+        if (cur.booth_front_m > maxM) {
+          cur.booth_front_m = maxM;
+          slider.value = String(maxM);
+          val.textContent = formatLength(maxM, def.decimals);
+          _updateSliderFill(slider);
+          onChange?.({ ...cur });
         }
       },
     };
