@@ -2812,6 +2812,39 @@ export function initRoom3D({
     }
 
     /* ------------------------------------------
+       BASS BIN STACK (club room only)
+       Mono centre-stack under the DJ booth — 2-4 bass_bin cabinets stacked
+       vertically at room centre (x = offsetX), same Z as the flanking PA
+       tops. Deliberately separate from the home hi-fi subwoofer block
+       above: that path models one small cabled sub next to a rack, which
+       doesn't fit a club's stacked-mono pattern. Centre-stacking (not L/R
+       spaced pairs) avoids power-alley cancellation across the floor —
+       see README.md roadmap.
+       Predictive model: not a physical measurement.
+    ------------------------------------------ */
+    if (room.room_type === 'club' && (renderStage === 'speakers' || renderStage === 'furnishings')) {
+      const stackCount = Math.max(0, Math.min(4, room.bass_bin_count ?? 2));
+
+      if (stackCount > 0) {
+        const binProfile = getSpeakerProfile('bass_bin');
+        const binColor = binProfile.color;
+        const binOpacity = Math.max(OP_OBJ, 0.80);
+        const stackZ = -room.length_m / 2 + room.spk_front_m;
+        const floorY = -room.height_m / 2;
+
+        for (let i = 0; i < stackCount; i++) {
+          const bin = _buildBassBinSpeaker(binProfile.w, binProfile.h, binProfile.d, binColor, binOpacity);
+          bin.position.set(
+            offsetX,
+            floorY + rugRaise + binProfile.h / 2 + i * binProfile.h,
+            stackZ
+          );
+          roomGroup.add(bin);
+        }
+      }
+    }
+
+    /* ------------------------------------------
        CINEMA TV / SCREEN (cinema room only)
        Front-wall-anchored display with three mount variants driven by
        room.screen_type ('stand' | 'wall' | 'projector'). Built from _ghostBox
