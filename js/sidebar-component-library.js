@@ -489,7 +489,13 @@
   // ── Section 2 — Room Dimensions ───────────────────────────────────────────
   // state: { width_m, length_m, height_m }  onChange: fn({ width_m, length_m, height_m })
 
-  function renderRoomSection(mountId, { state = {}, onChange } = {}) {
+  // `ranges` lets a consumer override any def's min/max/step — e.g. club-scale
+  // venues (15m+ length) blow past the hi-fi-room defaults below, and a
+  // range input silently clamps its value to `max` the instant it's created,
+  // so an out-of-range default would visibly "jump" to the slider's max on
+  // first render/touch rather than showing the real value.
+  //   ranges: { length_m: { max: 30 }, width_m: { max: 25 }, height_m: { max: 8 } }
+  function renderRoomSection(mountId, { state = {}, onChange, ranges = {} } = {}) {
     const mount = _mount(mountId);
     if (!mount) return null;
 
@@ -500,7 +506,7 @@
       { label: 'Room width',  key: 'width_m',  min: 2.0, max: 8.0,  step: 0.1,  unit: 'm', decimals: 1, hl: 'wall_width',  acoustic: 'sbir' },
       { label: 'Room length', key: 'length_m', min: 2.5, max: 10.0, step: 0.1,  unit: 'm', decimals: 1, hl: 'wall_length', acoustic: 'sbir' },
       { label: 'Room height', key: 'height_m', min: 2.0, max: 4.0,  step: 0.05, unit: 'm', decimals: 1, hl: 'wall_height', acoustic: 'sbir' },
-    ];
+    ].map(def => ({ ...def, ...ranges[def.key] }));
 
     const sliders = {};
     for (const def of defs) {
