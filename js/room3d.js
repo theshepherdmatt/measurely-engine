@@ -3018,6 +3018,18 @@ export function initRoom3D({
         }
       });
 
+      // DJ monitor wedge — sits on the table top on the DJ's side (-Z,
+      // opposite the crowd-facing facade at +0.76), tilted back so the
+      // driver faces up toward the DJ standing behind the booth.
+      const monitor = _ghostBox(0.28, 0.16, 0.22);
+      monitor.position.set(0, 1.06 + 0.08, -0.55);
+      monitor.rotation.x = -0.3;
+      const monitorDriver = _edges(new THREE.CylinderGeometry(0.06, 0.06, 0.02, 24));
+      monitorDriver.rotation.x = Math.PI / 2;
+      monitorDriver.position.z = -0.121;
+      monitor.add(monitorDriver);
+      grp.add(monitor);
+
       return grp;
     }
 
