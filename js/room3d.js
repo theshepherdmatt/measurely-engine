@@ -519,6 +519,37 @@ export function initRoom3D({
     controls.autoRotate = false;
   }, { passive: true });
 
+  // Raycasting for CROWD overlay inspection
+  const _clickRay = new THREE.Raycaster();
+  const _clickMouse = new THREE.Vector2();
+  renderer.domElement.addEventListener('click', (e) => {
+    const rect = renderer.domElement.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    _clickMouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    _clickMouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    _clickRay.setFromCamera(_clickMouse, camera);
+    
+    const crowdMeshes = [];
+    scene.traverse(obj => {
+      if (obj.userData?.isCrowd && obj.isInstancedMesh) crowdMeshes.push(obj);
+    });
+    
+    if (crowdMeshes.length > 0) {
+      const intersects = _clickRay.intersectObjects(crowdMeshes, false);
+      if (intersects.length > 0) {
+        const hit = intersects[0];
+        const instId = hit.instanceId;
+        const instances = hit.object.userData.instances;
+        if (instances && instId !== undefined && instances[instId]) {
+          const inst = instances[instId];
+          const room = getRoomData ? getRoomData() : null;
+          const db = getLevelAtPosition(inst.x, (hit.object.userData.floorY || 0) + 1.0, inst.z, room);
+          console.log(`[Room3D] Crowd instanceId: ${instId}, Level: ${db.toFixed(1)} dB`);
+        }
+      }
+    }
+  });
+
   // Apply the shared default — also set controls.target so OrbitControls
   // orbits around the same point the camera is aimed at (prevents snap-on-drag).
   camera.position.set(
@@ -1082,6 +1113,7 @@ export function initRoom3D({
   const _spkLeftLocalPos  = new THREE.Vector3();
   const _spkRightLocalPos = new THREE.Vector3();
   let _wavesEnabled = false;  // Off by default; toggled via api.setWaves()
+  let _crowdEnabled = true;   // On by default; toggled via api.setCrowd()
   let _crowdEnabled = true;   // On by default; toggled via api.setCrowd()
   let _sbirFieldVisible = true; // SBIR heatmap field on by default; toggled via api.setSbirField()
   // ── REW live measurement data ─────────────────────────────────────────────
@@ -2559,6 +2591,7 @@ export function initRoom3D({
             });
             const ring = new THREE.Mesh(ringGeo, ringMat);
             ring.position.set(waveX, waveY, waveZ);
+            ring.rotation.copy(spkGroup.rotation);
             ring.userData.wavePhase   = ri / NUM_RINGS;
             ring.userData.waveMaxR    = maxR;
             ring.userData.waveAmp     = amp;   // animate() uses this to scale peak opacity
@@ -3095,6 +3128,35 @@ export function initRoom3D({
       booth.scale.set(BOOTH_FOOTPRINT_SCALE, 1, BOOTH_FOOTPRINT_SCALE);
       booth.position.set(offsetX, boothFloorY + rugRaise, boothZ);
       roomGroup.add(booth);
+
+      // DJ Avatar
+      const djHeadGeo = new THREE.SphereGeometry(0.15, 10, 8);
+      const djBodyGeo = new THREE.CylinderGeometry(0.2, 0.25, 1.4, 8);
+      djBodyGeo.translate(0, 0.7, 0); // anchor at feet
+      const djMat = new THREE.MeshBasicMaterial({ color: 0x666666 });
+      
+      const djGroup = new THREE.Group();
+      const djBody = new THREE.Mesh(djBodyGeo, djMat);
+      const djHead = new THREE.Mesh(djHeadGeo, djMat);
+      djHead.position.set(0, 1.55, 0);
+      
+      djGroup.add(djBody);
+      djGroup.add(djHead);
+      // Stand 0.5m behind the booth
+      djGroup.position.set(offsetX, boothFloorY + rugRaise, boothZ - 0.5);
+      
+      // Animation flags
+      const phase = Math.random() * Math.PI * 2;
+      djGroup.userData.isDJGroup = true;
+      djGroup.userData.baseX = offsetX;
+      djGroup.userData.phase = phase;
+      
+      djHead.userData.isDJHead = true;
+      djHead.userData.bpm = room.crowd_bpm || 126;
+      djHead.userData.baseY = 1.55;
+      djHead.userData.phase = phase;
+      
+      roomGroup.add(djGroup);
     }
 
     /* ------------------------------------------
@@ -3126,6 +3188,37 @@ export function initRoom3D({
             stackZ
           );
           roomGroup.add(bin);
+        }
+
+        if (_wavesEnabled) {
+          const NUM_RINGS = 10;
+          const maxR = Math.max(room.length_m, room.width_m) * 1.5;
+          const circleCurvePts = [];
+          const CIRCLE_SEG = 72;
+          for (let j = 0; j < CIRCLE_SEG; j++) {
+            const a = (j / CIRCLE_SEG) * Math.PI * 2;
+            circleCurvePts.push(new THREE.Vector3(Math.cos(a), 0, Math.sin(a)));
+          }
+          const ringCurve = new THREE.CatmullRomCurve3(circleCurvePts, true);
+          const ringGeo   = new THREE.TubeGeometry(ringCurve, 72, 0.04, 8, true);
+          
+          for (let ri = 0; ri < NUM_RINGS; ri++) {
+            const ringMat = new THREE.MeshBasicMaterial({
+              color: new THREE.Color(0xff2d78),
+              transparent: true,
+              opacity: 0,
+              depthWrite: false,
+              clippingPlanes: _waveClipPlanes,
+            });
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.position.set(offsetX, floorY + rugRaise + (stackCount * binProfile.h) / 2, stackZ);
+            ring.userData.wavePhase   = ri / NUM_RINGS;
+            ring.userData.waveMaxR    = maxR;
+            ring.userData.waveAmp     = 1.0; 
+            ring.userData.speakerSide = 'SUB'; 
+            roomGroup.add(ring);
+            _waveRings.push(ring);
+          }
         }
       }
     }
@@ -4965,6 +5058,51 @@ export function initRoom3D({
       }
     });
 
+    // CROWD ANIMATION
+    const _nowT = performance.now() * 0.001;
+    const _dummy = new THREE.Object3D();
+    scene.traverse(obj => {
+      if (obj.userData?.isCrowd && obj.geometry.type === 'CylinderGeometry') {
+        const bodyMesh = obj;
+        // Find head mesh (same parent, same geometry but sphere)
+        const headMesh = bodyMesh.parent.children.find(c => c.userData?.isCrowd && c.geometry.type === 'SphereGeometry');
+        const instances = bodyMesh.userData.instances;
+        if (!instances || !headMesh) return;
+        
+        const bpm = bodyMesh.userData.bpm || 126;
+        const beatRate = bpm / 60; // 120 bpm = 2 bps
+        const floorY = bodyMesh.userData.floorY || 0;
+        
+        for (let i = 0; i < instances.length; i++) {
+          const inst = instances[i];
+          const sway = Math.sin(_nowT * 2 + inst.phase) * 0.05;
+          const bob = Math.abs(Math.sin(_nowT * beatRate * Math.PI + inst.phase)) * 0.09;
+          
+          _dummy.position.set(inst.x + sway, floorY, inst.z);
+          _dummy.scale.set(1, inst.hScale, 1);
+          _dummy.rotation.y = inst.yRot;
+          _dummy.updateMatrix();
+          bodyMesh.setMatrixAt(i, _dummy.matrix);
+          
+          _dummy.position.set(inst.x + sway, floorY + 1.4 * inst.hScale + 0.15 + bob, inst.z);
+          _dummy.scale.setScalar(inst.hScale);
+          _dummy.updateMatrix();
+          headMesh.setMatrixAt(i, _dummy.matrix);
+        }
+        
+        bodyMesh.instanceMatrix.needsUpdate = true;
+        headMesh.instanceMatrix.needsUpdate = true;
+      } else if (obj.userData?.isDJGroup) {
+        const sway = Math.sin(_nowT * 2 + obj.userData.phase) * 0.05;
+        obj.position.x = obj.userData.baseX + sway;
+      } else if (obj.userData?.isDJHead) {
+        const bpm = obj.userData.bpm || 126;
+        const beatRate = bpm / 60;
+        const bob = Math.abs(Math.sin(_nowT * beatRate * Math.PI + obj.userData.phase)) * 0.09;
+        obj.position.y = obj.userData.baseY + bob;
+      }
+    });
+
     // PULSE DOTS at reflection bounce points
     const _pt = performance.now() * 0.003;
     scene.traverse(obj => {
@@ -5907,6 +6045,129 @@ export function initRoom3D({
       console.error("[Room3D] Overlay 'crowd' failed to render", err);
     }
 
+    // ---- CROWD ----
+    if ((room.room_type === 'club' || overlayEnabled(OVERLAYS.CROWD)) && _crowdEnabled) try {
+      // 1. Mesh setup
+      const headGeo = new THREE.SphereGeometry(0.15, 10, 8);
+      const bodyGeo = new THREE.CylinderGeometry(0.2, 0.25, 1.4, 8);
+      bodyGeo.translate(0, 0.7, 0); // anchor at feet
+
+      // Get footprint settings
+      const densityMultiplier = (room.density === 'packed') ? 4 : 2;
+      const spacing = Math.sqrt(1 / densityMultiplier); // ~0.707m for packed, 1m for comfortable
+      
+      const width = room.width_m || 4.0;
+      const length = room.length_m || 5.0;
+      // Start 0.5m back from speakers, end 0.5m from back wall
+      const zStart = -length / 2 + (room.spk_front_m || 0.5) + 0.5;
+      const zEnd = length / 2 - 0.5;
+      // Leave 0.5m on sides
+      const xStart = -width / 2 + 0.5;
+      const xEnd = width / 2 - 0.5;
+
+      const instances = [];
+      
+      // Lay out jittered grid, density biased toward front
+      const zRange = zEnd - zStart;
+      for (let z = zStart; z <= zEnd; z += spacing) {
+        // Front density bias: chance to skip increases toward the back
+        const depthFrac = (z - zStart) / zRange;
+        for (let x = xStart; x <= xEnd; x += spacing) {
+          if (Math.random() < depthFrac * 0.5) continue; // up to 50% chance to skip at back wall
+          
+          instances.push({
+            x: x + (Math.random() - 0.5) * spacing * 0.4,
+            z: z + (Math.random() - 0.5) * spacing * 0.4,
+            phase: Math.random() * Math.PI * 2,
+            hScale: 0.9 + Math.random() * 0.25,
+            yRot: (Math.random() - 0.5) * 0.5, // slight random rotation
+          });
+        }
+      }
+
+      const count = instances.length;
+      if (count === 0) return;
+      
+      // Update global footprint data for RT60 side
+      if (typeof window !== 'undefined') {
+        window.MeasurelyRoom3D = window.MeasurelyRoom3D || {};
+        window.MeasurelyRoom3D.crowdFootprint = {
+          count,
+          bounds: { xStart, xEnd, zStart, zEnd },
+          densityMultiplier
+        };
+      }
+
+      const bodyMesh = new THREE.InstancedMesh(bodyGeo, new THREE.MeshBasicMaterial(), count);
+      const headMesh = new THREE.InstancedMesh(headGeo, new THREE.MeshBasicMaterial(), count);
+      
+      // Raycasting setup
+      bodyMesh.userData.isCrowd = true;
+      headMesh.userData.isCrowd = true;
+      bodyMesh.userData.instances = instances;
+      headMesh.userData.instances = instances;
+      bodyMesh.userData.bpm = room.crowd_bpm || 126;
+      bodyMesh.userData.floorY = -(room.height_m || 3.0) / 2;
+
+      const floorY = -(room.height_m || 3.0) / 2;
+      const dummy = new THREE.Object3D();
+      
+      const colTeal = new THREE.Color('#22d3c5');
+      const colGold = new THREE.Color('#ffd166');
+      const colPink = new THREE.Color('#ff2d78');
+      
+      let minDb = Infinity;
+      let maxDb = -Infinity;
+      const dbLevels = instances.map(inst => {
+        const db = getLevelAtPosition(inst.x, floorY + 1.0, inst.z, room);
+        if (db < minDb) minDb = db;
+        if (db > maxDb) maxDb = db;
+        return db;
+      });
+
+      const dbRange = Math.max(0.1, maxDb - minDb);
+
+      for (let i = 0; i < count; i++) {
+        const inst = instances[i];
+        
+        // Initial static placement (animation loop will update this)
+        dummy.position.set(inst.x, floorY, inst.z);
+        dummy.scale.set(1, inst.hScale, 1);
+        dummy.rotation.y = inst.yRot;
+        dummy.updateMatrix();
+        
+        bodyMesh.setMatrixAt(i, dummy.matrix);
+        
+        dummy.position.set(inst.x, floorY + 1.4 * inst.hScale + 0.15, inst.z);
+        dummy.scale.setScalar(inst.hScale);
+        dummy.updateMatrix();
+        
+        headMesh.setMatrixAt(i, dummy.matrix);
+
+        // Colour mapping based on level
+        const frac = (dbLevels[i] - minDb) / dbRange;
+        const col = new THREE.Color();
+        if (frac < 0.5) {
+          col.lerpColors(colTeal, colGold, frac * 2);
+        } else {
+          col.lerpColors(colGold, colPink, (frac - 0.5) * 2);
+        }
+        bodyMesh.setColorAt(i, col);
+        headMesh.setColorAt(i, col);
+      }
+
+      bodyMesh.instanceMatrix.needsUpdate = true;
+      headMesh.instanceMatrix.needsUpdate = true;
+      if (bodyMesh.instanceColor) bodyMesh.instanceColor.needsUpdate = true;
+      if (headMesh.instanceColor) headMesh.instanceColor.needsUpdate = true;
+
+      roomGroup.add(bodyMesh);
+      roomGroup.add(headMesh);
+
+    } catch (err) {
+      console.error("[Room3D] Overlay 'crowd' failed to render", err);
+    }
+
     // ---- FLOOR REFLECTION ----
     if (
       overlayEnabled(OVERLAYS.FLOOR_REFLECTION) &&
@@ -5985,7 +6246,10 @@ export function initRoom3D({
 
       // Drive wave ring color: cyan = treated, pink = untreated (lerped in render loop)
       const _sbirRingTarget = new THREE.Color(sbirTreated ? OC.TREATED_CYAN : OC.PRESSURE_PEAK);
-      _waveRings.forEach(r => { r.userData.targetColor = _sbirRingTarget; });
+      _waveRings.forEach(r => {
+        if (r.userData.speakerSide === 'SUB') r.userData.targetColor = new THREE.Color(0xff2d78);
+        else r.userData.targetColor = _sbirRingTarget;
+      });
 
       // ── Measurement-aware classification ─────────────────────────────────
       // Predicted null lives at f = c / 4d. Real rooms shift it within ±15%
@@ -6454,7 +6718,7 @@ export function initRoom3D({
         sideMat
       );
       sideField.rotation.x = -Math.PI / 2;
-      sideField.position.set(0, tweeterY, 0);
+      sideField.position.set(0, -halfH + _sphereY, 0);
       sideField.userData.isSideRefField = true;
       roomGroup.add(sideField);
 
@@ -9033,9 +9297,15 @@ export function initRoom3D({
         activeOverlays.add(OVERLAYS.SIDE_REFLECTIONS);
         activeOverlays.add(OVERLAYS.REAR_ENERGY);
         activeOverlays.add(OVERLAYS.COFFEE_TABLE);
+        activeOverlays.add(OVERLAYS.CROWD);
 
       }
 
+      rebuild();
+    },
+
+    setCrowd(enabled) {
+      _crowdEnabled = !!enabled;
       rebuild();
     },
 
