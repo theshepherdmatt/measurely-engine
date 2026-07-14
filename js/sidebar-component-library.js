@@ -1685,6 +1685,63 @@
     };
   }
 
+  // ── Section — Club: PA rig placement (tops + bass bin stack) ──────────────
+  // Club-only. Coverage-driven placement, not imaging — no toe-in or
+  // tweeter-height sliders (those assume a stereo sweet spot, which doesn't
+  // apply here). Both fields move the whole rig: spk_spacing_m spreads the
+  // two pa_top cabinets either side of the booth, spk_front_m moves the
+  // entire rig (tops + bass_bin stack, which renders at the same Z) off the
+  // front wall.
+  //   renderClubSpeakersSection(mountId, { state: { spk_spacing_m, spk_front_m }, onChange })
+  function renderClubSpeakersSection(mountId, { state = {}, onChange } = {}) {
+    const mount = _mount(mountId);
+    if (!mount) return null;
+
+    const cur = {
+      spk_spacing_m: state.spk_spacing_m ?? 6.0,
+      spk_front_m:   state.spk_front_m   ?? 1.0,
+    };
+
+    const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
+
+    const defs = [
+      { key: 'spk_spacing_m', label: 'Top spacing',       min: 2.0, max: 10.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
+      { key: 'spk_front_m',   label: 'Rig from front wall', min: 0.2, max: 3.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
+    ];
+
+    const sliders = {};
+    for (const def of defs) {
+      const { wrap: fw, slider, val } = _sliderField({
+        label: def.label, id: 'scl-club-' + def.key,
+        min: def.min, max: def.max, step: def.step,
+        value: cur[def.key], unit: def.unit, decimals: def.decimals,
+      });
+      _attachHighlight(slider, def.hl);
+      slider.addEventListener('input', () => {
+        const v = parseFloat(slider.value);
+        cur[def.key] = v;
+        val.textContent = formatLength(v, def.decimals);
+        _updateSliderFill(slider);
+        onChange?.({ ...cur });
+      });
+      sliders[def.key] = { slider, val, def };
+      wrap.appendChild(fw);
+    }
+
+    mount.appendChild(wrap);
+
+    return {
+      reset() {
+        for (const [k, { slider, val, def }] of Object.entries(sliders)) {
+          slider.value = String(state[k] ?? cur[k]);
+          cur[k] = parseFloat(slider.value);
+          val.textContent = formatLength(cur[k], def.decimals);
+          _updateSliderFill(slider);
+        }
+      },
+    };
+  }
+
   // ── Public API ─────────────────────────────────────────────────────────────
 
   return {
@@ -1708,5 +1765,6 @@
     renderSoundBurstSection,
     renderPeaksFreqSlider,
     renderClubSection,
+    renderClubSpeakersSection,
   };
 });
