@@ -3299,7 +3299,24 @@ export function initRoom3D({
         const cols = Math.min(stackCount, maxCols);
         const totalW = cols * binProfile.w;
 
-        function _buildStackAt(centerX) {
+        // Centre stack lies on its side, spread horizontally (existing
+        // layout). Corner stacks stand upright instead, stacked vertically
+        // in a single column — a floor-standing tower reads correctly
+        // tucked into a corner, whereas the wide horizontal row doesn't
+        // fit the tighter corner footprint.
+        function _buildStackAt(centerX, vertical) {
+          if (vertical) {
+            for (let i = 0; i < stackCount; i++) {
+              const bin = _buildBassBinSpeaker(binProfile.w, binProfile.h, binProfile.d, binColor, binOpacity);
+              bin.position.set(
+                centerX,
+                floorY + rugRaise + binProfile.h / 2 + i * binProfile.h,
+                stackZ
+              );
+              roomGroup.add(bin);
+            }
+            return;
+          }
           const startX = centerX - totalW / 2 + binProfile.w / 2;
           for (let i = 0; i < stackCount; i++) {
             const row = Math.floor(i / cols);
@@ -3316,14 +3333,15 @@ export function initRoom3D({
         }
 
         const stackCentres = [];
-        if (placement === 'corners') {
-          const cornerInset = totalW / 2 + 0.2; // clearance off the side wall
+        const isCorners = placement === 'corners';
+        if (isCorners) {
+          const cornerInset = binProfile.w / 2 + 0.2; // clearance off the side wall, upright footprint
           const halfW = room.width_m / 2;
           stackCentres.push(-(halfW - cornerInset), (halfW - cornerInset));
         } else {
           stackCentres.push(offsetX);
         }
-        stackCentres.forEach(_buildStackAt);
+        stackCentres.forEach(cx => _buildStackAt(cx, isCorners));
 
         if (_wavesEnabled) {
           const NUM_RINGS = 10;
