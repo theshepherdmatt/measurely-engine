@@ -3157,21 +3157,24 @@ export function initRoom3D({
 
       // DJ monitors — pole-mounted at each outer corner of the table (DJ
       // side, -Z, opposite the crowd-facing facade at +0.76), angled
-      // inward toward the DJ standing centre-table. Same cabinet builder
-      // and colour as the wall-mounted pa_top rig (_buildStandmountSpeaker:
-      // box + two driver rings), just on a desk pole instead of a wall
-      // bracket — reads as a matching pair of the same PA product line,
-      // not a different speaker. Two, not one centred — a single centre
-      // monitor sat awkwardly between the turntables/mixer.
+      // inward toward the DJ standing centre-table. A compact, bespoke
+      // cabinet+driver rather than reusing _buildStandmountSpeaker as-is:
+      // that builder's driver ratio (W*0.28) is tuned for the full-size
+      // wall pa_top and looked oversized on a small desk monitor. Two, not
+      // one centred — a single centre monitor sat awkwardly between the
+      // turntables/mixer.
       // Width/depth (not height — booth.scale only touches X/Z, see
       // BOOTH_FOOTPRINT_SCALE) are authored at 1/0.42 of the real target
       // size so they land at a small-but-visible size once the booth's
       // own footprint scale is applied.
       const MONITOR_YAW = 0.55; // ~31°, inward toward table centre
-      const monCabW = 0.3 / BOOTH_FOOTPRINT_SCALE, monCabD = 0.3 / BOOTH_FOOTPRINT_SCALE;
-      const monCabH = 0.4;   // Y unscaled — real height directly
-      const monPoleH = 0.35; // Y unscaled — real height directly
-      const monPoleFootprint = 0.05 / BOOTH_FOOTPRINT_SCALE;
+      const monCabW = 0.20 / BOOTH_FOOTPRINT_SCALE, monCabD = 0.20 / BOOTH_FOOTPRINT_SCALE;
+      const monCabH = 0.24;   // Y unscaled — real height directly, was 0.4 (too tall)
+      const monPoleH = 0.16;  // Y unscaled — real height directly, was 0.35 (towered over the desk)
+      const monPoleFootprint = 0.04 / BOOTH_FOOTPRINT_SCALE;
+      const monMat = useFatEdges
+        ? new THREE.MeshBasicMaterial({ color: 0x2a2a28, transparent: true, opacity: Math.max(OP_OBJ, 0.80) })
+        : new THREE.LineBasicMaterial({ color: 0x2a2a28, transparent: true, opacity: Math.max(OP_OBJ, 0.80) });
       [-1, 1].forEach(sign => {
         const monGroup = new THREE.Group();
         monGroup.position.set(sign * 1.9, 1.06, -0.65);
@@ -3181,12 +3184,19 @@ export function initRoom3D({
         pole.position.y = monPoleH / 2;
         monGroup.add(pole);
 
-        const cabinet = _buildStandmountSpeaker(monCabW, monCabH, monCabD, 0x2a2a28, Math.max(OP_OBJ, 0.80));
+        const cabinet = new THREE.Group();
         cabinet.position.y = monPoleH + monCabH / 2;
-        // _buildStandmountSpeaker's drivers face local +Z; rotation.y =
-        // -sign*MONITOR_YAW turns that face toward table centre (negative
-        // x for the +x monitor and vice versa).
+        // Driver faces local +Z; rotation.y = -sign*MONITOR_YAW turns that
+        // face toward table centre (negative x for the +x monitor and
+        // vice versa).
         cabinet.rotation.y = -sign * MONITOR_YAW;
+        cabinet.add(new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.BoxGeometry(monCabW, monCabH, monCabD)), monMat
+        ));
+        // Single small driver, not the wall speaker's woofer+tweeter pair
+        // — a nearfield monitor this size reads as one full-range unit.
+        _makeConeDriver(0, 0, monCabD / 2 + 0.002, monCabW * 0.16, false, 0x2a2a28, Math.max(OP_OBJ, 0.80))
+          .forEach(o => cabinet.add(o));
         monGroup.add(cabinet);
       });
 
