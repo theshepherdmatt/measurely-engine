@@ -1618,7 +1618,6 @@
 
     const cur = {
       crowd_limit: state.crowd_limit ?? 200,
-      crowd_bpm: state.crowd_bpm ?? 126,
     };
     let areaM2 = state.area_m2 ?? 0;
 
@@ -1638,32 +1637,14 @@
     });
     wrap.appendChild(limitWrap);
 
-    const { wrap: bpmWrap, slider: bpmSlider, val: bpmVal } = _sliderField({
-      label: 'Crowd animation BPM', id: 'scl-crowd-bpm',
-      min: 80, max: 160, step: 1, value: cur.crowd_bpm, unit: ' BPM', decimals: 0,
-      ariaLabel: 'Crowd animation BPM',
-    });
-    bpmSlider.addEventListener('input', () => {
-      const v = parseInt(bpmSlider.value, 10);
-      cur.crowd_bpm = v;
-      bpmVal.textContent = String(v) + ' BPM';
-      _updateSliderFill(bpmSlider);
-      onChange?.({ ...cur });
-    });
-    wrap.appendChild(bpmWrap);
-
     mount.appendChild(wrap);
 
     return {
       reset() {
         cur.crowd_limit = state.crowd_limit ?? 200;
-        cur.crowd_bpm = state.crowd_bpm ?? 126;
         limitSlider.value = String(cur.crowd_limit);
         limitVal.textContent = String(cur.crowd_limit) + ' people';
         _updateSliderFill(limitSlider);
-        bpmSlider.value = String(cur.crowd_bpm);
-        bpmVal.textContent = String(cur.crowd_bpm) + ' BPM';
-        _updateSliderFill(bpmSlider);
       },
       // Pushed by the caller whenever room width/length change — the dance
       // floor area comes from the room geometry section, not a slider here.
