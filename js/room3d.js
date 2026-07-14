@@ -3117,6 +3117,20 @@ export function initRoom3D({
         plinth.position.y = 0.035;
         g.add(plinth);
 
+        // Red power/on-air indicator -- disco mode only, pulses via
+        // animate()'s isDeckLed branch.
+        if (_discoEnabled) {
+          const indicator = new THREE.Mesh(
+            new THREE.CircleGeometry(0.025, 16),
+            new THREE.MeshBasicMaterial({ color: 0xff1133, transparent: true, opacity: 1 })
+          );
+          indicator.rotation.x = -Math.PI / 2;
+          indicator.position.set(0.6, 0.072, -0.48);
+          indicator.userData.isDeckLed = true;
+          indicator.userData.phase = Math.random() * Math.PI * 2;
+          g.add(indicator);
+        }
+
         const platter = new THREE.Group();
         platter.position.set(-0.12, 0.08, 0);
         g.add(platter);
@@ -5522,6 +5536,8 @@ export function initRoom3D({
         const cyclePos = ((_nowT * 3 + obj.userData.vuSide * 2) % 6);
         const dist = Math.abs(cyclePos - obj.userData.vuIndex);
         obj.material.opacity = Math.max(0.15, 1 - dist * 0.4);
+      } else if (obj.userData?.isDeckLed) {
+        obj.material.opacity = 0.5 + 0.5 * Math.sin(_nowT * 2.4 + obj.userData.phase);
       }
     });
 
