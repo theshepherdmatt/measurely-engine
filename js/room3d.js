@@ -1303,6 +1303,10 @@ export function initRoom3D({
       listener_offset_m: setup.listener_offset_m,
       subwoofer:      setup.subwoofer,
       subwoofer_dual: setup.subwoofer_dual ?? false,
+      // Club only: mono bass_bin centre-stack count (2-4). See the
+      // BASS BIN STACK render block for why this is a separate path from
+      // the home hi-fi subwoofer fields above.
+      bass_bin_count: data.bass_bin_count ?? 2,
 
       room_type: data.room_type || env.room_type || "home",
       opt_area_rug: furn.opt_area_rug ?? env.opt_area_rug ?? data.opt_area_rug,
