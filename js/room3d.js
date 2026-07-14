@@ -2360,7 +2360,12 @@ export function initRoom3D({
           const targetY = baseY + EAR_HEIGHT_M;
           const targetZ = -room.length_m / 2 + (room.listener_front_m || room.length_m / 2);
           const tiltRad = Math.atan2(y - targetY, targetZ - z);
-          spkGroup.rotation.x = -tiltRad;
+          // +tiltRad, not -tiltRad: the cabinet's forward axis is local +Z
+          // (same axis the directivity beam extends along, and where the
+          // driver faces are built), and a positive X-rotation tips that
+          // axis downward as Z increases into the room. The negated sign
+          // tipped it up through the ceiling instead.
+          spkGroup.rotation.x = tiltRad;
 
           const bracketMat = new THREE.LineBasicMaterial({
             color: spkColor, transparent: true, opacity: spkOpacity * 0.65
