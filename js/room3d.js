@@ -3150,23 +3150,33 @@ export function initRoom3D({
         }
       });
 
-      // DJ monitor wedge — sits on the table top on the DJ's side (-Z,
-      // opposite the crowd-facing facade at +0.76), tilted back so the
-      // driver faces up toward the DJ standing behind the booth.
+      // DJ monitor wedges — one at each outer corner of the table (DJ
+      // side, -Z, opposite the crowd-facing facade at +0.76), angled
+      // inward toward the DJ standing centre-table, tilted back so the
+      // driver faces up. Two, not one centred — a single centre monitor
+      // sat awkwardly between the turntables/mixer; corner-mounted wedges
+      // pointed inward is the real-world DJ booth convention.
       // Width/depth (not height — booth.scale only touches X/Z, see
       // BOOTH_FOOTPRINT_SCALE) are authored at 1/0.42 of the real target
       // size so they land at a small-but-visible ~0.25m wide once the
       // booth's own footprint scale is applied — sizing them at the real
       // target directly (as a first pass did) rendered at ~40% of that,
       // effectively invisible.
-      const monitor = _ghostBox(0.60, 0.18, 0.48);
-      monitor.position.set(0, 1.06 + 0.09, -0.55);
-      monitor.rotation.x = -0.3;
-      const monitorDriver = _edges(new THREE.CylinderGeometry(0.12, 0.12, 0.03, 24));
-      monitorDriver.rotation.x = Math.PI / 2;
-      monitorDriver.position.z = -0.29;
-      monitor.add(monitorDriver);
-      grp.add(monitor);
+      const MONITOR_YAW = 0.55; // ~31°, inward toward table centre
+      [-1, 1].forEach(sign => {
+        const monitor = _ghostBox(0.60, 0.18, 0.48);
+        monitor.position.set(sign * 1.9, 1.06 + 0.09, -0.65);
+        // Driver faces local -Z; rotation.y = -sign*MONITOR_YAW turns that
+        // face toward table centre (negative x for the +x monitor and
+        // vice versa) rather than straight ahead down the DJ side.
+        monitor.rotation.y = -sign * MONITOR_YAW;
+        monitor.rotation.x = -0.3;
+        const monitorDriver = _edges(new THREE.CylinderGeometry(0.12, 0.12, 0.03, 24));
+        monitorDriver.rotation.x = Math.PI / 2;
+        monitorDriver.position.z = -0.29;
+        monitor.add(monitorDriver);
+        grp.add(monitor);
+      });
 
       return grp;
     }
@@ -3189,6 +3199,13 @@ export function initRoom3D({
       const boothX = offsetX + (room.booth_offset_m ?? 0);
       const booth = _buildDJBooth();
       booth.scale.set(BOOTH_FOOTPRINT_SCALE, 1, BOOTH_FOOTPRINT_SCALE);
+      // _buildDJBooth() authors the facade (crowd-facing side) at local
+      // +Z, but the booth sits at the FRONT wall where the crowd is on
+      // the +Z side of the room too — same direction, so the booth was
+      // facing itself into the wall instead of out at the floor. 180°
+      // flip puts the facade/turntables/mixer/monitors all facing +Z
+      // (into the room) as a unit.
+      booth.rotation.y = Math.PI;
       booth.position.set(boothX, boothFloorY + rugRaise, boothZ);
       roomGroup.add(booth);
 
