@@ -5104,6 +5104,10 @@ export function initRoom3D({
   function animate() {
     requestAnimationFrame(animate);
 
+    if (_mirrorBall && _discoEnabled) {
+      _mirrorBall.rotation.y -= 0.005;
+    }
+
     let scale = baseScale;
 
     // ANALYSIS PULSE
