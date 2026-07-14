@@ -3197,7 +3197,24 @@ export function initRoom3D({
         }
         const laserGeo = new THREE.BufferGeometry().setFromPoints(pts);
         laserGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-        const laserMat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.6, depthWrite: false });
+        const clipHalfW = (room.width_m / 2) * baseScale;
+        const clipHalfL = (room.length_m / 2) * baseScale;
+        const clipHalfH = (room.height_m / 2) * baseScale;
+        const _discoClipPlanes = [
+          new THREE.Plane(new THREE.Vector3(-1, 0, 0), clipHalfW),
+          new THREE.Plane(new THREE.Vector3( 1, 0, 0), clipHalfW),
+          new THREE.Plane(new THREE.Vector3(0, 0, -1), clipHalfL),
+          new THREE.Plane(new THREE.Vector3(0, 0,  1), clipHalfL),
+          new THREE.Plane(new THREE.Vector3(0, -1, 0), clipHalfH),
+          new THREE.Plane(new THREE.Vector3(0,  1, 0), clipHalfH)
+        ];
+        const laserMat = new THREE.LineBasicMaterial({ 
+          vertexColors: true, 
+          transparent: true, 
+          opacity: 0.6, 
+          depthWrite: false,
+          clippingPlanes: _discoClipPlanes
+        });
         const laserLines = new THREE.LineSegments(laserGeo, laserMat);
         _mirrorBall.add(laserLines);
       }
