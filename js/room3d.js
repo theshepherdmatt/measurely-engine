@@ -1114,7 +1114,6 @@ export function initRoom3D({
   const _spkRightLocalPos = new THREE.Vector3();
   let _wavesEnabled = false;  // Off by default; toggled via api.setWaves()
   let _crowdEnabled = true;   // On by default; toggled via api.setCrowd()
-  let _crowdEnabled = true;   // On by default; toggled via api.setCrowd()
   let _sbirFieldVisible = true; // SBIR heatmap field on by default; toggled via api.setSbirField()
   // ── REW live measurement data ─────────────────────────────────────────────
   // Set by api.setWaves(freqs, mags). Null = no measurement loaded (simulation mode).
