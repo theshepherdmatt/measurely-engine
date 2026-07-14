@@ -5597,8 +5597,14 @@ export function initRoom3D({
         
         for (let i = 0; i < instances.length; i++) {
           const inst = instances[i];
-          const sway = Math.sin(_nowT * 2 + inst.phase) * 0.05;
-          const bob = Math.abs(Math.sin(_nowT * beatRate * Math.PI + inst.phase)) * 0.09;
+          // Dance energy (0-1, set in the crowd build pass from local
+          // SPL): scales how hard each person moves. A floor of 0.15
+          // keeps even dead-zone people faintly alive rather than
+          // frozen mannequins; the ceiling (~2x the old fixed bob)
+          // makes a strong rig read as a properly bouncing crowd.
+          const energy = 0.15 + 0.85 * (inst.energy ?? 0.5);
+          const sway = Math.sin(_nowT * 2 + inst.phase) * 0.05 * energy;
+          const bob = Math.abs(Math.sin(_nowT * beatRate * Math.PI + inst.phase)) * 0.17 * energy;
           
           _dummy.position.set(inst.x + sway, floorY, inst.z);
           _dummy.scale.set(1, inst.hScale, 1);
@@ -6501,6 +6507,11 @@ export function initRoom3D({
 
         // Colour mapping based on level
         const frac = Math.min(1, Math.max(0, (dbLevels[i] - minDb) / dbRange));
+        // Dance energy: the animate() crowd loop scales each person's
+        // bob/sway by this, so a stronger system (or standing nearer
+        // the rig) visibly makes people dance harder — dead zones read
+        // as people standing still, not just cooler colours.
+        inst.energy = frac;
         const col = new THREE.Color();
         if (frac < 0.5) {
           col.lerpColors(colTeal, colGold, frac * 2);
@@ -6688,6 +6699,11 @@ export function initRoom3D({
 
         // Colour mapping based on level
         const frac = Math.min(1, Math.max(0, (dbLevels[i] - minDb) / dbRange));
+        // Dance energy: the animate() crowd loop scales each person's
+        // bob/sway by this, so a stronger system (or standing nearer
+        // the rig) visibly makes people dance harder — dead zones read
+        // as people standing still, not just cooler colours.
+        inst.energy = frac;
         const col = new THREE.Color();
         if (frac < 0.5) {
           col.lerpColors(colTeal, colGold, frac * 2);
@@ -6875,6 +6891,11 @@ export function initRoom3D({
 
         // Colour mapping based on level
         const frac = Math.min(1, Math.max(0, (dbLevels[i] - minDb) / dbRange));
+        // Dance energy: the animate() crowd loop scales each person's
+        // bob/sway by this, so a stronger system (or standing nearer
+        // the rig) visibly makes people dance harder — dead zones read
+        // as people standing still, not just cooler colours.
+        inst.energy = frac;
         const col = new THREE.Color();
         if (frac < 0.5) {
           col.lerpColors(colTeal, colGold, frac * 2);
