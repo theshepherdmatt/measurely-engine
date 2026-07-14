@@ -3069,7 +3069,7 @@ export function initRoom3D({
         deskGroup.add(leg);
       });
 
-      function _makeTurntable(x) {
+      function _makeTurntable(x, hasTonearm = true) {
         const g = new THREE.Group();
         g.position.set(x, 1.06, 0);
         deskGroup.add(g);
@@ -3103,24 +3103,30 @@ export function initRoom3D({
         spoke.visible = false; // accent colour kept in code, hidden in the room — see _accentEdges
         platter.add(spoke);
 
-        const armPivot = new THREE.Group();
-        armPivot.position.set(0.5, 0.19, -0.38);
-        g.add(armPivot);
+        // Tonearm — turntables only. The two outer decks are CDJs (digital
+        // media players): no tonearm, everything else about the unit is
+        // shared since a CDJ's plinth/jog-wheel silhouette reads close
+        // enough to a turntable's plinth/platter at this level of detail.
+        if (hasTonearm) {
+          const armPivot = new THREE.Group();
+          armPivot.position.set(0.5, 0.19, -0.38);
+          g.add(armPivot);
 
-        armPivot.add(new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(0.1, 0, -0.05), new THREE.Vector3(0, 0, 0), new THREE.Vector3(-0.52, -0.03, 0.22),
-          ]),
-          furnEdgeMat
-        ));
+          armPivot.add(new THREE.Line(
+            new THREE.BufferGeometry().setFromPoints([
+              new THREE.Vector3(0.1, 0, -0.05), new THREE.Vector3(0, 0, 0), new THREE.Vector3(-0.52, -0.03, 0.22),
+            ]),
+            furnEdgeMat
+          ));
 
-        const head = _ghostBox(0.07, 0.03, 0.04);
-        head.position.set(-0.56, -0.03, 0.24);
-        armPivot.add(head);
+          const head = _ghostBox(0.07, 0.03, 0.04);
+          head.position.set(-0.56, -0.03, 0.24);
+          armPivot.add(head);
 
-        const armBase = _edges(new THREE.CylinderGeometry(0.07, 0.08, 0.1, 16));
-        armBase.position.set(0.5, 0.12, -0.38);
-        g.add(armBase);
+          const armBase = _edges(new THREE.CylinderGeometry(0.07, 0.08, 0.1, 16));
+          armBase.position.set(0.5, 0.12, -0.38);
+          g.add(armBase);
+        }
 
         const pitchKnob = _accentEdges(new THREE.BoxGeometry(0.06, 0.03, 0.05));
         pitchKnob.position.set(0.55, 0.09, 0.1);
@@ -3131,11 +3137,12 @@ export function initRoom3D({
         g.add(btn);
       }
       // Standard 4-deck club layout: two decks flanking the mixer each
-      // side (deck-deck-mixer-deck-deck), not stacked/tiered pairs.
+      // side (deck-deck-mixer-deck-deck), not stacked/tiered pairs. Inner
+      // pair are turntables (tonearm), outer pair are CDJs (no tonearm).
       _makeTurntable(-1.35);
       _makeTurntable(1.35);
-      _makeTurntable(-2.75);
-      _makeTurntable(2.75);
+      _makeTurntable(-2.75, false);
+      _makeTurntable(2.75, false);
 
       const mixer = new THREE.Group();
       mixer.position.set(0, 1.06, 0.05);
