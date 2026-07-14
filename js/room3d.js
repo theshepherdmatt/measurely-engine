@@ -2816,6 +2816,161 @@ export function initRoom3D({
     }
 
     /* ------------------------------------------
+       DJ BOOTH (club room only)
+       Table top + facade on legs, two turntables (plinth, platter rim,
+       vinyl rim, groove circles, label, tonearm, headshell, pitch fader,
+       start/stop button) and a centre mixer (channel faders, crossfader,
+       EQ knobs, VU meter LEDs). Geometry only — no spin/pulse animation
+       (the platters, tonearms and VU meters are all static), matching the
+       engine's "no fake animations driven by time alone" rule. Colour
+       lockdown: charcoal (furnEdgeMat) for structure, a single restrained
+       teal accent for the "active" controls (labels, faders, buttons) —
+       no per-channel neon colour-coding.
+       Predictive model: not a physical measurement. Furniture only —
+       never read by acoustics/analysis.
+    ------------------------------------------ */
+    function _buildDJBooth() {
+      const grp = new THREE.Group();
+      const accentMat = new THREE.LineBasicMaterial({ color: colors.accent });
+
+      function _edges(geo) {
+        return new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), furnEdgeMat);
+      }
+      function _accentEdges(geo) {
+        return new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), accentMat);
+      }
+      function _circle(r, y, mat, segs = 40) {
+        const pts = [];
+        for (let i = 0; i <= segs; i++) {
+          const a = (i / segs) * Math.PI * 2;
+          pts.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r));
+        }
+        return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat);
+      }
+
+      const tableTop = _ghostBox(4.4, 0.12, 1.6);
+      tableTop.position.y = 1.0;
+      grp.add(tableTop);
+
+      const facade = _ghostBox(4.4, 1.0, 0.08);
+      facade.position.set(0, 0.5, 0.76);
+      grp.add(facade);
+
+      [[-2.0, -0.65], [2.0, -0.65], [-2.0, 0.6], [2.0, 0.6]].forEach(([x, z]) => {
+        const leg = _ghostBox(0.12, 1.0, 0.12);
+        leg.position.set(x, 0.5, z);
+        grp.add(leg);
+      });
+
+      function _makeTurntable(x) {
+        const g = new THREE.Group();
+        g.position.set(x, 1.06, 0);
+        grp.add(g);
+
+        const plinth = _ghostBox(1.35, 0.14, 1.1);
+        plinth.position.y = 0.07;
+        g.add(plinth);
+
+        const platter = new THREE.Group();
+        platter.position.set(-0.12, 0.15, 0);
+        g.add(platter);
+
+        platter.add(_edges(new THREE.CylinderGeometry(0.44, 0.44, 0.04, 40)));
+
+        const vinyl = _edges(new THREE.CylinderGeometry(0.42, 0.42, 0.015, 40));
+        vinyl.position.y = 0.03;
+        platter.add(vinyl);
+
+        [0.2, 0.32].forEach(r => platter.add(_circle(r, 0.04, furnEdgeMat)));
+
+        const label = _accentEdges(new THREE.CylinderGeometry(0.13, 0.13, 0.017, 24));
+        label.position.y = 0.031;
+        platter.add(label);
+
+        platter.add(new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(-0.4, 0.045, 0), new THREE.Vector3(0.4, 0.045, 0),
+          ]),
+          accentMat
+        ));
+
+        const armPivot = new THREE.Group();
+        armPivot.position.set(0.5, 0.26, -0.38);
+        g.add(armPivot);
+
+        armPivot.add(new THREE.Line(
+          new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0.1, 0, -0.05), new THREE.Vector3(0, 0, 0), new THREE.Vector3(-0.52, -0.03, 0.22),
+          ]),
+          furnEdgeMat
+        ));
+
+        const head = _ghostBox(0.07, 0.03, 0.04);
+        head.position.set(-0.56, -0.03, 0.24);
+        armPivot.add(head);
+
+        const armBase = _edges(new THREE.CylinderGeometry(0.07, 0.08, 0.1, 16));
+        armBase.position.set(0.5, 0.19, -0.38);
+        g.add(armBase);
+
+        const pitchKnob = _accentEdges(new THREE.BoxGeometry(0.06, 0.03, 0.05));
+        pitchKnob.position.set(0.55, 0.16, 0.1);
+        g.add(pitchKnob);
+
+        const btn = _accentEdges(new THREE.CylinderGeometry(0.045, 0.045, 0.02, 16));
+        btn.position.set(-0.55, 0.15, 0.42);
+        g.add(btn);
+      }
+      _makeTurntable(-1.35);
+      _makeTurntable(1.35);
+
+      const mixer = new THREE.Group();
+      mixer.position.set(0, 1.06, 0.05);
+      grp.add(mixer);
+
+      const mixerBody = _ghostBox(0.9, 0.14, 1.0);
+      mixerBody.position.y = 0.07;
+      mixer.add(mixerBody);
+
+      [-0.18, 0.18].forEach((x, i) => {
+        const fader = _accentEdges(new THREE.BoxGeometry(0.06, 0.035, 0.045));
+        fader.position.set(x, 0.16, 0.22 + i * 0.1);
+        mixer.add(fader);
+      });
+
+      const xFader = _ghostBox(0.05, 0.035, 0.06);
+      xFader.position.set(0, 0.16, 0.42);
+      mixer.add(xFader);
+
+      const knobGeo = new THREE.CylinderGeometry(0.028, 0.028, 0.035, 12);
+      for (let row = 0; row < 3; row++) {
+        [-0.18, 0.18].forEach(x => {
+          const k = _edges(knobGeo);
+          k.position.set(x, 0.155, -0.05 - row * 0.14);
+          mixer.add(k);
+        });
+      }
+
+      [-0.36, 0.36].forEach(x => {
+        for (let i = 0; i < 6; i++) {
+          const led = _edges(new THREE.BoxGeometry(0.03, 0.012, 0.03));
+          led.position.set(x, 0.145, 0.05 - i * 0.055);
+          mixer.add(led);
+        }
+      });
+
+      return grp;
+    }
+
+    if (room.room_type === 'club' && (renderStage === 'speakers' || renderStage === 'furnishings')) {
+      const boothFloorY = -room.height_m / 2;
+      const boothZ = -room.length_m / 2 + 0.75;
+      const booth = _buildDJBooth();
+      booth.position.set(offsetX, boothFloorY + rugRaise, boothZ);
+      roomGroup.add(booth);
+    }
+
+    /* ------------------------------------------
        BASS BIN STACK (club room only)
        Mono centre-stack under the DJ booth — 2-4 bass_bin cabinets stacked
        vertically at room centre (x = offsetX), same Z as the flanking PA
