@@ -3037,24 +3037,42 @@ export function initRoom3D({
         return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat);
       }
 
-      const tableTop = _ghostBox(4.4, 0.12, 1.6);
+      // Riser platform under the whole desk (standard for a 4-deck booth —
+      // DJ needs somewhere to stand that isn't the bare floor). deskGroup
+      // wraps every desk element (table, facade, legs, decks, mixer) so
+      // raising the platform is one offset instead of editing every
+      // individual y position by hand.
+      const RISER_H = 0.15;
+      const riser = _ghostBox(8.4, RISER_H, 3.6);
+      riser.position.set(0, RISER_H / 2, 0); // centred, generous depth covers both the table area and DJ standing room behind on either side of the 180° flip
+      grp.add(riser);
+
+      const deskGroup = new THREE.Group();
+      deskGroup.position.y = RISER_H;
+      grp.add(deskGroup);
+
+      // Table widened for the 4-deck layout (was 4.4/1.6, fit only 2
+      // decks) -- symmetric deck-deck-mixer-deck-deck, standard club
+      // booth convention.
+      const tableTop = _ghostBox(7.6, 0.12, 1.6);
       tableTop.position.y = 1.0;
-      grp.add(tableTop);
+      deskGroup.add(tableTop);
 
-      const facade = _ghostBox(4.4, 1.0, 0.08);
+      const facade = _ghostBox(7.6, 1.0, 0.08);
       facade.position.set(0, 0.5, 0.76);
-      grp.add(facade);
+      deskGroup.add(facade);
 
-      [[-2.0, -0.65], [2.0, -0.65], [-2.0, 0.6], [2.0, 0.6]].forEach(([x, z]) => {
+      [[-3.6, -0.65], [3.6, -0.65], [-3.6, 0.6], [3.6, 0.6],
+       [-1.5, -0.65], [1.5, -0.65], [-1.5, 0.6], [1.5, 0.6]].forEach(([x, z]) => {
         const leg = _ghostBox(0.12, 1.0, 0.12);
         leg.position.set(x, 0.5, z);
-        grp.add(leg);
+        deskGroup.add(leg);
       });
 
       function _makeTurntable(x) {
         const g = new THREE.Group();
         g.position.set(x, 1.06, 0);
-        grp.add(g);
+        deskGroup.add(g);
 
         const plinth = _ghostBox(1.35, 0.07, 1.1);
         plinth.position.y = 0.035;
@@ -3112,12 +3130,16 @@ export function initRoom3D({
         btn.position.set(-0.55, 0.08, 0.42);
         g.add(btn);
       }
+      // Standard 4-deck club layout: two decks flanking the mixer each
+      // side (deck-deck-mixer-deck-deck), not stacked/tiered pairs.
       _makeTurntable(-1.35);
       _makeTurntable(1.35);
+      _makeTurntable(-2.75);
+      _makeTurntable(2.75);
 
       const mixer = new THREE.Group();
       mixer.position.set(0, 1.06, 0.05);
-      grp.add(mixer);
+      deskGroup.add(mixer);
 
       const mixerBody = _ghostBox(0.9, 0.07, 1.0);
       mixerBody.position.y = 0.035;
@@ -3196,14 +3218,21 @@ export function initRoom3D({
       const MONITOR_YAW = 0.55; // ~31°, inward toward table centre
       const monCabW = 0.20, monCabD = 0.20, monCabH = 0.24;
       const monPoleH = 0.16, monPoleFootprint = 0.04;
+      // Matches _buildDJBooth()'s RISER_H (0.15) -- the desk it's duplicated
+      // for the same reason BOOTH_FOOTPRINT_SCALE is: that constant lives
+      // in the other function's scope.
+      const monRiserH = 0.15;
       const monCabMat = new THREE.LineBasicMaterial({ color: 0x2a2a28, transparent: true, opacity: Math.max(OP_OBJ, 0.80) });
       [-1, 1].forEach(sign => {
-        const localX = sign * 1.9, localZ = -0.65; // matches the old booth-local authored position
+        // localX matches the widened 4-deck table's outer leg position
+        // (±3.6) -- the table grew from 4.4 to 7.6 wide to fit two extra
+        // decks, so the true "outer corner" moved out to match.
+        const localX = sign * 3.6, localZ = -0.65;
         const worldX = boothX - localX * BOOTH_FOOTPRINT_SCALE; // Ry(pi) flips the sign
         const worldZ = boothZ + (-localZ) * BOOTH_FOOTPRINT_SCALE;
 
         const monGroup = new THREE.Group();
-        monGroup.position.set(worldX, boothFloorY + rugRaise + 1.06, worldZ);
+        monGroup.position.set(worldX, boothFloorY + rugRaise + monRiserH + 1.06, worldZ);
         monGroup.rotation.y = Math.PI - sign * MONITOR_YAW; // booth's 180° flip + inward toe
         roomGroup.add(monGroup);
 
@@ -3267,10 +3296,11 @@ export function initRoom3D({
         djHead.add(cup);
       });
 
-      // Stand 0.5m behind the booth — boothX (not offsetX) so the DJ
-      // follows the booth's left/right offset slider instead of always
-      // sitting at room centre regardless of where the booth actually is.
-      djGroup.position.set(boothX, boothFloorY + rugRaise, boothZ - 0.5);
+      // Stand 0.5m behind the booth, on top of the riser platform (+
+      // monRiserH — boothX (not offsetX) so the DJ follows the booth's
+      // left/right offset slider instead of always sitting at room centre
+      // regardless of where the booth actually is.
+      djGroup.position.set(boothX, boothFloorY + rugRaise + monRiserH, boothZ - 0.5);
 
       // Animation flags
       const phase = Math.random() * Math.PI * 2;
