@@ -5258,7 +5258,7 @@ export function initRoom3D({
         if (ring.userData.baseY === undefined) ring.userData.baseY = ring.position.y;
         let phase = (_wt / WAVE_CYCLE + ring.userData.wavePhase) % 1.0;
         if (ring.userData.speakerSide === 'SUB') {
-          const beatRate = 126 / 60;
+          const beatRate = 45 / 60;
           const bob = Math.abs(Math.sin(_nowT * beatRate * Math.PI)) * 0.09;
           ring.position.y = ring.userData.baseY + bob;
           phase = ((_nowT * beatRate / 4.0) + ring.userData.wavePhase) % 1.0;
