@@ -3026,6 +3026,11 @@ export function initRoom3D({
     function _buildDJBooth() {
       const grp = new THREE.Group();
       const accentMat = new THREE.LineBasicMaterial({ color: colors.accent });
+      // Desk shrinks to the 2-deck footprint when only turntables or only
+      // CDJs are selected -- no need for the wide 4-deck table when half
+      // the deck slots are empty.
+      const deckConfig = room.deck_config || 'both';
+      const deskW = deckConfig === 'both' ? 7.6 : 4.4;
 
       function _edges(geo) {
         return new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), furnEdgeMat);
@@ -3058,7 +3063,10 @@ export function initRoom3D({
       // riser mesh agree.
       const RISER_H = room.dj_riser_enabled !== false ? 0.15 : 0;
       if (RISER_H > 0) {
-        const riser = _ghostBox(8.4, RISER_H, 3.6);
+        // Riser footprint tracks deskW (+0.8 generous overhang) so it
+        // shrinks with a 2-deck booth instead of always being sized for
+        // the widest (4-deck) layout.
+        const riser = _ghostBox(deskW + 0.8, RISER_H, 3.6);
         riser.position.set(0, RISER_H / 2, 0); // centred, generous depth covers both the table area and DJ standing room behind on either side of the 180° flip
         grp.add(riser);
       }
@@ -3069,17 +3077,22 @@ export function initRoom3D({
 
       // Table widened for the 4-deck layout (was 4.4/1.6, fit only 2
       // decks) -- symmetric deck-deck-mixer-deck-deck, standard club
-      // booth convention.
-      const tableTop = _ghostBox(7.6, 0.12, 1.6);
+      // booth convention. deskW shrinks back to 4.4 for a 2-deck booth.
+      const tableTop = _ghostBox(deskW, 0.12, 1.6);
       tableTop.position.y = 1.0;
       deskGroup.add(tableTop);
 
-      const facade = _ghostBox(7.6, 1.0, 0.08);
+      const facade = _ghostBox(deskW, 1.0, 0.08);
       facade.position.set(0, 0.5, 0.76);
       deskGroup.add(facade);
 
-      [[-3.6, -0.65], [3.6, -0.65], [-3.6, 0.6], [3.6, 0.6],
-       [-1.5, -0.65], [1.5, -0.65], [-1.5, 0.6], [1.5, 0.6]].forEach(([x, z]) => {
+      // Leg layout: 4-deck's wider span needs the extra inner support
+      // pair; the 2-deck desk reuses the original 4-leg layout.
+      const legPositions = deckConfig === 'both'
+        ? [[-3.6, -0.65], [3.6, -0.65], [-3.6, 0.6], [3.6, 0.6],
+           [-1.5, -0.65], [1.5, -0.65], [-1.5, 0.6], [1.5, 0.6]]
+        : [[-2.0, -0.65], [2.0, -0.65], [-2.0, 0.6], [2.0, 0.6]];
+      legPositions.forEach(([x, z]) => {
         const leg = _ghostBox(0.12, 1.0, 0.12);
         leg.position.set(x, 0.5, z);
         deskGroup.add(leg);
@@ -3156,8 +3169,9 @@ export function initRoom3D({
       // turntables flanking the mixer, two CDJs further out) --
       // 'turntables'/'cdj' keep the same inner deck slots (±1.35) but
       // only build two, matching what installers actually quote rather
-      // than always showing a fixed 4-deck rig.
-      const deckConfig = room.deck_config || 'both';
+      // than always showing a fixed 4-deck rig. (deckConfig itself is
+      // declared once, at the top of this function, since deskW also
+      // depends on it.)
       if (deckConfig === 'both') {
         _makeTurntable(-1.35);
         _makeTurntable(1.35);
@@ -3257,11 +3271,12 @@ export function initRoom3D({
       // function's scope. Must track the same dj_riser_enabled toggle.
       const monRiserH = room.dj_riser_enabled !== false ? 0.15 : 0;
       const monCabMat = new THREE.LineBasicMaterial({ color: 0x2a2a28, transparent: true, opacity: Math.max(OP_OBJ, 0.80) });
+      // Matches _buildDJBooth()'s deskW-dependent outer leg position --
+      // 3.6 for the 7.6m-wide 4-deck desk, 2.0 for the 4.4m-wide 2-deck
+      // desk (same ratio: leg inset 0.2 from the table edge).
+      const monOuterX = (room.deck_config || 'both') === 'both' ? 3.6 : 2.0;
       [-1, 1].forEach(sign => {
-        // localX matches the widened 4-deck table's outer leg position
-        // (±3.6) -- the table grew from 4.4 to 7.6 wide to fit two extra
-        // decks, so the true "outer corner" moved out to match.
-        const localX = sign * 3.6, localZ = -0.65;
+        const localX = sign * monOuterX, localZ = -0.65;
         const worldX = boothX - localX * BOOTH_FOOTPRINT_SCALE; // Ry(pi) flips the sign
         const worldZ = boothZ + (-localZ) * BOOTH_FOOTPRINT_SCALE;
 
