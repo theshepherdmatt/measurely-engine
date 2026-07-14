@@ -3542,7 +3542,16 @@ export function initRoom3D({
         const binProfile = getSpeakerProfile('bass_bin');
         const binColor = binProfile.color;
         const binOpacity = Math.max(OP_OBJ, 0.80);
-        const stackZ = -room.length_m / 2 + room.spk_front_m;
+        // Centre stack sits under the booth, so it tracks the booth's own
+        // forward/back position (booth_front_m, same 0.42 footprint scale
+        // _buildDJBooth() uses -- duplicated here since that constant
+        // lives in a sibling block's scope) instead of the independent
+        // "Bass bins from front wall" slider. Corners mode keeps the
+        // independent slider -- corner-stacked subs are about room/corner
+        // loading, not the booth's position.
+        const stackZ = placement === 'centre'
+          ? -room.length_m / 2 + (room.booth_front_m ?? 0.75) * 0.42
+          : -room.length_m / 2 + room.spk_front_m;
         const floorY = -room.height_m / 2;
 
         const maxCols = 4;
