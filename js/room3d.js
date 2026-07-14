@@ -1424,6 +1424,10 @@ export function initRoom3D({
       // room.crowd_limit was always undefined and the slider had no effect
       // on the actual crowd shown.
       crowd_limit: data.crowd_limit ?? 200,
+      // Club only: distance from the front wall where the crowd zone
+      // starts -- lets the floor be pulled back toward centre or pushed
+      // up near the booth. Read directly by the CROWD block.
+      crowd_start_m: data.crowd_start_m,
 
       room_type: data.room_type || env.room_type || "home",
       opt_area_rug: furn.opt_area_rug ?? env.opt_area_rug ?? data.opt_area_rug,
@@ -6291,12 +6295,29 @@ export function initRoom3D({
 
       const width = room.width_m || 4.0;
       const length = room.length_m || 5.0;
-      // Start 0.5m back from speakers, end 0.5m from back wall
-      const zStart = -length / 2 + (room.spk_front_m || 0.5) + 0.5;
+      // Crowd zone start is now user-controlled (room.crowd_start_m,
+      // distance from the front wall) instead of always being pinned
+      // 0.5m behind the speakers -- lets the floor be pulled back toward
+      // room centre or pushed up to the front wall. Falls back to the
+      // old fixed offset if not set.
+      const zStart = -length / 2 + (room.crowd_start_m ?? ((room.spk_front_m || 0.5) + 0.5));
       const zEnd = length / 2 - 0.5;
       // Leave 0.5m on sides
       const xStart = -width / 2 + 0.5;
       const xEnd = width / 2 - 0.5;
+
+      // Booth exclusion zone -- crowd instances no longer spawn inside/on
+      // top of the DJ booth. Approximates _buildDJBooth()'s own footprint
+      // math (deskW/BOOTH_FOOTPRINT_SCALE/booth_offset_m/booth_front_m)
+      // with a generous margin rather than exact duplication, since this
+      // only needs to keep crowd members from clipping through the desk,
+      // not pixel-match its edges.
+      const _boothDeckConfig = room.deck_config || 'both';
+      const _boothDeskW = (_boothDeckConfig === 'both' ? 7.6 : 4.4) * 0.42;
+      const _boothX = (room.listener_offset_m || 0) + (room.booth_offset_m ?? 0);
+      const _boothHalfW = _boothDeskW / 2 + 0.4; // margin for the riser's overhang
+      const _boothZFront = -length / 2;
+      const _boothZBack = -length / 2 + (room.booth_front_m ?? 0.75) * 0.42 + 1.2; // covers desk + riser + DJ standing room
 
       const instances = [];
 
@@ -6307,6 +6328,8 @@ export function initRoom3D({
         const depthFrac = (z - zStart) / zRange;
         for (let x = xStart; x <= xEnd; x += spacing) {
           if (_rand() < depthFrac * 0.5) continue; // up to 50% chance to skip at back wall
+          if (x > _boothX - _boothHalfW && x < _boothX + _boothHalfW &&
+              z > _boothZFront && z < _boothZBack) continue; // inside the booth footprint
 
           instances.push({
             x: x + (_rand() - 0.5) * spacing * 0.4,
@@ -6453,12 +6476,29 @@ export function initRoom3D({
 
       const width = room.width_m || 4.0;
       const length = room.length_m || 5.0;
-      // Start 0.5m back from speakers, end 0.5m from back wall
-      const zStart = -length / 2 + (room.spk_front_m || 0.5) + 0.5;
+      // Crowd zone start is now user-controlled (room.crowd_start_m,
+      // distance from the front wall) instead of always being pinned
+      // 0.5m behind the speakers -- lets the floor be pulled back toward
+      // room centre or pushed up to the front wall. Falls back to the
+      // old fixed offset if not set.
+      const zStart = -length / 2 + (room.crowd_start_m ?? ((room.spk_front_m || 0.5) + 0.5));
       const zEnd = length / 2 - 0.5;
       // Leave 0.5m on sides
       const xStart = -width / 2 + 0.5;
       const xEnd = width / 2 - 0.5;
+
+      // Booth exclusion zone -- crowd instances no longer spawn inside/on
+      // top of the DJ booth. Approximates _buildDJBooth()'s own footprint
+      // math (deskW/BOOTH_FOOTPRINT_SCALE/booth_offset_m/booth_front_m)
+      // with a generous margin rather than exact duplication, since this
+      // only needs to keep crowd members from clipping through the desk,
+      // not pixel-match its edges.
+      const _boothDeckConfig = room.deck_config || 'both';
+      const _boothDeskW = (_boothDeckConfig === 'both' ? 7.6 : 4.4) * 0.42;
+      const _boothX = (room.listener_offset_m || 0) + (room.booth_offset_m ?? 0);
+      const _boothHalfW = _boothDeskW / 2 + 0.4; // margin for the riser's overhang
+      const _boothZFront = -length / 2;
+      const _boothZBack = -length / 2 + (room.booth_front_m ?? 0.75) * 0.42 + 1.2; // covers desk + riser + DJ standing room
 
       const instances = [];
 
@@ -6469,6 +6509,8 @@ export function initRoom3D({
         const depthFrac = (z - zStart) / zRange;
         for (let x = xStart; x <= xEnd; x += spacing) {
           if (_rand() < depthFrac * 0.5) continue; // up to 50% chance to skip at back wall
+          if (x > _boothX - _boothHalfW && x < _boothX + _boothHalfW &&
+              z > _boothZFront && z < _boothZBack) continue; // inside the booth footprint
 
           instances.push({
             x: x + (_rand() - 0.5) * spacing * 0.4,
@@ -6615,12 +6657,29 @@ export function initRoom3D({
 
       const width = room.width_m || 4.0;
       const length = room.length_m || 5.0;
-      // Start 0.5m back from speakers, end 0.5m from back wall
-      const zStart = -length / 2 + (room.spk_front_m || 0.5) + 0.5;
+      // Crowd zone start is now user-controlled (room.crowd_start_m,
+      // distance from the front wall) instead of always being pinned
+      // 0.5m behind the speakers -- lets the floor be pulled back toward
+      // room centre or pushed up to the front wall. Falls back to the
+      // old fixed offset if not set.
+      const zStart = -length / 2 + (room.crowd_start_m ?? ((room.spk_front_m || 0.5) + 0.5));
       const zEnd = length / 2 - 0.5;
       // Leave 0.5m on sides
       const xStart = -width / 2 + 0.5;
       const xEnd = width / 2 - 0.5;
+
+      // Booth exclusion zone -- crowd instances no longer spawn inside/on
+      // top of the DJ booth. Approximates _buildDJBooth()'s own footprint
+      // math (deskW/BOOTH_FOOTPRINT_SCALE/booth_offset_m/booth_front_m)
+      // with a generous margin rather than exact duplication, since this
+      // only needs to keep crowd members from clipping through the desk,
+      // not pixel-match its edges.
+      const _boothDeckConfig = room.deck_config || 'both';
+      const _boothDeskW = (_boothDeckConfig === 'both' ? 7.6 : 4.4) * 0.42;
+      const _boothX = (room.listener_offset_m || 0) + (room.booth_offset_m ?? 0);
+      const _boothHalfW = _boothDeskW / 2 + 0.4; // margin for the riser's overhang
+      const _boothZFront = -length / 2;
+      const _boothZBack = -length / 2 + (room.booth_front_m ?? 0.75) * 0.42 + 1.2; // covers desk + riser + DJ standing room
 
       const instances = [];
 
@@ -6631,6 +6690,8 @@ export function initRoom3D({
         const depthFrac = (z - zStart) / zRange;
         for (let x = xStart; x <= xEnd; x += spacing) {
           if (_rand() < depthFrac * 0.5) continue; // up to 50% chance to skip at back wall
+          if (x > _boothX - _boothHalfW && x < _boothX + _boothHalfW &&
+              z > _boothZFront && z < _boothZBack) continue; // inside the booth footprint
 
           instances.push({
             x: x + (_rand() - 0.5) * spacing * 0.4,
