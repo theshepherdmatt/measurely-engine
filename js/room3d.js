@@ -2971,8 +2971,17 @@ export function initRoom3D({
 
     if (room.room_type === 'club' && (renderStage === 'speakers' || renderStage === 'furnishings')) {
       const boothFloorY = -room.height_m / 2;
-      const boothZ = -room.length_m / 2 + 0.75;
+      // BOOTH_FOOTPRINT_SCALE: _buildDJBooth()'s footprint (table 4.4m wide)
+      // was authored for a tight demo close-up, not real-world scale — a
+      // real two-deck DJ table/booth is ~1.5-2m wide. Scaling X/Z only
+      // (not Y) shrinks the footprint to ~1.85m wide while leaving every
+      // height (table height, turntable height off the floor) at its
+      // already-realistic value. X and Z share one factor so the platter/
+      // vinyl circles stay circular rather than becoming ellipses.
+      const BOOTH_FOOTPRINT_SCALE = 0.42;
+      const boothZ = -room.length_m / 2 + 0.75 * BOOTH_FOOTPRINT_SCALE;
       const booth = _buildDJBooth();
+      booth.scale.set(BOOTH_FOOTPRINT_SCALE, 1, BOOTH_FOOTPRINT_SCALE);
       booth.position.set(offsetX, boothFloorY + rugRaise, boothZ);
       roomGroup.add(booth);
     }
