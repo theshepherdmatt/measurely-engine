@@ -2836,8 +2836,13 @@ export function initRoom3D({
       function _edges(geo) {
         return new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), furnEdgeMat);
       }
+      // Accent-colour parts are still defined (material/geometry untouched)
+      // but not rendered in the 3D room — hidden via .visible rather than
+      // removed, so re-enabling the accent look later is a one-line flip.
       function _accentEdges(geo) {
-        return new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), accentMat);
+        const m = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), accentMat);
+        m.visible = false;
+        return m;
       }
       function _circle(r, y, mat, segs = 40) {
         const pts = [];
@@ -2887,12 +2892,14 @@ export function initRoom3D({
         label.position.y = 0.031;
         platter.add(label);
 
-        platter.add(new THREE.Line(
+        const spoke = new THREE.Line(
           new THREE.BufferGeometry().setFromPoints([
             new THREE.Vector3(-0.4, 0.045, 0), new THREE.Vector3(0.4, 0.045, 0),
           ]),
           accentMat
-        ));
+        );
+        spoke.visible = false; // accent colour kept in code, hidden in the room — see _accentEdges
+        platter.add(spoke);
 
         const armPivot = new THREE.Group();
         armPivot.position.set(0.5, 0.26, -0.38);
