@@ -3016,11 +3016,6 @@ export function initRoom3D({
     function _buildDJBooth() {
       const grp = new THREE.Group();
       const accentMat = new THREE.LineBasicMaterial({ color: colors.accent });
-      // Must match the BOOTH_FOOTPRINT_SCALE the caller applies to the
-      // whole booth group (booth.scale.set) -- that constant lives in the
-      // calling scope, not here, so it's duplicated for the monitor
-      // pre-scale-compensation math below.
-      const BOOTH_FOOTPRINT_SCALE = 0.42;
 
       function _edges(geo) {
         return new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), furnEdgeMat);
@@ -3155,51 +3150,6 @@ export function initRoom3D({
         }
       });
 
-      // DJ monitors — pole-mounted at each outer corner of the table (DJ
-      // side, -Z, opposite the crowd-facing facade at +0.76), angled
-      // inward toward the DJ standing centre-table. A compact, bespoke
-      // cabinet+driver rather than reusing _buildStandmountSpeaker as-is:
-      // that builder's driver ratio (W*0.28) is tuned for the full-size
-      // wall pa_top and looked oversized on a small desk monitor. Two, not
-      // one centred — a single centre monitor sat awkwardly between the
-      // turntables/mixer.
-      // Width/depth (not height — booth.scale only touches X/Z, see
-      // BOOTH_FOOTPRINT_SCALE) are authored at 1/0.42 of the real target
-      // size so they land at a small-but-visible size once the booth's
-      // own footprint scale is applied.
-      const MONITOR_YAW = 0.55; // ~31°, inward toward table centre
-      const monCabW = 0.20 / BOOTH_FOOTPRINT_SCALE, monCabD = 0.20 / BOOTH_FOOTPRINT_SCALE;
-      const monCabH = 0.24;   // Y unscaled — real height directly, was 0.4 (too tall)
-      const monPoleH = 0.16;  // Y unscaled — real height directly, was 0.35 (towered over the desk)
-      const monPoleFootprint = 0.04 / BOOTH_FOOTPRINT_SCALE;
-      const monMat = useFatEdges
-        ? new THREE.MeshBasicMaterial({ color: 0x2a2a28, transparent: true, opacity: Math.max(OP_OBJ, 0.80) })
-        : new THREE.LineBasicMaterial({ color: 0x2a2a28, transparent: true, opacity: Math.max(OP_OBJ, 0.80) });
-      [-1, 1].forEach(sign => {
-        const monGroup = new THREE.Group();
-        monGroup.position.set(sign * 1.9, 1.06, -0.65);
-        grp.add(monGroup);
-
-        const pole = _edges(new THREE.BoxGeometry(monPoleFootprint, monPoleH, monPoleFootprint));
-        pole.position.y = monPoleH / 2;
-        monGroup.add(pole);
-
-        const cabinet = new THREE.Group();
-        cabinet.position.y = monPoleH + monCabH / 2;
-        // Driver faces local +Z; rotation.y = -sign*MONITOR_YAW turns that
-        // face toward table centre (negative x for the +x monitor and
-        // vice versa).
-        cabinet.rotation.y = -sign * MONITOR_YAW;
-        cabinet.add(new THREE.LineSegments(
-          new THREE.EdgesGeometry(new THREE.BoxGeometry(monCabW, monCabH, monCabD)), monMat
-        ));
-        // Single small driver, not the wall speaker's woofer+tweeter pair
-        // — a nearfield monitor this size reads as one full-range unit.
-        _makeConeDriver(0, 0, monCabD / 2 + 0.002, monCabW * 0.16, false, 0x2a2a28, Math.max(OP_OBJ, 0.80))
-          .forEach(o => cabinet.add(o));
-        monGroup.add(cabinet);
-      });
-
       return grp;
     }
 
@@ -3231,26 +3181,101 @@ export function initRoom3D({
       booth.position.set(boothX, boothFloorY + rugRaise, boothZ);
       roomGroup.add(booth);
 
+      // DJ monitors — pole-mounted at each outer corner of the table (DJ
+      // side, opposite the crowd-facing facade), angled inward toward the
+      // DJ. Built directly in world space, not nested inside the booth
+      // group: booth.scale is non-uniform (BOOTH_FOOTPRINT_SCALE, 0.42 on
+      // X/Z, 1 on Y), and a circle drawn in a child's local XY plane comes
+      // out squashed into an ellipse under that transform (X compressed,
+      // Y untouched) — that's what happened when these were built inside
+      // _buildDJBooth(). World-space placement sidesteps the distortion
+      // entirely, same approach as the DJ figure below. Position/yaw are
+      // boothX/boothZ plus the same local-offset-then-180°-flip math the
+      // booth itself goes through, worked out by hand since there's no
+      // shared transform helper for it.
+      const MONITOR_YAW = 0.55; // ~31°, inward toward table centre
+      const monCabW = 0.20, monCabD = 0.20, monCabH = 0.24;
+      const monPoleH = 0.16, monPoleFootprint = 0.04;
+      const monCabMat = new THREE.LineBasicMaterial({ color: 0x2a2a28, transparent: true, opacity: Math.max(OP_OBJ, 0.80) });
+      [-1, 1].forEach(sign => {
+        const localX = sign * 1.9, localZ = -0.65; // matches the old booth-local authored position
+        const worldX = boothX - localX * BOOTH_FOOTPRINT_SCALE; // Ry(pi) flips the sign
+        const worldZ = boothZ + (-localZ) * BOOTH_FOOTPRINT_SCALE;
+
+        const monGroup = new THREE.Group();
+        monGroup.position.set(worldX, boothFloorY + rugRaise + 1.06, worldZ);
+        monGroup.rotation.y = Math.PI - sign * MONITOR_YAW; // booth's 180° flip + inward toe
+        roomGroup.add(monGroup);
+
+        const pole = new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.BoxGeometry(monPoleFootprint, monPoleH, monPoleFootprint)),
+          monCabMat
+        );
+        pole.position.y = monPoleH / 2;
+        monGroup.add(pole);
+
+        const cabinet = new THREE.Group();
+        cabinet.position.y = monPoleH + monCabH / 2;
+        cabinet.add(new THREE.LineSegments(
+          new THREE.EdgesGeometry(new THREE.BoxGeometry(monCabW, monCabH, monCabD)), monCabMat
+        ));
+        // Single small driver, not the wall speaker's woofer+tweeter pair
+        // — a nearfield monitor this size reads as one full-range unit.
+        _makeConeDriver(0, 0, monCabD / 2 + 0.002, monCabW * 0.16, false, 0x2a2a28, Math.max(OP_OBJ, 0.80))
+          .forEach(o => cabinet.add(o));
+        monGroup.add(cabinet);
+      });
+
       // DJ Avatar
       const djHeadGeo = new THREE.SphereGeometry(0.15, 10, 8);
       const djBodyGeo = new THREE.CylinderGeometry(0.2, 0.25, 1.4, 8);
       djBodyGeo.translate(0, 0.7, 0); // anchor at feet
       const djMat = new THREE.MeshBasicMaterial({ color: 0x666666 });
-      
+
       const djGroup = new THREE.Group();
       const djBody = new THREE.Mesh(djBodyGeo, djMat);
       const djHead = new THREE.Mesh(djHeadGeo, djMat);
       djHead.position.set(0, 1.55, 0);
-      
+
       djGroup.add(djBody);
       djGroup.add(djHead);
-      // Stand 0.5m behind the booth
-      djGroup.position.set(offsetX, boothFloorY + rugRaise, boothZ - 0.5);
-      
+
+      // Headphones — band arcs ear-to-ear over the top of the head, two
+      // cups on the sides. Darker than djMat so they read as a distinct
+      // accessory against the figure, not just a texture. Parented to
+      // djHead (not djGroup), with positions relative to djHead's own
+      // origin (not the +1.55 world-ish offset djHead itself sits at) —
+      // djHead gets a per-frame Y bob in the animate loop keyed off
+      // userData.isDJHead, and a child inherits its parent's transform
+      // automatically, so this is the simplest way to have the
+      // headphones bounce with the head rather than duplicating that
+      // animation logic onto separate objects.
+      const hpMat = new THREE.MeshBasicMaterial({ color: 0x2a2a28 });
+      const bandPts = [];
+      for (let i = 0; i <= 20; i++) {
+        const a = Math.PI - (i / 20) * Math.PI; // left ear, over the top, to right ear
+        bandPts.push(new THREE.Vector3(Math.cos(a) * 0.16, Math.sin(a) * 0.16, 0));
+      }
+      djHead.add(new THREE.Line(
+        new THREE.BufferGeometry().setFromPoints(bandPts),
+        new THREE.LineBasicMaterial({ color: 0x2a2a28 })
+      ));
+      [-1, 1].forEach(side => {
+        const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 12), hpMat);
+        cup.rotation.z = Math.PI / 2;
+        cup.position.set(side * 0.155, 0, 0);
+        djHead.add(cup);
+      });
+
+      // Stand 0.5m behind the booth — boothX (not offsetX) so the DJ
+      // follows the booth's left/right offset slider instead of always
+      // sitting at room centre regardless of where the booth actually is.
+      djGroup.position.set(boothX, boothFloorY + rugRaise, boothZ - 0.5);
+
       // Animation flags
       const phase = Math.random() * Math.PI * 2;
       djGroup.userData.isDJGroup = true;
-      djGroup.userData.baseX = offsetX;
+      djGroup.userData.baseX = boothX;
       djGroup.userData.phase = phase;
       
       djHead.userData.isDJHead = true;
