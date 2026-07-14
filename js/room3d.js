@@ -1310,6 +1310,11 @@ export function initRoom3D({
       // Club only: DJ booth distance from the front wall (cable-run
       // clearance). Same merge pattern as bass_bin_count above.
       booth_front_m: data.booth_front_m ?? 0.75,
+      // Club only: pa_top wall-bracket mount height (off the floor) and
+      // downward tilt aimed into the room — permanent install, not a
+      // floor stand or pole-on-sub.
+      pa_mount_height_m: data.pa_mount_height_m ?? 3.0,
+      pa_tilt_deg: data.pa_tilt_deg ?? 15,
 
       room_type: data.room_type || env.room_type || "home",
       opt_area_rug: furn.opt_area_rug ?? env.opt_area_rug ?? data.opt_area_rug,
@@ -1783,7 +1788,7 @@ export function initRoom3D({
             d: 0.45,
             color: 0x2a2a28,
             tweeterPos: 0.75,
-            floorStand: true, // pole/bin-mounted in reality — rendered floor-anchored, no hi-fi stand
+            isWallMount: true, // permanent install: wall bracket at height, aimed down — not floor/pole-mounted
           };
 
         case "bass_bin":
@@ -2244,6 +2249,12 @@ export function initRoom3D({
           const riserLift = (room.desk_style === 'production') ? (RISER_H + POST_RISE) : 0;
           y = deskSurface + riserLift + profile.h / 2;
           z = speakerZ;
+        } else if (profile.isWallMount) {
+          // Club pa_top: wall bracket at height, small standoff from the
+          // front wall for the bracket arm — not floor-anchored, not a
+          // pole/hi-fi stand.
+          y = baseY + (room.pa_mount_height_m ?? 3.0);
+          z = -room.length_m / 2 + 0.35;
         } else if (profile.floorStand) {
           // Floor-standing panels / statement: plinth bottom sits on rug
           // surface, cabinet bottom sits on top of plinth.
@@ -2315,7 +2326,7 @@ export function initRoom3D({
         }
 
         // Stand for standmounts: thin post + base plate
-        if (!profile.onDesk && !profile.floorStand && !profile.detailed) {
+        if (!profile.onDesk && !profile.floorStand && !profile.detailed && !profile.isWallMount) {
           // Stand spans rug-top → cabinet-bottom; subtract rugRaise so the
           // post sits ON the rug instead of piercing it down to the floor.
           const standHeight = (y - profile.h / 2) - baseY - rugRaise;
@@ -2336,6 +2347,29 @@ export function initRoom3D({
 
         // Initial toe-in (may be overridden by _applyAutoToe after rebuild)
         spkGroup.rotation.y = (side === "L" ? 1 : -1) * toeRad;
+
+        // Wall bracket: plate flush to the front wall + a diagonal arm to
+        // the cabinet back, plus the downward tilt a permanent install
+        // aims into the room (coverage down to head height on the floor,
+        // not a level stereo axis). Geometry only, no animation.
+        if (profile.isWallMount) {
+          const tiltRad = (room.pa_tilt_deg ?? 15) * Math.PI / 180;
+          spkGroup.rotation.x = -tiltRad;
+
+          const bracketMat = new THREE.LineBasicMaterial({
+            color: spkColor, transparent: true, opacity: spkOpacity * 0.65
+          });
+          const plate = new THREE.LineSegments(
+            new THREE.EdgesGeometry(new THREE.BoxGeometry(0.18, 0.24, 0.03)), bracketMat
+          );
+          plate.position.set(0, 0, -(profile.d / 2) - 0.16);
+          spkGroup.add(plate);
+          const arm = new THREE.LineSegments(
+            new THREE.EdgesGeometry(new THREE.BoxGeometry(0.05, 0.05, 0.28)), bracketMat
+          );
+          arm.position.set(0, 0, -(profile.d / 2) - 0.14);
+          spkGroup.add(arm);
+        }
 
         // --- BEAMS ---
         // Beam is in speaker-local space. We want its world Y at tweeter
