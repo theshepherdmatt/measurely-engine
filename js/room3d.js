@@ -3118,10 +3118,15 @@ export function initRoom3D({
         g.add(plinth);
 
         // Red power/on-air indicator -- disco mode only, pulses via
-        // animate()'s isDeckLed branch.
+        // animate()'s isDeckLed branch. Radius authored at target/0.42 --
+        // the 0.42 is BOOTH_FOOTPRINT_SCALE, applied to the whole booth
+        // group's X/Z by the caller (that constant lives in the caller's
+        // scope, not here, so it's a literal -- same class of bug the DJ
+        // monitor hit earlier: sizing this in real target units directly
+        // (0.025) rendered at under half that).
         if (_discoEnabled) {
           const indicator = new THREE.Mesh(
-            new THREE.CircleGeometry(0.025, 16),
+            new THREE.CircleGeometry(0.05 / 0.42, 16),
             new THREE.MeshBasicMaterial({ color: 0xff1133, transparent: true, opacity: 1 })
           );
           indicator.rotation.x = -Math.PI / 2;
