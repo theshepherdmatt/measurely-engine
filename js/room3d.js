@@ -1181,6 +1181,8 @@ export function initRoom3D({
   let _subWavesOn = true;
   let _mirrorBall = null;
   let _discoFloorGrid = null; // InstancedMesh of lit floor tiles, animate()-driven colour pulse
+  let _discoHeads = [];       // ceiling moving-head beam groups, animate()-swept + beat-pulsed
+  let _discoBallSpots = null; // InstancedMesh of mirror-ball light spots orbiting the floor
   let _discoEnabled = false;
   let _crowdEnabled = true;   // On by default; toggled via api.setCrowd()
   let _sbirFieldVisible = true; // SBIR heatmap field on by default; toggled via api.setSbirField()
@@ -1282,6 +1284,11 @@ export function initRoom3D({
   ------------------------------------------ */
   function rebuild() {
     if (typeof ambientLight !== 'undefined') ambientLight.intensity = _discoEnabled ? 0.04 : 1.35;
+    // Disco blacks out the whole backdrop, not just the ambient light —
+    // additive beams/lasers/spots have nothing to pop against a light
+    // grey studio cyc. Near-black with a hint of blue so the room
+    // wireframe stays faintly legible.
+    renderer.setClearColor(_discoEnabled ? 0x07070c : 0xc8c8c8, 1);
     // renderStage is set externally via setStage() — never override here.
     _dbg("[Room3D] 🔧 rebuild() | stage:", renderStage, "| mode:", currentMode);
 
@@ -3577,9 +3584,71 @@ export function initRoom3D({
         _discoFloorGrid.userData.tilesPerSide = tilesPerSide;
         if (_discoFloorGrid.instanceColor) _discoFloorGrid.instanceColor.needsUpdate = true;
         roomGroup.add(_discoFloorGrid);
+
+        // --- MOVING-HEAD BEAMS ---
+        // Four ceiling-hung moving heads sweeping volumetric light cones
+        // over the floor — additive-blended open cones so overlapping
+        // beams bloom like real haze. Pan/tilt sweep rates differ per
+        // head so the four never sync up; opacity pulses on the beat and
+        // colours step through the laser palette per bar (animate()).
+        _discoHeads = [];
+        const beamLen = room.height_m * 0.95;
+        const beamGeo = new THREE.ConeGeometry(1.1, beamLen, 20, 1, true);
+        beamGeo.translate(0, -beamLen / 2, 0); // apex at the fixture, beam hangs down
+        for (let hi = 0; hi < 4; hi++) {
+          const hx = (hi % 2 === 0 ? -1 : 1) * room.width_m * 0.28;
+          const hz = (hi < 2 ? -1 : 1) * room.length_m * 0.22;
+          const head = new THREE.Group();
+          head.position.set(hx, ceilY - 0.15, hz);
+          const col = laserPalette[hi % laserPalette.length];
+          const beamMat = new THREE.MeshBasicMaterial({
+            color: col.clone(), transparent: true, opacity: 0.12,
+            blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+          });
+          head.add(new THREE.Mesh(beamGeo, beamMat));
+          const lensMat = new THREE.MeshBasicMaterial({ color: col.clone() });
+          head.add(new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), lensMat));
+          head.userData = {
+            phase: hi * Math.PI / 2,
+            rateX: 0.7 + hi * 0.13,
+            rateZ: 0.9 - hi * 0.11,
+            beamMat, lensMat,
+            colIdx: hi,
+            palette: laserPalette,
+            bpm: room.crowd_bpm || 126,
+          };
+          roomGroup.add(head);
+          _discoHeads.push(head);
+        }
+
+        // --- MIRROR BALL FLOOR SPOTS ---
+        // The classic scatter of light flecks orbiting the floor as the
+        // ball spins. Deterministic golden-angle layout (not Math.random)
+        // so the pattern doesn't reshuffle on every unrelated rebuild —
+        // same lesson as the seeded crowd. animate() orbits them using
+        // the ball's own rotation so they stay perfectly in sync.
+        const spotCount = 48;
+        const spotGeo = new THREE.CircleGeometry(0.16, 10);
+        spotGeo.rotateX(-Math.PI / 2);
+        const spotMat = new THREE.MeshBasicMaterial({
+          color: 0xffffff, transparent: true, opacity: 0.35,
+          blending: THREE.AdditiveBlending, depthWrite: false,
+        });
+        _discoBallSpots = new THREE.InstancedMesh(spotGeo, spotMat, spotCount);
+        const spotData = new Float32Array(spotCount * 2); // [baseAngle, radius] pairs
+        const spotMaxR = Math.min(room.width_m, room.length_m) * 0.45;
+        for (let si = 0; si < spotCount; si++) {
+          spotData[si * 2]     = si * 2.399963; // golden angle — even azimuth scatter
+          spotData[si * 2 + 1] = 0.7 + ((si * 37) % 100) / 100 * spotMaxR;
+        }
+        _discoBallSpots.userData.spotData = spotData;
+        _discoBallSpots.userData.floorY = -room.height_m / 2 + 0.03;
+        roomGroup.add(_discoBallSpots);
       } else {
         _mirrorBall = null;
         _discoFloorGrid = null;
+        _discoHeads = [];
+        _discoBallSpots = null;
       }
     }
 
@@ -5539,6 +5608,39 @@ export function initRoom3D({
 
     if (_mirrorBall && _discoEnabled) {
       _mirrorBall.rotation.y -= 0.005;
+    }
+
+    // Moving-head beams: independent pan/tilt sweep per head (rates differ
+    // so they never sync), beat-pulsed opacity, palette colour step per bar.
+    if (_discoHeads.length && _discoEnabled) {
+      const t = performance.now() * 0.001;
+      for (const head of _discoHeads) {
+        const u = head.userData;
+        head.rotation.x = Math.sin(t * u.rateX + u.phase) * 0.55;
+        head.rotation.z = Math.cos(t * u.rateZ + u.phase) * 0.55;
+        const beat = t * (u.bpm / 60) * Math.PI;
+        u.beamMat.opacity = 0.09 + 0.07 * Math.abs(Math.sin(beat + u.phase));
+        const bar = Math.floor(t * (u.bpm / 60) / 4);
+        const col = u.palette[(u.colIdx + bar) % u.palette.length];
+        u.beamMat.color.copy(col);
+        u.lensMat.color.copy(col);
+      }
+    }
+
+    // Mirror-ball floor spots orbit with the ball's own rotation (2x for
+    // visible motion) so flecks and ball never drift out of sync.
+    if (_discoBallSpots && _mirrorBall && _discoEnabled) {
+      const sd = _discoBallSpots.userData.spotData;
+      const fy = _discoBallSpots.userData.floorY;
+      const rot = _mirrorBall.rotation.y * 2.0;
+      const _spotDummy = new THREE.Object3D();
+      for (let i = 0; i < sd.length / 2; i++) {
+        const a = sd[i * 2] + rot;
+        _spotDummy.position.set(Math.cos(a) * sd[i * 2 + 1], fy, Math.sin(a) * sd[i * 2 + 1]);
+        _spotDummy.updateMatrix();
+        _discoBallSpots.setMatrixAt(i, _spotDummy.matrix);
+      }
+      _discoBallSpots.instanceMatrix.needsUpdate = true;
     }
 
     if (_discoFloorGrid && _discoEnabled) {
@@ -8605,7 +8707,7 @@ export function initRoom3D({
     renderer.setClearColor(0x000000, 1);
     renderer.clear(true, false, false);
     renderer.setRenderTarget(prev);
-    renderer.setClearColor(0xc8c8c8, 1);   // restore the scene's studio-cyc backdrop
+    renderer.setClearColor(_discoEnabled ? 0x07070c : 0xc8c8c8, 1);   // restore the scene's backdrop (disco stays blacked out)
   }
 
   // Lazily create the persistent off-screen machinery: the accumulation
