@@ -1410,6 +1410,12 @@ export function initRoom3D({
       // mixed layout) -- read by _buildDJBooth()'s deck-building calls.
       deck_config: data.deck_config ?? 'both',
       dj_riser_enabled: data.dj_riser_enabled ?? true,
+      // Club only: caps the crowd instance count -- read directly by the
+      // CROWD block in renderAnalysisOverlays. Was missing from this merge
+      // entirely (same class of bug as rear_pa/deck_config before it), so
+      // room.crowd_limit was always undefined and the slider had no effect
+      // on the actual crowd shown.
+      crowd_limit: data.crowd_limit ?? 200,
 
       room_type: data.room_type || env.room_type || "home",
       opt_area_rug: furn.opt_area_rug ?? env.opt_area_rug ?? data.opt_area_rug,
