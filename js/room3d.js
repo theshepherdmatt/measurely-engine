@@ -2387,8 +2387,12 @@ export function initRoom3D({
         // height above the rug surface (or above the rug + plinth on floor-
         // standing speakers, so the beam stays aligned with the cabinet's
         // tweeter after the plinth-aware lift).
+        // pa_top has no "tweeter height" concept — it's wall-bracket mounted
+        // and already aimed via the cabinet's own pivot rotation, so the
+        // beam should originate at the cabinet centre (local 0), not the
+        // tweeter-height offset the hi-fi archetypes use.
         const targetBeamWorldY = baseY + rugRaise + (profile.plinthH ?? 0) + (room.tweeter_height_m || 0.95);
-        const beamLocalY = targetBeamWorldY - y;  // y is spkGroup world Y
+        const beamLocalY = profile.isWallMount ? 0 : targetBeamWorldY - y;  // y is spkGroup world Y
         const beamGeo = new THREE.BufferGeometry().setFromPoints([
           new THREE.Vector3(0, beamLocalY, 0),
           new THREE.Vector3(0, beamLocalY, room.length_m)
