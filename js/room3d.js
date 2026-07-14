@@ -1399,6 +1399,9 @@ export function initRoom3D({
       // Club only: adds RearL/RearR pa_top speakers at the back wall
       // (4-speaker layout) — read by the speakerSides branch below.
       rear_pa: data.rear_pa ?? false,
+      // Club only: 'centre' (under the booth) or 'corners' (flanking each
+      // front corner) -- read by the BASS BIN STACK render block.
+      bass_bin_placement: data.bass_bin_placement ?? 'centre',
 
       room_type: data.room_type || env.room_type || "home",
       opt_area_rug: furn.opt_area_rug ?? env.opt_area_rug ?? data.opt_area_rug,
@@ -3279,6 +3282,11 @@ export function initRoom3D({
     ------------------------------------------ */
     if (room.room_type === 'club' && (renderStage === 'speakers' || renderStage === 'furnishings')) {
       const stackCount = Math.max(0, Math.min(4, room.bass_bin_count ?? 2));
+      // 'centre' (default): one mono stack under the booth, at room centre.
+      // 'corners': two mono stacks (same stackCount each), one flanking
+      // each front corner instead — a common alternative for wider floors
+      // where a single centre stack can't cover the corners evenly.
+      const placement = room.bass_bin_placement === 'corners' ? 'corners' : 'centre';
 
       if (stackCount > 0) {
         const binProfile = getSpeakerProfile('bass_bin');
@@ -3290,20 +3298,32 @@ export function initRoom3D({
         const maxCols = 4;
         const cols = Math.min(stackCount, maxCols);
         const totalW = cols * binProfile.w;
-        const startX = offsetX - totalW / 2 + binProfile.w / 2;
 
-        for (let i = 0; i < stackCount; i++) {
-          const row = Math.floor(i / cols);
-          const col = i % cols;
-          const bin = _buildBassBinSpeaker(binProfile.w, binProfile.h, binProfile.d, binColor, binOpacity);
-          bin.rotation.z = Math.PI / 2;
-          bin.position.set(
-            startX + col * binProfile.h,
-            floorY + rugRaise + binProfile.w / 2 + row * binProfile.w,
-            stackZ
-          );
-          roomGroup.add(bin);
+        function _buildStackAt(centerX) {
+          const startX = centerX - totalW / 2 + binProfile.w / 2;
+          for (let i = 0; i < stackCount; i++) {
+            const row = Math.floor(i / cols);
+            const col = i % cols;
+            const bin = _buildBassBinSpeaker(binProfile.w, binProfile.h, binProfile.d, binColor, binOpacity);
+            bin.rotation.z = Math.PI / 2;
+            bin.position.set(
+              startX + col * binProfile.h,
+              floorY + rugRaise + binProfile.w / 2 + row * binProfile.w,
+              stackZ
+            );
+            roomGroup.add(bin);
+          }
         }
+
+        const stackCentres = [];
+        if (placement === 'corners') {
+          const cornerInset = totalW / 2 + 0.2; // clearance off the side wall
+          const halfW = room.width_m / 2;
+          stackCentres.push(-(halfW - cornerInset), (halfW - cornerInset));
+        } else {
+          stackCentres.push(offsetX);
+        }
+        stackCentres.forEach(_buildStackAt);
 
         if (_wavesEnabled) {
           const NUM_RINGS = 10;
@@ -3316,24 +3336,26 @@ export function initRoom3D({
           }
           const ringCurve = new THREE.CatmullRomCurve3(circleCurvePts, true);
           const ringGeo   = new THREE.TubeGeometry(ringCurve, 72, 0.04, 8, true);
-          
-          for (let ri = 0; ri < NUM_RINGS; ri++) {
-            const ringMat = new THREE.MeshBasicMaterial({
-              color: new THREE.Color(0xff2d78),
-              transparent: true,
-              opacity: 0,
-              depthWrite: false,
-              clippingPlanes: _waveClipPlanes,
-            });
-            const ring = new THREE.Mesh(ringGeo, ringMat);
-            ring.position.set(offsetX, floorY + rugRaise + (stackCount * binProfile.h) / 2, stackZ);
-            ring.userData.wavePhase   = ri / NUM_RINGS;
-            ring.userData.waveMaxR    = maxR;
-            ring.userData.waveAmp     = 1.0; 
-            ring.userData.speakerSide = 'SUB'; 
-            roomGroup.add(ring);
-            _waveRings.push(ring);
-          }
+
+          stackCentres.forEach(centerX => {
+            for (let ri = 0; ri < NUM_RINGS; ri++) {
+              const ringMat = new THREE.MeshBasicMaterial({
+                color: new THREE.Color(0xff2d78),
+                transparent: true,
+                opacity: 0,
+                depthWrite: false,
+                clippingPlanes: _waveClipPlanes,
+              });
+              const ring = new THREE.Mesh(ringGeo, ringMat);
+              ring.position.set(centerX, floorY + rugRaise + (stackCount * binProfile.h) / 2, stackZ);
+              ring.userData.wavePhase   = ri / NUM_RINGS;
+              ring.userData.waveMaxR    = maxR;
+              ring.userData.waveAmp     = 1.0;
+              ring.userData.speakerSide = 'SUB';
+              roomGroup.add(ring);
+              _waveRings.push(ring);
+            }
+          });
         }
       }
     }
@@ -3772,10 +3794,11 @@ export function initRoom3D({
 
       // ── Listener sphere (always visible) ──
       const isListHighlit = highlightTarget === 'listener';
-      // Light grey per the engine's colour lockdown (COLOR_LISTENER,
-      // 0xCCCCCC) -- was bright cyan, which is indistinguishable from the
-      // crowd heatmap's teal "low SPL" end in club's Crowd overlay.
-      const sphereColor = isListHighlit ? 0x0f766e : 0xcccccc;
+      // Dark charcoal (matches furnEdgeMat, the cabinet/booth colour) --
+      // was bright cyan (indistinguishable from the crowd heatmap's teal
+      // "low SPL" end), then light grey (too washed out against the light
+      // floor/background).
+      const sphereColor = isListHighlit ? 0x0f766e : 0x1a1714;
       const sphere = new THREE.Mesh(
         new THREE.SphereGeometry(isListHighlit ? 0.22 : 0.18, 24, 24),
         new THREE.MeshBasicMaterial({
