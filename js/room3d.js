@@ -6116,10 +6116,35 @@ export function initRoom3D({
       const bodyGeo = new THREE.CylinderGeometry(0.2, 0.25, 1.4, 8);
       bodyGeo.translate(0, 0.7, 0); // anchor at feet
 
-      // Get footprint settings
-      const densityMultiplier = (room.density === 'packed') ? 4 : 2;
-      const spacing = Math.sqrt(1 / densityMultiplier); // ~0.707m for packed, 1m for comfortable
-      
+      // Seeded PRNG (mulberry32), not Math.random() -- every UI change
+      // calls room.update() (a full rebuild()), which was regenerating
+      // every crowd position/jitter/phase from scratch each time, so the
+      // whole crowd visibly reshuffled on any unrelated slider tweak
+      // (booth position, PA toe-in, anything). Seeding on the inputs that
+      // actually determine the crowd (floor size + crowd_limit) makes the
+      // layout stable across everything else, while still changing
+      // naturally when the floor or crowd size actually change.
+      function _mulberry32(seed) {
+        return function () {
+          seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+          let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+      const _crowdSeed = (Math.round((room.width_m || 0) * 100) ^ Math.round((room.length_m || 0) * 100) ^ (room.crowd_limit || 200)) | 0;
+      const _rand = _mulberry32(_crowdSeed);
+
+      // Candidate grid always generated at packed density (the max the
+      // crowd-limit slider can reach, per its own area*4 cap) so there
+      // are always enough candidates to satisfy any crowd_limit -- then
+      // trimmed down below to the actual limit. room.density doesn't
+      // exist any more (replaced by crowd_limit); referencing it here
+      // left this whole block permanently reading the comfortable-only
+      // branch and, more importantly, never actually capping to
+      // crowd_limit at all -- the slider did nothing.
+      const spacing = Math.sqrt(1 / 4); // packed, ~0.707m — trimmed to crowd_limit below
+
       const width = room.width_m || 4.0;
       const length = room.length_m || 5.0;
       // Start 0.5m back from speakers, end 0.5m from back wall
@@ -6130,23 +6155,33 @@ export function initRoom3D({
       const xEnd = width / 2 - 0.5;
 
       const instances = [];
-      
+
       // Lay out jittered grid, density biased toward front
       const zRange = zEnd - zStart;
       for (let z = zStart; z <= zEnd; z += spacing) {
         // Front density bias: chance to skip increases toward the back
         const depthFrac = (z - zStart) / zRange;
         for (let x = xStart; x <= xEnd; x += spacing) {
-          if (Math.random() < depthFrac * 0.5) continue; // up to 50% chance to skip at back wall
-          
+          if (_rand() < depthFrac * 0.5) continue; // up to 50% chance to skip at back wall
+
           instances.push({
-            x: x + (Math.random() - 0.5) * spacing * 0.4,
-            z: z + (Math.random() - 0.5) * spacing * 0.4,
-            phase: Math.random() * Math.PI * 2,
-            hScale: 0.9 + Math.random() * 0.25,
-            yRot: (Math.random() - 0.5) * 0.5, // slight random rotation
+            x: x + (_rand() - 0.5) * spacing * 0.4,
+            z: z + (_rand() - 0.5) * spacing * 0.4,
+            phase: _rand() * Math.PI * 2,
+            hScale: 0.9 + _rand() * 0.25,
+            yRot: (_rand() - 0.5) * 0.5, // slight random rotation
           });
         }
+      }
+
+      // Cap to crowd_limit -- deterministic shuffle-trim with the same
+      // seeded RNG so *which* instances get dropped is also stable.
+      if (room.crowd_limit && instances.length > room.crowd_limit) {
+        for (let i = instances.length - 1; i > 0; i--) {
+          const j = Math.floor(_rand() * (i + 1));
+          [instances[i], instances[j]] = [instances[j], instances[i]];
+        }
+        instances.length = room.crowd_limit;
       }
 
       const count = instances.length;
@@ -6239,10 +6274,35 @@ export function initRoom3D({
       const bodyGeo = new THREE.CylinderGeometry(0.2, 0.25, 1.4, 8);
       bodyGeo.translate(0, 0.7, 0); // anchor at feet
 
-      // Get footprint settings
-      const densityMultiplier = (room.density === 'packed') ? 4 : 2;
-      const spacing = Math.sqrt(1 / densityMultiplier); // ~0.707m for packed, 1m for comfortable
-      
+      // Seeded PRNG (mulberry32), not Math.random() -- every UI change
+      // calls room.update() (a full rebuild()), which was regenerating
+      // every crowd position/jitter/phase from scratch each time, so the
+      // whole crowd visibly reshuffled on any unrelated slider tweak
+      // (booth position, PA toe-in, anything). Seeding on the inputs that
+      // actually determine the crowd (floor size + crowd_limit) makes the
+      // layout stable across everything else, while still changing
+      // naturally when the floor or crowd size actually change.
+      function _mulberry32(seed) {
+        return function () {
+          seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+          let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+      const _crowdSeed = (Math.round((room.width_m || 0) * 100) ^ Math.round((room.length_m || 0) * 100) ^ (room.crowd_limit || 200)) | 0;
+      const _rand = _mulberry32(_crowdSeed);
+
+      // Candidate grid always generated at packed density (the max the
+      // crowd-limit slider can reach, per its own area*4 cap) so there
+      // are always enough candidates to satisfy any crowd_limit -- then
+      // trimmed down below to the actual limit. room.density doesn't
+      // exist any more (replaced by crowd_limit); referencing it here
+      // left this whole block permanently reading the comfortable-only
+      // branch and, more importantly, never actually capping to
+      // crowd_limit at all -- the slider did nothing.
+      const spacing = Math.sqrt(1 / 4); // packed, ~0.707m — trimmed to crowd_limit below
+
       const width = room.width_m || 4.0;
       const length = room.length_m || 5.0;
       // Start 0.5m back from speakers, end 0.5m from back wall
@@ -6253,23 +6313,33 @@ export function initRoom3D({
       const xEnd = width / 2 - 0.5;
 
       const instances = [];
-      
+
       // Lay out jittered grid, density biased toward front
       const zRange = zEnd - zStart;
       for (let z = zStart; z <= zEnd; z += spacing) {
         // Front density bias: chance to skip increases toward the back
         const depthFrac = (z - zStart) / zRange;
         for (let x = xStart; x <= xEnd; x += spacing) {
-          if (Math.random() < depthFrac * 0.5) continue; // up to 50% chance to skip at back wall
-          
+          if (_rand() < depthFrac * 0.5) continue; // up to 50% chance to skip at back wall
+
           instances.push({
-            x: x + (Math.random() - 0.5) * spacing * 0.4,
-            z: z + (Math.random() - 0.5) * spacing * 0.4,
-            phase: Math.random() * Math.PI * 2,
-            hScale: 0.9 + Math.random() * 0.25,
-            yRot: (Math.random() - 0.5) * 0.5, // slight random rotation
+            x: x + (_rand() - 0.5) * spacing * 0.4,
+            z: z + (_rand() - 0.5) * spacing * 0.4,
+            phase: _rand() * Math.PI * 2,
+            hScale: 0.9 + _rand() * 0.25,
+            yRot: (_rand() - 0.5) * 0.5, // slight random rotation
           });
         }
+      }
+
+      // Cap to crowd_limit -- deterministic shuffle-trim with the same
+      // seeded RNG so *which* instances get dropped is also stable.
+      if (room.crowd_limit && instances.length > room.crowd_limit) {
+        for (let i = instances.length - 1; i > 0; i--) {
+          const j = Math.floor(_rand() * (i + 1));
+          [instances[i], instances[j]] = [instances[j], instances[i]];
+        }
+        instances.length = room.crowd_limit;
       }
 
       const count = instances.length;
@@ -6362,10 +6432,35 @@ export function initRoom3D({
       const bodyGeo = new THREE.CylinderGeometry(0.2, 0.25, 1.4, 8);
       bodyGeo.translate(0, 0.7, 0); // anchor at feet
 
-      // Get footprint settings
-      const densityMultiplier = (room.density === 'packed') ? 4 : 2;
-      const spacing = Math.sqrt(1 / densityMultiplier); // ~0.707m for packed, 1m for comfortable
-      
+      // Seeded PRNG (mulberry32), not Math.random() -- every UI change
+      // calls room.update() (a full rebuild()), which was regenerating
+      // every crowd position/jitter/phase from scratch each time, so the
+      // whole crowd visibly reshuffled on any unrelated slider tweak
+      // (booth position, PA toe-in, anything). Seeding on the inputs that
+      // actually determine the crowd (floor size + crowd_limit) makes the
+      // layout stable across everything else, while still changing
+      // naturally when the floor or crowd size actually change.
+      function _mulberry32(seed) {
+        return function () {
+          seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+          let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+          t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+          return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+      }
+      const _crowdSeed = (Math.round((room.width_m || 0) * 100) ^ Math.round((room.length_m || 0) * 100) ^ (room.crowd_limit || 200)) | 0;
+      const _rand = _mulberry32(_crowdSeed);
+
+      // Candidate grid always generated at packed density (the max the
+      // crowd-limit slider can reach, per its own area*4 cap) so there
+      // are always enough candidates to satisfy any crowd_limit -- then
+      // trimmed down below to the actual limit. room.density doesn't
+      // exist any more (replaced by crowd_limit); referencing it here
+      // left this whole block permanently reading the comfortable-only
+      // branch and, more importantly, never actually capping to
+      // crowd_limit at all -- the slider did nothing.
+      const spacing = Math.sqrt(1 / 4); // packed, ~0.707m — trimmed to crowd_limit below
+
       const width = room.width_m || 4.0;
       const length = room.length_m || 5.0;
       // Start 0.5m back from speakers, end 0.5m from back wall
@@ -6376,23 +6471,33 @@ export function initRoom3D({
       const xEnd = width / 2 - 0.5;
 
       const instances = [];
-      
+
       // Lay out jittered grid, density biased toward front
       const zRange = zEnd - zStart;
       for (let z = zStart; z <= zEnd; z += spacing) {
         // Front density bias: chance to skip increases toward the back
         const depthFrac = (z - zStart) / zRange;
         for (let x = xStart; x <= xEnd; x += spacing) {
-          if (Math.random() < depthFrac * 0.5) continue; // up to 50% chance to skip at back wall
-          
+          if (_rand() < depthFrac * 0.5) continue; // up to 50% chance to skip at back wall
+
           instances.push({
-            x: x + (Math.random() - 0.5) * spacing * 0.4,
-            z: z + (Math.random() - 0.5) * spacing * 0.4,
-            phase: Math.random() * Math.PI * 2,
-            hScale: 0.9 + Math.random() * 0.25,
-            yRot: (Math.random() - 0.5) * 0.5, // slight random rotation
+            x: x + (_rand() - 0.5) * spacing * 0.4,
+            z: z + (_rand() - 0.5) * spacing * 0.4,
+            phase: _rand() * Math.PI * 2,
+            hScale: 0.9 + _rand() * 0.25,
+            yRot: (_rand() - 0.5) * 0.5, // slight random rotation
           });
         }
+      }
+
+      // Cap to crowd_limit -- deterministic shuffle-trim with the same
+      // seeded RNG so *which* instances get dropped is also stable.
+      if (room.crowd_limit && instances.length > room.crowd_limit) {
+        for (let i = instances.length - 1; i > 0; i--) {
+          const j = Math.floor(_rand() * (i + 1));
+          [instances[i], instances[j]] = [instances[j], instances[i]];
+        }
+        instances.length = room.crowd_limit;
       }
 
       const count = instances.length;
