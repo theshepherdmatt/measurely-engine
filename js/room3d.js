@@ -5255,7 +5255,14 @@ export function initRoom3D({
 
       for (let wi = 0; wi < _waveRings.length; wi++) {
         const ring = _waveRings[wi];
-        const phase = (_wt / WAVE_CYCLE + ring.userData.wavePhase) % 1.0;
+        if (ring.userData.baseY === undefined) ring.userData.baseY = ring.position.y;
+        let phase = (_wt / WAVE_CYCLE + ring.userData.wavePhase) % 1.0;
+        if (ring.userData.speakerSide === 'SUB') {
+          const beatRate = 126 / 60;
+          const bob = Math.abs(Math.sin(_nowT * beatRate * Math.PI)) * 0.09;
+          ring.position.y = ring.userData.baseY + bob;
+          phase = ((_nowT * beatRate / 4.0) + ring.userData.wavePhase) % 1.0;
+        }
         const r = phase * ring.userData.waveMaxR;
         ring.scale.set(r, 1, r);
         // Peak opacity = base 0.40 × waveAmp — REW nulls produce dimmer rings.
