@@ -1121,6 +1121,7 @@ export function initRoom3D({
   let _topsWavesOn = true;
   let _subWavesOn = true;
   let _mirrorBall = null;
+  let _discoFloorGrid = null; // InstancedMesh of lit floor tiles, animate()-driven colour pulse
   let _discoEnabled = false;
   let _crowdEnabled = true;   // On by default; toggled via api.setCrowd()
   let _sbirFieldVisible = true; // SBIR heatmap field on by default; toggled via api.setSbirField()
@@ -1221,7 +1222,7 @@ export function initRoom3D({
      REBUILD SCENE (GEOMETRY ONLY)
   ------------------------------------------ */
   function rebuild() {
-    if (typeof ambientLight !== 'undefined') ambientLight.intensity = _discoEnabled ? 0.15 : 1.35;
+    if (typeof ambientLight !== 'undefined') ambientLight.intensity = _discoEnabled ? 0.04 : 1.35;
     // renderStage is set externally via setStage() — never override here.
     _dbg("[Room3D] 🔧 rebuild() | stage:", renderStage, "| mode:", currentMode);
 
@@ -3042,12 +3043,14 @@ export function initRoom3D({
       function _edges(geo) {
         return new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), furnEdgeMat);
       }
-      // Accent-colour parts are still defined (material/geometry untouched)
-      // but not rendered in the 3D room — hidden via .visible rather than
-      // removed, so re-enabling the accent look later is a one-line flip.
+      // Accent-colour parts (turntable label/pitch-fader/button, mixer
+      // faders) stay hidden in the normal sales-consultation view -- teal
+      // accent on booth gear reads as noise there. In disco mode they
+      // light up, giving the booth a "lit-up club gear" look instead of
+      // flat charcoal wireframe.
       function _accentEdges(geo) {
         const m = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), accentMat);
-        m.visible = false;
+        m.visible = _discoEnabled;
         return m;
       }
       function _circle(r, y, mat, segs = 40) {
@@ -3219,10 +3222,23 @@ export function initRoom3D({
         });
       }
 
+      // VU meter LEDs -- static charcoal (matches the rest of the desk) in
+      // the normal sales-consultation view. In disco mode each gets its
+      // own colour (green/yellow/red VU gradient) and animate() chases
+      // brightness up/down the column per side, like a real level meter.
+      const vuLedColors = [0x33ff66, 0x33ff66, 0x33ff66, 0xffdd33, 0xffdd33, 0xff3344];
       [-0.36, 0.36].forEach(x => {
         for (let i = 0; i < 6; i++) {
-          const led = _edges(new THREE.BoxGeometry(0.03, 0.012, 0.03));
+          const ledMat = _discoEnabled
+            ? new THREE.LineBasicMaterial({ color: vuLedColors[i], transparent: true, opacity: 1 })
+            : furnEdgeMat;
+          const led = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.03, 0.012, 0.03), 20), ledMat);
           led.position.set(x, 0.075, 0.05 - i * 0.055);
+          if (_discoEnabled) {
+            led.userData.isVuLed = true;
+            led.userData.vuIndex = i;
+            led.userData.vuSide = x > 0 ? 1 : -1;
+          }
           mixer.add(led);
         }
       });
@@ -3390,20 +3406,26 @@ export function initRoom3D({
         mstring.position.set(0, mballRadius + 0.1, 0);
         _mirrorBall.add(mstring);
         
-        // LASERS
-        const laserCount = 60;
+        // LASERS -- curated neon club palette (was a 3-colour cyan/magenta/
+        // green random pick), denser beam count for a fuller sweep.
+        const laserCount = 90;
         const pts = [];
         const colors = [];
-        const c1 = new THREE.Color(0x00ffff);
-        const c2 = new THREE.Color(0xff00ff);
-        const c3 = new THREE.Color(0x00ff00);
+        const laserPalette = [
+          new THREE.Color(0xff00e6), // hot pink
+          new THREE.Color(0x00ffff), // cyan
+          new THREE.Color(0x8a2be2), // electric purple
+          new THREE.Color(0xffd700), // gold
+          new THREE.Color(0x00ff9d), // acid green
+          new THREE.Color(0xff3366), // coral red
+        ];
         for(let i=0; i<laserCount; i++) {
           pts.push(new THREE.Vector3(0,0,0));
           const u = Math.random(); const v = Math.random();
           const theta = u * 2.0 * Math.PI; const phi = Math.acos(2.0 * v - 1.0);
           const r = 8.0;
           pts.push(new THREE.Vector3(r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi)));
-          const col = Math.random() < 0.33 ? c1 : (Math.random() < 0.5 ? c2 : c3);
+          const col = laserPalette[Math.floor(Math.random() * laserPalette.length)];
           colors.push(col.r, col.g, col.b, col.r, col.g, col.b);
         }
         const laserGeo = new THREE.BufferGeometry().setFromPoints(pts);
@@ -3429,8 +3451,52 @@ export function initRoom3D({
         const laserLines = new THREE.LineSegments(laserGeo, laserMat);
         _mirrorBall.add(laserLines);
         roomGroup.add(_mirrorBall);
+
+        // --- LIT DANCE FLOOR GRID ---
+        // Classic Saturday Night Fever illuminated floor tiles, centred on
+        // the dance floor. Each tile is a flat pane, coloured from the same
+        // laser palette, per-instance colour set once here -- animate()
+        // drives a per-tile pulse (a travelling brightness wave, not random
+        // flicker) via userData on the InstancedMesh.
+        const floorY = -room.height_m / 2 + 0.01; // just above the floor plane, avoid z-fighting
+        const gridSpan = Math.min(room.width_m, room.length_m) * 0.55;
+        const tilesPerSide = 8;
+        const tileSize = gridSpan / tilesPerSide;
+        const tileGap = tileSize * 0.08;
+        const tileGeo = new THREE.PlaneGeometry(tileSize - tileGap, tileSize - tileGap);
+        tileGeo.rotateX(-Math.PI / 2);
+        const tileCount = tilesPerSide * tilesPerSide;
+        const tileMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.85 });
+        _discoFloorGrid = new THREE.InstancedMesh(tileGeo, tileMat, tileCount);
+        const _tileDummy = new THREE.Object3D();
+        const _tileCol = new THREE.Color();
+        const _tilePhase = new Float32Array(tileCount);
+        let ti = 0;
+        for (let row = 0; row < tilesPerSide; row++) {
+          for (let col2 = 0; col2 < tilesPerSide; col2++) {
+            const tx = (col2 - (tilesPerSide - 1) / 2) * tileSize;
+            const tz = (row - (tilesPerSide - 1) / 2) * tileSize;
+            _tileDummy.position.set(tx, floorY, tz);
+            _tileDummy.updateMatrix();
+            _discoFloorGrid.setMatrixAt(ti, _tileDummy.matrix);
+            _tileCol.copy(laserPalette[(row + col2) % laserPalette.length]);
+            _discoFloorGrid.setColorAt(ti, _tileCol);
+            // Diagonal phase offset -> the brightness wave travels across
+            // the grid corner-to-corner instead of every tile pulsing in
+            // unison (which read as flat/static).
+            _tilePhase[ti] = (row + col2) / (tilesPerSide * 2);
+            ti++;
+          }
+        }
+        _discoFloorGrid.userData.isDiscoFloor = true;
+        _discoFloorGrid.userData.tilePhase = _tilePhase;
+        _discoFloorGrid.userData.baseColors = laserPalette.map((c, idx) => c.clone());
+        _discoFloorGrid.userData.tilesPerSide = tilesPerSide;
+        if (_discoFloorGrid.instanceColor) _discoFloorGrid.instanceColor.needsUpdate = true;
+        roomGroup.add(_discoFloorGrid);
       } else {
         _mirrorBall = null;
+        _discoFloorGrid = null;
       }
     }
 
@@ -5364,6 +5430,25 @@ export function initRoom3D({
       _mirrorBall.rotation.y -= 0.005;
     }
 
+    if (_discoFloorGrid && _discoEnabled) {
+      // Brightness wave travels diagonally across the grid (driven by each
+      // tile's stored phase offset) rather than every tile pulsing in
+      // unison, which read as flat/static.
+      const t = performance.now() * 0.001;
+      const phases = _discoFloorGrid.userData.tilePhase;
+      const baseColors = _discoFloorGrid.userData.baseColors;
+      const perSide = _discoFloorGrid.userData.tilesPerSide;
+      const _tc = new THREE.Color();
+      for (let i = 0; i < phases.length; i++) {
+        const wave = 0.5 + 0.5 * Math.sin(t * 1.6 - phases[i] * Math.PI * 2);
+        const brightness = 0.35 + wave * 0.9; // never fully dark, punches up to ~1.25 (over-bright pop)
+        const row = Math.floor(i / perSide), col2 = i % perSide;
+        _tc.copy(baseColors[(row + col2) % baseColors.length]).multiplyScalar(brightness);
+        _discoFloorGrid.setColorAt(i, _tc);
+      }
+      if (_discoFloorGrid.instanceColor) _discoFloorGrid.instanceColor.needsUpdate = true;
+    }
+
     let scale = baseScale;
 
     // ANALYSIS PULSE
@@ -5431,6 +5516,12 @@ export function initRoom3D({
         const beatRate = bpm / 60;
         const bob = Math.abs(Math.sin(_nowT * beatRate * Math.PI + obj.userData.phase)) * 0.09;
         obj.position.y = obj.userData.baseY + bob;
+      } else if (obj.userData?.isVuLed && _discoEnabled) {
+        // Chase up/down the 6-LED column, opposite direction per side, so
+        // the two VU meters don't pulse in lockstep.
+        const cyclePos = ((_nowT * 3 + obj.userData.vuSide * 2) % 6);
+        const dist = Math.abs(cyclePos - obj.userData.vuIndex);
+        obj.material.opacity = Math.max(0.15, 1 - dist * 0.4);
       }
     });
 
@@ -6283,6 +6374,10 @@ export function initRoom3D({
         } else {
           col.lerpColors(colGold, colPink, (frac - 0.5) * 2);
         }
+        // Disco mode dims the crowd along with the ambient light so the
+        // mirror ball / lasers / floor grid actually pop against a dark
+        // room instead of competing with a fully-lit crowd.
+        if (_discoEnabled) col.multiplyScalar(0.35);
         bodyMesh.setColorAt(i, col);
         headMesh.setColorAt(i, col);
       }
@@ -6441,6 +6536,10 @@ export function initRoom3D({
         } else {
           col.lerpColors(colGold, colPink, (frac - 0.5) * 2);
         }
+        // Disco mode dims the crowd along with the ambient light so the
+        // mirror ball / lasers / floor grid actually pop against a dark
+        // room instead of competing with a fully-lit crowd.
+        if (_discoEnabled) col.multiplyScalar(0.35);
         bodyMesh.setColorAt(i, col);
         headMesh.setColorAt(i, col);
       }
@@ -6599,6 +6698,10 @@ export function initRoom3D({
         } else {
           col.lerpColors(colGold, colPink, (frac - 0.5) * 2);
         }
+        // Disco mode dims the crowd along with the ambient light so the
+        // mirror ball / lasers / floor grid actually pop against a dark
+        // room instead of competing with a fully-lit crowd.
+        if (_discoEnabled) col.multiplyScalar(0.35);
         bodyMesh.setColorAt(i, col);
         headMesh.setColorAt(i, col);
       }
