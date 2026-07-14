@@ -2494,9 +2494,20 @@ export function initRoom3D({
         // tweeter-height offset the hi-fi archetypes use.
         const targetBeamWorldY = baseY + rugRaise + (profile.plinthH ?? 0) + (room.tweeter_height_m || 0.95);
         const beamLocalY = profile.isWallMount ? 0 : targetBeamWorldY - y;  // y is spkGroup world Y
+        // pa_top: stop the beam exactly at the ear-height aim point instead
+        // of running the full room length — the beam is drawn in the
+        // cabinet's own (already-tilted) local space, so a length equal to
+        // the straight-line distance to the target lands the far end
+        // precisely there once rotation.x carries it down. The full-room-
+        // length line used everywhere else massively overshot the target,
+        // which visually read as "barely tilted" over a 10m+ line even
+        // once the actual angle was correct.
+        const beamZ = profile.isWallMount
+          ? Math.hypot(y - (baseY + 1.7), Math.abs(z - (-room.length_m / 2 + (room.listener_front_m || room.length_m / 2))) || 0.01)
+          : room.length_m;
         const beamGeo = new THREE.BufferGeometry().setFromPoints([
           new THREE.Vector3(0, beamLocalY, 0),
-          new THREE.Vector3(0, beamLocalY, room.length_m)
+          new THREE.Vector3(0, beamLocalY, beamZ)
         ]);
         const beam = new THREE.Line(
           beamGeo,
