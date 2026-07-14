@@ -1674,23 +1674,28 @@
     };
   }
 
-  // ── Section — Club: PA rig placement (tops only) ──────────────────────────
+  // ── Section — Club: PA rig placement (tops + bass bins) ────────────────────
   // Club-only. Coverage-driven placement, not imaging — no tweeter-height
   // slider (assumes a stereo sweet spot, which doesn't apply here). No tilt
   // slider — room3d.js derives the downward aim from mount height +
   // distance so the tops always point at ear height on the dance floor
-  // centre, not an arbitrary fixed angle. Booth/deck/bass-bin controls live
-  // in renderClubBoothSection instead — this section is PA tops only.
-  //   renderClubSpeakersSection(mountId, { state: { spk_spacing_m, pa_mount_height_m, toe_in_deg, rear_pa }, onChange })
+  // centre, not an arbitrary fixed angle. Bass bins live here (they're
+  // part of the PA system, not booth furniture) even though the 'centre'
+  // placement mode visually sits under the booth — booth-only controls
+  // (decks, riser, booth position) are in renderClubBoothSection instead.
+  //   renderClubSpeakersSection(mountId, { state: { spk_spacing_m, pa_mount_height_m, toe_in_deg, rear_pa, bass_bin_placement, bass_bin_count, spk_front_m }, onChange })
   function renderClubSpeakersSection(mountId, { state = {}, onChange } = {}) {
     const mount = _mount(mountId);
     if (!mount) return null;
 
     const cur = {
-      spk_spacing_m:     state.spk_spacing_m     ?? 6.0,
-      pa_mount_height_m: state.pa_mount_height_m ?? 3.0,
-      toe_in_deg:        state.toe_in_deg        ?? 10,
-      rear_pa:           state.rear_pa           ?? false,
+      spk_spacing_m:      state.spk_spacing_m      ?? 6.0,
+      pa_mount_height_m:  state.pa_mount_height_m  ?? 3.0,
+      toe_in_deg:         state.toe_in_deg         ?? 10,
+      rear_pa:            state.rear_pa            ?? false,
+      bass_bin_placement: state.bass_bin_placement ?? 'centre',
+      bass_bin_count:     state.bass_bin_count     ?? 2,
+      spk_front_m:        state.spk_front_m        ?? 1.0,
     };
 
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
@@ -1702,6 +1707,7 @@
       // side-wall/centre coverage evenness rather than a hi-fi stereo
       // triangle toe angle.
       { key: 'toe_in_deg',        label: 'Top toe-in',       min: 0,   max: 25,   step: 1,   unit: '°', decimals: 0, hl: 'speakers' },
+      { key: 'spk_front_m',       label: 'Bass bins from front wall', min: 0.2, max: 3.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
     ];
 
     const rearPaWrap = _el('div', { class: 'demo-field', style: 'margin-top:4px;' });
@@ -1723,6 +1729,35 @@
     );
     rearPaWrap.appendChild(rearPaGroup.row);
     wrap.appendChild(rearPaWrap);
+
+    const binPlacementWrap = _el('div', { class: 'demo-field', style: 'margin-top:4px;' });
+    const binPlacementHdr = _el('div', { class: 'demo-field-header' });
+    binPlacementHdr.appendChild(_el('span', { class: 'demo-field-label' }, 'Bass Bin Placement'));
+    binPlacementWrap.appendChild(binPlacementHdr);
+    const binPlacementGroup = _btnGroup(
+      [
+        { key: 'centre',  label: 'Centre',  title: 'Single mono stack under the booth' },
+        { key: 'corners', label: 'Corners', title: 'Split the stack to both front corners' },
+      ],
+      cur.bass_bin_placement,
+      (key) => { cur.bass_bin_placement = key; onChange?.({ ...cur }); }
+    );
+    binPlacementWrap.appendChild(binPlacementGroup.row);
+    wrap.appendChild(binPlacementWrap);
+
+    // Buttons, not a slider -- 2/3/4 is a small, discrete set (matching
+    // real cabinet-count options), not a continuous range.
+    const binCountWrap = _el('div', { class: 'demo-field', style: 'margin-top:4px;' });
+    const binCountHdr = _el('div', { class: 'demo-field-header' });
+    binCountHdr.appendChild(_el('span', { class: 'demo-field-label' }, 'Bass Bins (Mono Stack)'));
+    binCountWrap.appendChild(binCountHdr);
+    const binCountGroup = _btnGroup(
+      [{ key: '2', label: '2' }, { key: '3', label: '3' }, { key: '4', label: '4' }],
+      String(cur.bass_bin_count),
+      (key) => { cur.bass_bin_count = parseInt(key, 10); onChange?.({ ...cur }); }
+    );
+    binCountWrap.appendChild(binCountGroup.row);
+    wrap.appendChild(binCountWrap);
 
     const sliders = {};
     for (const def of defs) {
@@ -1757,23 +1792,22 @@
     };
   }
 
-  // ── Section — Club: DJ booth (decks, bass bins, position, riser) ──────────
-  // Club-only. Everything anchored to the booth rather than the wall PA
-  // rig: deck type/count, bass bin placement + count + distance from wall,
-  // booth position, and the riser platform toggle.
-  //   renderClubBoothSection(mountId, { state: { deck_config, dj_riser_enabled, bass_bin_placement, bass_bin_count, spk_front_m, booth_front_m, booth_offset_m }, onChange })
+  // ── Section — Club: DJ booth (decks, riser, booth position) ────────────────
+  // Club-only. Everything anchored to the booth/desk itself -- deck
+  // type/count, riser platform, and booth position. Bass bins are in
+  // renderClubSpeakersSection instead (they're part of the PA system, not
+  // booth furniture, even though 'centre' placement visually sits under
+  // the booth).
+  //   renderClubBoothSection(mountId, { state: { deck_config, dj_riser_enabled, booth_front_m, booth_offset_m }, onChange })
   function renderClubBoothSection(mountId, { state = {}, onChange } = {}) {
     const mount = _mount(mountId);
     if (!mount) return null;
 
     const cur = {
-      deck_config:        state.deck_config        ?? 'both',
-      dj_riser_enabled:   state.dj_riser_enabled    ?? true,
-      bass_bin_placement: state.bass_bin_placement  ?? 'centre',
-      bass_bin_count:     state.bass_bin_count      ?? 2,
-      spk_front_m:        state.spk_front_m         ?? 1.0,
-      booth_front_m:      state.booth_front_m       ?? 0.75,
-      booth_offset_m:     state.booth_offset_m      ?? 0,
+      deck_config:      state.deck_config      ?? 'both',
+      dj_riser_enabled: state.dj_riser_enabled ?? true,
+      booth_front_m:    state.booth_front_m    ?? 0.75,
+      booth_offset_m:   state.booth_offset_m   ?? 0,
     };
 
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
@@ -1803,24 +1837,9 @@
       onChange?.({ ...cur });
     });
 
-    _toggleField('Bass Bin Placement', [
-      { key: 'centre',  label: 'Centre',  title: 'Single mono stack under the booth' },
-      { key: 'corners', label: 'Corners', title: 'Split the stack to both front corners' },
-    ], cur.bass_bin_placement, (key) => { cur.bass_bin_placement = key; onChange?.({ ...cur }); });
-
-    // Buttons, not a slider -- 2/3/4 is a small, discrete set (matching
-    // real cabinet-count options), not a continuous range.
-    _toggleField('Bass Bins (Mono Stack)', [
-      { key: '2', label: '2' }, { key: '3', label: '3' }, { key: '4', label: '4' },
-    ], String(cur.bass_bin_count), (key) => {
-      cur.bass_bin_count = parseInt(key, 10);
-      onChange?.({ ...cur });
-    });
-
     const defs = [
-      { key: 'spk_front_m',    label: 'Bass bins from front wall', min: 0.2,  max: 3.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
-      { key: 'booth_front_m',  label: 'Booth from front wall',     min: 0.2,  max: 2.5, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
-      { key: 'booth_offset_m', label: 'Booth left / right',        min: -3.0, max: 3.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
+      { key: 'booth_front_m',  label: 'Booth from front wall', min: 0.2,  max: 2.5, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
+      { key: 'booth_offset_m', label: 'Booth left / right',    min: -3.0, max: 3.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
     ];
 
     const sliders = {};
