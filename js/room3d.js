@@ -1310,11 +1310,11 @@ export function initRoom3D({
       // Club only: DJ booth distance from the front wall (cable-run
       // clearance). Same merge pattern as bass_bin_count above.
       booth_front_m: data.booth_front_m ?? 0.75,
-      // Club only: pa_top wall-bracket mount height (off the floor) and
-      // downward tilt aimed into the room — permanent install, not a
-      // floor stand or pole-on-sub.
+      // Club only: pa_top wall-bracket mount height (off the floor) —
+      // permanent install, not a floor stand or pole-on-sub. Tilt is
+      // derived automatically (aimed at ear height on the dance floor
+      // centre), not a user field — see the isWallMount bracket block.
       pa_mount_height_m: data.pa_mount_height_m ?? 3.0,
-      pa_tilt_deg: data.pa_tilt_deg ?? 15,
 
       room_type: data.room_type || env.room_type || "home",
       opt_area_rug: furn.opt_area_rug ?? env.opt_area_rug ?? data.opt_area_rug,
@@ -2350,10 +2350,16 @@ export function initRoom3D({
 
         // Wall bracket: plate flush to the front wall + a diagonal arm to
         // the cabinet back, plus the downward tilt a permanent install
-        // aims into the room (coverage down to head height on the floor,
-        // not a level stereo axis). Geometry only, no animation.
+        // aims into the room. Geometry only, no animation.
         if (profile.isWallMount) {
-          const tiltRad = (room.pa_tilt_deg ?? 15) * Math.PI / 180;
+          // Aim at ear height on the dance floor centre, not an arbitrary
+          // fixed angle — the tilt is *derived* from mount height and the
+          // distance to that point, so raising/lowering the bracket (or
+          // resizing the room) keeps the aim correct automatically.
+          const EAR_HEIGHT_M = 1.7;
+          const targetY = baseY + EAR_HEIGHT_M;
+          const targetZ = -room.length_m / 2 + (room.listener_front_m || room.length_m / 2);
+          const tiltRad = Math.atan2(y - targetY, targetZ - z);
           spkGroup.rotation.x = -tiltRad;
 
           const bracketMat = new THREE.LineBasicMaterial({

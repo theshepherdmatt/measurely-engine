@@ -1696,10 +1696,12 @@
   // tweeter-height sliders (those assume a stereo sweet spot, which doesn't
   // apply here). pa_top is wall-bracket mounted (permanent install), not
   // floor/pole-stood — spk_front_m therefore only moves the bass_bin stack
-  // off the front wall now, not the tops; top height/tilt are separate
-  // fields (pa_mount_height_m, pa_tilt_deg) since a wall bracket's height
-  // and aim are independent of the sub stack's floor position.
-  //   renderClubSpeakersSection(mountId, { state: { spk_spacing_m, spk_front_m, booth_front_m, pa_mount_height_m, pa_tilt_deg }, onChange })
+  // off the front wall now, not the tops; pa_mount_height_m is separate
+  // since a wall bracket's height is independent of the sub stack's floor
+  // position. No tilt slider — room3d.js derives the downward aim from
+  // mount height + distance so the tops always point at ear height on the
+  // dance floor centre, not an arbitrary fixed angle.
+  //   renderClubSpeakersSection(mountId, { state: { spk_spacing_m, spk_front_m, booth_front_m, pa_mount_height_m }, onChange })
   function renderClubSpeakersSection(mountId, { state = {}, onChange } = {}) {
     const mount = _mount(mountId);
     if (!mount) return null;
@@ -1709,7 +1711,6 @@
       spk_front_m:       state.spk_front_m       ?? 1.0,
       booth_front_m:     state.booth_front_m     ?? 0.75,
       pa_mount_height_m: state.pa_mount_height_m ?? 3.0,
-      pa_tilt_deg:       state.pa_tilt_deg       ?? 15,
     };
 
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
@@ -1717,7 +1718,6 @@
     const defs = [
       { key: 'spk_spacing_m',     label: 'Top spacing',            min: 2.0, max: 10.0, step: 0.1, unit: 'm',   decimals: 1, hl: 'speakers' },
       { key: 'pa_mount_height_m', label: 'Top mount height',       min: 1.5, max: 4.5,  step: 0.1, unit: 'm',   decimals: 1, hl: 'speakers' },
-      { key: 'pa_tilt_deg',       label: 'Top tilt (down)',        min: 0,   max: 30,   step: 1,   unit: '°', decimals: 0, hl: 'speakers' },
       { key: 'spk_front_m',       label: 'Bass bins from front wall', min: 0.2, max: 3.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
       { key: 'booth_front_m',     label: 'Booth from front wall',  min: 0.2, max: 2.5,  step: 0.1, unit: 'm',   decimals: 1, hl: 'speakers' },
     ];
