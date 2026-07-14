@@ -1684,7 +1684,7 @@
   // position. No tilt slider — room3d.js derives the downward aim from
   // mount height + distance so the tops always point at ear height on the
   // dance floor centre, not an arbitrary fixed angle.
-  //   renderClubSpeakersSection(mountId, { state: { spk_spacing_m, spk_front_m, booth_front_m, pa_mount_height_m, toe_in_deg, rear_pa, bass_bin_count }, onChange })
+  //   renderClubSpeakersSection(mountId, { state: { spk_spacing_m, spk_front_m, booth_front_m, pa_mount_height_m, toe_in_deg, rear_pa, bass_bin_count, bass_bin_placement }, onChange })
   function renderClubSpeakersSection(mountId, { state = {}, onChange } = {}) {
     const mount = _mount(mountId);
     if (!mount) return null;
@@ -1697,6 +1697,7 @@
       pa_mount_height_m: state.pa_mount_height_m ?? 3.0,
       toe_in_deg:        state.toe_in_deg        ?? 10,
       rear_pa:           state.rear_pa           ?? false,
+      bass_bin_placement: state.bass_bin_placement ?? 'centre',
     };
 
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
@@ -1712,6 +1713,26 @@
       { key: 'spk_front_m',       label: 'Bass bins from front wall', min: 0.2, max: 3.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
       { key: 'booth_front_m',     label: 'Booth from front wall',  min: 0.2, max: 2.5,  step: 0.1, unit: 'm',   decimals: 1, hl: 'speakers' },
     ];
+
+    const binPlacementWrap = _el('div', { class: 'demo-field', style: 'margin-top:4px;' });
+    const binPlacementHdr = _el('div', { class: 'demo-field-header' });
+    const binPlacementLbl = _el('span', { class: 'demo-field-label' }, 'Bass Bin Placement');
+    binPlacementHdr.appendChild(binPlacementLbl);
+    binPlacementWrap.appendChild(binPlacementHdr);
+
+    const binPlacementGroup = _btnGroup(
+      [
+        { key: 'centre',  label: 'Centre',  title: 'Single mono stack under the booth' },
+        { key: 'corners', label: 'Corners', title: 'Split the stack to both front corners' },
+      ],
+      cur.bass_bin_placement,
+      (key) => {
+        cur.bass_bin_placement = key;
+        onChange?.({ ...cur });
+      }
+    );
+    binPlacementWrap.appendChild(binPlacementGroup.row);
+    wrap.appendChild(binPlacementWrap);
 
     const rearPaWrap = _el('div', { class: 'demo-field', style: 'margin-top:4px;' });
     const rearPaHdr = _el('div', { class: 'demo-field-header' });
