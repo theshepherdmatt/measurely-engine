@@ -1113,6 +1113,13 @@ export function initRoom3D({
   const _spkLeftLocalPos  = new THREE.Vector3();
   const _spkRightLocalPos = new THREE.Vector3();
   let _wavesEnabled = false;  // Off by default; toggled via api.setWaves()
+  // Independent per-group visibility, additive on top of _wavesEnabled --
+  // club's sidebar splits the single Waves toggle into "Tops" (L/R rings,
+  // blue) and "Bass" (SUB rings, pink) buttons via setTopWaves/setSubWaves.
+  // setWaves() (the original API, used by other Measurely products) still
+  // sets both together for backward compatibility.
+  let _topsWavesOn = true;
+  let _subWavesOn = true;
   let _mirrorBall = null;
   let _discoEnabled = false;
   let _crowdEnabled = true;   // On by default; toggled via api.setCrowd()
@@ -2561,7 +2568,7 @@ export function initRoom3D({
         // When REW data is loaded (_rewFreqs/_rewMags), each ring samples the
         // measured magnitude at one octave of the SBIR null frequency so colour
         // and peak opacity reflect actual acoustic energy, not simulation.
-        if (_wavesEnabled) {
+        if (_wavesEnabled && _topsWavesOn) {
           const NUM_RINGS = 5;
           const maxR = Math.max(room.length_m, room.width_m) * WAVE_EXTENT_FACTOR;
           const waveY = tweeterY;
@@ -3504,7 +3511,7 @@ export function initRoom3D({
         }
         stackCentres.forEach(cx => _buildStackAt(cx, isCorners));
 
-        if (_wavesEnabled) {
+        if (_wavesEnabled && _subWavesOn) {
           const NUM_RINGS = 10;
           const maxR = Math.max(room.length_m, room.width_m) * 1.5;
           const circleCurvePts = [];
@@ -10135,11 +10142,36 @@ export function initRoom3D({
         _rewFreqs    = freqs;
         _rewMags     = mags ?? null;
         _wavesEnabled = true;
+        _topsWavesOn = true;
+        _subWavesOn  = true;
       } else {
-        // Boolean toggle (simulation / off)
+        // Boolean toggle (simulation / off) -- sets both groups together,
+        // for products that don't split tops/bass (only club's sidebar
+        // does, via setTopWaves/setSubWaves below).
         _wavesEnabled = !!freqs;
+        _topsWavesOn = !!freqs;
+        _subWavesOn  = !!freqs;
         if (!freqs) { _rewFreqs = null; _rewMags = null; }
       }
+      rebuild();
+    },
+
+    /**
+     * setTopWaves(enabled) / setSubWaves(enabled)
+     *   Independent visibility for the top-speaker (blue) vs bass-bin
+     *   (pink) wave rings — club's sidebar splits the single Waves toggle
+     *   into two buttons. _wavesEnabled (the master simulation flag) stays
+     *   on as long as either group is on; both off matches setWaves(false).
+     */
+    setTopWaves(enabled) {
+      _topsWavesOn = !!enabled;
+      _wavesEnabled = _topsWavesOn || _subWavesOn;
+      rebuild();
+    },
+
+    setSubWaves(enabled) {
+      _subWavesOn = !!enabled;
+      _wavesEnabled = _topsWavesOn || _subWavesOn;
       rebuild();
     },
 
