@@ -1610,17 +1610,15 @@
   // Club-only. Capacity is a derived readout (area × density-per-m²), not a
   // slider — caller pushes floor area in via setArea() whenever the room
   // width/length sliders (renderRoomSection) change, since the dance floor
-  // *is* the room floor for this room_type. bass_bin_count (2-4) drives the
-  // mono centre-stack renderer in room3d.js — always mono, never a left/right
-  // pair (spaced subs cause power-alley cancellation across the floor).
-  //   renderClubSection(mountId, { state: { density, bass_bin_count, area_m2 }, onChange })
+  // *is* the room floor for this room_type.
+  //   renderClubSection(mountId, { state: { density, area_m2 }, onChange })
   function renderClubSection(mountId, { state = {}, onChange } = {}) {
     const mount = _mount(mountId);
     if (!mount) return null;
 
     const cur = {
       density: state.density ?? 'comfortable',      // 'comfortable' 2/m² | 'packed' 4/m²
-      bass_bin_count: state.bass_bin_count ?? 2,
+      crowd_bpm: state.crowd_bpm ?? 126,
     };
     let areaM2 = state.area_m2 ?? 0;
 
@@ -1656,30 +1654,30 @@
     wrap.appendChild(densityGroup.row);
     _updateCapacity();
 
-    const { wrap: binWrap, slider: binSlider, val: binVal } = _sliderField({
-      label: 'Bass bins (mono stack)', id: 'scl-bass-bin-count',
-      min: 2, max: 4, step: 1, value: cur.bass_bin_count, unit: '', decimals: 0,
-      ariaLabel: 'Bass bin count',
+    const { wrap: bpmWrap, slider: bpmSlider, val: bpmVal } = _sliderField({
+      label: 'Crowd animation BPM', id: 'scl-crowd-bpm',
+      min: 80, max: 160, step: 1, value: cur.crowd_bpm, unit: ' BPM', decimals: 0,
+      ariaLabel: 'Crowd animation BPM',
     });
-    binSlider.addEventListener('input', () => {
-      const v = parseInt(binSlider.value, 10);
-      cur.bass_bin_count = v;
-      binVal.textContent = String(v);
-      _updateSliderFill(binSlider);
+    bpmSlider.addEventListener('input', () => {
+      const v = parseInt(bpmSlider.value, 10);
+      cur.crowd_bpm = v;
+      bpmVal.textContent = String(v) + ' BPM';
+      _updateSliderFill(bpmSlider);
       onChange?.({ ...cur });
     });
-    wrap.appendChild(binWrap);
+    wrap.appendChild(bpmWrap);
 
     mount.appendChild(wrap);
 
     return {
       reset() {
         cur.density = state.density ?? 'comfortable';
-        cur.bass_bin_count = state.bass_bin_count ?? 2;
+        cur.crowd_bpm = state.crowd_bpm ?? 126;
         densityGroup.setActive(cur.density);
-        binSlider.value = String(cur.bass_bin_count);
-        binVal.textContent = String(cur.bass_bin_count);
-        _updateSliderFill(binSlider);
+        bpmSlider.value = String(cur.crowd_bpm);
+        bpmVal.textContent = String(cur.crowd_bpm) + ' BPM';
+        _updateSliderFill(bpmSlider);
         _updateCapacity();
       },
       // Pushed by the caller whenever room width/length change — the dance
@@ -1707,6 +1705,7 @@
     if (!mount) return null;
 
     const cur = {
+      bass_bin_count:    state.bass_bin_count    ?? 2,
       spk_spacing_m:     state.spk_spacing_m     ?? 6.0,
       spk_front_m:       state.spk_front_m       ?? 1.0,
       booth_front_m:     state.booth_front_m     ?? 0.75,
@@ -1716,6 +1715,7 @@
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
 
     const defs = [
+      { key: 'bass_bin_count',    label: 'Bass bins (mono stack)', min: 2, max: 4, step: 1, unit: '', decimals: 0, hl: 'speakers' },
       { key: 'spk_spacing_m',     label: 'Top spacing',            min: 2.0, max: 10.0, step: 0.1, unit: 'm',   decimals: 1, hl: 'speakers' },
       { key: 'pa_mount_height_m', label: 'Top mount height',       min: 1.5, max: 4.5,  step: 0.1, unit: 'm',   decimals: 1, hl: 'speakers' },
       { key: 'spk_front_m',       label: 'Bass bins from front wall', min: 0.2, max: 3.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
@@ -1733,7 +1733,7 @@
       slider.addEventListener('input', () => {
         const v = parseFloat(slider.value);
         cur[def.key] = v;
-        val.textContent = def.unit === 'm' ? formatLength(v, def.decimals) : v.toFixed(def.decimals) + ' ' + def.unit;
+        val.textContent = def.unit ? (def.unit === 'm' ? formatLength(v, def.decimals) : v.toFixed(def.decimals) + ' ' + def.unit) : String(v);
         _updateSliderFill(slider);
         onChange?.({ ...cur });
       });
@@ -1748,7 +1748,7 @@
         for (const [k, { slider, val, def }] of Object.entries(sliders)) {
           slider.value = String(state[k] ?? cur[k]);
           cur[k] = parseFloat(slider.value);
-          val.textContent = def.unit === 'm' ? formatLength(cur[k], def.decimals) : cur[k].toFixed(def.decimals) + ' ' + def.unit;
+          val.textContent = def.unit ? (def.unit === 'm' ? formatLength(cur[k], def.decimals) : cur[k].toFixed(def.decimals) + ' ' + def.unit) : String(cur[k]);
           _updateSliderFill(slider);
         }
       },

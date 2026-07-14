@@ -170,7 +170,7 @@ export const OVERLAY_META = {
     caveats: [
       'Without a loaded measurement the field is predictive — computed from room geometry and speaker placement, and labelled as predicted.',
       'Axial modes (length, width, height) appear most prominently; tangential and oblique modes are included at reduced intensity, reflecting their typically weaker effect at the listening position.',
-      'Colour shows resonance pressure, not perceived loudness; the measured level of each confirmed mode is carried by its dB label, not by the field\'s hue.',
+      'Colour shows resonance pressure, not perceived loudness; the measured level of each confirmed mode is carried by its dB label, not by the field\\'s hue.',
     ],
     // Legend chips — colours reference OVERLAY_COLOURS so they can never drift
     // from what the scene paints. The pressure ramp and listener rows use a
@@ -5937,9 +5937,9 @@ export function initRoom3D({
 
       // Actual speaker → floor → listener reflection paths (image-source method)
       const floorY = -room.height_m / 2 + 0.005;
-      const _effTweeterY = room.room_type === \'club\' ? (room.pa_mount_height_m || 3.0) : (room.tweeter_height_m || 0.95);
+      const _effTweeterY = room.room_type === 'club' ? (room.pa_mount_height_m || 3.0) : (room.tweeter_height_m || 0.95);
       const fTweeterY = -room.height_m / 2 + _effTweeterY;
-      const _effEarY = room.room_type === \'club\' ? 1.7 : 1.0;
+      const _effEarY = room.room_type === 'club' ? 1.7 : 1.0;
       const fEarY = -room.height_m / 2 + _effEarY;
       const fListZ = -room.length_m / 2 + room.listener_front_m;
 
