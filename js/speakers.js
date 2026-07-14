@@ -72,6 +72,29 @@ export const SPEAKER_PROFILES = {
         char: 'Dipole/planar radiation. Rear wave is out of phase — rear wall distance is critical. Typically need 1 m+ from the wall behind. Side walls matter less than for conventional drivers.'
     },
 
+    // ── PA / CLUB CATEGORIES ────────────────────────────────────────
+    pa_top: {
+        key:           'pa_top',
+        name:          'PA Top',
+        friendly_name: 'PA top (generic)',
+        type:          'category',
+        cabinet:       { w: 0.45, h: 0.65, d: 0.45 },
+        tweeter_pos:   0.75,
+        bass_ext_hz:   80,
+        char: 'Coverage-driven point-source top, not imaging-driven — placement is about even SPL across the floor, not a stereo sweet spot. Bass handed off to the bin stack below ~80 Hz.'
+    },
+
+    bass_bin: {
+        key:           'bass_bin',
+        name:          'Bass Bin',
+        friendly_name: 'Bass bin / sub (generic)',
+        type:          'category',
+        cabinet:       { w: 0.60, h: 0.60, d: 0.65 },
+        tweeter_pos:   0.50,
+        bass_ext_hz:   35,
+        char: 'Single-18" sub cabinet, stacked 2–4 high. Always run mono — spaced stereo subs cause power-alley cancellation across the floor. Centre-stack under the booth is the default.'
+    },
+
     // ── MANUFACTURER SPOTLIGHTS ────────────────────────────────────
     kef_ls50: {
         key:           'kef_ls50',

@@ -1769,6 +1769,27 @@ export function initRoom3D({
             tweeterPos: 0.82 // tweeter near top of cabinet
           };
 
+        case "pa_top":
+          return {
+            w: 0.45,
+            h: 0.65,
+            d: 0.45,
+            color: 0x2a2a28,
+            tweeterPos: 0.75,
+            floorStand: true, // pole/bin-mounted in reality — rendered floor-anchored, no hi-fi stand
+          };
+
+        case "bass_bin":
+          return {
+            w: 0.60,
+            h: 0.60,
+            d: 0.65,
+            color: 0x2a2a28,
+            tweeterPos: 0.50,
+            floorStand: true,
+            isBassBin: true,
+          };
+
         case "monitor":
           return {
             w: 0.20, // 20cm wide
@@ -1887,6 +1908,42 @@ export function initRoom3D({
       const front = D / 2 + 0.002;
       _makeConeDriver(0, -H * 0.18, front, W * 0.28, false, color, opacity).forEach(o => grp.add(o));
       _makeConeDriver(0, H * 0.28, front, W * 0.08, true, color, opacity).forEach(o => grp.add(o));
+
+      return grp;
+    }
+
+    /* ------------------------------------------
+       BASS BIN BUILDER
+       Near-cube cabinet, single large low-frequency driver — no tweeter
+       ring (subs run mono, full-range tops carry the top end).
+    ------------------------------------------ */
+    function _buildBassBinSpeaker(W, H, D, color, opacity) {
+      const grp = new THREE.Group();
+      const edgeMat = useFatEdges
+        ? new THREE.MeshBasicMaterial({ color, transparent: true, opacity })
+        : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+
+      function _ebox(w, h, d) {
+        const g = new THREE.Group();
+        if (useFatEdges) {
+          const hw = w / 2, hh = h / 2, hd = d / 2;
+          const v = [
+            new THREE.Vector3(-hw, -hh, -hd), new THREE.Vector3(hw, -hh, -hd),
+            new THREE.Vector3(hw, -hh, hd), new THREE.Vector3(-hw, -hh, hd),
+            new THREE.Vector3(-hw, hh, -hd), new THREE.Vector3(hw, hh, -hd),
+            new THREE.Vector3(hw, hh, hd), new THREE.Vector3(-hw, hh, hd),
+          ];
+          const pairs = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
+          g.add(_fatEdgeGroup(v, pairs, EDGE_TUBE_T * 0.55, edgeMat));
+        } else {
+          g.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(w, h, d)), edgeMat));
+        }
+        return g;
+      }
+
+      grp.add(_ebox(W, H, D));
+      const front = D / 2 + 0.002;
+      _makeConeDriver(0, 0, front, W * 0.38, false, color, opacity).forEach(o => grp.add(o));
 
       return grp;
     }
@@ -2134,9 +2191,11 @@ export function initRoom3D({
             ? _buildStatementSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
             : profile.isPanel
               ? _buildElectrostaticSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
-              : profile.detailed
-                ? _buildDetailedSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
-                : _buildStandmountSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity);
+              : profile.isBassBin
+                ? _buildBassBinSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
+                : profile.detailed
+                  ? _buildDetailedSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
+                  : _buildStandmountSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity);
 
         // X position — every speaker sits at ±spk_spacing_m/2 from
         // offsetX. In studio mode room.spk_spacing_m is overridden
@@ -6434,8 +6493,11 @@ export function initRoom3D({
       // which bass output starts rolling off): standmount ~55, floorstander ~30,
       // statement ~20, panel ~45 (dipole — earlier than floorstanders, lower
       // than standmounts), monitor ~55 (near-field, standmount-class extension).
+      // pa_top ~80 (full-range top hands off to the bin stack, not designed
+      // to reach deep bass itself), bass_bin ~35 (single-18 sub, deepest
+      // extension of any archetype bar the statement floorstander).
       const speakerArchetype = room.speaker_type || 'standmount';
-      const bassRolloffByType = { standmount: 55, floorstander: 30, statement: 20, panel: 45, monitor: 55 };
+      const bassRolloffByType = { standmount: 55, floorstander: 30, statement: 20, panel: 45, monitor: 55, pa_top: 80, bass_bin: 35 };
       const bassRolloffHz = bassRolloffByType[speakerArchetype] ?? 55;
 
       // Confidence multiplier — drives shader weight per mode.
