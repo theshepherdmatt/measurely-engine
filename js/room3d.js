@@ -170,7 +170,7 @@ export const OVERLAY_META = {
     caveats: [
       'Without a loaded measurement the field is predictive — computed from room geometry and speaker placement, and labelled as predicted.',
       'Axial modes (length, width, height) appear most prominently; tangential and oblique modes are included at reduced intensity, reflecting their typically weaker effect at the listening position.',
-      'Colour shows resonance pressure, not perceived loudness; the measured level of each confirmed mode is carried by its dB label, not by the field\\'s hue.',
+      'Colour shows resonance pressure, not perceived loudness; the measured level of each confirmed mode is carried by its dB label, not by the field\'s hue.',
     ],
     // Legend chips — colours reference OVERLAY_COLOURS so they can never drift
     // from what the scene paints. The pressure ramp and listener rows use a
