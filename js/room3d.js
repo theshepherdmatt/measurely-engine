@@ -288,23 +288,82 @@ export function initRoom3D({
   // Mock level lookup: inverse-square falloff summed from each speaker position
   function getLevelAtPosition(x, y, z, room) {
     if (!room) return -60;
-    const _effTweeterY = room.room_type === 'club' ? (room.pa_mount_height_m || 3.0) : (room.tweeter_height_m || 0.95);
-    const fTweeterY = -room.height_m / 2 + _effTweeterY;
+
+    // Club: model the ACTUAL rig — pa tops (mirrored to the rear wall
+    // when rear_pa is on) plus bass bin stacks at their real placement
+    // (centre under the booth / front / rear / both corners), each stack
+    // summing its bin count as +10log10(N). This is what makes the crowd
+    // heat map respond when the system changes, not just when people
+    // stand nearer the front wall. Nominal 100 dB @1m per top and
+    // 102 dB @1m per bin — arbitrary anchors shared with the absolute
+    // colour window in the crowd blocks below.
+    // Predictive model: not a physical measurement.
+    if (room.room_type === 'club') {
+      const halfL = room.length_m / 2;
+      const floorYAbs = -room.height_m / 2;
+      const sources = []; // { x, y, z, db1m }
+
+      const topY = floorYAbs + (room.pa_mount_height_m || 3.0);
+      const topHalfX = (room.spk_spacing_m || 6) / 2;
+      const topX = room.listener_offset_m || 0;
+      sources.push({ x: topX - topHalfX, y: topY, z: -halfL + 0.15, db1m: 100 });
+      sources.push({ x: topX + topHalfX, y: topY, z: -halfL + 0.15, db1m: 100 });
+      if (room.rear_pa) {
+        sources.push({ x: topX - topHalfX, y: topY, z: halfL - 0.15, db1m: 100 });
+        sources.push({ x: topX + topHalfX, y: topY, z: halfL - 0.15, db1m: 100 });
+      }
+
+      const binCount = Math.max(0, Math.min(4, room.bass_bin_count ?? 2));
+      if (binCount > 0) {
+        const stackDb = 102 + 10 * Math.log10(binCount);
+        const binY = floorYAbs + 0.6;
+        const placement = room.bass_bin_placement || 'centre';
+        const frontZ = -halfL + (room.spk_front_m || 1.0);
+        const rearZ  =  halfL - (room.spk_front_m || 1.0);
+        if (placement === 'centre') {
+          sources.push({
+            x: (room.listener_offset_m || 0) + (room.booth_offset_m ?? 0),
+            y: binY,
+            z: -halfL + (room.booth_front_m ?? 0.75) * 0.42,
+            db1m: stackDb,
+          });
+        } else {
+          const cornerX = room.width_m / 2 - 0.5;
+          const zs = placement === 'rear_corners' ? [rearZ]
+            : placement === 'both_corners' ? [frontZ, rearZ]
+            : [frontZ];
+          for (const zz of zs) {
+            sources.push({ x: -cornerX, y: binY, z: zz, db1m: stackDb });
+            sources.push({ x:  cornerX, y: binY, z: zz, db1m: stackDb });
+          }
+        }
+      }
+
+      let total = 0;
+      for (const s of sources) {
+        const dist = Math.max(1, Math.hypot(x - s.x, y - s.y, z - s.z));
+        total += Math.pow(10, (s.db1m - 20 * Math.log10(dist)) / 10);
+      }
+      return total > 0 ? 10 * Math.log10(total) : -60;
+    }
+
+    // Non-club (legacy path, unchanged behaviour).
+    const fTweeterY = -room.height_m / 2 + (room.tweeter_height_m || 0.95);
     const offsetX = room.listener_offset_m || 0;
     const spkZ = -room.length_m / 2 + (room.spk_front_m || 0.5);
-    
+
     let totalLevel = 0;
     const count = room.bass_bin_count || 2;
     for (let i = 0; i < count; i++) {
       // rough spacing for mono centre-stack or spaced
       const spkX = offsetX + ((i - (count-1)/2) * (room.spk_spacing_m || 1.5) / Math.max(1, count-1));
-      
+
       const dx = x - spkX;
       const dy = y - fTweeterY;
       const dz = z - spkZ;
       const distSq = dx*dx + dy*dy + dz*dz;
       const dist = Math.sqrt(distSq);
-      
+
       // Inverse square falloff (avoid div by zero, base 0 at 1m is 100dB arbitrary)
       const level = 100 - 20 * Math.log10(Math.max(dist, 1));
       // Convert dB to linear energy to sum
@@ -6406,16 +6465,22 @@ export function initRoom3D({
       const colGold = new THREE.Color('#ffd166');
       const colPink = new THREE.Color('#ff2d78');
       
-      let minDb = Infinity;
-      let maxDb = -Infinity;
-      const dbLevels = instances.map(inst => {
-        const db = getLevelAtPosition(inst.x, floorY + 1.0, inst.z, room);
-        if (db < minDb) minDb = db;
-        if (db > maxDb) maxDb = db;
-        return db;
-      });
+      const dbLevels = instances.map(inst =>
+        getLevelAtPosition(inst.x, floorY + 1.0, inst.z, room)
+      );
 
-      const dbRange = Math.max(0.1, maxDb - minDb);
+      // ABSOLUTE colour window, not per-room min/max normalisation.
+      // Normalising to the room's own range always stretched the full
+      // teal→pink palette across the floor regardless of how big the
+      // system was — adding a rear PA or corner bin stacks changed
+      // nothing visually. Anchoring to fixed dB (matched to the nominal
+      // 100/102 dB @1m source anchors in getLevelAtPosition) means a
+      // bigger rig genuinely runs the crowd hotter/pinker and a small
+      // one stays teal at the back.
+      const CROWD_DB_COOL = 88;
+      const CROWD_DB_HOT  = 106;
+      const dbRange = CROWD_DB_HOT - CROWD_DB_COOL;
+      const minDb = CROWD_DB_COOL;
 
       for (let i = 0; i < count; i++) {
         const inst = instances[i];
@@ -6435,7 +6500,7 @@ export function initRoom3D({
         headMesh.setMatrixAt(i, dummy.matrix);
 
         // Colour mapping based on level
-        const frac = (dbLevels[i] - minDb) / dbRange;
+        const frac = Math.min(1, Math.max(0, (dbLevels[i] - minDb) / dbRange));
         const col = new THREE.Color();
         if (frac < 0.5) {
           col.lerpColors(colTeal, colGold, frac * 2);
@@ -6587,16 +6652,22 @@ export function initRoom3D({
       const colGold = new THREE.Color('#ffd166');
       const colPink = new THREE.Color('#ff2d78');
       
-      let minDb = Infinity;
-      let maxDb = -Infinity;
-      const dbLevels = instances.map(inst => {
-        const db = getLevelAtPosition(inst.x, floorY + 1.0, inst.z, room);
-        if (db < minDb) minDb = db;
-        if (db > maxDb) maxDb = db;
-        return db;
-      });
+      const dbLevels = instances.map(inst =>
+        getLevelAtPosition(inst.x, floorY + 1.0, inst.z, room)
+      );
 
-      const dbRange = Math.max(0.1, maxDb - minDb);
+      // ABSOLUTE colour window, not per-room min/max normalisation.
+      // Normalising to the room's own range always stretched the full
+      // teal→pink palette across the floor regardless of how big the
+      // system was — adding a rear PA or corner bin stacks changed
+      // nothing visually. Anchoring to fixed dB (matched to the nominal
+      // 100/102 dB @1m source anchors in getLevelAtPosition) means a
+      // bigger rig genuinely runs the crowd hotter/pinker and a small
+      // one stays teal at the back.
+      const CROWD_DB_COOL = 88;
+      const CROWD_DB_HOT  = 106;
+      const dbRange = CROWD_DB_HOT - CROWD_DB_COOL;
+      const minDb = CROWD_DB_COOL;
 
       for (let i = 0; i < count; i++) {
         const inst = instances[i];
@@ -6616,7 +6687,7 @@ export function initRoom3D({
         headMesh.setMatrixAt(i, dummy.matrix);
 
         // Colour mapping based on level
-        const frac = (dbLevels[i] - minDb) / dbRange;
+        const frac = Math.min(1, Math.max(0, (dbLevels[i] - minDb) / dbRange));
         const col = new THREE.Color();
         if (frac < 0.5) {
           col.lerpColors(colTeal, colGold, frac * 2);
@@ -6768,16 +6839,22 @@ export function initRoom3D({
       const colGold = new THREE.Color('#ffd166');
       const colPink = new THREE.Color('#ff2d78');
       
-      let minDb = Infinity;
-      let maxDb = -Infinity;
-      const dbLevels = instances.map(inst => {
-        const db = getLevelAtPosition(inst.x, floorY + 1.0, inst.z, room);
-        if (db < minDb) minDb = db;
-        if (db > maxDb) maxDb = db;
-        return db;
-      });
+      const dbLevels = instances.map(inst =>
+        getLevelAtPosition(inst.x, floorY + 1.0, inst.z, room)
+      );
 
-      const dbRange = Math.max(0.1, maxDb - minDb);
+      // ABSOLUTE colour window, not per-room min/max normalisation.
+      // Normalising to the room's own range always stretched the full
+      // teal→pink palette across the floor regardless of how big the
+      // system was — adding a rear PA or corner bin stacks changed
+      // nothing visually. Anchoring to fixed dB (matched to the nominal
+      // 100/102 dB @1m source anchors in getLevelAtPosition) means a
+      // bigger rig genuinely runs the crowd hotter/pinker and a small
+      // one stays teal at the back.
+      const CROWD_DB_COOL = 88;
+      const CROWD_DB_HOT  = 106;
+      const dbRange = CROWD_DB_HOT - CROWD_DB_COOL;
+      const minDb = CROWD_DB_COOL;
 
       for (let i = 0; i < count; i++) {
         const inst = instances[i];
@@ -6797,7 +6874,7 @@ export function initRoom3D({
         headMesh.setMatrixAt(i, dummy.matrix);
 
         // Colour mapping based on level
-        const frac = (dbLevels[i] - minDb) / dbRange;
+        const frac = Math.min(1, Math.max(0, (dbLevels[i] - minDb) / dbRange));
         const col = new THREE.Color();
         if (frac < 0.5) {
           col.lerpColors(colTeal, colGold, frac * 2);
