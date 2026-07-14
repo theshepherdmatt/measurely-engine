@@ -2435,8 +2435,14 @@ export function initRoom3D({
           spkGroup.add(base);
         }
 
-        // Initial toe-in (may be overridden by _applyAutoToe after rebuild)
-        spkGroup.rotation.y = (logicalSide === "L" ? 1 : -1) * toeRad;
+        // Initial toe-in (may be overridden by _applyAutoToe after rebuild).
+        // Rear pair needs the toe SIGN negated: adding the +π yaw flip
+        // below (needed so it faces into the room from the back wall
+        // instead of firing into it) also reverses which sign of yaw
+        // points the forward vector inward vs outward — same composition
+        // quirk as the tilt fix above. Without this, rear toes out while
+        // front toes in.
+        spkGroup.rotation.y = (logicalSide === "L" ? 1 : -1) * toeRad * (isRear ? -1 : 1);
         // Rear pair mounts on the back wall facing the opposite direction
         // from the front pair (into the room from the other end) — without
         // this flip they'd face into the back wall, firing away from the
