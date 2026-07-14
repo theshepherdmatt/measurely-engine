@@ -3536,7 +3536,11 @@ export function initRoom3D({
       // 'corners': two mono stacks (same stackCount each), one flanking
       // each front corner instead — a common alternative for wider floors
       // where a single centre stack can't cover the corners evenly.
-      const placement = room.bass_bin_placement === 'corners' ? 'corners' : 'centre';
+      // 'rear_corners': same two-stack layout, mirrored to the back wall
+      // instead — fill/reinforcement for the far end of a long, deep floor.
+      const placement = room.bass_bin_placement === 'corners' ? 'corners'
+        : room.bass_bin_placement === 'rear_corners' ? 'rear_corners'
+        : 'centre';
 
       if (stackCount > 0) {
         const binProfile = getSpeakerProfile('bass_bin');
@@ -3551,6 +3555,8 @@ export function initRoom3D({
         // loading, not the booth's position.
         const stackZ = placement === 'centre'
           ? -room.length_m / 2 + (room.booth_front_m ?? 0.75) * 0.42
+          : placement === 'rear_corners'
+          ? room.length_m / 2 - room.spk_front_m
           : -room.length_m / 2 + room.spk_front_m;
         const floorY = -room.height_m / 2;
 
@@ -3592,7 +3598,7 @@ export function initRoom3D({
         }
 
         const stackCentres = [];
-        const isCorners = placement === 'corners';
+        const isCorners = placement === 'corners' || placement === 'rear_corners';
         if (isCorners) {
           const cornerInset = binProfile.w / 2 + 0.2; // clearance off the side wall, upright footprint
           const halfW = room.width_m / 2;
