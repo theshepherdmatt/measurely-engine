@@ -6193,7 +6193,7 @@ export function initRoom3D({
         window.MeasurelyRoom3D.crowdFootprint = {
           count,
           bounds: { xStart, xEnd, zStart, zEnd },
-          densityMultiplier
+          crowd_limit: room.crowd_limit
         };
       }
 
@@ -6351,7 +6351,7 @@ export function initRoom3D({
         window.MeasurelyRoom3D.crowdFootprint = {
           count,
           bounds: { xStart, xEnd, zStart, zEnd },
-          densityMultiplier
+          crowd_limit: room.crowd_limit
         };
       }
 
@@ -6509,7 +6509,7 @@ export function initRoom3D({
         window.MeasurelyRoom3D.crowdFootprint = {
           count,
           bounds: { xStart, xEnd, zStart, zEnd },
-          densityMultiplier
+          crowd_limit: room.crowd_limit
         };
       }
 
