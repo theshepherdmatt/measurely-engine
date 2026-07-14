@@ -1606,26 +1606,36 @@
     };
   }
 
-  // ── Section — Club: dance floor capacity + bass bin count ─────────────────
-  // Club-only. Capacity is a derived readout (area × density-per-m²), not a
-  // slider — caller pushes floor area in via setArea() whenever the room
-  // width/length sliders (renderRoomSection) change, since the dance floor
-  // *is* the room floor for this room_type.
-  //   renderClubSection(mountId, { state: { density, area_m2 }, onChange })
+  // ── Section — Club: dance floor capacity ───────────────────────────────────
+  // Club-only. Crowd limit is capped by room floor area (packed density,
+  // 4 people/m² — the "up to 4 packed" figure from the club brief) so the
+  // slider can't be set higher than the floor can actually hold. Caller
+  // pushes floor area in via setArea() whenever the room width/length
+  // sliders (renderRoomSection) change, since the dance floor *is* the
+  // room floor for this room_type.
+  //   renderClubSection(mountId, { state: { crowd_limit, crowd_start_m, area_m2 }, onChange })
   function renderClubSection(mountId, { state = {}, onChange } = {}) {
     const mount = _mount(mountId);
     if (!mount) return null;
 
+    const PACKED_DENSITY = 4; // people/m² — see brief: 2/m² comfortable, up to 4/m² packed
     const cur = {
       crowd_limit: state.crowd_limit ?? 200,
+      crowd_start_m: state.crowd_start_m ?? 1.0,
     };
     let areaM2 = state.area_m2 ?? 0;
 
     const wrap = _el('div', { style: 'display:flex;flex-direction:column;gap:12px;' });
 
+    const maxReadout = _el('div', {
+      style: 'font-size:0.72rem;color:var(--rt-text-muted,#888);line-height:1.4;'
+    });
+    wrap.appendChild(maxReadout);
+
     const { wrap: limitWrap, slider: limitSlider, val: limitVal } = _sliderField({
       label: 'Crowd limit', id: 'scl-crowd-limit',
-      min: 50, max: 500, step: 50, value: cur.crowd_limit, unit: ' people', decimals: 0,
+      min: 50, max: Math.max(50, Math.round(areaM2 * PACKED_DENSITY)) || 500, step: 50,
+      value: cur.crowd_limit, unit: ' people', decimals: 0,
       ariaLabel: 'Crowd limit',
     });
     limitSlider.addEventListener('input', () => {
@@ -1637,6 +1647,41 @@
     });
     wrap.appendChild(limitWrap);
 
+    // Where the crowd zone starts, measured from the front wall — pull it
+    // back toward room centre, or push it up near the booth. The zone
+    // still automatically routes around the booth footprint itself
+    // (room3d.js), so this doesn't let the crowd overlap the desk even
+    // at low values.
+    const { wrap: startWrap, slider: startSlider, val: startVal } = _sliderField({
+      label: 'Crowd starts from front wall', id: 'scl-crowd-start',
+      min: 0.5, max: 6.0, step: 0.25, value: cur.crowd_start_m, unit: 'm', decimals: 2,
+      ariaLabel: 'Crowd start distance from front wall',
+    });
+    startSlider.addEventListener('input', () => {
+      const v = parseFloat(startSlider.value);
+      cur.crowd_start_m = v;
+      startVal.textContent = formatLength(v, 2);
+      _updateSliderFill(startSlider);
+      onChange?.({ ...cur });
+    });
+    wrap.appendChild(startWrap);
+
+    function _updateCapacity() {
+      const maxCap = Math.max(50, Math.round(areaM2 * PACKED_DENSITY));
+      maxReadout.textContent = areaM2 > 0
+        ? `Max ${maxCap} people (${Math.round(areaM2)} m² floor × ${PACKED_DENSITY}/m² packed)`
+        : '';
+      limitSlider.max = String(maxCap);
+      if (cur.crowd_limit > maxCap) {
+        cur.crowd_limit = maxCap;
+        limitSlider.value = String(maxCap);
+        limitVal.textContent = String(maxCap) + ' people';
+        _updateSliderFill(limitSlider);
+        onChange?.({ ...cur });
+      }
+    }
+    _updateCapacity();
+
     mount.appendChild(wrap);
 
     return {
@@ -1645,6 +1690,10 @@
         limitSlider.value = String(cur.crowd_limit);
         limitVal.textContent = String(cur.crowd_limit) + ' people';
         _updateSliderFill(limitSlider);
+        cur.crowd_start_m = state.crowd_start_m ?? 1.0;
+        startSlider.value = String(cur.crowd_start_m);
+        startVal.textContent = formatLength(cur.crowd_start_m, 2);
+        _updateSliderFill(startSlider);
       },
       // Pushed by the caller whenever room width/length change — the dance
       // floor area comes from the room geometry section, not a slider here.
