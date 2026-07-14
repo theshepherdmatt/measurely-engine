@@ -2434,7 +2434,7 @@ export function initRoom3D({
           // fixed angle — the tilt is *derived* from mount height and the
           // distance to that point, so raising/lowering the bracket (or
           // resizing the room) keeps the aim correct automatically.
-          const EAR_HEIGHT_M = 1.7;
+          const EAR_HEIGHT_M = 2.4;
           const targetY = baseY + EAR_HEIGHT_M;
           const targetZ = -room.length_m / 2 + (room.listener_front_m || room.length_m / 2);
           const tiltRad = Math.atan2(y - targetY, targetZ - z);
@@ -6199,7 +6199,7 @@ export function initRoom3D({
       const floorY = -room.height_m / 2 + 0.005;
       const _effTweeterY = room.room_type === 'club' ? (room.pa_mount_height_m || 3.0) : (room.tweeter_height_m || 0.95);
       const fTweeterY = -room.height_m / 2 + _effTweeterY;
-      const _effEarY = room.room_type === 'club' ? 1.7 : 1.0;
+      const _effEarY = room.room_type === 'club' ? 2.4 : 1.0;
       const fEarY = -room.height_m / 2 + _effEarY;
       const fListZ = -room.length_m / 2 + room.listener_front_m;
 
@@ -6602,7 +6602,7 @@ export function initRoom3D({
       const _effectiveHeadHeight = _isStudio ? 1.22 : 0.82;
       const _seatType = room.seating_type || 'sofa';
       const _sphereZ  = room.room_type === 'club' ? 0 : (_isStudio ? 0.20 : (_seatType === 'lounge' ? 0.38 : 0.28));
-      const _sphereY  = room.room_type === 'club' ? 1.7 : (_isStudio ? _effectiveHeadHeight : (_seatType === 'lounge' ? 1.00 : 0.96));
+      const _sphereY  = room.room_type === 'club' ? 2.4 : (_isStudio ? _effectiveHeadHeight : (_seatType === 'lounge' ? 1.00 : 0.96));
       const listenerPos = new THREE.Vector3(
         offsetX + (room.listener_offset_m || 0),
         -halfH + _sphereY,
