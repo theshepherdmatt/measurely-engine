@@ -6651,6 +6651,12 @@ export function initRoom3D({
       const CROWD_DB_HOT  = 106;
       const dbRange = CROWD_DB_HOT - CROWD_DB_COOL;
       const minDb = CROWD_DB_COOL;
+      // "Red" coverage — genuinely deep in the pink band, not just
+      // entering it — matches the PA Estimate's 105 dB target. Exposed
+      // as a live percentage so an installer sees floor coverage rise
+      // as they add tops/bins, fall as they thin the rig out.
+      const COVERAGE_DB_THRESHOLD = CROWD_DB_HOT - 4; // ~102 dB
+      let _litCount = 0;
 
       for (let i = 0; i < count; i++) {
         const inst = instances[i];
@@ -6676,6 +6682,7 @@ export function initRoom3D({
         // the rig) visibly makes people dance harder — dead zones read
         // as people standing still, not just cooler colours.
         inst.energy = frac;
+        if (dbLevels[i] >= COVERAGE_DB_THRESHOLD) _litCount++;
         const col = new THREE.Color();
         if (frac < 0.5) {
           col.lerpColors(colTeal, colGold, frac * 2);
@@ -6688,6 +6695,15 @@ export function initRoom3D({
         if (_discoEnabled) col.multiplyScalar(0.35);
         bodyMesh.setColorAt(i, col);
         headMesh.setColorAt(i, col);
+      }
+
+      if (typeof window !== 'undefined') {
+        window.MeasurelyRoom3D = window.MeasurelyRoom3D || {};
+        window.MeasurelyRoom3D.crowdCoverage = {
+          count,
+          litCount: _litCount,
+          pct: count ? _litCount / count : 0,
+        };
       }
 
       bodyMesh.instanceMatrix.needsUpdate = true;
@@ -6843,6 +6859,12 @@ export function initRoom3D({
       const CROWD_DB_HOT  = 106;
       const dbRange = CROWD_DB_HOT - CROWD_DB_COOL;
       const minDb = CROWD_DB_COOL;
+      // "Red" coverage — genuinely deep in the pink band, not just
+      // entering it — matches the PA Estimate's 105 dB target. Exposed
+      // as a live percentage so an installer sees floor coverage rise
+      // as they add tops/bins, fall as they thin the rig out.
+      const COVERAGE_DB_THRESHOLD = CROWD_DB_HOT - 4; // ~102 dB
+      let _litCount = 0;
 
       for (let i = 0; i < count; i++) {
         const inst = instances[i];
@@ -6868,6 +6890,7 @@ export function initRoom3D({
         // the rig) visibly makes people dance harder — dead zones read
         // as people standing still, not just cooler colours.
         inst.energy = frac;
+        if (dbLevels[i] >= COVERAGE_DB_THRESHOLD) _litCount++;
         const col = new THREE.Color();
         if (frac < 0.5) {
           col.lerpColors(colTeal, colGold, frac * 2);
@@ -6880,6 +6903,15 @@ export function initRoom3D({
         if (_discoEnabled) col.multiplyScalar(0.35);
         bodyMesh.setColorAt(i, col);
         headMesh.setColorAt(i, col);
+      }
+
+      if (typeof window !== 'undefined') {
+        window.MeasurelyRoom3D = window.MeasurelyRoom3D || {};
+        window.MeasurelyRoom3D.crowdCoverage = {
+          count,
+          litCount: _litCount,
+          pct: count ? _litCount / count : 0,
+        };
       }
 
       bodyMesh.instanceMatrix.needsUpdate = true;
@@ -7035,6 +7067,12 @@ export function initRoom3D({
       const CROWD_DB_HOT  = 106;
       const dbRange = CROWD_DB_HOT - CROWD_DB_COOL;
       const minDb = CROWD_DB_COOL;
+      // "Red" coverage — genuinely deep in the pink band, not just
+      // entering it — matches the PA Estimate's 105 dB target. Exposed
+      // as a live percentage so an installer sees floor coverage rise
+      // as they add tops/bins, fall as they thin the rig out.
+      const COVERAGE_DB_THRESHOLD = CROWD_DB_HOT - 4; // ~102 dB
+      let _litCount = 0;
 
       for (let i = 0; i < count; i++) {
         const inst = instances[i];
@@ -7060,6 +7098,7 @@ export function initRoom3D({
         // the rig) visibly makes people dance harder — dead zones read
         // as people standing still, not just cooler colours.
         inst.energy = frac;
+        if (dbLevels[i] >= COVERAGE_DB_THRESHOLD) _litCount++;
         const col = new THREE.Color();
         if (frac < 0.5) {
           col.lerpColors(colTeal, colGold, frac * 2);
@@ -7072,6 +7111,15 @@ export function initRoom3D({
         if (_discoEnabled) col.multiplyScalar(0.35);
         bodyMesh.setColorAt(i, col);
         headMesh.setColorAt(i, col);
+      }
+
+      if (typeof window !== 'undefined') {
+        window.MeasurelyRoom3D = window.MeasurelyRoom3D || {};
+        window.MeasurelyRoom3D.crowdCoverage = {
+          count,
+          litCount: _litCount,
+          pct: count ? _litCount / count : 0,
+        };
       }
 
       bodyMesh.instanceMatrix.needsUpdate = true;
@@ -10890,6 +10938,12 @@ export function initRoom3D({
     // and measurely-web rely on). No consumer of the engine library uses
     // these; if that changes, treat them as internal and prefer adding a
     // higher-level api method instead.
+    // Club dance-floor coverage: fraction of crowd instances at or above
+    // the ~102 dB "red" threshold, recomputed every rebuild(). null
+    // before the first crowd render (e.g. non-club rooms).
+    getCrowdCoverage() {
+      return (typeof window !== 'undefined' && window.MeasurelyRoom3D?.crowdCoverage) || null;
+    },
     getCamera()   { return camera; },
     getControls() { return controls; },
     getRenderer() { return renderer; },
