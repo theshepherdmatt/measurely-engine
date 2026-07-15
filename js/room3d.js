@@ -3445,62 +3445,9 @@ export function initRoom3D({
       booth.position.set(boothX, boothFloorY + rugRaise, boothZ);
       roomGroup.add(booth);
 
-      // DJ monitors — pole-mounted at each outer corner of the table (DJ
-      // side, opposite the crowd-facing facade), angled inward toward the
-      // DJ. Built directly in world space, not nested inside the booth
-      // group: booth.scale is non-uniform (BOOTH_FOOTPRINT_SCALE, 0.42 on
-      // X/Z, 1 on Y), and a circle drawn in a child's local XY plane comes
-      // out squashed into an ellipse under that transform (X compressed,
-      // Y untouched) — that's what happened when these were built inside
-      // _buildDJBooth(). World-space placement sidesteps the distortion
-      // entirely, same approach as the DJ figure below. Position/yaw are
-      // boothX/boothZ plus the same local-offset-then-180°-flip math the
-      // booth itself goes through, worked out by hand since there's no
-      // shared transform helper for it.
-      const MONITOR_YAW = 0.55; // ~31°, inward toward table centre
-      const monCabW = 0.20, monCabD = 0.20, monCabH = 0.24;
-      const monPoleH = 0.16, monPoleFootprint = 0.04;
-      // Matches _buildDJBooth()'s RISER_H -- duplicated for the same
-      // reason BOOTH_FOOTPRINT_SCALE is: that constant lives in the other
-      // function's scope. Must track the same dj_riser_enabled toggle.
-      const monRiserH = room.dj_riser_enabled !== false ? 0.15 : 0;
-      const monCabMat = new THREE.LineBasicMaterial({ color: 0x2a2a28, transparent: true, opacity: Math.max(OP_OBJ, 0.80) });
-      // Matches _buildDJBooth()'s deskW-dependent outer leg position --
-      // 3.6 for the 7.6m-wide 4-deck desk, 2.0 for the 4.4m-wide 2-deck
-      // desk (same ratio: leg inset 0.2 from the table edge).
-      const monOuterX = (room.deck_config || 'both') === 'both' ? 3.6 : 2.0;
-      // Tracks _buildDJBooth()'s DESK_FORWARD (-0.7 local) — the monitors
-      // sit on the desk, so they ride forward with it. Duplicated literal
-      // for the same scope reason as BOOTH_FOOTPRINT_SCALE above.
-      const DESK_FORWARD_LOCAL = -0.7;
-      [-1, 1].forEach(sign => {
-        const localX = sign * monOuterX, localZ = -0.65 + DESK_FORWARD_LOCAL;
-        const worldX = boothX - localX * BOOTH_FOOTPRINT_SCALE; // Ry(pi) flips the sign
-        const worldZ = boothZ + (-localZ) * BOOTH_FOOTPRINT_SCALE;
-
-        const monGroup = new THREE.Group();
-        monGroup.position.set(worldX, boothFloorY + rugRaise + monRiserH + 1.06, worldZ);
-        monGroup.rotation.y = Math.PI - sign * MONITOR_YAW; // booth's 180° flip + inward toe
-        roomGroup.add(monGroup);
-
-        const pole = new THREE.LineSegments(
-          new THREE.EdgesGeometry(new THREE.BoxGeometry(monPoleFootprint, monPoleH, monPoleFootprint)),
-          monCabMat
-        );
-        pole.position.y = monPoleH / 2;
-        monGroup.add(pole);
-
-        const cabinet = new THREE.Group();
-        cabinet.position.y = monPoleH + monCabH / 2;
-        cabinet.add(new THREE.LineSegments(
-          new THREE.EdgesGeometry(new THREE.BoxGeometry(monCabW, monCabH, monCabD)), monCabMat
-        ));
-        // Single small driver, not the wall speaker's woofer+tweeter pair
-        // — a nearfield monitor this size reads as one full-range unit.
-        _makeConeDriver(0, 0, monCabD / 2 + 0.002, monCabW * 0.16, false, 0x2a2a28, Math.max(OP_OBJ, 0.80))
-          .forEach(o => cabinet.add(o));
-        monGroup.add(cabinet);
-      });
+      // (DJ booth monitors removed — the pole-mounted nearfield pair at
+      // the table corners read as clutter at venue scale and added no
+      // acoustic information; the PA is the modelled system.)
 
       // DJ Avatar — gated on the same Crowd toggle as the dance floor:
       // with the crowd off the view is "empty venue / rig inspection",
@@ -3547,13 +3494,16 @@ export function initRoom3D({
         djHead.add(cup);
       });
 
-      // Stand 0.5m behind the booth, on top of the riser platform (+
-      // monRiserH — boothX (not offsetX) so the DJ follows the booth's
-      // left/right offset slider instead of always sitting at room centre
-      // regardless of where the booth actually is.
+      // Stand 0.5m behind the booth, on top of the riser platform —
+      // boothX (not offsetX) so the DJ follows the booth's left/right
+      // offset slider instead of always sitting at room centre.
+      // Riser height matches _buildDJBooth()'s RISER_H (duplicated for
+      // the same scope reason as BOOTH_FOOTPRINT_SCALE) and tracks the
+      // dj_riser_enabled toggle.
       // -0.5 behind the desk's original spot, +0.294 (DESK_FORWARD 0.7
       // local x 0.42 footprint scale) so the DJ follows the desk forward.
-      djGroup.position.set(boothX, boothFloorY + rugRaise + monRiserH, boothZ - 0.5 + 0.7 * 0.42);
+      const djRiserH = room.dj_riser_enabled !== false ? 0.15 : 0;
+      djGroup.position.set(boothX, boothFloorY + rugRaise + djRiserH, boothZ - 0.5 + 0.7 * 0.42);
 
       // Animation flags
       const phase = Math.random() * Math.PI * 2;
