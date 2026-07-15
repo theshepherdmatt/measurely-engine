@@ -1712,6 +1712,15 @@
     return { topsPerSide, subCount, coverageDeg, throw_m };
   }
 
+  // Shared normaliser: bass_bin_placement accepts a legacy string
+  // ('centre'/'corners'/'rear_corners'/'both_corners') or the current
+  // array-of-keys form; always returns a non-empty array.
+  function _normaliseBinPlacement(p) {
+    if (Array.isArray(p)) return p.length ? [...p] : ['centre'];
+    if (p === 'both_corners') return ['corners', 'rear_corners'];
+    return [p || 'centre'];
+  }
+
   function renderClubSpeakersSection(mountId, { state = {}, onChange } = {}) {
     const mount = _mount(mountId);
     if (!mount) return null;
@@ -1721,7 +1730,11 @@
       pa_mount_height_m:  state.pa_mount_height_m  ?? 3.0,
       toe_in_deg:         state.toe_in_deg         ?? 10,
       rear_pa:            state.rear_pa            ?? false,
-      bass_bin_placement: state.bass_bin_placement ?? 'centre',
+      // Multi-select: an ARRAY of placement keys ('centre' | 'corners' |
+      // 'rear_corners') so stacks can combine — e.g. centre under the
+      // booth PLUS rear-corner fill towers. Legacy string values (incl.
+      // 'both_corners') are normalised to the array form here.
+      bass_bin_placement: _normaliseBinPlacement(state.bass_bin_placement),
       bass_bin_count:     state.bass_bin_count     ?? 2,
       spk_front_m:        state.spk_front_m        ?? 1.0,
       width_m:            state.width_m             ?? 10,
@@ -1779,22 +1792,40 @@
     const binPlacementHdr = _el('div', { class: 'demo-field-header' });
     binPlacementHdr.appendChild(_el('span', { class: 'demo-field-label' }, 'Bass Bin Placement'));
     binPlacementWrap.appendChild(binPlacementHdr);
-    const binPlacementGroup = _btnGroup(
-      [
-        { key: 'centre',       label: 'Centre', title: 'Single mono stack under the booth' },
-        { key: 'corners',      label: 'Front',   title: 'Split the stack to both front corners' },
-        { key: 'rear_corners', label: 'Rear',    title: 'Split the stack to both rear corners (fill for a long floor)' },
-        { key: 'both_corners', label: 'Both',    title: 'Stack at all four corners (front + rear)' },
-      ],
-      cur.bass_bin_placement,
-      (key) => { cur.bass_bin_placement = key; onChange?.({ ...cur }); }
-    );
-    // Even 4-across grid instead of the default flex-wrap, which broke
-    // into a lopsided 2x2 once a 4th ("Both") option was added.
-    binPlacementGroup.row.style.display = 'grid';
-    binPlacementGroup.row.style.gridTemplateColumns = 'repeat(4, 1fr)';
-    binPlacementGroup.row.style.gap = '5px';
-    binPlacementWrap.appendChild(binPlacementGroup.row);
+    // Multi-select toggle row (not _btnGroup, which is exclusive): each
+    // placement toggles independently so stacks combine — centre under
+    // the booth plus rear fill towers, etc. The old exclusive "Both"
+    // option is gone; Front + Rear toggled together covers it. At least
+    // one placement stays active (clicking the last active one is a
+    // no-op) — bass_bin_count still controls how many bins per stack.
+    const binPlacementRow = _el('div', { class: 'demo-btn-row' });
+    const binPlacementBtns = {};
+    [
+      { key: 'centre',       label: 'Centre', title: 'Mono stack under the booth' },
+      { key: 'corners',      label: 'Front',  title: 'Stacks at both front corners' },
+      { key: 'rear_corners', label: 'Rear',   title: 'Stacks at both rear corners (fill for a long floor)' },
+    ].forEach(({ key, label, title }) => {
+      const btn = _el('button', {
+        class: 'sbox-btn' + (cur.bass_bin_placement.includes(key) ? ' active' : ''),
+        type: 'button',
+        title,
+      }, label);
+      btn.addEventListener('click', () => {
+        const has = cur.bass_bin_placement.includes(key);
+        if (has && cur.bass_bin_placement.length === 1) return; // keep one
+        cur.bass_bin_placement = has
+          ? cur.bass_bin_placement.filter(k => k !== key)
+          : [...cur.bass_bin_placement, key];
+        btn.classList.toggle('active', !has);
+        onChange?.({ ...cur });
+      });
+      binPlacementBtns[key] = btn;
+      binPlacementRow.appendChild(btn);
+    });
+    binPlacementRow.style.display = 'grid';
+    binPlacementRow.style.gridTemplateColumns = 'repeat(3, 1fr)';
+    binPlacementRow.style.gap = '5px';
+    binPlacementWrap.appendChild(binPlacementRow);
     wrap.appendChild(binPlacementWrap);
 
     // Buttons, not a slider -- 2/3/4 is a small, discrete set (matching

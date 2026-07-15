@@ -327,22 +327,27 @@ export function initRoom3D({
       if (binCount > 0) {
         const stackDb = 102 + 10 * Math.log10(binCount);
         const binY = floorYAbs + 0.6;
-        const placement = room.bass_bin_placement || 'centre';
+        // Placement is a multi-select array (legacy strings normalised) —
+        // every active stack contributes a source, so combined layouts
+        // (centre + rear fill towers, etc.) sum correctly.
+        const _rawPlacement = room.bass_bin_placement;
+        const placements = Array.isArray(_rawPlacement)
+          ? (_rawPlacement.length ? _rawPlacement : ['centre'])
+          : _rawPlacement === 'both_corners' ? ['corners', 'rear_corners']
+          : [_rawPlacement || 'centre'];
         const frontZ = -halfL + (room.spk_front_m || 1.0);
         const rearZ  =  halfL - (room.spk_front_m || 1.0);
-        if (placement === 'centre') {
-          sources.push({
-            x: (room.listener_offset_m || 0) + (room.booth_offset_m ?? 0),
-            y: binY,
-            z: -halfL + (room.booth_front_m ?? 0.75) * 0.42,
-            db1m: stackDb,
-          });
-        } else {
-          const cornerX = room.width_m / 2 - 0.5;
-          const zs = placement === 'rear_corners' ? [rearZ]
-            : placement === 'both_corners' ? [frontZ, rearZ]
-            : [frontZ];
-          for (const zz of zs) {
+        const cornerX = room.width_m / 2 - 0.5;
+        for (const placement of placements) {
+          if (placement === 'centre') {
+            sources.push({
+              x: (room.listener_offset_m || 0) + (room.booth_offset_m ?? 0),
+              y: binY,
+              z: -halfL + (room.booth_front_m ?? 0.75) * 0.42,
+              db1m: stackDb,
+            });
+          } else {
+            const zz = placement === 'rear_corners' ? rearZ : frontZ;
             sources.push({ x: -cornerX, y: binY, z: zz, db1m: stackDb });
             sources.push({ x:  cornerX, y: binY, z: zz, db1m: stackDb });
           }
@@ -3688,17 +3693,20 @@ export function initRoom3D({
     ------------------------------------------ */
     if (room.room_type === 'club' && (renderStage === 'speakers' || renderStage === 'furnishings')) {
       const stackCount = Math.max(0, Math.min(4, room.bass_bin_count ?? 2));
-      // 'centre' (default): one mono stack under the booth, at room centre.
+      // Placements combine (multi-select array from SCL; legacy strings
+      // normalised here):
+      // 'centre': one mono stack under the booth, at room centre.
       // 'corners': two mono stacks (same stackCount each), one flanking
-      // each front corner instead — a common alternative for wider floors
+      // each front corner — a common alternative for wider floors
       // where a single centre stack can't cover the corners evenly.
       // 'rear_corners': same two-stack layout, mirrored to the back wall
-      // instead — fill/reinforcement for the far end of a long, deep floor.
-      // 'both_corners': all four corners at once (front + rear stacked).
-      const placement = room.bass_bin_placement === 'corners' ? 'corners'
-        : room.bass_bin_placement === 'rear_corners' ? 'rear_corners'
-        : room.bass_bin_placement === 'both_corners' ? 'both_corners'
-        : 'centre';
+      // — fill/reinforcement for the far end of a long, deep floor.
+      // Any combination can be active at once (centre + rear fill, etc.).
+      const _rawPlacement = room.bass_bin_placement;
+      const placements = Array.isArray(_rawPlacement)
+        ? (_rawPlacement.length ? _rawPlacement : ['centre'])
+        : _rawPlacement === 'both_corners' ? ['corners', 'rear_corners']
+        : [_rawPlacement || 'centre'];
 
       if (stackCount > 0) {
         const binProfile = getSpeakerProfile('bass_bin');
@@ -3713,13 +3721,6 @@ export function initRoom3D({
         // loading, not the booth's position.
         const frontZ = -room.length_m / 2 + room.spk_front_m;
         const rearZ  =  room.length_m / 2 - room.spk_front_m;
-        // Z positions to stack at: centre uses the booth-tracked spot,
-        // front/rear-corners use one wall, both_corners uses both.
-        const stackZs = placement === 'centre'
-          ? [-room.length_m / 2 + (room.booth_front_m ?? 0.75) * 0.42]
-          : placement === 'rear_corners' ? [rearZ]
-          : placement === 'both_corners' ? [frontZ, rearZ]
-          : [frontZ];
         const floorY = -room.height_m / 2;
 
         const maxCols = 4;
@@ -3763,21 +3764,28 @@ export function initRoom3D({
           }
         }
 
-        const stackCentres = [];
-        const isCorners = placement !== 'centre';
-        if (isCorners) {
-          const cornerInset = binProfile.w / 2 + 0.2; // clearance off the side wall, upright footprint
-          const halfW = room.width_m / 2;
-          stackCentres.push(-(halfW - cornerInset), (halfW - cornerInset));
-        } else {
-          // Centre stack sits under the booth, so it follows the booth's
-          // left/right offset too. Corners modes (above) are anchored to
-          // the room's side walls instead and ignore this.
-          stackCentres.push(offsetX + (room.booth_offset_m ?? 0));
-        }
-        for (const z of stackZs) {
-          const facingRear = z === rearZ;
-          stackCentres.forEach(cx => _buildStackAt(cx, z, isCorners, facingRear));
+        // One build pass per active placement, so any combination of
+        // centre / front-corner / rear-corner stacks coexists. Positions
+        // are collected for the sub wave rings below.
+        const cornerInset = binProfile.w / 2 + 0.2; // clearance off the side wall, upright footprint
+        const cornerXs = [-(room.width_m / 2 - cornerInset), room.width_m / 2 - cornerInset];
+        const stackPositions = []; // { x, z }
+        for (const placement of placements) {
+          if (placement === 'centre') {
+            // Centre stack sits under the booth, so it follows the booth's
+            // left/right offset too. Corner placements are anchored to
+            // the room's side walls instead and ignore this.
+            const centreZ = -room.length_m / 2 + (room.booth_front_m ?? 0.75) * 0.42;
+            const centreX = offsetX + (room.booth_offset_m ?? 0);
+            _buildStackAt(centreX, centreZ, false, false);
+            stackPositions.push({ x: centreX, z: centreZ });
+          } else {
+            const z = placement === 'rear_corners' ? rearZ : frontZ;
+            cornerXs.forEach(cx => {
+              _buildStackAt(cx, z, true, z === rearZ);
+              stackPositions.push({ x: cx, z });
+            });
+          }
         }
 
         if (_wavesEnabled && _subWavesOn) {
@@ -3792,7 +3800,7 @@ export function initRoom3D({
           const ringCurve = new THREE.CatmullRomCurve3(circleCurvePts, true);
           const ringGeo   = new THREE.TubeGeometry(ringCurve, 72, 0.04, 8, true);
 
-          stackCentres.forEach(centerX => stackZs.forEach(centerZ => {
+          stackPositions.forEach(({ x: centerX, z: centerZ }) => {
             for (let ri = 0; ri < NUM_RINGS; ri++) {
               const ringMat = new THREE.MeshBasicMaterial({
                 color: new THREE.Color(0xff2d78),
@@ -3810,7 +3818,7 @@ export function initRoom3D({
               roomGroup.add(ring);
               _waveRings.push(ring);
             }
-          }));
+          });
         }
       }
     }
