@@ -306,11 +306,21 @@ export function initRoom3D({
       const topY = floorYAbs + (room.pa_mount_height_m || 3.0);
       const topHalfX = (room.spk_spacing_m || 6) / 2;
       const topX = room.listener_offset_m || 0;
-      sources.push({ x: topX - topHalfX, y: topY, z: -halfL + 0.15, db1m: 100 });
-      sources.push({ x: topX + topHalfX, y: topY, z: -halfL + 0.15, db1m: 100 });
+      // Tops are directional horns, not omni points: each carries a
+      // horizontal aim unit vector rotated inward by toe_in_deg from the
+      // room axis, matching the toe applied to the visible top meshes.
+      // Off-axis attenuation is applied in the summing loop below, so
+      // toe-in and top position genuinely reshape the crowd heat map.
+      const toeInRad = ((room.toe_in_deg ?? 10) * Math.PI) / 180;
+      const toeSin = Math.sin(toeInRad);
+      const toeCos = Math.cos(toeInRad);
+      // Front tops fire into the room (+z); left top (−x) toes toward +x.
+      sources.push({ x: topX - topHalfX, y: topY, z: -halfL + 0.15, db1m: 100, aimX:  toeSin, aimZ:  toeCos });
+      sources.push({ x: topX + topHalfX, y: topY, z: -halfL + 0.15, db1m: 100, aimX: -toeSin, aimZ:  toeCos });
       if (room.rear_pa) {
-        sources.push({ x: topX - topHalfX, y: topY, z: halfL - 0.15, db1m: 100 });
-        sources.push({ x: topX + topHalfX, y: topY, z: halfL - 0.15, db1m: 100 });
+        // Rear tops mirrored: fire toward −z, toed inward the same way.
+        sources.push({ x: topX - topHalfX, y: topY, z: halfL - 0.15, db1m: 100, aimX:  toeSin, aimZ: -toeCos });
+        sources.push({ x: topX + topHalfX, y: topY, z: halfL - 0.15, db1m: 100, aimX: -toeSin, aimZ: -toeCos });
       }
 
       const binCount = Math.max(0, Math.min(4, room.bass_bin_count ?? 2));
@@ -339,10 +349,28 @@ export function initRoom3D({
         }
       }
 
+      // Nominal club-top horn dispersion: 90° horizontal (−6 dB at ±45°
+      // off-axis), quadratic falloff capped at −18 dB deep off-axis.
+      // Bass bin stacks have no aim vector and stay omnidirectional —
+      // correct for sub frequencies.
+      // Predictive model: not a physical measurement.
+      const hornHalfCoverageRad = (45 * Math.PI) / 180;
+
       let total = 0;
       for (const s of sources) {
         const dist = Math.max(1, Math.hypot(x - s.x, y - s.y, z - s.z));
-        total += Math.pow(10, (s.db1m - 20 * Math.log10(dist)) / 10);
+        let offAxisDb = 0;
+        if (s.aimX !== undefined) {
+          // Horizontal-plane angle between the horn axis and this point
+          const dirX = (x - s.x) / dist;
+          const dirZ = (z - s.z) / dist;
+          const horizMag = Math.max(1e-6, Math.hypot(dirX, dirZ));
+          const cosOffAxis = Math.max(-1, Math.min(1, (dirX * s.aimX + dirZ * s.aimZ) / horizMag));
+          const offAxisRad = Math.acos(cosOffAxis);
+          const offAxisRatio = offAxisRad / hornHalfCoverageRad;
+          offAxisDb = -Math.min(18, 6 * offAxisRatio * offAxisRatio);
+        }
+        total += Math.pow(10, (s.db1m + offAxisDb - 20 * Math.log10(dist)) / 10);
       }
       return total > 0 ? 10 * Math.log10(total) : -60;
     }
