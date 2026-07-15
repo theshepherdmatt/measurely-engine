@@ -303,7 +303,17 @@ export function initRoom3D({
       const floorYAbs = -room.height_m / 2;
       const sources = []; // { x, y, z, db1m }
 
-      const topY = floorYAbs + (room.pa_mount_height_m || 3.0);
+      // 'stack' mount: cabinet centre height matches the visual builder's
+      // STACK_SUB_CAB_H*2 + pa_top-profile-h/2 (0.75*2 + 0.65/2 = 1.825 m).
+      // 'tripod' mount: fixed stand height (2.0 m), not the pa_mount_height_m
+      // slider — a tripod is a manufactured product at a set height, only
+      // 'wall' brackets are height-adjustable. Both duplicated here since
+      // this function and the mesh builder are in separate scopes with no
+      // shared constant.
+      const STACK_TOP_Y = floorYAbs + 0.75 * 2 + 0.65 / 2;
+      const topY = room.pa_mount === 'stack' ? STACK_TOP_Y
+        : room.pa_mount === 'tripod' ? floorYAbs + 2.0
+        : floorYAbs + (room.pa_mount_height_m || 3.0);
       const topHalfX = (room.spk_spacing_m || 6) / 2;
       const topX = room.listener_offset_m || 0;
       // Tops are directional horns, not omni points: each carries a
@@ -316,14 +326,32 @@ export function initRoom3D({
       const toeCos = Math.cos(toeInRad);
       // Front tops fire into the room (+z); left top (−x) toes toward +x.
       // Tripod-mounted tops stand further off the wall than a bracket
-      // (leg footprint) — matches the visible mesh standoff.
-      const topWallStandoff = room.pa_mount === 'tripod' ? 0.55 : 0.15;
+      // (leg footprint); stack rigs stand at the "bass bins from front
+      // wall" distance, same as a front bass-bin stack would.
+      const topWallStandoff = room.pa_mount === 'tripod' ? 0.55
+        : room.pa_mount === 'stack' ? (room.spk_front_m ?? 1.0)
+        : 0.15;
       sources.push({ x: topX - topHalfX, y: topY, z: -halfL + topWallStandoff, db1m: 100, aimX:  toeSin, aimZ:  toeCos });
       sources.push({ x: topX + topHalfX, y: topY, z: -halfL + topWallStandoff, db1m: 100, aimX: -toeSin, aimZ:  toeCos });
       if (room.rear_pa) {
         // Rear tops mirrored: fire toward −z, toed inward the same way.
         sources.push({ x: topX - topHalfX, y: topY, z: halfL - topWallStandoff, db1m: 100, aimX:  toeSin, aimZ: -toeCos });
         sources.push({ x: topX + topHalfX, y: topY, z: halfL - topWallStandoff, db1m: 100, aimX: -toeSin, aimZ: -toeCos });
+      }
+
+      // Stack rigs carry their own subs (two per stack, per the visual
+      // builder) — an omnidirectional bass source at each stack position,
+      // independent of the separate Bass Bin Placement stacks below
+      // (those remain for extra corner/rear fill, additive not exclusive).
+      if (room.pa_mount === 'stack') {
+        const stackSubDb = 102 + 10 * Math.log10(2); // two 18"-class subs per stack
+        const stackSubY = floorYAbs + 0.55; // mid-height of the two stacked cabinets
+        sources.push({ x: topX - topHalfX, y: stackSubY, z: -halfL + topWallStandoff, db1m: stackSubDb });
+        sources.push({ x: topX + topHalfX, y: stackSubY, z: -halfL + topWallStandoff, db1m: stackSubDb });
+        if (room.rear_pa) {
+          sources.push({ x: topX - topHalfX, y: stackSubY, z: halfL - topWallStandoff, db1m: stackSubDb });
+          sources.push({ x: topX + topHalfX, y: stackSubY, z: halfL - topWallStandoff, db1m: stackSubDb });
+        }
       }
 
       const binCount = Math.max(0, Math.min(4, room.bass_bin_count ?? 2));
@@ -2180,6 +2208,46 @@ export function initRoom3D({
     }
 
     /* ------------------------------------------
+       STACKED SUB CABINET BUILDER (club 'stack' top mount)
+       Dual side-by-side drivers, one cabinet — two of these stack under
+       the pa_top cabinet to form the floor-standing rig from the photo
+       reference. Same edge-drawing pattern as _buildBassBinSpeaker.
+    ------------------------------------------ */
+    function _buildStackedSubCabinet(W, H, D, color, opacity) {
+      const grp = new THREE.Group();
+      const edgeMat = useFatEdges
+        ? new THREE.MeshBasicMaterial({ color, transparent: true, opacity })
+        : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+
+      function _ebox(w, h, d) {
+        const g = new THREE.Group();
+        if (useFatEdges) {
+          const hw = w / 2, hh = h / 2, hd = d / 2;
+          const v = [
+            new THREE.Vector3(-hw, -hh, -hd), new THREE.Vector3(hw, -hh, -hd),
+            new THREE.Vector3(hw, -hh, hd), new THREE.Vector3(-hw, -hh, hd),
+            new THREE.Vector3(-hw, hh, -hd), new THREE.Vector3(hw, hh, -hd),
+            new THREE.Vector3(hw, hh, hd), new THREE.Vector3(-hw, hh, hd),
+          ];
+          const pairs = [[0, 1], [1, 2], [2, 3], [3, 0], [4, 5], [5, 6], [6, 7], [7, 4], [0, 4], [1, 5], [2, 6], [3, 7]];
+          g.add(_fatEdgeGroup(v, pairs, EDGE_TUBE_T * 0.55, edgeMat));
+        } else {
+          g.add(new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(w, h, d)), edgeMat));
+        }
+        return g;
+      }
+
+      grp.add(_ebox(W, H, D));
+      const front = D / 2 + 0.002;
+      const driverR = W * 0.22;
+      const driverOffsetX = W * 0.26;
+      _makeConeDriver(-driverOffsetX, 0, front, driverR, false, color, opacity).forEach(o => grp.add(o));
+      _makeConeDriver( driverOffsetX, 0, front, driverR, false, color, opacity).forEach(o => grp.add(o));
+
+      return grp;
+    }
+
+    /* ------------------------------------------
        HORIZONTAL STUDIO MONITOR BUILDER
        Wide box, dual woofers, center tweeter.
     ------------------------------------------ */
@@ -2401,6 +2469,17 @@ export function initRoom3D({
     if (renderStage === "speakers" || renderStage === "furnishings") {
       const toeRad = (room.toe_in_deg || 0) * Math.PI / 180;
       const baseY = -room.height_m / 2;
+      // 'stack' top mount: dimensions of each dual-driver sub cabinet the
+      // top cabinet perches on (photo reference: two stacked subs under a
+      // horn-loaded top, floor-standing, no bracket/tripod). Sized bigger
+      // than the (unused) hi-fi bass_bin profile — these read as a real
+      // venue sub stack, not a domestic subwoofer.
+      const STACK_SUB_CAB_W = 0.85, STACK_SUB_CAB_H = 0.75, STACK_SUB_CAB_D = 0.90;
+      // 'tripod' top mount: fixed physical stand height — a tripod is a
+      // manufactured product at a set height, not something an installer
+      // dials in like a wall bracket. pa_mount_height_m (the "Top mount
+      // height" slider) only applies to 'wall'.
+      const TRIPOD_CABINET_HEIGHT_M = 2.0;
 
       const speakerSides = (room.room_type === 'club' && room.rear_pa) ? ["L", "R", "RearL", "RearR"] : ["L", "R"];
       speakerSides.forEach(side => {
@@ -2471,6 +2550,15 @@ export function initRoom3D({
           const riserLift = (room.desk_style === 'production') ? (RISER_H + POST_RISE) : 0;
           y = deskSurface + riserLift + profile.h / 2;
           z = speakerZ;
+        } else if (profile.isWallMount && room.pa_mount === 'stack') {
+          // Floor-standing stack rig: the top cabinet perches directly on
+          // two sub cabinets, self-contained on the floor — no bracket,
+          // no tripod. Standoff from the wall matches the "Bass bins from
+          // front wall" slider (room.spk_front_m) so the stack sits where
+          // a front bass-bin stack normally would, not at the tight
+          // bracket/tripod wall standoffs above.
+          y = baseY + STACK_SUB_CAB_H * 2 + profile.h / 2;
+          z = isRear ? (room.length_m / 2 - room.spk_front_m) : (-room.length_m / 2 + room.spk_front_m);
         } else if (profile.isWallMount) {
           // Club pa_top: wall bracket at height, small standoff from the
           // front wall for the bracket arm — not floor-anchored, not a
@@ -2478,11 +2566,13 @@ export function initRoom3D({
           // instead — was hardcoded to the front wall for every pa_top,
           // which put RearL/RearR at the exact same position as L/R
           // (invisible overlap, not actually missing).
-          // 'tripod' mount: same cabinet height, but standing on a
-          // speaker-pole tripod, pulled further off the wall for the leg
-          // footprint (matches topWallStandoff in the club source model).
+          // 'tripod' mount: fixed stand height (TRIPOD_CABINET_HEIGHT_M —
+          // a tripod is a manufactured product at a set height, not
+          // adjustable like a wall bracket), pulled further off the wall
+          // for the leg footprint (matches topWallStandoff in the club
+          // source model).
           const paTopStandoff = room.pa_mount === 'tripod' ? 0.55 : 0.35;
-          y = baseY + (room.pa_mount_height_m ?? 3.0);
+          y = baseY + (room.pa_mount === 'tripod' ? TRIPOD_CABINET_HEIGHT_M : (room.pa_mount_height_m ?? 3.0));
           z = isRear ? (room.length_m / 2 - paTopStandoff) : (-room.length_m / 2 + paTopStandoff);
         } else if (profile.floorStand) {
           // Floor-standing panels / statement: plinth bottom sits on rug
@@ -2587,6 +2677,21 @@ export function initRoom3D({
           spkGroup.add(new THREE.LineSegments(legGeo, standMat));
         }
 
+        // Sub cabinets for 'stack'-mounted pa_tops: two dual-driver sub
+        // cabinets directly beneath the top cabinet, floor-standing —
+        // the self-contained rig from the reference photo. y already
+        // places the group origin at the top cabinet's centre height
+        // (see the stack Y/Z branch above), so both subs sit at negative
+        // local offsets from that.
+        if (profile.isWallMount && room.pa_mount === 'stack') {
+          const subCabinet1 = _buildStackedSubCabinet(STACK_SUB_CAB_W, STACK_SUB_CAB_H, STACK_SUB_CAB_D, spkColor, spkOpacity);
+          subCabinet1.position.y = -(profile.h / 2) - STACK_SUB_CAB_H / 2;
+          spkGroup.add(subCabinet1);
+          const subCabinet2 = _buildStackedSubCabinet(STACK_SUB_CAB_W, STACK_SUB_CAB_H, STACK_SUB_CAB_D, spkColor, spkOpacity);
+          subCabinet2.position.y = -(profile.h / 2) - STACK_SUB_CAB_H * 1.5;
+          spkGroup.add(subCabinet2);
+        }
+
         // Stand for standmounts: thin post + base plate
         if (!profile.onDesk && !profile.floorStand && !profile.detailed && !profile.isWallMount) {
           // Stand spans rug-top → cabinet-bottom; subtract rugRaise so the
@@ -2625,10 +2730,11 @@ export function initRoom3D({
         // Wall bracket: plate flush to the front wall + a diagonal arm to
         // the cabinet back, plus the downward tilt a permanent install
         // aims into the room. Geometry only, no animation.
-        // Tripod mount skips all of this: the cabinet sits level on its
-        // pole (typical portable rig — no tilt adapter modelled), and
-        // tilting spkGroup would lean the tripod legs with it.
-        if (profile.isWallMount && room.pa_mount !== 'tripod') {
+        // Tripod and stack mounts skip all of this: both sit level on
+        // their own floor support (pole+legs / sub cabinets) — no tilt
+        // adapter modelled for either, and tilting spkGroup would lean
+        // the tripod legs / sub stack with it.
+        if (profile.isWallMount && room.pa_mount === 'wall') {
           // Aim at ear height on the dance floor centre, not an arbitrary
           // fixed angle — the tilt is *derived* from mount height and the
           // distance to that point, so raising/lowering the bracket (or
@@ -7164,7 +7270,14 @@ export function initRoom3D({
 
       // Actual speaker → floor → listener reflection paths (image-source method)
       const floorY = -room.height_m / 2 + 0.005;
-      const _effTweeterY = room.room_type === 'club' ? (room.pa_mount_height_m || 3.0) : (room.tweeter_height_m || 0.95);
+      // Club: matches the source-model topY branch above (tripod fixed
+      // at 2.0 m, stack derived from its cabinet stack, wall from the
+      // slider) rather than always reading the wall-mount slider.
+      const _effTweeterY = room.room_type === 'club'
+        ? (room.pa_mount === 'tripod' ? 2.0
+          : room.pa_mount === 'stack' ? (0.75 * 2 + 0.65 / 2)
+          : (room.pa_mount_height_m || 3.0))
+        : (room.tweeter_height_m || 0.95);
       const fTweeterY = -room.height_m / 2 + _effTweeterY;
       const _effEarY = room.room_type === 'club' ? 1.7 : 1.0;
       const fEarY = -room.height_m / 2 + _effEarY;
@@ -7553,7 +7666,14 @@ export function initRoom3D({
       const halfW = room.width_m  / 2;
       const halfL = room.length_m / 2;
       const halfH = room.height_m / 2;
-      const _effTweeterY = room.room_type === 'club' ? (room.pa_mount_height_m || 3.0) : (room.tweeter_height_m || 0.95);
+      // Club: matches the source-model topY branch above (tripod fixed
+      // at 2.0 m, stack derived from its cabinet stack, wall from the
+      // slider) rather than always reading the wall-mount slider.
+      const _effTweeterY = room.room_type === 'club'
+        ? (room.pa_mount === 'tripod' ? 2.0
+          : room.pa_mount === 'stack' ? (0.75 * 2 + 0.65 / 2)
+          : (room.pa_mount_height_m || 3.0))
+        : (room.tweeter_height_m || 0.95);
         const tweeterY = -halfH + _effTweeterY;
 
       // Aim halo, bounce paths, and return-pulse targets at the visible

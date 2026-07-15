@@ -1778,11 +1778,13 @@
     const mountGroup = _btnGroup(
       [
         { key: 'wall',   label: 'Wall',   title: 'Permanent install: wall brackets at height' },
-        { key: 'tripod', label: 'Tripod', title: 'Portable rig: speaker poles on tripod stands' }
+        { key: 'tripod', label: 'Tripod', title: 'Portable rig: speaker poles on tripod stands' },
+        { key: 'stack',  label: 'Stack',  title: 'Self-contained floor stack: top cabinet on its own sub cabinets' },
       ],
       cur.pa_mount,
       (key) => {
         cur.pa_mount = key;
+        _updateMountHeightVisibility();
         onChange?.({ ...cur });
       }
     );
@@ -1878,9 +1880,18 @@
         _updateSliderFill(slider);
         onChange?.({ ...cur });
       });
-      sliders[def.key] = { slider, val, def };
+      sliders[def.key] = { slider, val, def, fieldWrap: fw };
       wrap.appendChild(fw);
     }
+
+    // Top mount height only applies to 'wall' — tripod and stack are
+    // fixed-height manufactured rigs (see TRIPOD_CABINET_HEIGHT_M /
+    // STACK_SUB_CAB_H in room3d.js), not something an installer dials in.
+    function _updateMountHeightVisibility() {
+      const field = sliders.pa_mount_height_m?.fieldWrap;
+      if (field) field.style.display = cur.pa_mount === 'wall' ? '' : 'none';
+    }
+    _updateMountHeightVisibility();
 
     mount.appendChild(wrap);
 
