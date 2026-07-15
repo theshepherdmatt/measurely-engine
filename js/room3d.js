@@ -1942,7 +1942,11 @@ export function initRoom3D({
        faceZ  : Z position of the baffle face (slightly adds zOffset per layer)
        outerR : full driver radius
     ------------------------------------------------------------------ */
-    function _makeConeDriver(cx, cy, faceZ, outerR, isTweeter, color, opacity) {
+    // solid=true (club PA cabinets): layers filled discs — rubber
+    // surround, cone, dust cap — under the same ring/spoke line detail,
+    // so drivers read as real grilles/cones against a solid cabinet
+    // instead of line art that disappears against a filled dark box.
+    function _makeConeDriver(cx, cy, faceZ, outerR, isTweeter, color, opacity, solid = false) {
       const objs = [];
       const ringMat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: opacity * 0.65 });
       const spokeMat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: opacity * 0.38 });
@@ -1956,11 +1960,30 @@ export function initRoom3D({
         return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), ringMat);
       }
 
+      function _disc(r, zOff, discColor, discOpacity = 1, segments = 32) {
+        const mesh = new THREE.Mesh(
+          new THREE.CircleGeometry(r, segments),
+          new THREE.MeshBasicMaterial({ color: discColor, transparent: discOpacity < 1, opacity: discOpacity })
+        );
+        mesh.position.set(cx, cy, faceZ + zOff);
+        return mesh;
+      }
+
       if (isTweeter) {
+        if (solid) {
+          objs.push(_disc(outerR,        -0.001, 0x1a1a18));  // faceplate, recessed behind cabinet face
+          objs.push(_disc(outerR * 0.52,  0.001, 0x3a3a38));  // dome surround
+          objs.push(_disc(outerR * 0.20,  0.003, 0x8a8a86));  // dome cap — brighter metallic dot
+        }
         objs.push(_arc(outerR, 0.000));  // faceplate rim
         objs.push(_arc(outerR * 0.52, 0.002));  // dome surround
         objs.push(_arc(outerR * 0.20, 0.004));  // dome cap
       } else {
+        if (solid) {
+          objs.push(_disc(outerR,        -0.001, 0x1a1a18));  // rubber surround, recessed
+          objs.push(_disc(outerR * 0.76,  0.001, 0x2a2a28));  // cone
+          objs.push(_disc(outerR * 0.16,  0.005, 0x0a0a0a));  // dust cap
+        }
         objs.push(_arc(outerR, 0.000));  // outer surround ring
         objs.push(_arc(outerR * 0.76, 0.003));  // cone outer edge
         objs.push(_arc(outerR * 0.16, 0.007));  // dust cap
@@ -2127,13 +2150,25 @@ export function initRoom3D({
       return grp;
     }
 
-    function _buildStandmountSpeaker(W, H, D, color, opacity) {
+    // solid=true (club PA only): cabinet renders as a filled, lit box —
+    // "real gear staged in a blueprint room" — instead of the hi-fi
+    // wireframe-everything look. Drivers still draw as ring/spoke lines
+    // on top of the fill, same as before, since they read fine as grille
+    // detail against a solid cabinet.
+    function _buildStandmountSpeaker(W, H, D, color, opacity, solid = false) {
       const grp = new THREE.Group();
       const edgeMat = useFatEdges
         ? new THREE.MeshBasicMaterial({ color, transparent: true, opacity })
         : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
 
       function _ebox(w, h, d) {
+        if (solid) {
+          const mesh = new THREE.Mesh(
+            new THREE.BoxGeometry(w, h, d),
+            new THREE.MeshStandardMaterial({ color, roughness: 0.65, metalness: 0.1 })
+          );
+          return mesh;
+        }
         const g = new THREE.Group();
         if (useFatEdges) {
           const hw = w / 2, hh = h / 2, hd = d / 2;
@@ -2164,9 +2199,10 @@ export function initRoom3D({
       }
 
       grp.add(_ebox(W, H, D));
-      const front = D / 2 + 0.002;
-      _makeConeDriver(0, -H * 0.18, front, W * 0.28, false, color, opacity).forEach(o => grp.add(o));
-      _makeConeDriver(0, H * 0.28, front, W * 0.08, true, color, opacity).forEach(o => grp.add(o));
+      const front = D / 2 + (solid ? 0.005 : 0.002);
+      const driverColor = solid ? 0x555552 : color;
+      _makeConeDriver(0, -H * 0.18, front, W * 0.28, false, driverColor, opacity, solid).forEach(o => grp.add(o));
+      _makeConeDriver(0, H * 0.28, front, W * 0.08, true, driverColor, opacity, solid).forEach(o => grp.add(o));
 
       return grp;
     }
@@ -2176,13 +2212,19 @@ export function initRoom3D({
        Near-cube cabinet, single large low-frequency driver — no tweeter
        ring (subs run mono, full-range tops carry the top end).
     ------------------------------------------ */
-    function _buildBassBinSpeaker(W, H, D, color, opacity) {
+    function _buildBassBinSpeaker(W, H, D, color, opacity, solid = false) {
       const grp = new THREE.Group();
       const edgeMat = useFatEdges
         ? new THREE.MeshBasicMaterial({ color, transparent: true, opacity })
         : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
 
       function _ebox(w, h, d) {
+        if (solid) {
+          return new THREE.Mesh(
+            new THREE.BoxGeometry(w, h, d),
+            new THREE.MeshStandardMaterial({ color, roughness: 0.65, metalness: 0.1 })
+          );
+        }
         const g = new THREE.Group();
         if (useFatEdges) {
           const hw = w / 2, hh = h / 2, hd = d / 2;
@@ -2201,8 +2243,8 @@ export function initRoom3D({
       }
 
       grp.add(_ebox(W, H, D));
-      const front = D / 2 + 0.002;
-      _makeConeDriver(0, 0, front, W * 0.38, false, color, opacity).forEach(o => grp.add(o));
+      const front = D / 2 + (solid ? 0.005 : 0.002);
+      _makeConeDriver(0, 0, front, W * 0.38, false, solid ? 0x555552 : color, opacity, solid).forEach(o => grp.add(o));
 
       return grp;
     }
@@ -2213,13 +2255,19 @@ export function initRoom3D({
        the pa_top cabinet to form the floor-standing rig from the photo
        reference. Same edge-drawing pattern as _buildBassBinSpeaker.
     ------------------------------------------ */
-    function _buildStackedSubCabinet(W, H, D, color, opacity) {
+    function _buildStackedSubCabinet(W, H, D, color, opacity, solid = false) {
       const grp = new THREE.Group();
       const edgeMat = useFatEdges
         ? new THREE.MeshBasicMaterial({ color, transparent: true, opacity })
         : new THREE.LineBasicMaterial({ color, transparent: true, opacity });
 
       function _ebox(w, h, d) {
+        if (solid) {
+          return new THREE.Mesh(
+            new THREE.BoxGeometry(w, h, d),
+            new THREE.MeshStandardMaterial({ color, roughness: 0.65, metalness: 0.1 })
+          );
+        }
         const g = new THREE.Group();
         if (useFatEdges) {
           const hw = w / 2, hh = h / 2, hd = d / 2;
@@ -2238,11 +2286,12 @@ export function initRoom3D({
       }
 
       grp.add(_ebox(W, H, D));
-      const front = D / 2 + 0.002;
+      const front = D / 2 + (solid ? 0.005 : 0.002);
       const driverR = W * 0.22;
       const driverOffsetX = W * 0.26;
-      _makeConeDriver(-driverOffsetX, 0, front, driverR, false, color, opacity).forEach(o => grp.add(o));
-      _makeConeDriver( driverOffsetX, 0, front, driverR, false, color, opacity).forEach(o => grp.add(o));
+      const driverColor = solid ? 0x555552 : color;
+      _makeConeDriver(-driverOffsetX, 0, front, driverR, false, driverColor, opacity, solid).forEach(o => grp.add(o));
+      _makeConeDriver( driverOffsetX, 0, front, driverR, false, driverColor, opacity, solid).forEach(o => grp.add(o));
 
       return grp;
     }
@@ -2497,6 +2546,10 @@ export function initRoom3D({
 
         const spkColor = isSpkHighlit ? 0x0f766e : profile.color;
         const spkOpacity = isSpkHighlit ? 0.9 : Math.max(OP_OBJ, 0.80);
+        // Club PA cabinets render as solid, lit boxes — "real gear staged
+        // in a blueprint room" — rather than the hi-fi wireframe-only
+        // look; the room shell and everything else stays wireframe.
+        const spkSolid = room.room_type === 'club';
 
         const speaker = (room.room_type === 'studio' && room.speaker_orientation === 'horizontal')
           ? _buildHorizontalStudioMonitor(0.64, 0.26, 0.32, spkColor, spkOpacity)
@@ -2505,10 +2558,10 @@ export function initRoom3D({
             : profile.isPanel
               ? _buildElectrostaticSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
               : profile.isBassBin
-                ? _buildBassBinSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
+                ? _buildBassBinSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity, spkSolid)
                 : profile.detailed
                   ? _buildDetailedSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity)
-                  : _buildStandmountSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity);
+                  : _buildStandmountSpeaker(profile.w, profile.h, profile.d, spkColor, spkOpacity, spkSolid);
 
         // X position — every speaker sits at ±spk_spacing_m/2 from
         // offsetX. In studio mode room.spk_spacing_m is overridden
@@ -2684,10 +2737,10 @@ export function initRoom3D({
         // (see the stack Y/Z branch above), so both subs sit at negative
         // local offsets from that.
         if (profile.isWallMount && room.pa_mount === 'stack') {
-          const subCabinet1 = _buildStackedSubCabinet(STACK_SUB_CAB_W, STACK_SUB_CAB_H, STACK_SUB_CAB_D, spkColor, spkOpacity);
+          const subCabinet1 = _buildStackedSubCabinet(STACK_SUB_CAB_W, STACK_SUB_CAB_H, STACK_SUB_CAB_D, spkColor, spkOpacity, spkSolid);
           subCabinet1.position.y = -(profile.h / 2) - STACK_SUB_CAB_H / 2;
           spkGroup.add(subCabinet1);
-          const subCabinet2 = _buildStackedSubCabinet(STACK_SUB_CAB_W, STACK_SUB_CAB_H, STACK_SUB_CAB_D, spkColor, spkOpacity);
+          const subCabinet2 = _buildStackedSubCabinet(STACK_SUB_CAB_W, STACK_SUB_CAB_H, STACK_SUB_CAB_D, spkColor, spkOpacity, spkSolid);
           subCabinet2.position.y = -(profile.h / 2) - STACK_SUB_CAB_H * 1.5;
           spkGroup.add(subCabinet2);
         }
@@ -3863,7 +3916,7 @@ export function initRoom3D({
         function _buildStackAt(centerX, centerZ, vertical, facingRear) {
           if (vertical) {
             for (let i = 0; i < stackCount; i++) {
-              const bin = _buildBassBinSpeaker(binProfile.w, binProfile.h, binProfile.d, binColor, binOpacity);
+              const bin = _buildBassBinSpeaker(binProfile.w, binProfile.h, binProfile.d, binColor, binOpacity, true);
               if (facingRear) bin.rotation.y = Math.PI;
               bin.position.set(
                 centerX,
@@ -3878,7 +3931,7 @@ export function initRoom3D({
           for (let i = 0; i < stackCount; i++) {
             const row = Math.floor(i / cols);
             const col = i % cols;
-            const bin = _buildBassBinSpeaker(binProfile.w, binProfile.h, binProfile.d, binColor, binOpacity);
+            const bin = _buildBassBinSpeaker(binProfile.w, binProfile.h, binProfile.d, binColor, binOpacity, true);
             bin.rotation.z = Math.PI / 2;
             if (facingRear) bin.rotation.y = Math.PI;
             bin.position.set(
