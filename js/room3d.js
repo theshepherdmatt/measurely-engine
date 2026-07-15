@@ -343,7 +343,8 @@ export function initRoom3D({
             sources.push({
               x: (room.listener_offset_m || 0) + (room.booth_offset_m ?? 0),
               y: binY,
-              z: -halfL + (room.booth_front_m ?? 0.75) * 0.42,
+              // +0.294 matches the rendered stack's DESK_FORWARD shift
+              z: -halfL + (room.booth_front_m ?? 0.75) * 0.42 + 0.7 * 0.42,
               db1m: stackDb,
             });
           } else {
@@ -3184,6 +3185,13 @@ export function initRoom3D({
 
       const deskGroup = new THREE.Group();
       deskGroup.position.y = RISER_H;
+      // Desk sits forward on the riser (toward the crowd — local −Z once
+      // the booth's 180° placement flip is applied) rather than dead
+      // centre, leaving the platform depth behind the desk as DJ standing
+      // room. Riser depth 3.6 → desk front edge (1.6/2 + 0.7 = 1.5) stays
+      // just inside the riser edge (1.8).
+      const DESK_FORWARD = -0.7;
+      deskGroup.position.z = DESK_FORWARD;
       grp.add(deskGroup);
 
       // Table widened for the 4-deck layout (was 4.4/1.6, fit only 2
@@ -3411,8 +3419,12 @@ export function initRoom3D({
       // 3.6 for the 7.6m-wide 4-deck desk, 2.0 for the 4.4m-wide 2-deck
       // desk (same ratio: leg inset 0.2 from the table edge).
       const monOuterX = (room.deck_config || 'both') === 'both' ? 3.6 : 2.0;
+      // Tracks _buildDJBooth()'s DESK_FORWARD (-0.7 local) — the monitors
+      // sit on the desk, so they ride forward with it. Duplicated literal
+      // for the same scope reason as BOOTH_FOOTPRINT_SCALE above.
+      const DESK_FORWARD_LOCAL = -0.7;
       [-1, 1].forEach(sign => {
-        const localX = sign * monOuterX, localZ = -0.65;
+        const localX = sign * monOuterX, localZ = -0.65 + DESK_FORWARD_LOCAL;
         const worldX = boothX - localX * BOOTH_FOOTPRINT_SCALE; // Ry(pi) flips the sign
         const worldZ = boothZ + (-localZ) * BOOTH_FOOTPRINT_SCALE;
 
@@ -3489,7 +3501,9 @@ export function initRoom3D({
       // monRiserH — boothX (not offsetX) so the DJ follows the booth's
       // left/right offset slider instead of always sitting at room centre
       // regardless of where the booth actually is.
-      djGroup.position.set(boothX, boothFloorY + rugRaise + monRiserH, boothZ - 0.5);
+      // -0.5 behind the desk's original spot, +0.294 (DESK_FORWARD 0.7
+      // local x 0.42 footprint scale) so the DJ follows the desk forward.
+      djGroup.position.set(boothX, boothFloorY + rugRaise + monRiserH, boothZ - 0.5 + 0.7 * 0.42);
 
       // Animation flags
       const phase = Math.random() * Math.PI * 2;
@@ -3723,7 +3737,13 @@ export function initRoom3D({
         const rearZ  =  room.length_m / 2 - room.spk_front_m;
         const floorY = -room.height_m / 2;
 
-        const maxCols = 4;
+        // Horizontal (centre) stack must not poke out past the desk: cap
+        // the columns to what fits inside the desk's world-space width
+        // (deskW authored units × the booth's 0.42 footprint scale),
+        // wrapping extra bins into a second row instead. Sideways bins
+        // advance by binProfile.h per column (they lie rotated 90°).
+        const _deskWorldW = ((room.deck_config || 'both') === 'both' ? 7.6 : 4.4) * 0.42;
+        const maxCols = Math.max(1, Math.min(4, Math.floor(_deskWorldW / binProfile.h)));
         const cols = Math.min(stackCount, maxCols);
         const totalW = cols * binProfile.w;
 
@@ -3775,7 +3795,10 @@ export function initRoom3D({
             // Centre stack sits under the booth, so it follows the booth's
             // left/right offset too. Corner placements are anchored to
             // the room's side walls instead and ignore this.
-            const centreZ = -room.length_m / 2 + (room.booth_front_m ?? 0.75) * 0.42;
+            // +0.294 = the desk's DESK_FORWARD shift (0.7 local × 0.42
+            // footprint scale) so the bins stay under the desk, not
+            // poking out behind it.
+            const centreZ = -room.length_m / 2 + (room.booth_front_m ?? 0.75) * 0.42 + 0.7 * 0.42;
             const centreX = offsetX + (room.booth_offset_m ?? 0);
             _buildStackAt(centreX, centreZ, false, false);
             stackPositions.push({ x: centreX, z: centreZ });
