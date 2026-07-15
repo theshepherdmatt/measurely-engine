@@ -3372,6 +3372,24 @@ export function initRoom3D({
         }
         return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat);
       }
+      // Solid fill for the turntable plinths/platters and mixer body only
+      // — same "real gear staged in a blueprint room" treatment as the PA
+      // cabinets, same charcoal tone. Smaller booth details (knobs,
+      // faders, tonearm) stay as accent/edge lines on top, same pattern
+      // as driver grilles sitting on solid speaker cabinets.
+      const DECK_SOLID_COLOR = 0x2a2a28;
+      function _solidBox(w, h, d) {
+        return new THREE.Mesh(
+          new THREE.BoxGeometry(w, h, d),
+          new THREE.MeshStandardMaterial({ color: DECK_SOLID_COLOR, roughness: 0.65, metalness: 0.1 })
+        );
+      }
+      function _solidCylinder(rt, rb, h, segs = 40) {
+        return new THREE.Mesh(
+          new THREE.CylinderGeometry(rt, rb, h, segs),
+          new THREE.MeshStandardMaterial({ color: DECK_SOLID_COLOR, roughness: 0.65, metalness: 0.1 })
+        );
+      }
 
       // Riser platform under the whole desk (standard for a 4-deck booth —
       // DJ needs somewhere to stand that isn't the bare floor). deskGroup
@@ -3424,7 +3442,7 @@ export function initRoom3D({
         g.position.set(x, 1.06, 0);
         deskGroup.add(g);
 
-        const plinth = _ghostBox(1.35, 0.07, 1.1);
+        const plinth = _solidBox(1.35, 0.07, 1.1);
         plinth.position.y = 0.035;
         g.add(plinth);
 
@@ -3441,7 +3459,10 @@ export function initRoom3D({
             new THREE.MeshBasicMaterial({ color: 0xff1133, transparent: true, opacity: 1 })
           );
           indicator.rotation.x = -Math.PI / 2;
-          indicator.position.set(0.6, 0.072, -0.48);
+          // y nudged up from the plinth's exact top face (0.07) now that
+          // the plinth is a solid mesh, not wireframe — avoids z-fighting
+          // flicker against the fill.
+          indicator.position.set(0.6, 0.078, -0.48);
           indicator.userData.isDeckLed = true;
           indicator.userData.phase = Math.random() * Math.PI * 2;
           g.add(indicator);
@@ -3451,9 +3472,9 @@ export function initRoom3D({
         platter.position.set(-0.12, 0.08, 0);
         g.add(platter);
 
-        platter.add(_edges(new THREE.CylinderGeometry(0.44, 0.44, 0.04, 40)));
+        platter.add(_solidCylinder(0.44, 0.44, 0.04));
 
-        const vinyl = _edges(new THREE.CylinderGeometry(0.42, 0.42, 0.015, 40));
+        const vinyl = _solidCylinder(0.42, 0.42, 0.015);
         vinyl.position.y = 0.03;
         platter.add(vinyl);
 
@@ -3529,7 +3550,7 @@ export function initRoom3D({
       mixer.position.set(0, 1.06, 0.05);
       deskGroup.add(mixer);
 
-      const mixerBody = _ghostBox(0.9, 0.07, 1.0);
+      const mixerBody = _solidBox(0.9, 0.07, 1.0);
       mixerBody.position.y = 0.035;
       mixer.add(mixerBody);
 
@@ -3539,7 +3560,7 @@ export function initRoom3D({
         mixer.add(fader);
       });
 
-      const xFader = _ghostBox(0.05, 0.035, 0.06);
+      const xFader = _solidBox(0.05, 0.035, 0.06);
       xFader.position.set(0, 0.09, 0.42);
       mixer.add(xFader);
 
