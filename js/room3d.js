@@ -315,12 +315,15 @@ export function initRoom3D({
       const toeSin = Math.sin(toeInRad);
       const toeCos = Math.cos(toeInRad);
       // Front tops fire into the room (+z); left top (−x) toes toward +x.
-      sources.push({ x: topX - topHalfX, y: topY, z: -halfL + 0.15, db1m: 100, aimX:  toeSin, aimZ:  toeCos });
-      sources.push({ x: topX + topHalfX, y: topY, z: -halfL + 0.15, db1m: 100, aimX: -toeSin, aimZ:  toeCos });
+      // Tripod-mounted tops stand further off the wall than a bracket
+      // (leg footprint) — matches the visible mesh standoff.
+      const topWallStandoff = room.pa_mount === 'tripod' ? 0.55 : 0.15;
+      sources.push({ x: topX - topHalfX, y: topY, z: -halfL + topWallStandoff, db1m: 100, aimX:  toeSin, aimZ:  toeCos });
+      sources.push({ x: topX + topHalfX, y: topY, z: -halfL + topWallStandoff, db1m: 100, aimX: -toeSin, aimZ:  toeCos });
       if (room.rear_pa) {
         // Rear tops mirrored: fire toward −z, toed inward the same way.
-        sources.push({ x: topX - topHalfX, y: topY, z: halfL - 0.15, db1m: 100, aimX:  toeSin, aimZ: -toeCos });
-        sources.push({ x: topX + topHalfX, y: topY, z: halfL - 0.15, db1m: 100, aimX: -toeSin, aimZ: -toeCos });
+        sources.push({ x: topX - topHalfX, y: topY, z: halfL - topWallStandoff, db1m: 100, aimX:  toeSin, aimZ: -toeCos });
+        sources.push({ x: topX + topHalfX, y: topY, z: halfL - topWallStandoff, db1m: 100, aimX: -toeSin, aimZ: -toeCos });
       }
 
       const binCount = Math.max(0, Math.min(4, room.bass_bin_count ?? 2));
@@ -1508,6 +1511,13 @@ export function initRoom3D({
       // derived automatically (aimed at ear height on the dance floor
       // centre), not a user field — see the isWallMount bracket block.
       pa_mount_height_m: data.pa_mount_height_m ?? 3.0,
+      // Club only: how the pa_top cabinets are supported — 'wall'
+      // (permanent bracket install, the default) or 'tripod' (portable
+      // rig: speaker poles on tripod stands, cabinets pulled off the
+      // wall for the leg footprint). pa_mount_height_m drives cabinet
+      // height in both modes. Read by the pa_top mounting branch and
+      // the club source model.
+      pa_mount: data.pa_mount ?? 'wall',
       // Club only: adds RearL/RearR pa_top speakers at the back wall
       // (4-speaker layout) — read by the speakerSides branch below.
       rear_pa: data.rear_pa ?? false,
@@ -2468,8 +2478,12 @@ export function initRoom3D({
           // instead — was hardcoded to the front wall for every pa_top,
           // which put RearL/RearR at the exact same position as L/R
           // (invisible overlap, not actually missing).
+          // 'tripod' mount: same cabinet height, but standing on a
+          // speaker-pole tripod, pulled further off the wall for the leg
+          // footprint (matches topWallStandoff in the club source model).
+          const paTopStandoff = room.pa_mount === 'tripod' ? 0.55 : 0.35;
           y = baseY + (room.pa_mount_height_m ?? 3.0);
-          z = isRear ? (room.length_m / 2 - 0.35) : (-room.length_m / 2 + 0.35);
+          z = isRear ? (room.length_m / 2 - paTopStandoff) : (-room.length_m / 2 + paTopStandoff);
         } else if (profile.floorStand) {
           // Floor-standing panels / statement: plinth bottom sits on rug
           // surface, cabinet bottom sits on top of plinth.
@@ -2540,6 +2554,39 @@ export function initRoom3D({
           spkGroup.add(base);
         }
 
+        // Tripod stand for tripod-mounted pa_tops: speaker pole from the
+        // cabinet base down to a three-leg splay on the floor — the
+        // portable small-venue rig, versus the default wall bracket.
+        if (profile.isWallMount && room.pa_mount === 'tripod') {
+          const cabinetBottomY = -(profile.h / 2);         // group-local
+          const floorLocalY = baseY - y;                    // group-local floor
+          const poleHeight = cabinetBottomY - floorLocalY;
+          const standMat = new THREE.LineBasicMaterial({
+            color: spkColor, transparent: true, opacity: spkOpacity * 0.65
+          });
+          const pole = new THREE.LineSegments(
+            new THREE.EdgesGeometry(new THREE.CylinderGeometry(0.02, 0.02, poleHeight, 6)), standMat
+          );
+          pole.position.y = cabinetBottomY - poleHeight / 2;
+          spkGroup.add(pole);
+          // Three legs, 120° apart, from a collar partway up the pole out
+          // to a 0.45 m floor radius.
+          const LEG_FLOOR_RADIUS = 0.45;
+          const collarY = floorLocalY + Math.min(0.9, poleHeight * 0.45);
+          const legPts = [];
+          for (let legIndex = 0; legIndex < 3; legIndex++) {
+            const legAngle = (legIndex / 3) * Math.PI * 2 + Math.PI / 6;
+            legPts.push(new THREE.Vector3(0, collarY, 0));
+            legPts.push(new THREE.Vector3(
+              Math.cos(legAngle) * LEG_FLOOR_RADIUS,
+              floorLocalY,
+              Math.sin(legAngle) * LEG_FLOOR_RADIUS
+            ));
+          }
+          const legGeo = new THREE.BufferGeometry().setFromPoints(legPts);
+          spkGroup.add(new THREE.LineSegments(legGeo, standMat));
+        }
+
         // Stand for standmounts: thin post + base plate
         if (!profile.onDesk && !profile.floorStand && !profile.detailed && !profile.isWallMount) {
           // Stand spans rug-top → cabinet-bottom; subtract rugRaise so the
@@ -2578,7 +2625,10 @@ export function initRoom3D({
         // Wall bracket: plate flush to the front wall + a diagonal arm to
         // the cabinet back, plus the downward tilt a permanent install
         // aims into the room. Geometry only, no animation.
-        if (profile.isWallMount) {
+        // Tripod mount skips all of this: the cabinet sits level on its
+        // pole (typical portable rig — no tilt adapter modelled), and
+        // tilting spkGroup would lean the tripod legs with it.
+        if (profile.isWallMount && room.pa_mount !== 'tripod') {
           // Aim at ear height on the dance floor centre, not an arbitrary
           // fixed angle — the tilt is *derived* from mount height and the
           // distance to that point, so raising/lowering the bracket (or

@@ -1728,6 +1728,7 @@
     const cur = {
       spk_spacing_m:      state.spk_spacing_m      ?? 6.0,
       pa_mount_height_m:  state.pa_mount_height_m  ?? 3.0,
+      pa_mount:           state.pa_mount           ?? 'wall',
       toe_in_deg:         state.toe_in_deg         ?? 10,
       rear_pa:            state.rear_pa            ?? false,
       // Multi-select: an ARRAY of placement keys ('centre' | 'corners' |
@@ -1767,6 +1768,26 @@
       { key: 'toe_in_deg',        label: 'Top toe-in',       min: 0,   max: 25,   step: 1,   unit: '°', decimals: 0, hl: 'speakers' },
       { key: 'spk_front_m',       label: 'Bass bins from front wall', min: 0.2, max: 3.0, step: 0.1, unit: 'm', decimals: 1, hl: 'speakers' },
     ];
+
+    // Top mount: permanent wall-bracket install vs portable tripod
+    // stands — geometry (and the crowd-map source standoff) follow it.
+    const mountWrap = _el('div', { class: 'demo-field', style: 'margin-top:4px;' });
+    const mountHdr = _el('div', { class: 'demo-field-header' });
+    mountHdr.appendChild(_el('span', { class: 'demo-field-label' }, 'Top Mount'));
+    mountWrap.appendChild(mountHdr);
+    const mountGroup = _btnGroup(
+      [
+        { key: 'wall',   label: 'Wall',   title: 'Permanent install: wall brackets at height' },
+        { key: 'tripod', label: 'Tripod', title: 'Portable rig: speaker poles on tripod stands' }
+      ],
+      cur.pa_mount,
+      (key) => {
+        cur.pa_mount = key;
+        onChange?.({ ...cur });
+      }
+    );
+    mountWrap.appendChild(mountGroup.row);
+    wrap.appendChild(mountWrap);
 
     const rearPaWrap = _el('div', { class: 'demo-field', style: 'margin-top:4px;' });
     const rearPaHdr = _el('div', { class: 'demo-field-header' });
