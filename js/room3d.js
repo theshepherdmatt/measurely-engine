@@ -3182,25 +3182,18 @@ export function initRoom3D({
       // Table widened for the 4-deck layout (was 4.4/1.6, fit only 2
       // decks) -- symmetric deck-deck-mixer-deck-deck, standard club
       // booth convention. deskW shrinks back to 4.4 for a 2-deck booth.
+      // Slight overhang past the plinth below reads as a counter top.
       const tableTop = _ghostBox(deskW, 0.12, 1.6);
       tableTop.position.y = 1.0;
       deskGroup.add(tableTop);
 
-      const facade = _ghostBox(deskW, 1.0, 0.08);
-      facade.position.set(0, 0.5, 0.76);
-      deskGroup.add(facade);
-
-      // Leg layout: 4-deck's wider span needs the extra inner support
-      // pair; the 2-deck desk reuses the original 4-leg layout.
-      const legPositions = deckConfig === 'both'
-        ? [[-3.6, -0.65], [3.6, -0.65], [-3.6, 0.6], [3.6, 0.6],
-           [-1.5, -0.65], [1.5, -0.65], [-1.5, 0.6], [1.5, 0.6]]
-        : [[-2.0, -0.65], [2.0, -0.65], [-2.0, 0.6], [2.0, 0.6]];
-      legPositions.forEach(([x, z]) => {
-        const leg = _ghostBox(0.12, 1.0, 0.12);
-        leg.position.set(x, 0.5, z);
-        deskGroup.add(leg);
-      });
+      // Solid plinth base instead of legs + facade panel: club booths are
+      // built counters (cable management, kick-proof), not tables. One
+      // full-width box from the riser to the underside of the counter
+      // top, inset from the top's edges on all sides.
+      const plinthBase = _ghostBox(deskW - 0.3, 0.94, 1.3);
+      plinthBase.position.set(0, 0.47, 0.05);
+      deskGroup.add(plinthBase);
 
       function _makeTurntable(x, hasTonearm = true) {
         const g = new THREE.Group();
