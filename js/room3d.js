@@ -2776,7 +2776,9 @@ export function initRoom3D({
             // the studio/sofa ear height is recomputed locally.
             const _seatType = room.seating_type || 'sofa';
             const _effHead  = isStudio ? 1.22 : 0.82;
-            const _sphereZ  = isStudio ? 0.20    : (_seatType === 'lounge' ? 0.38 : 0.28);
+            // Club: the measurement position is the dance floor centre —
+            // no seat-cushion Z offset (that shift is sofa/desk geometry).
+            const _sphereZ  = room.room_type === 'club' ? 0 : (isStudio ? 0.20 : (_seatType === 'lounge' ? 0.38 : 0.28));
             const _sphereY  = room.room_type === 'club' ? 1.7 : (isStudio ? _effHead : (_seatType === 'lounge' ? 1.00 : 0.96));
             const _halfH    = room.height_m / 2;
             const _halfL    = room.length_m / 2;
@@ -4261,9 +4263,12 @@ export function initRoom3D({
           opacity: isListHighlit ? 0.95 : 0.55
         })
       );
-      // Home: shift sphere into seat. Studio: shift sphere back to match reclined backrest.
+      // Home: shift sphere into seat. Studio: shift sphere back to match
+      // reclined backrest. Club: NO shift — the measurement position is the
+      // dance floor centre, and the seat offsets were leaving the sphere
+      // 0.28m behind true centre.
       const _seatType = room.seating_type || 'sofa';
-      const _sphereZ = isStudio ? 0.20 : (_seatType === 'lounge' ? 0.38 : 0.28);
+      const _sphereZ = room.room_type === 'club' ? 0 : (isStudio ? 0.20 : (_seatType === 'lounge' ? 0.38 : 0.28));
       const _sphereY = room.room_type === 'club' ? 1.7 : (isStudio ? effectiveHeadHeight : (_seatType === 'lounge' ? 1.00 : 0.96));
       sphere.position.set(0, _sphereY, _sphereZ);
       station.add(sphere);
@@ -7495,6 +7500,15 @@ export function initRoom3D({
         new THREE.Vector3(offsetX - room.spk_spacing_m / 2, tweeterY, -halfL + room.spk_front_m),
         new THREE.Vector3(offsetX + room.spk_spacing_m / 2, tweeterY, -halfL + room.spk_front_m),
       ];
+      // Club 4-point rig: rear pa tops are real sources too — pulses and
+      // image-source bounces must come out of both PA pairs together, not
+      // just the front wall pair.
+      if (room.room_type === 'club' && room.rear_pa) {
+        speakerPositions.push(
+          new THREE.Vector3(offsetX - room.spk_spacing_m / 2, tweeterY, halfL - room.spk_front_m),
+          new THREE.Vector3(offsetX + room.spk_spacing_m / 2, tweeterY, halfL - room.spk_front_m),
+        );
+      }
 
       // ── Image-source first-order bounces (per speaker × per surface) ─────
       const IS = window.MeasurelyImageSource;
