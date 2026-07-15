@@ -10318,7 +10318,9 @@ export function initRoom3D({
     // pos/look are in ROOM METRES (same centred coordinate space the room
     // is built in: y=0 at mid-height, floor at -height/2). The engine
     // multiplies by roomGroup's scale so consumers never need to know
-    // about baseScale. Same ease-in-out-quad lerp as focusOn().
+    // about baseScale. Quintic smootherstep ease — zero velocity AND zero
+    // acceleration at both ends, so the pan starts and settles gently
+    // (ease-in-out-quad read snappy/aggressive on view-preset flights).
     flyToRoomPos({ pos, look, duration = 700 } = {}) {
       if (!pos || !look) return;
       const s = roomGroup.scale.x || 1;
@@ -10330,7 +10332,7 @@ export function initRoom3D({
       flyAnim = {
         tick(now) {
           const raw = Math.min((now - t0) / duration, 1);
-          const t = raw < 0.5 ? 2 * raw * raw : -1 + (4 - 2 * raw) * raw;
+          const t = raw * raw * raw * (raw * (raw * 6 - 15) + 10);
           camera.position.set(
             FROM_POS.x + (TO_POS.x - FROM_POS.x) * t,
             FROM_POS.y + (TO_POS.y - FROM_POS.y) * t,
@@ -10824,21 +10826,51 @@ export function initRoom3D({
      * reference room; scaling it by the current room's largest dimension keeps
      * the room filling roughly the same fraction of the viewport regardless of
      * size, so a smaller room (e.g. studio) doesn't sit tiny in the frame.
-     * Instant — no fly animation. Consumers call this after a geometry change
-     * such as applying per-room-type default dimensions on a room-type switch.
+     * Instant by default — consumers call it after a geometry change such as
+     * applying per-room-type default dimensions on a room-type switch.
+     * Pass { animate: true, duration } to glide there instead (same
+     * smootherstep fly as flyToRoomPos) — used by view-preset buttons where
+     * an instant snap reads jarring.
      */
-    frameRoom() {
+    frameRoom({ animate = false, duration = 700 } = {}) {
       flyAnim = null;
       const r = _lastRoom || {};
       const longest = Math.max(r.width_m || 5.5, r.length_m || 5.5, r.height_m || 5.5);
       const scale = longest / 5.5;
-      camera.position.set(
-        DEFAULT_CAMERA.pos.x * scale,
-        DEFAULT_CAMERA.pos.y * scale,
-        DEFAULT_CAMERA.pos.z * scale
-      );
-      controls.target.set(DEFAULT_CAMERA.target.x, DEFAULT_CAMERA.target.y, DEFAULT_CAMERA.target.z);
+      const TO_POS = {
+        x: DEFAULT_CAMERA.pos.x * scale,
+        y: DEFAULT_CAMERA.pos.y * scale,
+        z: DEFAULT_CAMERA.pos.z * scale,
+      };
+      const TO_LOOK = DEFAULT_CAMERA.target;
       controls.enabled = true;
+      if (animate) {
+        // DEFAULT_CAMERA is already in world units — same smootherstep
+        // fly as flyToRoomPos, without its room-metre scaling.
+        const FROM_POS = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
+        const FROM_LOOK = { x: controls.target.x, y: controls.target.y, z: controls.target.z };
+        const t0 = performance.now();
+        flyAnim = {
+          tick(now) {
+            const raw = Math.min((now - t0) / duration, 1);
+            const t = raw * raw * raw * (raw * (raw * 6 - 15) + 10);
+            camera.position.set(
+              FROM_POS.x + (TO_POS.x - FROM_POS.x) * t,
+              FROM_POS.y + (TO_POS.y - FROM_POS.y) * t,
+              FROM_POS.z + (TO_POS.z - FROM_POS.z) * t,
+            );
+            controls.target.set(
+              FROM_LOOK.x + (TO_LOOK.x - FROM_LOOK.x) * t,
+              FROM_LOOK.y + (TO_LOOK.y - FROM_LOOK.y) * t,
+              FROM_LOOK.z + (TO_LOOK.z - FROM_LOOK.z) * t,
+            );
+            if (raw >= 1) flyAnim = null; // done
+          }
+        };
+        return;
+      }
+      camera.position.set(TO_POS.x, TO_POS.y, TO_POS.z);
+      controls.target.set(TO_LOOK.x, TO_LOOK.y, TO_LOOK.z);
       controls.update();
     },
 
