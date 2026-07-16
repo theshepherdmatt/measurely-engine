@@ -3354,14 +3354,15 @@ export function initRoom3D({
       function _edges(geo) {
         return new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), furnEdgeMat);
       }
-      // Accent-colour parts (turntable label/pitch-fader/button, mixer
-      // faders) stay hidden in the normal sales-consultation view -- teal
-      // accent on booth gear reads as noise there. In disco mode they
-      // light up, giving the booth a "lit-up club gear" look instead of
-      // flat charcoal wireframe.
+      // Control detail (turntable label/pitch-fader/button, mixer faders)
+      // is always visible now that the decks/mixer are solid — controls
+      // read as real gear detail rather than noise against a filled
+      // cabinet (the old wireframe-only booth hid them entirely outside
+      // disco mode). Disco mode still gets the "lit-up club gear" look:
+      // charcoal in the normal sales-consultation view, teal accent when
+      // disco is on.
       function _accentEdges(geo) {
-        const m = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), accentMat);
-        m.visible = _discoEnabled;
+        const m = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), _discoEnabled ? accentMat : furnEdgeMat);
         return m;
       }
       function _circle(r, y, mat, segs = 40) {
@@ -3454,8 +3455,18 @@ export function initRoom3D({
         // monitor hit earlier: sizing this in real target units directly
         // (0.025) rendered at under half that).
         if (_discoEnabled) {
+          // Dim halo behind the bright core — reads as a genuinely "lit"
+          // indicator from normal viewing distance instead of a flat dot.
+          const glow = new THREE.Mesh(
+            new THREE.CircleGeometry((0.05 / 0.42) * 2.2, 16),
+            new THREE.MeshBasicMaterial({ color: 0xff1133, transparent: true, opacity: 0.35 })
+          );
+          glow.rotation.x = -Math.PI / 2;
+          glow.position.set(0.6, 0.077, -0.48);
+          g.add(glow);
+
           const indicator = new THREE.Mesh(
-            new THREE.CircleGeometry(0.05 / 0.42, 16),
+            new THREE.CircleGeometry((0.05 / 0.42) * 1.4, 16),
             new THREE.MeshBasicMaterial({ color: 0xff1133, transparent: true, opacity: 1 })
           );
           indicator.rotation.x = -Math.PI / 2;
@@ -3573,17 +3584,23 @@ export function initRoom3D({
         });
       }
 
-      // VU meter LEDs -- static charcoal (matches the rest of the desk) in
-      // the normal sales-consultation view. In disco mode each gets its
-      // own colour (green/yellow/red VU gradient) and animate() chases
-      // brightness up/down the column per side, like a real level meter.
+      // VU meter LEDs -- static charcoal outline (matches the rest of the
+      // desk) in the normal sales-consultation view. In disco mode each
+      // becomes a filled, unlit light (not just a coloured outline —
+      // outlines read as near-invisible dashes at normal viewing
+      // distance) with its own colour (green/yellow/red VU gradient);
+      // animate() chases brightness up/down the column per side, like a
+      // real level meter. Sized up from the charcoal-detail dimensions so
+      // the lit state is actually legible from across the room.
       const vuLedColors = [0x33ff66, 0x33ff66, 0x33ff66, 0xffdd33, 0xffdd33, 0xff3344];
       [-0.36, 0.36].forEach(x => {
         for (let i = 0; i < 6; i++) {
-          const ledMat = _discoEnabled
-            ? new THREE.LineBasicMaterial({ color: vuLedColors[i], transparent: true, opacity: 1 })
-            : furnEdgeMat;
-          const led = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.03, 0.012, 0.03), 20), ledMat);
+          const led = _discoEnabled
+            ? new THREE.Mesh(
+                new THREE.BoxGeometry(0.05, 0.02, 0.05),
+                new THREE.MeshBasicMaterial({ color: vuLedColors[i], transparent: true, opacity: 1 })
+              )
+            : new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.03, 0.012, 0.03), 20), furnEdgeMat);
           led.position.set(x, 0.075, 0.05 - i * 0.055);
           if (_discoEnabled) {
             led.userData.isVuLed = true;
